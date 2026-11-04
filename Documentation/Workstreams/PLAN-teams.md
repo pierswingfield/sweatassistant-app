@@ -61,9 +61,9 @@ One card per Team, ordered by the soonest upcoming shared class. **Pinning:** a 
 - **No pending-request badge** (decided 2026-11-04; requests are visible only on the link page, §5.6).
 - The viewer's own state, if paused: "You're hidden from this Team".
 
-Primary action: **Create Team**. Secondary: **Join with a link** (a paste field, since iOS PWAs often open shared links in Safari rather than the installed app, §7).
+Primary action: **Create Team**, the only action. There is **no "Join with a link" paste field** (removed 2026-11-04): joining happens only by opening a Team's URL (§5.6).
 
-Empty state: the mascot, then exactly: "A Team is a private group (like friends, or a group chat) that can share their workout schedule and book in together. You can choose what your team sees, and what is private." Then Create plus Join.
+Empty state (no Teams): the mascot, then exactly: "A Team is a private group (like friends, or a group chat) that can share their workout schedule and book in together. You can choose what your team sees, and what is private." Then **Create a Team** as the only action.
 
 ### 5.3 Team dashboard
 
@@ -131,7 +131,7 @@ Joining is **strictly via the URL** (decided 2026-11-04).
 
 ### 5.7 Manage page
 
-One page, opened from the dashboard header, full-screen on mobile via `modal-nav.js` (the mobile full-screen page helper). Sections appear according to the viewer's role. **There is no invite-link widget or section** (decided 2026-11-04).
+One page, opened from the dashboard header, full-screen on mobile via `modal-nav.js` (the mobile full-screen page helper). Sections appear according to the viewer's role. There is no invite-link section on this page: Share sits in the dashboard header and Reset link / Turn off joining are Team settings items (§5.6).
 
 - **Everyone:**
   - **My sharing:** the §3 sheet for this Team, plus Pause and the friendly-competition opt-in (only shown when the Team has it on).
@@ -142,7 +142,7 @@ One page, opened from the dashboard header, full-screen on mobile via `modal-nav
   - **Join requests:** the approve / decline / block list.
   - **Team settings:** name, emoji, friendly competition (Captains), **Reset link**, **Turn off joining**, and **Delete Team** (typed confirmation of the Team name). The "Any member can approve requests" setting is removed.
 
-**Open question for the owner:** "remove the invite link widget" is read here as removing the widget only, with Share in the header and Reset/Turn off as Team settings items. If it also means Captains should have no way to reset or turn off the link, say so; the cost is that a leaked link could never be revoked.
+**Resolved 2026-11-04:** the "invite link widget" the owner asked to remove was the Teams list's "Join with a link" paste field, which is gone (§5.2). Captains keep link management: Share in the dashboard header, and Reset link / Turn off joining in Team settings.
 
 ### 5.8 Onboarding, names and landing page
 
@@ -298,7 +298,7 @@ T-1 and T-2 are the privacy-critical core; they should be reviewed (`/code-revie
 | D3 | Sharing defaults | Everything on except **spot numbers** and the **auto-book queue**, which are opt-in |
 | D4 | Roles and approval | **Captains** with equal, shared ownership. **Only Captains approve** requests (no "any member can approve" setting; removed 2026-11-04). The Manage page (§5.7) covers members' own sharing and leaving, and Captains' member and Captain management. |
 | D8 | Teams list (2026-11-04) | No pending-request badge. Members of more than 3 Teams can pin up to 2. "Rest day", not "Quiet day". |
-| D9 | Joining (2026-11-04) | Strictly via URL. Pending requests are visible only on the invite link page itself. No invite-link widget on Manage; Share sits in the dashboard header, Reset and turn-off inside Team settings. |
+| D9 | Joining (2026-11-04) | Strictly via URL. The Teams list's "Join with a link" paste field is removed (that was the "invite link widget"); the empty state offers Create only. Pending requests are visible only on the invite link page itself. Captains keep link management: Share in the dashboard header, Reset link and Turn off joining in Team settings. |
 | D10 | Dashboard (2026-11-04) | Today's workouts first, then This week. Stats are a carousel on mobile. Team streak defined in §5.3. |
 | D11 | Mascot poses (2026-11-04) | The exercising pose rotates daily from a registry in one module (§5.4). |
 | D12 | Names (2026-11-04) | Collect first and last name; Teams show first name plus last initial on a clash (§5.5, §5.8). |

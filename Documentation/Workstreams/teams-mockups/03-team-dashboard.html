@@ -9,165 +9,210 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="mock.css">
+<link rel="stylesheet" href="fav-card.css">
 <script src="chrome.js"></script>
+<!-- Query params (screenshot aids): ?theme=dark  ?competition=on (Leaderboard slide + member streaks, proposed)
+     ?sort=open (sort menu open)  ?members=2 (second members page)  ?stats=1|2|3 (carousel slide)  ?week=more (See more expanded)  ?ct=grid -->
 </head>
-<body data-nav="teams" data-badge="2">
+<body data-nav="teams">
 <main class="page">
-  <div class="row" style="padding:0 4px 8px"><a class="btn ghost" href="02-teams-list.html" style="padding-left:4px">‹ Teams</a></div>
+  <div class="dash-top">
+    <a class="btn ghost" href="02-teams-list.html" style="padding-left:4px">‹ Teams</a>
+    <span class="grow"></span>
+    <button class="icon-btn" aria-label="Share invite link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></button>
+    <a class="icon-btn" href="04b-manage-captain.html" aria-label="Manage Team"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></a>
+    <button class="btn txt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>Share link</button>
+    <a class="btn txt" href="04b-manage-captain.html">Manage</a>
+  </div>
+
   <div class="dash">
     <div class="dash-col">
       <!-- 1. Header -->
       <section class="card">
         <div class="hero" style="padding:4px 2px">
-          <span class="mascot lg" style="--s:104px">
+          <span class="mascot lg" style="--s:108px">
             <span class="disc"></span>
-            <svg class="ring" viewBox="0 0 104 104"><circle class="track" cx="52" cy="52" r="49"/><circle class="prog" cx="52" cy="52" r="49" stroke-dasharray="77 231"/></svg>
-            <img src="img/bike.png" alt="Team mascot: exercising">
+            <svg class="ring" viewBox="0 0 108 108"><circle class="track" cx="54" cy="54" r="51"/><circle class="prog" cx="54" cy="54" r="51" stroke-dasharray="104 216"/></svg>
+            <img src="img/pose-skip.webp" alt="Team mascot: exercising (today's pose: skipping)">
           </span>
           <div class="grow">
             <h1>Tuesday Riders</h1>
             <p class="state">Ana and Sam are in class now</p>
-            <p class="meta">8 members · 4 classes today, 1 done · +2 at other gyms</p>
+            <p class="meta">1 of 4 workouts done today</p>
           </div>
-        </div>
-        <div class="hero-actions">
-          <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>Share link</button>
-          <a class="btn" href="04b-manage-captain.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Manage</a>
         </div>
       </section>
 
-      <!-- 2. Now and next -->
+      <!-- 2. Today's workouts -->
       <section class="card">
-        <div class="card-head"><h3 class="card-title">Now &amp; next</h3><span class="card-meta">Today</span></div>
-        <div class="nn-row">
+        <div class="card-head"><h3 class="card-title">Today's workouts</h3><span class="card-meta">Wed 4 Nov</span></div>
+        <div class="wo done">
+          <span class="st"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 5 5 9-10"/></svg></span></span>
+          <div class="grow"><div class="ct-name ellip">06:45 Ride 30 · Psycle Bank</div><div class="att"><b>Tom</b> · done</div></div>
+        </div>
+        <div class="wo">
           <span class="pring"><svg viewBox="0 0 44 44"><circle class="track" cx="22" cy="22" r="19"/><circle class="prog" cx="22" cy="22" r="19" stroke-dasharray="58 119"/></svg>23m</span>
-          <div class="grow">
-            <div class="row"><span class="live">In class</span><span class="muted xs">07:30–08:15</span></div>
-            <div class="ct-name ellip">Ride 45 · Psycle Oxford Circus</div>
-          </div>
-          <span class="stack-av"><span class="av xs c2">A</span><span class="av xs c3">S</span></span>
+          <div class="grow"><div class="row"><span class="live">In class</span><span class="muted xs">07:30–08:15</span></div><div class="ct-name ellip">Ride 45 · Psycle Oxford Circus</div><div class="att"><b>Ana</b> <span class="spot">· Bike 14</span>, <b>Sam</b></div></div>
         </div>
-        <div class="nn-row">
-          <span class="nn-time">12:15</span>
-          <div class="grow"><div class="ct-name ellip">Barre 50 · Psycle Notting Hill</div><div class="muted sm">Priya</div></div>
-          <span class="stack-av"><span class="av xs c4">P</span></span>
+        <div class="wo">
+          <span class="st"><span class="up">12:15</span></span>
+          <div class="grow"><div class="ct-name ellip">Barre 50 · Psycle Notting Hill</div><div class="att"><b>Priya</b></div></div>
         </div>
-        <div class="nn-row">
-          <span class="nn-time">18:30</span>
-          <div class="grow"><div class="ct-name ellip">Ride 30 · Psycle Shoreditch</div><div class="muted sm">You and Tom</div></div>
-          <span class="stack-av"><span class="av xs c1">P</span><span class="av xs c5">T</span></span>
-        </div>
-        <p class="muted xs" style="padding-top:8px;border-top:1px solid var(--separator)">+2 more today at gyms you haven't linked</p>
-      </section>
-
-      <!-- 3. Classes together -->
-      <section class="card">
-        <div class="card-head"><h3 class="card-title">Classes together</h3><span class="card-meta">2+ members booked</span></div>
-        <div class="hscroll">
-          <article class="ct-card">
-            <div class="ct-when">Wed 5 · <b>07:30</b></div>
-            <div><span class="disc-tag" style="--c:var(--disc-ride)">Ride</span></div>
-            <div class="ct-name">Ride 45 with Kemi</div>
-            <div class="ct-loc"><span class="gym-sq psy">PSY</span>Psycle Shoreditch</div>
-            <div class="ct-mid"><span class="stack-av"><span class="av xs c2">A</span><span class="av xs c3">S</span><span class="av xs c5">T</span></span><span class="grow"></span><span class="pill">6 spots left</span></div>
-            <button class="btn primary">Book</button>
-          </article>
-          <article class="ct-card">
-            <div class="ct-when">Thu 6 · <b>07:15</b></div>
-            <div><span class="disc-tag" style="--c:var(--disc-reformer)">Reformer</span></div>
-            <div class="ct-name">Reformer 50 with Lou</div>
-            <div class="ct-loc"><span class="gym-sq psy">PSY</span>Psycle Victoria</div>
-            <div class="ct-mid"><span class="stack-av"><span class="av xs c1">P</span><span class="av xs c2">A</span></span><span class="grow"></span><span class="pill">2 spots left</span></div>
-            <button class="btn in">You're in ✓</button>
-          </article>
-          <article class="ct-card">
-            <div class="ct-when">Thu 6 · <b>19:00</b></div>
-            <div><span class="disc-tag" style="--c:var(--disc-strength)">Boxing</span></div>
-            <div class="ct-name">Boxing Conditioning</div>
-            <div class="ct-loc"><span class="gym-sq jab">JAB</span>JAB Shoreditch</div>
-            <div class="ct-mid"><span class="stack-av"><span class="av xs c5">T</span><span class="av xs c7">J</span></span><span class="grow"></span><span class="pill">4 spots left</span></div>
-            <button class="btn gymoff">Turn on JAB to book</button>
-          </article>
-          <article class="ct-card">
-            <div class="ct-when">Sat 8 · <b>10:00</b></div>
-            <div><span class="disc-tag" style="--c:var(--disc-barre)">Barre</span></div>
-            <div class="ct-name">Barre 50 with Georgia</div>
-            <div class="ct-loc"><span class="gym-sq psy">PSY</span>Psycle Notting Hill</div>
-            <div class="ct-mid"><span class="stack-av"><span class="av xs c4">P</span><span class="av xs c6">E</span></span><span class="grow"></span><span class="pill auto">Opens Mon 12:00</span></div>
-            <button class="btn auto">Auto-book</button>
-          </article>
-          <article class="ct-card">
-            <div class="ct-when">Sun 9 · <b>11:00</b></div>
-            <div><span class="disc-tag" style="--c:var(--disc-ride)">Ride</span></div>
-            <div class="ct-name">Ride 45 with Ollie</div>
-            <div class="ct-loc"><span class="gym-sq psy">PSY</span>Psycle Clapham</div>
-            <div class="ct-mid"><span class="stack-av"><span class="av xs c3">S</span><span class="av xs c8">H</span><span class="av xs c6">E</span></span><span class="grow"></span><span class="pill warn">Full · 3 waiting</span></div>
-            <button class="btn wait">Join waitlist</button>
-          </article>
-          <article class="ct-card other">
-            <div class="big">+2</div>
-            <div class="ct-name">at other gyms this week</div>
-            <p class="muted xs">Members share classes at gyms you haven't linked. They count towards the Team, but details stay hidden.</p>
-          </article>
+        <div class="wo">
+          <span class="st"><span class="up">18:30</span></span>
+          <div class="grow"><div class="ct-name ellip">Train · JAB Shoreditch</div><div class="att"><b>You</b>, <b>Josh</b></div></div>
         </div>
       </section>
 
-      <!-- 4. Week view -->
-      <section class="card">
-        <div class="card-head"><h3 class="card-title">This week</h3><span class="card-meta">One dot per member</span></div>
+      <!-- 3. This week -->
+      <section class="card" id="week">
+        <div class="card-head"><h3 class="card-title">This week</h3></div>
         <div class="week">
-          <div class="wd has today"><span class="h">Tue</span><span class="n">4</span><span class="dots"><i class="dot c2"></i><i class="dot c3"></i><i class="dot c4"></i><i class="dot c1"></i></span></div>
-          <div class="wd has sel"><span class="h">Wed</span><span class="n">5</span><span class="dots"><i class="dot c2"></i><i class="dot c3"></i><i class="dot c5"></i><i class="dot c7"></i></span><span class="plus">+1</span></div>
-          <div class="wd has"><span class="h">Thu</span><span class="n">6</span><span class="dots"><i class="dot c1"></i><i class="dot c2"></i><i class="dot c5"></i><i class="dot c7"></i></span></div>
-          <div class="wd"><span class="h">Fri</span><span class="n">7</span><span class="dots"><i class="dot c8"></i></span></div>
-          <div class="wd has"><span class="h">Sat</span><span class="n">8</span><span class="dots"><i class="dot c4"></i><i class="dot c6"></i><i class="dot c3"></i></span></div>
-          <div class="wd has"><span class="h">Sun</span><span class="n">9</span><span class="dots"><i class="dot c3"></i><i class="dot c8"></i><i class="dot c6"></i></span></div>
-          <div class="wd"><span class="h">Mon</span><span class="n">10</span><span class="dots"></span></div>
+          <div class="wd has today sel"><span class="h">Wed</span><span class="n">4</span><span class="dots"><i class="dot c5"></i><i class="dot c2"></i><i class="dot c3"></i><i class="dot c4"></i><i class="dot c1"></i></span></div>
+          <div class="wd has"><span class="h">Thu</span><span class="n">5</span><span class="dots"><i class="dot c2"></i><i class="dot c3"></i><i class="dot c5"></i></span></div>
+          <div class="wd has"><span class="h">Fri</span><span class="n">6</span><span class="dots"><i class="dot c1"></i><i class="dot c2"></i></span></div>
+          <div class="wd"><span class="h">Sat</span><span class="n">7</span><span class="dots"><i class="dot c8"></i></span></div>
+          <div class="wd has"><span class="h">Sun</span><span class="n">8</span><span class="dots"><i class="dot c4"></i><i class="dot c6"></i><i class="dot c3"></i></span></div>
+          <div class="wd"><span class="h">Mon</span><span class="n">9</span><span class="dots"></span></div>
+          <div class="wd has"><span class="h">Tue</span><span class="n">10</span><span class="dots"><i class="dot c3"></i><i class="dot c2"></i><i class="dot c7"></i></span></div>
         </div>
-        <div class="day-list">
-          <p class="t-label muted" style="font:600 12px/1.4 var(--font-sans);letter-spacing:.06em;text-transform:uppercase;padding:4px 0">Wednesday 5 November</p>
-          <div class="dl-row"><span class="nn-time">07:30</span><div class="grow"><div class="ct-name ellip">Ride 45 · Psycle Shoreditch</div><div class="muted sm">Ana, Sam, Tom</div></div><span class="stack-av"><span class="av xs c2">A</span><span class="av xs c3">S</span><span class="av xs c5">T</span></span></div>
-          <div class="dl-row"><span class="nn-time">18:30</span><div class="grow"><div class="ct-name ellip">Train · JAB Shoreditch</div><div class="muted sm">Josh</div></div><span class="stack-av"><span class="av xs c7">J</span></span></div>
-          <div class="dl-row"><span class="nn-time faint">—</span><div class="grow muted sm">+1 at a gym you haven't linked</div></div>
-        </div>
+        <div class="day-list" id="daylist"></div>
+      </section>
+
+      <!-- 4. Classes together (reuses the Home favourite card) -->
+      <section class="card">
+        <div class="card-head"><h3 class="card-title">Classes together</h3></div>
+        <div class="home-favourites-strip ct-strip fav-host hscroll" id="ct"></div>
       </section>
     </div>
 
     <div class="dash-col">
       <!-- 5. Members -->
-      <section class="card">
-        <div class="card-head"><h3 class="card-title">Members</h3><span class="card-meta">8 of 16</span></div>
-        <a class="req-row" href="04b-manage-captain.html" style="color:inherit;text-decoration:none"><span class="count-badge">2</span><span class="grow">2 requests to join</span><span class="muted" style="font-size:22px">›</span></a>
-        <div class="mem"><span class="av lg c1">PW</span><div class="grow"><div class="name">You <span class="captain"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m3 7 4.5 4L12 4l4.5 7L21 7l-2 12H5Z"/></svg>Captain</span></div><div class="muted sm">3 this week · 9 in Nov</div><div class="muted xs ellip">Next: today 18:30 Ride 30</div></div><span class="gyms"><span class="gym-sq psy">PSY</span><span class="gym-sq jab">JAB</span></span></div>
-        <div class="mem"><span class="av lg c2">AO</span><div class="grow"><div class="name">Ana <span class="captain"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m3 7 4.5 4L12 4l4.5 7L21 7l-2 12H5Z"/></svg>Captain</span></div><div class="muted sm">4 this week · 11 in Nov</div><div class="muted xs ellip">In class now · Ride 45</div></div><span class="gyms"><span class="gym-sq psy">PSY</span></span></div>
-        <div class="mem"><span class="av lg c3">SB</span><div class="grow"><div class="name">Sam</div><div class="muted sm">5 this week · 12 in Nov</div><div class="muted xs ellip">In class now · Ride 45</div></div><span class="gyms"><span class="gym-sq psy">PSY</span></span></div>
-        <div class="mem"><span class="av lg c4">PS</span><div class="grow"><div class="name">Priya</div><div class="muted sm">2 this week · 6 in Nov</div><div class="muted xs ellip">Next: today 12:15 Barre 50</div></div><span class="gyms"><span class="gym-sq psy">PSY</span></span></div>
-        <div class="mem"><span class="av lg c5">TH</span><div class="grow"><div class="name">Tom</div><div class="muted sm">3 this week · 8 in Nov</div><div class="xs ellip" style="color:var(--warning)">Updated 3 h ago</div></div><span class="gyms"><span class="gym-sq psy">PSY</span><span class="gym-sq jab">JAB</span></span></div>
-        <div class="mem"><span class="av lg c6">EW</span><div class="grow"><div class="name">Ellie</div><div class="muted sm">1 this week · 4 in Nov</div><div class="muted xs ellip">Next: Sat 10:00 Barre 50</div></div><span class="gyms"><span class="gym-sq psy">PSY</span></span></div>
-        <div class="mem"><span class="av lg c7">JO</span><div class="grow"><div class="name">Josh</div><div class="muted sm">2 this week · 7 in Nov</div><div class="muted xs ellip">Next: Wed 18:30 Train</div></div><span class="gyms"><span class="gym-sq jab">JAB</span></span></div>
-        <div class="mem"><span class="av lg c8">HM</span><div class="grow"><div class="name">Hannah</div><div class="muted sm">2 this week · 5 in Nov</div><div class="muted xs ellip">Her classes are at a gym you haven't linked</div></div><span class="gyms"><span class="pill xs">Other gym</span></span></div>
+      <section class="card" id="members">
+        <div class="card-head" style="position:relative">
+          <h3 class="card-title">Members</h3><span class="card-meta">8</span>
+          <button class="icon-btn sm" aria-label="Sort members" aria-haspopup="menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M3 16l4 4 4-4"/><path d="M17 20V4M13 8l4-4 4 4"/></svg></button>
+          <div class="menu-pop" id="sortmenu" hidden>
+            <div class="cap">Sort members by</div>
+            <div class="mi">Name</div>
+            <div class="mi on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m5 12.5 5 5 9-10"/></svg>Activity</div>
+            <div class="mi">Shuffle</div>
+          </div>
+        </div>
+        <div class="pager desk-flat" id="mempager"></div>
+        <div class="dots-nav desk-hide" id="memdots"></div>
       </section>
 
-      <!-- 6. Team stats -->
-      <section class="card">
-        <div class="card-head"><h3 class="card-title">Team stats</h3><span class="card-meta">Nov so far</span></div>
-        <div class="stat-grid">
-          <div class="stat"><div class="row" style="align-items:end"><div class="grow"><div class="v">14</div><div class="l">classes this week</div></div><div class="wk-bars"><span style="height:30px;--c:color-mix(in srgb,var(--text) 20%,transparent)"></span><span style="height:38px"></span></div></div><div class="xs" style="color:var(--success);font-weight:600;margin-top:4px">+3 on last week (11)</div></div>
-          <div class="stat"><div class="v">5 days</div><div class="l">The Team has trained 5 days running</div></div>
-        </div>
-        <div style="margin-top:14px"><div class="card-sub">Discipline mix</div>
-          <div class="mix"><span style="--c:var(--disc-ride);width:42%"></span><span style="--c:var(--disc-strength);width:24%"></span><span style="--c:var(--disc-barre);width:16%"></span><span style="--c:var(--disc-reformer);width:12%"></span><span style="--c:var(--disc-yoga);width:6%"></span></div>
-          <div class="legend"><span><i style="--c:var(--disc-ride)"></i>Ride 42%</span><span><i style="--c:var(--disc-strength)"></i>Boxing 24%</span><span><i style="--c:var(--disc-barre)"></i>Barre 16%</span><span><i style="--c:var(--disc-reformer)"></i>Reformer 12%</span><span><i style="--c:var(--disc-yoga)"></i>Yoga 6%</span></div>
-        </div>
-        <div style="margin-top:14px"><div class="card-sub">Busiest times</div>
-          <div class="hours"><span style="height:20%"></span><span style="height:85%"></span><span style="height:100%"></span><span style="height:40%"></span><span style="height:10%"></span><span style="height:5%"></span><span style="height:30%"></span><span style="height:22%"></span><span style="height:8%"></span><span style="height:5%"></span><span style="height:12%"></span><span style="height:35%"></span><span style="height:78%"></span><span style="height:90%"></span><span style="height:45%"></span><span style="height:10%"></span></div>
-          <div class="hours-axis"><span>06:00</span><span>10:00</span><span>14:00</span><span>18:00</span><span>21:00</span></div>
-        </div>
-        <p class="muted xs" style="margin-top:12px">No leaderboard: friendly competition is off for this Team.</p>
-      </section>
+
     </div>
   </div>
-  <p class="note"><b>Mock-up notes.</b> Widget order per §5.3. Classes-together CTAs shown left to right: Book, You're in ✓, Turn on JAB (viewer's JAB link is paused), Auto-book (not released yet, release time on the card), Join waitlist, then the "+2 at other gyms" tile (D2). Week dots use each member's Team colour. Hannah trains at a gym the viewer has not linked, so her row shows counts and "Other gym" with no class details. Tom's data is older than the sync cadence, so his row says "Updated 3 h ago".</p>
+  <div class="dash-full">
+    <!-- 6. Team stats -->
+    <section class="card" id="stats">
+      <div class="card-head"><h3 class="card-title">Team stats</h3><span class="card-meta">This week</span></div>
+      <div class="stat-grid">
+        <div class="stat"><div class="v">14</div><div class="l">classes this week</div><div class="xs" style="color:var(--success);font-weight:600;margin-top:4px">+3 on last week</div></div>
+        <div class="stat"><div class="v">5 days</div><div class="l">Team streak</div><div class="xs muted" style="margin-top:4px">A shared class done every day since Sat</div></div>
+      </div>
+      <div class="pager desk-grid" id="statpager" style="margin-top:12px"></div>
+      <div class="dots-nav desk-hide" id="statdots"></div>
+    </section>
+  </div>
+  <p class="note" id="notes"><b>Mock-up notes.</b> Round 2 (§5.3). Share (Captains only) and Manage are icons beside the back link on mobile, text on desktop. Today's workouts lists done, in-progress (ring to class end) and upcoming. This week opens on the day of the next class and shows at most 3 classes, then See more. Classes together reuses the Home favourite card; teammates sit left of the button. Members page 4 at a time with dots. Stats is a carousel on mobile and side by side on desktop. Spot numbers ("Ana · Bike 14") only appear for members who opted in.</p>
 </main>
+<script>
+(function () {
+  const q = new URLSearchParams(location.search);
+  const comp = q.get('competition') === 'on';
+  const C = { You:'c1', Ana:'c2', Sam:'c3', Priya:'c4', Tom:'c5', Ellie:'c6', Josh:'c7', Hannah:'c8' };
+  const INI = { You:'PW', Ana:'AO', Sam:'SB', Priya:'PS', Tom:'TH', Ellie:'EW', Josh:'JO', Hannah:'HM' };
+  const av = (n, size = 'xs') => `<span class="av ${size} ${C[n]}">${size === 'xs' ? n[0] : INI[n]}</span>`;
+  const stack = (ns) => `<span class="stack-av">${ns.map(n => av(n)).join('')}</span>`;
+
+  // ---- This week list: max 3, then See more ----
+  const today = [
+    ['06:45', 'Ride 30', 'Rob', ['Tom']],
+    ['07:30', 'Ride 45', 'Kemi', ['Ana · Bike 14', 'Sam']],
+    ['12:15', 'Barre 50', 'Georgia', ['Priya']],
+    ['18:30', 'Train', 'George', ['You', 'Josh']],
+  ];
+  const more = q.get('week') === 'more';
+  const rows = (more ? today : today.slice(0, 3)).map(([t, n, ins, att]) => `
+    <div class="wrow"><div class="l1"><span class="t">${t}</span><span>${n}</span></div>
+      <div class="l2">${ins}</div><div class="sep"></div>
+      <div class="l3">${stack(att.map(a => a.split(' ')[0]))}<span class="att">${att.map(a => a.includes('·') ? `<b>${a.split(' · ')[0]}</b> <span class="spot">· ${a.split(' · ')[1]}</span>` : `<b>${a}</b>`).join(', ')}</span></div></div>`).join('');
+  document.getElementById('daylist').innerHTML = `<p class="list-section" style="padding:6px 0 0">Today · Wednesday 4 November</p>${rows}` +
+    (more ? `<button class="btn ghost see-more">Show less</button>` : `<button class="btn see-more">See more (1)</button>`);
+
+  // ---- Classes together: Home favourite card markup + attendees left of the CTA ----
+  const cards = [
+    { gym:'psy', when:'Thu 5 Nov · 07:30', cls:'Ride 45', ins:'Kemi', st:['open','6 spots left'], att:['Ana','Sam','Tom'], cta:['', 'Book'] },
+    { gym:'psy', when:'Fri 6 Nov · 07:15', cls:'Reformer 50', ins:'Lou', st:['open','2 spots left'], att:['You','Ana'], cta:['in', "You're in ✓"] },
+    { gym:'jab', when:'Fri 6 Nov · 19:00', cls:'Boxing Conditioning', ins:'George Davies', st:['open','4 spots left'], att:['Tom','Josh'], cta:['off', 'Turn on JAB'] },
+    { gym:'psy', when:'Sun 8 Nov · 10:00', cls:'Barre 50', ins:'Georgia', st:['release','Opens Mon 9 Nov, 12:00'], att:['Priya','Ellie'], cta:['auto', 'Auto-book'] },
+    { gym:'psy', when:'Tue 10 Nov · 11:00', cls:'Ride 45', ins:'Ollie', st:['full','Full · waitlist 3'], att:['Sam','Hannah','Ellie'], cta:['wait', 'Join waitlist'] },
+  ];
+  const mark = (g) => g === 'jab' ? '<span class="app-gym-mark" style="background:#6C1F20;width:28px;height:28px;border-radius:8px;letter-spacing:0">JAB</span>' : '<span class="app-gym-mark" style="background:#212121;width:28px;height:28px;border-radius:8px">PSY</span>';
+  document.getElementById('ct').innerHTML = cards.map(c => `
+    <article class="home-favourite-card">
+      <div class="home-favourite-media"><span class="home-favourite-initial">${c.ins[0]}</span><span class="home-favourite-instructor" title="${c.ins}">${c.ins}</span></div>
+      <div class="home-favourite-body">
+        <div class="home-favourite-meta"><span class="home-favourite-gym">${mark(c.gym)}</span><div class="home-favourite-when">${c.when}</div></div>
+        <div class="home-favourite-class">${c.cls}</div>
+        <p class="home-favourite-status is-${c.st[0]}">${c.st[1]}</p>
+        <div class="ct-action-row">${stack(c.att)}<button type="button" class="home-favourite-cta ${c.cta[0] ? 'variant-' + c.cta[0] : ''}">${c.cta[1]}</button></div>
+      </div>
+    </article>`).join('');
+
+  // ---- Members: 4 per page, dots, sort by activity ----
+  const mem = [
+    ['Sam', false, 5, 12, 'In class now · Ride 45', ['psy'], 9],
+    ['Ana', true, 4, 11, 'In class now · Ride 45 · Bike 14', ['psy'], 6],
+    ['You', true, 3, 9, 'Next: today 18:30 Train', ['psy','jab'], 4],
+    ['Tom', false, 3, 8, 'Updated 3 h ago', ['psy','jab'], 0, true],
+    ['Priya', false, 2, 6, 'Next: today 12:15 Barre 50', ['psy'], 2],
+    ['Josh', false, 2, 7, 'Next: today 18:30 Train', ['jab'], 0],
+    ['Hannah', false, 2, 5, 'Trains at a gym you haven\'t linked', ['other'], 0],
+    ['Ellie', false, 1, 4, 'Next: Sun 10:00 Barre 50', ['psy'], 0],
+  ];
+  const crown = '<span class="captain"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m3 7 4.5 4L12 4l4.5 7L21 7l-2 12H5Z"/></svg>Captain</span>';
+  const chips = (g) => g.map(x => x === 'other' ? '<span class="pill">Other gym</span>' : `<span class="gym-sq ${x}">${x === 'jab' ? 'JAB' : 'PSY'}</span>`).join('');
+  const memCard = ([n, cap, wk, mo, next, g, streak, stale]) => `
+    <div class="mem-card">${av(n, 'lg')}<div class="grow"><div class="name row" style="gap:6px;font-weight:600">${n}${cap ? crown : ''}${comp && streak ? `<span class="streak">🔥 ${streak}-day</span>` : ''}</div>
+      <div class="muted sm">${wk} this week · ${mo} in Nov</div><div class="xs ellip" style="color:${stale ? 'var(--warning)' : 'var(--text-secondary)'}">${next}</div></div>
+      <span class="row" style="gap:4px">${chips(g)}</span></div>`;
+  const pages = [mem.slice(0, 4), mem.slice(4, 8)];
+  document.getElementById('mempager').innerHTML = pages.map(p => `<div class="pg">${p.map(memCard).join('')}</div>`).join('');
+  const mp = q.get('members') === '2' ? 1 : 0;
+  document.getElementById('memdots').innerHTML = pages.map((_, i) => `<i class="${i === mp ? 'on' : ''}"></i>`).join('');
+  if (q.get('sort') === 'open') document.getElementById('sortmenu').hidden = false;
+
+  // ---- Stats carousel ----
+  const days = [['Mon',6],['Tue',9],['Wed',8],['Thu',11],['Fri',5],['Sat',13],['Sun',10]];
+  const maxD = 13;
+  const slides = [
+    `<div class="stat-slide"><div class="chart-title">Busiest days</div><div class="bars" style="--n:7">${days.map(([d,v]) => `<span class="${v === maxD ? 'hi' : ''}" style="height:${v / maxD * 100}%"></span>`).join('')}</div><div class="bar-axis" style="--n:7">${days.map(([d]) => `<span>${d}</span>`).join('')}</div><p class="xs muted" style="margin-top:8px">Last 4 weeks · Saturday is the Team's day</p></div>`,
+    `<div class="stat-slide"><div class="chart-title">Gym mix</div><div class="gymmix">
+      <div class="gm"><span class="row" style="gap:6px"><span class="gym-sq psy">PSY</span>Psycle</span><span class="track"><span class="fill" style="display:block;width:64%;background:#212121"></span></span><b class="data">64%</b></div>
+      <div class="gm"><span class="row" style="gap:6px"><span class="gym-sq jab">JAB</span>JAB</span><span class="track"><span class="fill" style="display:block;width:26%;background:#6C1F20"></span></span><b class="data">26%</b></div>
+      <div class="gm"><span class="row" style="gap:6px"><span class="gym-sq" style="background:#8a8a8a">+</span>Other gyms</span><span class="track"><span class="fill" style="display:block;width:10%;background:color-mix(in srgb,var(--text) 35%,transparent)"></span></span><b class="data">10%</b></div>
+      </div><p class="xs muted" style="margin-top:10px">Coloured by each gym's brand. "Other gyms" are ones you haven't linked.</p></div>`,
+    `<div class="stat-slide"><div class="chart-title">Busiest times</div><div class="hours"><span style="height:20%"></span><span style="height:85%"></span><span style="height:100%"></span><span style="height:40%"></span><span style="height:10%"></span><span style="height:5%"></span><span style="height:30%"></span><span style="height:22%"></span><span style="height:8%"></span><span style="height:5%"></span><span style="height:12%"></span><span style="height:35%"></span><span style="height:78%"></span><span style="height:90%"></span><span style="height:45%"></span><span style="height:10%"></span></div><div class="hours-axis"><span>06:00</span><span>10:00</span><span>14:00</span><span>18:00</span><span>21:00</span></div></div>`,
+  ];
+  if (comp) slides.push(`<div class="stat-slide"><div class="chart-title row">Leaderboard <span class="proposed">Proposed</span></div><div class="lb">
+      ${[['Sam',5,12],['Ana',4,11],['You',3,9],['Priya',2,6]].map(([n,w,m],i) => `<div class="r"><span class="pos">${i + 1}</span>${av(n)}<span class="n">${n}</span><span class="v">${w}</span><span class="muted xs" style="width:52px;text-align:right">${m} in Nov</span></div>`).join('')}
+      </div><p class="xs muted" style="margin-top:6px">Classes this week. Only the 4 members who opted in are ranked.</p></div>`);
+  const sp = Math.max(0, Math.min(slides.length - 1, (parseInt(q.get('stats'), 10) || 1) - 1));
+  const pager = document.getElementById('statpager');
+  pager.style.setProperty('--cols', slides.length);
+  pager.innerHTML = slides.map(s => `<div class="pg">${s}</div>`).join('');
+  document.getElementById('statdots').innerHTML = slides.map((_, i) => `<i class="${i === sp ? 'on' : ''}"></i>`).join('');
+  requestAnimationFrame(() => {
+    const mp2 = document.getElementById('mempager'); mp2.scrollLeft = mp * mp2.clientWidth;
+    pager.scrollLeft = sp * pager.clientWidth;
+  });
+  if (comp) document.getElementById('notes').insertAdjacentHTML('beforeend', ' <b>Friendly competition on (proposed):</b> a Leaderboard slide joins the carousel and opted-in members show a streak chip.');
+})();
+</script>
 </body>
 </html>

@@ -12,7 +12,7 @@
 <script src="chrome.js"></script>
 </head>
 <body data-chrome="none">
-<header class="ovl-header"><a class="back" href="03-team-dashboard.html" aria-label="Back">‹</a><h3>Flat 4B</h3></header>
+<header class="ovl-header"><a class="back" href="02-teams-list.html" aria-label="Back">‹</a><h3>Flat 4B</h3></header>
 <main class="ovl-body">
   <h2 class="group-title">My sharing</h2>
   <p class="group-help">What Flat 4B can see about you. Changes apply straight away.</p>
@@ -28,25 +28,34 @@
     <div class="sw-row"><div class="grow"><div class="t">Recent classes</div><div class="d">Your classes from the last 30 days</div></div><span class="sw on" role="switch" aria-checked="true"></span></div>
     <div class="sw-row"><div class="grow"><div class="t">Spot numbers <span class="pill off">Opt in</span></div><div class="d">"Bike 14", so friends can pick the spot next to you</div></div><span class="sw" role="switch" aria-checked="false"></span></div>
     <div class="sw-row"><div class="grow"><div class="t">Auto-book queue <span class="pill off">Opt in</span></div><div class="d">Classes you're trying for, before they're booked</div></div><span class="sw" role="switch" aria-checked="false"></span></div>
-    <div class="sw-row"><div class="grow"><div class="t">Friendly competition <span class="pill off">Opt in</span></div><div class="d">Leaderboards and streaks, only if the Team turns them on</div></div><span class="sw" role="switch" aria-checked="false"></span></div>
   </div>
   <p class="never"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6Z"/><path d="m9 12 2 2 4-4"/></svg><span>Never shared, whatever you choose: late cancels, no-shows, your email address and your gym logins. Cancelled classes disappear straight away.</span></p>
+  <div class="list" style="margin-top:12px">
+    <div class="sw-row"><div class="grow"><div class="t">Friendly competition <span class="proposed">Proposed</span></div><div class="d">Flat 4B has leaderboards on. Opt in to appear in them and show your streak.</div></div><span class="sw" role="switch" aria-checked="false"></span></div>
+  </div>
+
   <h2 class="group-title">Pause</h2>
   <div class="list">
     <div class="sw-row" style="flex-wrap:wrap;gap:10px">
-      <div class="grow"><div class="t">Hide me from this Team</div><div class="d" style="color:var(--warning);font-weight:600">Hidden until Thu 6 Nov, 09:00</div></div>
+      <div class="grow"><div class="t">Hide me from this Team</div><div class="d" style="color:var(--warning);font-weight:600">Hidden until Fri 6 Nov, 09:00</div></div>
       <span class="sw on" role="switch" aria-checked="true"></span>
       <span class="seg" style="width:100%"><span style="flex:1">24 hours</span><span class="on" style="flex:1">7 days</span><span style="flex:1">Until I unhide</span></span>
     </div>
   </div>
   <p class="group-help" style="margin-top:8px">While hidden, the Team sees nothing about you, not even that you're hidden. You still see the Team.</p>
 
+  <h2 class="group-title">Pin to top</h2>
+  <div class="list">
+    <div class="sw-row"><div class="grow"><div class="t">Pin Flat 4B</div><div class="d">Keep it at the top of your Teams list. 2 of 2 pins used.</div></div><span class="sw on" role="switch" aria-checked="true"></span></div>
+  </div>
+  <p class="group-help" style="margin-top:8px">Shown because you're in more than 3 Teams.</p>
+
   <h2 class="group-title">Leave</h2>
   <div class="card">
-    <p class="sm">Leaving stops sharing your classes, waitlists and activity with Flat 4B at once. You'd need a new invite to come back.</p>
+    <p class="sm">Leaving stops sharing your classes, waitlists and activity with Flat 4B at once. You'd need the Team's link to ask to rejoin.</p>
     <button class="btn danger-ghost block" style="margin-top:12px">Leave Flat 4B</button>
   </div>
-  <p class="note"><b>Mock-up notes.</b> Member view of Manage (§5.7): My sharing, Pause, Leave. No Captain sections. Full-screen page on mobile via modal-nav.js; centred column on desktop.</p>
+  <p class="note"><b>Mock-up notes.</b> Member view of Manage (§5.7): My sharing (plus the competition opt-in, only when the Team has it on), Pause, Pin to top (only for members of more than 3 Teams), Leave.</p>
 </main>
 <footer class="ovl-footer"><div class="inner"><button class="btn primary">Done</button></div></footer>
 </body>

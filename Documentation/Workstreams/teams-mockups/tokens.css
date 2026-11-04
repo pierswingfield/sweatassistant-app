@@ -332,3 +332,54 @@
   --glass-solid: #fcfaf5;
   --glass-edge: rgba(84, 56, 24, 0.12);
 }
+
+/* Nav + tone tokens: verbatim copy of client/src/styles.css lines 11167-11215 */
+:root {
+  --tone-ink: var(--text); /* ink used to darken a surface tonally; warm brown in light so tints never go grey */
+  --nav-h: calc(56px + env(safe-area-inset-bottom));
+  --nav-clear: var(--nav-h);
+  --nav-glass-bg: rgba(32, 28, 24, 0.70);          /* docked: slightly glassier than the old .82 */
+  --nav-glass-blur: blur(22px) saturate(1.5);
+  /* Shared 'bar' material: the docked bottom nav AND the timetable header use exactly these, so they cannot drift. */
+  --bar-bg: var(--nav-glass-bg);
+  --bar-blur: var(--nav-glass-blur);
+  --bar-border: var(--border-strong);
+  --nav-ink: rgba(243, 237, 228, 0.78);             /* inactive icon + label: warm cream, not flat white */
+  --nav-ink-active: var(--accent);
+  --lg-fill: rgba(32, 28, 24, 0.64);
+  --lg-blur: blur(24px) saturate(1.8) brightness(1.04);
+  --lg-lens: rgba(255, 238, 215, 0.12);
+  --lg-lens-edge: rgba(255, 238, 215, 0.22);
+  --lg-spec: rgba(255, 244, 228, 0.28);
+  --lg-ring-a: rgba(255, 244, 228, 0.50);
+  --lg-ring-b: rgba(255, 244, 228, 0.06);
+  --lg-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.30);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --tone-ink: #5a3d22;
+    --nav-glass-bg: rgba(252, 250, 245, 0.78);
+    --nav-ink: #5c4333;
+    --nav-ink-active: var(--accent-hover);
+    --lg-fill: rgba(252, 250, 245, 0.70);
+    --lg-lens: rgba(255, 255, 255, 0.58);
+    --lg-lens-edge: rgba(168, 85, 58, 0.28);
+    --lg-spec: rgba(255, 255, 255, 0.95);
+    --lg-ring-a: rgba(255, 255, 255, 0.95);
+    --lg-ring-b: rgba(255, 255, 255, 0.20);
+    --lg-shadow: 0 10px 28px rgba(84, 56, 24, 0.20), 0 2px 6px rgba(84, 56, 24, 0.12);
+  }
+}
+:root[data-theme="light"] {
+  --tone-ink: #5a3d22;
+  --nav-glass-bg: rgba(252, 250, 245, 0.78);
+  --nav-ink: #5c4333;
+  --nav-ink-active: var(--accent-hover);
+  --lg-fill: rgba(252, 250, 245, 0.70);
+  --lg-lens: rgba(255, 255, 255, 0.58);
+  --lg-lens-edge: rgba(168, 85, 58, 0.28);
+  --lg-spec: rgba(255, 255, 255, 0.95);
+  --lg-ring-a: rgba(255, 255, 255, 0.95);
+  --lg-ring-b: rgba(255, 255, 255, 0.20);
+  --lg-shadow: 0 10px 28px rgba(84, 56, 24, 0.20), 0 2px 6px rgba(84, 56, 24, 0.12);
+}

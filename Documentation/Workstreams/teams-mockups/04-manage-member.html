@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Manage Team</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="mock.css">
+<script src="chrome.js"></script>
+</head>
+<body data-chrome="none">
+<header class="ovl-header"><a class="back" href="03-team-dashboard.html" aria-label="Back">‹</a><h3>Flat 4B</h3></header>
+<main class="ovl-body">
+  <h2 class="group-title">My sharing</h2>
+  <p class="group-help">What Flat 4B can see about you. Changes apply straight away.</p>
+  <div class="list">
+    <div class="sw-row" style="flex-wrap:wrap">
+      <div class="grow"><div class="t">Gyms</div><div class="d">Which gyms' classes this Team can see</div></div>
+      <span class="seg"><span class="on">All my gyms</span><span>Choose</span></span>
+      <div class="chips" style="width:100%"><span class="chip"><span class="gym-sq psy">PSY</span>Psycle London</span><span class="chip"><span class="gym-sq jab">JAB</span>JAB Boxing Club</span><span class="muted xs" style="align-self:center">+ gyms you link later</span></div>
+    </div>
+    <div class="sw-row"><div class="grow"><div class="t">Upcoming classes</div><div class="d">Gym, class, time, studio and instructor</div></div><span class="sw on" role="switch" aria-checked="true"></span></div>
+    <div class="sw-row"><div class="grow"><div class="t">Waitlists</div><div class="d">"On the waitlist for Ride 45, Wed 07:30"</div></div><span class="sw on" role="switch" aria-checked="true"></span></div>
+    <div class="sw-row"><div class="grow"><div class="t">Activity counts</div><div class="d">Classes this week and month. Powers the Team mascot</div></div><span class="sw on" role="switch" aria-checked="true"></span></div>
+    <div class="sw-row"><div class="grow"><div class="t">Recent classes</div><div class="d">Your classes from the last 30 days</div></div><span class="sw on" role="switch" aria-checked="true"></span></div>
+    <div class="sw-row"><div class="grow"><div class="t">Spot numbers <span class="pill off">Opt in</span></div><div class="d">"Bike 14", so friends can pick the spot next to you</div></div><span class="sw" role="switch" aria-checked="false"></span></div>
+    <div class="sw-row"><div class="grow"><div class="t">Auto-book queue <span class="pill off">Opt in</span></div><div class="d">Classes you're trying for, before they're booked</div></div><span class="sw" role="switch" aria-checked="false"></span></div>
+    <div class="sw-row"><div class="grow"><div class="t">Friendly competition <span class="pill off">Opt in</span></div><div class="d">Leaderboards and streaks, only if the Team turns them on</div></div><span class="sw" role="switch" aria-checked="false"></span></div>
+  </div>
+  <p class="never"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6Z"/><path d="m9 12 2 2 4-4"/></svg><span>Never shared, whatever you choose: late cancels, no-shows, your email address and your gym logins. Cancelled classes disappear straight away.</span></p>
+  <h2 class="group-title">Pause</h2>
+  <div class="list">
+    <div class="sw-row" style="flex-wrap:wrap;gap:10px">
+      <div class="grow"><div class="t">Hide me from this Team</div><div class="d" style="color:var(--warning);font-weight:600">Hidden until Thu 6 Nov, 09:00</div></div>
+      <span class="sw on" role="switch" aria-checked="true"></span>
+      <span class="seg" style="width:100%"><span style="flex:1">24 hours</span><span class="on" style="flex:1">7 days</span><span style="flex:1">Until I unhide</span></span>
+    </div>
+  </div>
+  <p class="group-help" style="margin-top:8px">While hidden, the Team sees nothing about you, not even that you're hidden. You still see the Team.</p>
+
+  <h2 class="group-title">Leave</h2>
+  <div class="card">
+    <p class="sm">Leaving stops sharing your classes, waitlists and activity with Flat 4B at once. You'd need a new invite to come back.</p>
+    <button class="btn danger-ghost block" style="margin-top:12px">Leave Flat 4B</button>
+  </div>
+  <p class="note"><b>Mock-up notes.</b> Member view of Manage (§5.7): My sharing, Pause, Leave. No Captain sections. Full-screen page on mobile via modal-nav.js; centred column on desktop.</p>
+</main>
+<footer class="ovl-footer"><div class="inner"><button class="btn primary">Done</button></div></footer>
+</body>
+</html>

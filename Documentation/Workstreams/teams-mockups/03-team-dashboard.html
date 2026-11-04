@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Team dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="mock.css">
+<script src="chrome.js"></script>
+</head>
+<body data-nav="teams" data-badge="2">
+<main class="page">
+  <div class="row" style="padding:0 4px 8px"><a class="btn ghost" href="02-teams-list.html" style="padding-left:4px">‹ Teams</a></div>
+  <div class="dash">
+    <div class="dash-col">
+      <!-- 1. Header -->
+      <section class="card">
+        <div class="hero" style="padding:4px 2px">
+          <span class="mascot lg" style="--s:104px">
+            <span class="disc"></span>
+            <svg class="ring" viewBox="0 0 104 104"><circle class="track" cx="52" cy="52" r="49"/><circle class="prog" cx="52" cy="52" r="49" stroke-dasharray="77 231"/></svg>
+            <img src="img/bike.png" alt="Team mascot: exercising">
+          </span>
+          <div class="grow">
+            <h1>Tuesday Riders</h1>
+            <p class="state">Ana and Sam are in class now</p>
+            <p class="meta">8 members · 4 classes today, 1 done · +2 at other gyms</p>
+          </div>
+        </div>
+        <div class="hero-actions">
+          <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>Share link</button>
+          <a class="btn" href="04b-manage-captain.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Manage</a>
+        </div>
+      </section>
+
+      <!-- 2. Now and next -->
+      <section class="card">
+        <div class="card-head"><h3 class="card-title">Now &amp; next</h3><span class="card-meta">Today</span></div>
+        <div class="nn-row">
+          <span class="pring"><svg viewBox="0 0 44 44"><circle class="track" cx="22" cy="22" r="19"/><circle class="prog" cx="22" cy="22" r="19" stroke-dasharray="58 119"/></svg>23m</span>
+          <div class="grow">
+            <div class="row"><span class="live">In class</span><span class="muted xs">07:30–08:15</span></div>
+            <div class="ct-name ellip">Ride 45 · Psycle Oxford Circus</div>
+          </div>
+          <span class="stack-av"><span class="av xs c2">A</span><span class="av xs c3">S</span></span>
+        </div>
+        <div class="nn-row">
+          <span class="nn-time">12:15</span>
+          <div class="grow"><div class="ct-name ellip">Barre 50 · Psycle Notting Hill</div><div class="muted sm">Priya</div></div>
+          <span class="stack-av"><span class="av xs c4">P</span></span>
+        </div>
+        <div class="nn-row">
+          <span class="nn-time">18:30</span>
+          <div class="grow"><div class="ct-name ellip">Ride 30 · Psycle Shoreditch</div><div class="muted sm">You and Tom</div></div>
+          <span class="stack-av"><span class="av xs c1">P</span><span class="av xs c5">T</span></span>
+        </div>
+        <p class="muted xs" style="padding-top:8px;border-top:1px solid var(--separator)">+2 more today at gyms you haven't linked</p>
+      </section>
+
+      <!-- 3. Classes together -->
+      <section class="card">
+        <div class="card-head"><h3 class="card-title">Classes together</h3><span class="card-meta">2+ members booked</span></div>
+        <div class="hscroll">
+          <article class="ct-card">
+            <div class="ct-when">Wed 5 · <b>07:30</b></div>
+            <div><span class="disc-tag" style="--c:var(--disc-ride)">Ride</span></div>
+            <div class="ct-name">Ride 45 with Kemi</div>
+            <div class="ct-loc"><span class="gym-sq psy">PSY</span>Psycle Shoreditch</div>
+            <div class="ct-mid"><span class="stack-av"><span class="av xs c2">A</span><span class="av xs c3">S</span><span class="av xs c5">T</span></span><span class="grow"></span><span class="pill">6 spots left</span></div>
+            <button class="btn primary">Book</button>
+          </article>
+          <article class="ct-card">
+            <div class="ct-when">Thu 6 · <b>07:15</b></div>
+            <div><span class="disc-tag" style="--c:var(--disc-reformer)">Reformer</span></div>
+            <div class="ct-name">Reformer 50 with Lou</div>
+            <div class="ct-loc"><span class="gym-sq psy">PSY</span>Psycle Victoria</div>
+            <div class="ct-mid"><span class="stack-av"><span class="av xs c1">P</span><span class="av xs c2">A</span></span><span class="grow"></span><span class="pill">2 spots left</span></div>
+            <button class="btn in">You're in ✓</button>
+          </article>
+          <article class="ct-card">
+            <div class="ct-when">Thu 6 · <b>19:00</b></div>
+            <div><span class="disc-tag" style="--c:var(--disc-strength)">Boxing</span></div>
+            <div class="ct-name">Boxing Conditioning</div>
+            <div class="ct-loc"><span class="gym-sq jab">JAB</span>JAB Shoreditch</div>
+            <div class="ct-mid"><span class="stack-av"><span class="av xs c5">T</span><span class="av xs c7">J</span></span><span class="grow"></span><span class="pill">4 spots left</span></div>
+            <button class="btn gymoff">Turn on JAB to book</button>
+          </article>
+          <article class="ct-card">
+            <div class="ct-when">Sat 8 · <b>10:00</b></div>
+            <div><span class="disc-tag" style="--c:var(--disc-barre)">Barre</span></div>
+            <div class="ct-name">Barre 50 with Georgia</div>
+            <div class="ct-loc"><span class="gym-sq psy">PSY</span>Psycle Notting Hill</div>
+            <div class="ct-mid"><span class="stack-av"><span class="av xs c4">P</span><span class="av xs c6">E</span></span><span class="grow"></span><span class="pill auto">Opens Mon 12:00</span></div>
+            <button class="btn auto">Auto-book</button>
+          </article>
+          <article class="ct-card">
+            <div class="ct-when">Sun 9 · <b>11:00</b></div>
+            <div><span class="disc-tag" style="--c:var(--disc-ride)">Ride</span></div>
+            <div class="ct-name">Ride 45 with Ollie</div>
+            <div class="ct-loc"><span class="gym-sq psy">PSY</span>Psycle Clapham</div>
+            <div class="ct-mid"><span class="stack-av"><span class="av xs c3">S</span><span class="av xs c8">H</span><span class="av xs c6">E</span></span><span class="grow"></span><span class="pill warn">Full · 3 waiting</span></div>
+            <button class="btn wait">Join waitlist</button>
+          </article>
+          <article class="ct-card other">
+            <div class="big">+2</div>
+            <div class="ct-name">at other gyms this week</div>
+            <p class="muted xs">Members share classes at gyms you haven't linked. They count towards the Team, but details stay hidden.</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- 4. Week view -->
+      <section class="card">
+        <div class="card-head"><h3 class="card-title">This week</h3><span class="card-meta">One dot per member</span></div>
+        <div class="week">
+          <div class="wd has today"><span class="h">Tue</span><span class="n">4</span><span class="dots"><i class="dot c2"></i><i class="dot c3"></i><i class="dot c4"></i><i class="dot c1"></i></span></div>
+          <div class="wd has sel"><span class="h">Wed</span><span class="n">5</span><span class="dots"><i class="dot c2"></i><i class="dot c3"></i><i class="dot c5"></i><i class="dot c7"></i></span><span class="plus">+1</span></div>
+          <div class="wd has"><span class="h">Thu</span><span class="n">6</span><span class="dots"><i class="dot c1"></i><i class="dot c2"></i><i class="dot c5"></i><i class="dot c7"></i></span></div>
+          <div class="wd"><span class="h">Fri</span><span class="n">7</span><span class="dots"><i class="dot c8"></i></span></div>
+          <div class="wd has"><span class="h">Sat</span><span class="n">8</span><span class="dots"><i class="dot c4"></i><i class="dot c6"></i><i class="dot c3"></i></span></div>
+          <div class="wd has"><span class="h">Sun</span><span class="n">9</span><span class="dots"><i class="dot c3"></i><i class="dot c8"></i><i class="dot c6"></i></span></div>
+          <div class="wd"><span class="h">Mon</span><span class="n">10</span><span class="dots"></span></div>
+        </div>
+        <div class="day-list">
+          <p class="t-label muted" style="font:600 12px/1.4 var(--font-sans);letter-spacing:.06em;text-transform:uppercase;padding:4px 0">Wednesday 5 November</p>
+          <div class="dl-row"><span class="nn-time">07:30</span><div class="grow"><div class="ct-name ellip">Ride 45 · Psycle Shoreditch</div><div class="muted sm">Ana, Sam, Tom</div></div><span class="stack-av"><span class="av xs c2">A</span><span class="av xs c3">S</span><span class="av xs c5">T</span></span></div>
+          <div class="dl-row"><span class="nn-time">18:30</span><div class="grow"><div class="ct-name ellip">Train · JAB Shoreditch</div><div class="muted sm">Josh</div></div><span class="stack-av"><span class="av xs c7">J</span></span></div>
+          <div class="dl-row"><span class="nn-time faint">—</span><div class="grow muted sm">+1 at a gym you haven't linked</div></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="dash-col">
+      <!-- 5. Members -->
+      <section class="card">
+        <div class="card-head"><h3 class="card-title">Members</h3><span class="card-meta">8 of 16</span></div>
+        <a class="req-row" href="04b-manage-captain.html" style="color:inherit;text-decoration:none"><span class="count-badge">2</span><span class="grow">2 requests to join</span><span class="muted" style="font-size:22px">›</span></a>
+        <div class="mem"><span class="av lg c1">PW</span><div class="grow"><div class="name">You <span class="captain"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m3 7 4.5 4L12 4l4.5 7L21 7l-2 12H5Z"/></svg>Captain</span></div><div class="muted sm">3 this week · 9 in Nov</div><div class="muted xs ellip">Next: today 18:30 Ride 30</div></div><span class="gyms"><span class="gym-sq psy">PSY</span><span class="gym-sq jab">JAB</span></span></div>
+        <div class="mem"><span class="av lg c2">AO</span><div class="grow"><div class="name">Ana <span class="captain"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m3 7 4.5 4L12 4l4.5 7L21 7l-2 12H5Z"/></svg>Captain</span></div><div class="muted sm">4 this week · 11 in Nov</div><div class="muted xs ellip">In class now · Ride 45</div></div><span class="gyms"><span class="gym-sq psy">PSY</span></span></div>
+        <div class="mem"><span class="av lg c3">SB</span><div class="grow"><div class="name">Sam</div><div class="muted sm">5 this week · 12 in Nov</div><div class="muted xs ellip">In class now · Ride 45</div></div><span class="gyms"><span class="gym-sq psy">PSY</span></span></div>
+        <div class="mem"><span class="av lg c4">PS</span><div class="grow"><div class="name">Priya</div><div class="muted sm">2 this week · 6 in Nov</div><div class="muted xs ellip">Next: today 12:15 Barre 50</div></div><span class="gyms"><span class="gym-sq psy">PSY</span></span></div>
+        <div class="mem"><span class="av lg c5">TH</span><div class="grow"><div class="name">Tom</div><div class="muted sm">3 this week · 8 in Nov</div><div class="xs ellip" style="color:var(--warning)">Updated 3 h ago</div></div><span class="gyms"><span class="gym-sq psy">PSY</span><span class="gym-sq jab">JAB</span></span></div>
+        <div class="mem"><span class="av lg c6">EW</span><div class="grow"><div class="name">Ellie</div><div class="muted sm">1 this week · 4 in Nov</div><div class="muted xs ellip">Next: Sat 10:00 Barre 50</div></div><span class="gyms"><span class="gym-sq psy">PSY</span></span></div>
+        <div class="mem"><span class="av lg c7">JO</span><div class="grow"><div class="name">Josh</div><div class="muted sm">2 this week · 7 in Nov</div><div class="muted xs ellip">Next: Wed 18:30 Train</div></div><span class="gyms"><span class="gym-sq jab">JAB</span></span></div>
+        <div class="mem"><span class="av lg c8">HM</span><div class="grow"><div class="name">Hannah</div><div class="muted sm">2 this week · 5 in Nov</div><div class="muted xs ellip">Her classes are at a gym you haven't linked</div></div><span class="gyms"><span class="pill xs">Other gym</span></span></div>
+      </section>
+
+      <!-- 6. Team stats -->
+      <section class="card">
+        <div class="card-head"><h3 class="card-title">Team stats</h3><span class="card-meta">Nov so far</span></div>
+        <div class="stat-grid">
+          <div class="stat"><div class="row" style="align-items:end"><div class="grow"><div class="v">14</div><div class="l">classes this week</div></div><div class="wk-bars"><span style="height:30px;--c:color-mix(in srgb,var(--text) 20%,transparent)"></span><span style="height:38px"></span></div></div><div class="xs" style="color:var(--success);font-weight:600;margin-top:4px">+3 on last week (11)</div></div>
+          <div class="stat"><div class="v">5 days</div><div class="l">The Team has trained 5 days running</div></div>
+        </div>
+        <div style="margin-top:14px"><div class="card-sub">Discipline mix</div>
+          <div class="mix"><span style="--c:var(--disc-ride);width:42%"></span><span style="--c:var(--disc-strength);width:24%"></span><span style="--c:var(--disc-barre);width:16%"></span><span style="--c:var(--disc-reformer);width:12%"></span><span style="--c:var(--disc-yoga);width:6%"></span></div>
+          <div class="legend"><span><i style="--c:var(--disc-ride)"></i>Ride 42%</span><span><i style="--c:var(--disc-strength)"></i>Boxing 24%</span><span><i style="--c:var(--disc-barre)"></i>Barre 16%</span><span><i style="--c:var(--disc-reformer)"></i>Reformer 12%</span><span><i style="--c:var(--disc-yoga)"></i>Yoga 6%</span></div>
+        </div>
+        <div style="margin-top:14px"><div class="card-sub">Busiest times</div>
+          <div class="hours"><span style="height:20%"></span><span style="height:85%"></span><span style="height:100%"></span><span style="height:40%"></span><span style="height:10%"></span><span style="height:5%"></span><span style="height:30%"></span><span style="height:22%"></span><span style="height:8%"></span><span style="height:5%"></span><span style="height:12%"></span><span style="height:35%"></span><span style="height:78%"></span><span style="height:90%"></span><span style="height:45%"></span><span style="height:10%"></span></div>
+          <div class="hours-axis"><span>06:00</span><span>10:00</span><span>14:00</span><span>18:00</span><span>21:00</span></div>
+        </div>
+        <p class="muted xs" style="margin-top:12px">No leaderboard: friendly competition is off for this Team.</p>
+      </section>
+    </div>
+  </div>
+  <p class="note"><b>Mock-up notes.</b> Widget order per §5.3. Classes-together CTAs shown left to right: Book, You're in ✓, Turn on JAB (viewer's JAB link is paused), Auto-book (not released yet, release time on the card), Join waitlist, then the "+2 at other gyms" tile (D2). Week dots use each member's Team colour. Hannah trains at a gym the viewer has not linked, so her row shows counts and "Other gym" with no class details. Tom's data is older than the sync cadence, so his row says "Updated 3 h ago".</p>
+</main>
+</body>
+</html>

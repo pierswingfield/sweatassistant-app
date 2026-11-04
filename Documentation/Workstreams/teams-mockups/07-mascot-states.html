@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mascot states</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="mock.css">
+<script src="chrome.js"></script>
+</head>
+<body data-nav="teams">
+<main class="page">
+  <h1 class="page-title">Team mascot states</h1>
+  <p class="muted" style="padding:6px 8px 14px">Derived from the Team's shared classes today (§5.4), including "+N at other gyms". The ring shows the share of today's classes done.</p>
+  <div class="mascot-strip">
+    <section class="card ms"><span class="mascot lg" style="--s:96px"><span class="disc"></span><svg class="ring" viewBox="0 0 96 96"><circle class="track" cx="48" cy="48" r="45"/></svg><span class="newart">New art<br>sleeping</span></span>
+      <h3>Sleeping</h3><p class="cond">Before 05:00 or after 22:00, nothing in progress</p><p class="art"><span class="pill warn">Needs new pose</span></p></section>
+    <section class="card ms"><span class="mascot lg dim" style="--s:96px"><span class="disc"></span><svg class="ring" viewBox="0 0 96 96"><circle class="track" cx="48" cy="48" r="45"/></svg><img src="img/droplet.gif" alt=""></span>
+      <h3>Resting</h3><p class="cond">No shared classes today</p><p class="art"><span class="pill">Launch: dimmed droplet</span></p></section>
+    <section class="card ms"><span class="mascot lg" style="--s:96px"><span class="disc"></span><svg class="ring" viewBox="0 0 96 96"><circle class="track" cx="48" cy="48" r="45"/></svg><img src="img/droplet.gif" alt=""></span>
+      <h3>Warming up</h3><p class="cond">Classes today, none started</p><p class="art"><span class="pill success">droplet.gif</span></p></section>
+    <section class="card ms"><span class="mascot lg" style="--s:96px"><span class="disc"></span><svg class="ring" viewBox="0 0 96 96"><circle class="track" cx="48" cy="48" r="45"/><circle class="prog" cx="48" cy="48" r="45" stroke-dasharray="71 283"/></svg><img src="img/bike.png" alt=""></span>
+      <h3>Exercising</h3><p class="cond">At least one member in class now (bike.png / dumbbell.png by discipline)</p><p class="art"><span class="pill success">bike / dumbbell</span></p></section>
+    <section class="card ms"><span class="mascot lg" style="--s:96px"><span class="disc"></span><svg class="ring" viewBox="0 0 96 96"><circle class="track" cx="48" cy="48" r="45"/><circle class="prog" cx="48" cy="48" r="45" stroke-dasharray="170 283"/></svg><img src="img/smoothie-candidate.png" alt=""></span>
+      <h3>Cooling down</h3><p class="cond">Some classes done, more to come</p><p class="art"><span class="pill warn">Candidate: smoothie.png</span></p></section>
+    <section class="card ms"><span class="mascot lg" style="--s:96px"><span class="disc"></span><svg class="ring" viewBox="0 0 96 96"><circle class="track" cx="48" cy="48" r="45"/><circle class="prog" cx="48" cy="48" r="45" stroke-dasharray="283 283"/></svg><span class="newart">New art<br>champion</span></span>
+      <h3>Champion</h3><p class="cond">Everything done today (1+ classes)</p><p class="art"><span class="pill warn">Needs new pose</span></p></section>
+  </div>
+  <section class="card" style="margin-top:16px">
+    <div class="card-head"><h3 class="card-title">Exercising, strength variant</h3></div>
+    <div class="row" style="gap:16px;flex-wrap:wrap"><span class="mascot lg" style="--s:96px"><span class="disc"></span><svg class="ring" viewBox="0 0 96 96"><circle class="track" cx="48" cy="48" r="45"/><circle class="prog" cx="48" cy="48" r="45" stroke-dasharray="71 283"/></svg><img src="img/dumbbell.png" alt=""></span>
+    <span class="mascot lg" style="--s:96px"><span class="disc"></span><svg class="ring" viewBox="0 0 96 96"><circle class="track" cx="48" cy="48" r="45"/></svg><img src="img/skip-candidate.png" alt=""></span>
+    <p class="muted sm grow" style="flex-basis:200px">Left: dumbbell.png for strength/boxing classes. Right: the repo's skip.png (characters/, background keyed out for this mock-up) as a warming-up alternative to droplet.gif.</p></div>
+  </section>
+  <p class="note"><b>Mock-up notes.</b> Existing art: droplet.gif, bike.png, dumbbell.png (client/public/characters). smoothie.png and skip.png come from characters/ at the repo root and have a solid background; the copies here were keyed out for the mock only, so production needs alpha versions. Sleeping and Champion need new poses in the same style.</p>
+</main>
+</body>
+</html>

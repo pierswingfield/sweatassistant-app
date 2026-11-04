@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Who can see my classes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="mock.css">
+<script src="chrome.js"></script>
+</head>
+<body data-nav="settings">
+<main class="page" style="max-width:720px">
+  <div class="row" style="padding:0 4px 4px"><a class="btn ghost" href="#" style="padding-left:4px">‹ Settings</a></div>
+  <h1 class="page-title">Who can see my classes</h1>
+  <p class="muted" style="padding:6px 8px 12px">Every Team you're in, and exactly what it sees. Nobody outside these Teams can see your classes.</p>
+
+  <div class="stack">
+  <section class="card priv-team">
+    <div class="row"><span class="mascot" style="--s:44px"><span class="disc"></span><img src="img/bike.png" alt=""></span><div class="grow"><div class="card-sub">Tuesday Riders</div><div class="muted sm">8 members · you're a Captain</div></div><span class="pill success">Visible</span></div>
+    <div class="shares"><span class="pill accent">All my gyms</span><span class="pill accent">Upcoming</span><span class="pill accent">Waitlists</span><span class="pill accent">Activity</span><span class="pill accent">Recent 30 days</span><span class="pill off">Spots</span><span class="pill off">Auto-book queue</span></div>
+    <div class="btn-row" style="margin-top:12px"><button class="btn sm" style="flex:1">Edit sharing</button><button class="btn sm" style="flex:1">Pause</button><button class="btn sm danger-ghost">Leave</button></div>
+  </section>
+  <section class="card priv-team">
+    <div class="row"><span class="mascot" style="--s:44px"><span class="disc"></span><img src="img/droplet.gif" alt=""></span><div class="grow"><div class="card-sub">Shoreditch Boxers</div><div class="muted sm">5 members</div></div><span class="pill success">Visible</span></div>
+    <div class="shares"><span class="pill accent">JAB only</span><span class="pill accent">Upcoming</span><span class="pill off">Waitlists</span><span class="pill accent">Activity</span><span class="pill off">Recent</span><span class="pill accent">Spots</span><span class="pill off">Auto-book queue</span></div>
+    <div class="btn-row" style="margin-top:12px"><button class="btn sm" style="flex:1">Edit sharing</button><button class="btn sm" style="flex:1">Pause</button><button class="btn sm danger-ghost">Leave</button></div>
+  </section>
+  <section class="card priv-team">
+    <div class="row"><span class="mascot dim" style="--s:44px"><span class="disc"></span><img src="img/droplet.gif" alt=""></span><div class="grow"><div class="card-sub">Flat 4B</div><div class="muted sm">3 members</div></div><span class="pill warn">Hidden until Thu 09:00</span></div>
+    <div class="shares"><span class="muted sm">Sees nothing while you're hidden. When you unhide: all gyms, upcoming, waitlists, activity, recent.</span></div>
+    <div class="btn-row" style="margin-top:12px"><button class="btn sm" style="flex:1">Edit sharing</button><button class="btn sm primary" style="flex:1">Unhide now</button><button class="btn sm danger-ghost">Leave</button></div>
+  </section>
+  <section class="card priv-team">
+    <div class="row"><span class="mascot" style="--s:44px"><span class="disc"></span><img src="img/droplet.gif" alt=""></span><div class="grow"><div class="card-sub">Sunday Long Run</div><div class="muted sm">Request pending · sent 2 days ago</div></div><span class="pill">Pending</span></div>
+    <div class="shares"><span class="muted sm">Sees nothing until a Captain approves. On approval: all gyms, upcoming, waitlists, activity, recent.</span></div>
+    <div class="btn-row" style="margin-top:12px"><button class="btn sm" style="flex:1">Edit sharing</button><button class="btn sm danger-ghost" style="flex:1">Withdraw request</button></div>
+  </section>
+  </div>
+  <p class="never"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6Z"/><path d="m9 12 2 2 4-4"/></svg><span>Never shared with any Team: late cancels, no-shows, your email address and your gym logins.</span></p>
+  <p class="note"><b>Mock-up notes.</b> Settings gains a "Privacy" row (between Notifications and Favourites) that opens this page (§3). Accent chips are shared, dashed chips are not. Shoreditch Boxers shows a member who chose JAB only and opted in to spot numbers.</p>
+</main>
+</body>
+</html>

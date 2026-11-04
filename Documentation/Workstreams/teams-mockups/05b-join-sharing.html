@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Join: sharing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="mock.css">
+<script src="chrome.js"></script>
+</head>
+<body data-chrome="none">
+<header class="ovl-header"><a class="back" href="05a-join-invite.html" aria-label="Back">‹</a><h3>Your sharing</h3></header>
+<main class="ovl-body">
+  <h2 class="group-title">What you'll share with Tuesday Riders</h2>
+  <p class="group-help">Shared only once a Captain approves you. Change it any time from the Team or Settings → Privacy.</p>
+  <div class="list">
+    <div class="sw-row" style="flex-wrap:wrap">
+      <div class="grow"><div class="t">Gyms</div><div class="d">Which gyms' classes this Team can see</div></div>
+      <span class="seg"><span class="on">All my gyms</span><span>Choose</span></span>
+      <div class="chips" style="width:100%"><span class="chip"><span class="gym-sq psy">PSY</span>Psycle London</span><span class="chip"><span class="gym-sq jab">JAB</span>JAB Boxing Club</span><span class="muted xs" style="align-self:center">+ gyms you link later</span></div>
+    </div>
+    <div class="sw-row"><div class="grow"><div class="t">Upcoming classes</div><div class="d">Gym, class, time, studio and instructor</div></div><span class="sw on" role="switch" aria-checked="true"></span></div>
+    <div class="sw-row"><div class="grow"><div class="t">Waitlists</div><div class="d">"On the waitlist for Ride 45, Wed 07:30"</div></div><span class="sw on" role="switch" aria-checked="true"></span></div>
+    <div class="sw-row"><div class="grow"><div class="t">Activity counts</div><div class="d">Classes this week and month. Powers the Team mascot</div></div><span class="sw on" role="switch" aria-checked="true"></span></div>
+    <div class="sw-row"><div class="grow"><div class="t">Recent classes</div><div class="d">Your classes from the last 30 days</div></div><span class="sw on" role="switch" aria-checked="true"></span></div>
+    <div class="sw-row"><div class="grow"><div class="t">Spot numbers <span class="pill off">Opt in</span></div><div class="d">"Bike 14", so friends can pick the spot next to you</div></div><span class="sw" role="switch" aria-checked="false"></span></div>
+    <div class="sw-row"><div class="grow"><div class="t">Auto-book queue <span class="pill off">Opt in</span></div><div class="d">Classes you're trying for, before they're booked</div></div><span class="sw" role="switch" aria-checked="false"></span></div>
+    <div class="sw-row"><div class="grow"><div class="t">Friendly competition <span class="pill off">Opt in</span></div><div class="d">Leaderboards and streaks, only if the Team turns them on</div></div><span class="sw" role="switch" aria-checked="false"></span></div>
+  </div>
+  <p class="never"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6Z"/><path d="m9 12 2 2 4-4"/></svg><span>Never shared, whatever you choose: late cancels, no-shows, your email address and your gym logins. Cancelled classes disappear straight away.</span></p>
+  <p class="note"><b>Mock-up notes.</b> Defaults per D3 (§3): everything on except spot numbers and the auto-book queue; friendly competition is opt-in too. You cannot send a request without passing this screen (principle 2).</p>
+</main>
+<footer class="ovl-footer"><div class="inner"><a class="btn primary" href="05c-join-pending.html">Send request</a></div></footer>
+</body>
+</html>

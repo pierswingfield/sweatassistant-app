@@ -1,0 +1,334 @@
+:root {
+  /* Horizontal safe-area insets (the notch / home-indicator side in landscape; 0 in portrait and on desktop).
+     Every left/right inset in this file reads these tokens, so a test can simulate a notch by setting
+     --sa-l / --sa-r on <html>. Backgrounds may bleed edge to edge; only content and controls are inset. */
+  --sa-l: env(safe-area-inset-left, 0px);
+  --sa-r: env(safe-area-inset-right, 0px);
+  /* Families. Fraunces = page titles, section headings, hero figures ONLY (see TYPE ROLES below).
+     'Inter Fallback' is a metric-matched local face so the swap from system sans to Inter does not shift layout. */
+  --font-serif: 'Fraunces', 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Inter', 'Inter Fallback', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+
+  /* Type scale (12px floor). Mobile-first values; the 768px+ overrides sit at the end of this block. */
+  --text-2xl: 22px;  /* page title */
+  --text-xl: 18px;   /* section heading */
+  --text-lg: 16px;   /* large body / card heading */
+  --text-md: 15px;   /* card title, emphasised body */
+  --text-base: 14px; /* body, table cells, buttons */
+  --text-sm: 13px;   /* compact body */
+  --text-xs: 12px;   /* label / caption — never below */
+  --fs-stat: 26px;   /* hero figure */
+  --lh-tight: 1.15;
+  --lh-snug: 1.3;
+  --lh-body: 1.45;
+  --page-title-size: 22px; --page-title-weight: 600; --page-title-ls: -0.005em;
+
+  /* Radii: 20 card / 12 control / 999 pill, plus 8 for dense inner controls and 24 for sheets. */
+  --radius-card: 20px;
+  --radius-control: 12px;
+  --radius-sm: 8px;
+  --radius-pill: 999px;
+  --radius-sheet: 24px;
+
+  /* Spacing scale (4px base). Component rules adopt these in Phase 3-4. */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+  --space-panel: 24px 36px;
+  --space-filter: 12px 36px;
+  --gap-section: 24px;
+  --gap-element: 12px;
+  --pad-card: 16px;
+
+  /* Interaction */
+  --tap-min: 44px;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* Motion (Phase 5): 4 durations, 2 easings. Reduced-motion rules zero these via the existing media query. */
+  --dur-fast: 100ms;
+  --dur-base: 180ms;
+  --dur-slow: 240ms;
+  --dur-page: 300ms;
+  --dur-slow-header: 520ms;                 /* timetable header hide/show + compact shrink: ONE shared duration */
+  --ease-header: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out: cubic-bezier(.25, 1, .5, 1);
+  --ease-in-out: cubic-bezier(.4, 0, .2, 1);
+
+  /* Glass: ONLY bottom nav, sticky top and modal headers. --glass-solid is the opaque @supports-not fallback. */
+  --glass-blur: blur(18px) saturate(1.25);
+
+  /* Timetable action lanes — see `.app-tt-actions`. */
+  --tt-seg-w: 122px;
+  --tt-caret-w: 40px;
+  --tt-chip-h: 22px;
+
+  /* Per-gym brand tokens: neutral defaults; real values injected from GET /api/gyms (gymPresentationCss). */
+  --gym-ink: var(--text-secondary);
+  --gym-ink-hover: var(--text);
+  --gym-tint: var(--text-secondary);
+  --gym-on: var(--bg, #ffffff);
+  --gym-btn: var(--gym-ink);
+  --gym-wash: transparent;
+  --gym-pip: var(--gym-ink);
+}
+@font-face {
+  font-family: 'Inter Fallback';
+  src: local('Arial'), local('Helvetica Neue'), local('Helvetica');
+  size-adjust: 107.6%;
+  ascent-override: 90.2%;
+  descent-override: 22.5%;
+  line-gap-override: 0%;
+}
+
+/* ---- Dark (default): warm near-black, clay accent ---- */
+:root {
+  color-scheme: dark;
+
+  --bg: #161616;
+  --page-solid: #161616;
+  --header-solid: #101010;
+  --surface: #202020;
+  --surface-2: rgba(255, 238, 215, 0.045);
+  --surface-inset: rgba(0, 0, 0, 0.22);
+  --surface-raised: #2a2a2a;
+
+  --text: #f3ede4;
+  --text-secondary: #b9ae9f;
+  --text-tertiary: #948a7c;
+
+  --border: rgba(255, 238, 215, 0.10);
+  --border-strong: rgba(255, 238, 215, 0.18);
+  --separator: rgba(255, 238, 215, 0.07);
+
+  /* Accent = clay. --accent is text/border/ring; fills use --accent-fill with --on-accent-fill. */
+  --brand-clay: #d68b6f;
+  --accent: #e09a7f;
+  --accent-hover: #eaaa91;
+  --accent-fill: #c9785c;
+  --accent-fill-hover: #d58768;
+  --on-accent-fill: #1a1411;
+  --on-accent: #1a1411;
+  --accent-btn-bg: var(--accent-fill);
+  --on-accent-button: var(--on-accent-fill);
+  --cta-book: var(--accent-fill);
+  --cta-wait: #e4b7a2;
+  --cta-auto: #d9967a;
+  --on-cta: #1a1411;
+  --nav-active: var(--accent);
+  --nav-active-bg: color-mix(in srgb, var(--accent) 14%, transparent);
+  --nav-active-line: color-mix(in srgb, var(--accent) 30%, transparent);
+
+  --on-auto-pill: #d9c4e2;
+  --auto-not-scheduled: #3a2a40;
+  --on-auto-not-scheduled: #d9c4e2;
+
+  --waitlist-btn-bg: #3a2a22;
+  --waitlist-bar-bg: var(--waitlist-btn-bg);
+  --waitlist-bar-fg: var(--on-waitlist-btn);
+  --on-waitlist-btn: #e8c8b8;
+  --buy-credits-bg: #3a2a22;
+  --on-buy-credits: #e8c8b8;
+  --no-credits-warning-color: #e8a590;
+  --header-credits-bg: #3b2a22;
+  --on-header-credits: #e8c8b8;
+
+  /* Feature identity */
+  --feat-autobook: #d68b6f;
+  --feat-autoupgrade: #b9a2f5;
+  --feat-quickbook: #e5b03e;
+  --feat-waitlist: #8aa6c6;
+  --orange: #f97316;
+  --auto: #c9aed6;
+  --auto-banner: #5a3e63;
+  --on-auto: #ffffff;
+
+  /* Discipline tags */
+  --disc-ride: #5ec6c6;
+  --disc-barre: #e8a0b4;
+  --disc-strength: #e0aa5a;
+  --disc-infrared: #f0907e;
+  --disc-reformer: #85aadb;
+  --disc-recovery: #38b2ac;
+  --disc-yoga: #8fc98f;
+  --disc-other: #b3a99f;
+
+  /* Semantic. --info is the ONLY blue; it never styles interactive chrome. */
+  --success: #4cc794;
+  --warning: #e5b03e;
+  --danger: #f08a82;
+  --info: #7fb0f0;
+
+  --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.30);
+  --shadow-sheet: 0 18px 48px rgba(0, 0, 0, 0.50);
+
+  --glass-bg: rgba(32, 28, 24, 0.82);
+  --glass-solid: #201c18;
+  --glass-edge: rgba(255, 238, 215, 0.10);
+}
+
+/* ---- Light (system preference) ---- */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+
+    --bg: #f6f1e8;
+    --page-solid: #f6f1e8;
+    --header-solid: #eee7da;
+    --surface: #fcfaf5;
+    --surface-2: rgba(84, 56, 24, 0.035);
+    --surface-inset: rgba(84, 56, 24, 0.055);
+    --surface-raised: #fffdf9;
+
+    --text: #1f1b16;
+    --text-secondary: #655b4c;
+    --text-tertiary: #6e6352;
+
+    --border: rgba(84, 56, 24, 0.13);
+    --border-strong: rgba(84, 56, 24, 0.22);
+    --separator: rgba(84, 56, 24, 0.09);
+
+    --brand-clay: #c9785c;
+    --accent: #a8553a;
+    --accent-hover: #8f452d;
+    --accent-fill: #b5593d;
+    --accent-fill-hover: #9e4a30;
+    --on-accent-fill: #ffffff;
+    --on-accent: #ffffff;
+    --accent-btn-bg: var(--accent-fill);
+    --on-accent-button: #ffffff;
+    --cta-book: var(--accent-fill);
+    --cta-wait: #8a4430;
+    --cta-auto: #6f3524;
+    --on-cta: #ffffff;
+    --nav-active: var(--accent);
+    --nav-active-bg: color-mix(in srgb, var(--accent) 8%, transparent);
+    --nav-active-line: color-mix(in srgb, var(--accent) 15%, transparent);
+
+    --on-auto-pill: #E2D1DD;
+    --auto-not-scheduled: #D2BDD9;
+    --on-auto-not-scheduled: #5A3E63;
+
+    --waitlist-btn-bg: #825f58;
+    --waitlist-bar-bg: #FEF1E9;
+    --waitlist-bar-fg: var(--no-credits-warning-color);
+    --on-waitlist-btn: #FEF1E9;
+    --buy-credits-bg: #5E382B;
+    --on-buy-credits: #FEF1E9;
+    --no-credits-warning-color: #5E382B;
+    --header-credits-bg: #825f58;
+    --on-header-credits: #FEF1E9;
+
+    --feat-autobook: #c9785c;
+    --feat-autoupgrade: #7c5cdb;
+    --feat-quickbook: #c2870a;
+    --feat-waitlist: #4f6d8f;
+    --orange: #ea580c;
+    --auto: #6d4c7d;
+    --auto-banner: #5a3e63;
+    --on-auto: #ffffff;
+
+    --disc-ride: #2f8f8f;
+    --disc-barre: #c25d7a;
+    --disc-strength: #a9761a;
+    --disc-infrared: #cc5340;
+    --disc-reformer: #4775ad;
+    --disc-recovery: #237a77;
+    --disc-yoga: #4f9b5f;
+    --disc-other: #857a6e;
+
+    --success: #047857;
+    --warning: #9a6600;
+    --danger: #b84343;
+    --info: #2f6bd1;
+
+    --shadow-card: 0 4px 12px rgba(84, 56, 24, 0.10);
+    --shadow-sheet: 0 18px 48px rgba(84, 56, 24, 0.15);
+
+    --glass-bg: rgba(252, 250, 245, 0.92);
+    --glass-solid: #fcfaf5;
+    --glass-edge: rgba(84, 56, 24, 0.12);
+  }
+}
+
+/* ---- Light (forced) ---- */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f6f1e8;
+  --page-solid: #f6f1e8;
+  --header-solid: #eee7da;
+  --surface: #fcfaf5;
+  --surface-2: rgba(84, 56, 24, 0.035);
+  --surface-inset: rgba(84, 56, 24, 0.055);
+  --surface-raised: #fffdf9;
+
+  --text: #1f1b16;
+  --text-secondary: #655b4c;
+  --text-tertiary: #6e6352;
+
+  --border: rgba(84, 56, 24, 0.13);
+  --border-strong: rgba(84, 56, 24, 0.22);
+  --separator: rgba(84, 56, 24, 0.09);
+
+  --brand-clay: #c9785c;
+  --accent: #a8553a;
+  --accent-hover: #8f452d;
+  --accent-fill: #b5593d;
+  --accent-fill-hover: #9e4a30;
+  --on-accent-fill: #ffffff;
+  --on-accent: #ffffff;
+  --accent-btn-bg: var(--accent-fill);
+  --on-accent-button: #ffffff;
+  --cta-book: var(--accent-fill);
+  --cta-wait: #8a4430;
+  --cta-auto: #6f3524;
+  --on-cta: #ffffff;
+  --nav-active: var(--accent);
+  --nav-active-bg: color-mix(in srgb, var(--accent) 8%, transparent);
+  --nav-active-line: color-mix(in srgb, var(--accent) 15%, transparent);
+
+  --on-auto-pill: #E2D1DD;
+  --auto-not-scheduled: #D2BDD9;
+  --on-auto-not-scheduled: #5A3E63;
+
+  --waitlist-btn-bg: #825f58;
+  --waitlist-bar-bg: #FEF1E9;
+  --waitlist-bar-fg: var(--no-credits-warning-color);
+  --on-waitlist-btn: #FEF1E9;
+  --buy-credits-bg: #5E382B;
+  --on-buy-credits: #FEF1E9;
+  --no-credits-warning-color: #5E382B;
+  --header-credits-bg: #825f58;
+  --on-header-credits: #FEF1E9;
+
+  --feat-autobook: #c9785c;
+  --feat-autoupgrade: #7c5cdb;
+  --feat-quickbook: #c2870a;
+  --feat-waitlist: #4f6d8f;
+  --orange: #ea580c;
+  --auto: #6d4c7d;
+  --auto-banner: #5a3e63;
+  --on-auto: #ffffff;
+
+  --disc-ride: #2f8f8f;
+  --disc-barre: #c25d7a;
+  --disc-strength: #a9761a;
+  --disc-infrared: #cc5340;
+  --disc-reformer: #4775ad;
+  --disc-recovery: #237a77;
+  --disc-yoga: #4f9b5f;
+  --disc-other: #857a6e;
+
+  --success: #047857;
+  --warning: #9a6600;
+  --danger: #b84343;
+  --info: #2f6bd1;
+
+  --shadow-card: 0 4px 12px rgba(84, 56, 24, 0.10);
+  --shadow-sheet: 0 18px 48px rgba(84, 56, 24, 0.15);
+
+  --glass-bg: rgba(252, 250, 245, 0.92);
+  --glass-solid: #fcfaf5;
+  --glass-edge: rgba(84, 56, 24, 0.12);
+}

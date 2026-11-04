@@ -21,7 +21,6 @@ const { getProvider } = require('./providers');
 const gymOutbound = require('./gym-outbound');
 const { zoneOfGym } = require('./providers/timezone');
 const { getGymConfig } = require('./gyms.config');
-const { formatSpotLabel } = require('./spot-label');
 const { policyOf, isRollingWeekly, mostRecentRelease } = require('./providers/booking-window');
 const { planGroupUpgrade } = require('./group-upgrade');
 const cancelRebook = require('./cancel-rebook-policy');
@@ -1213,13 +1212,14 @@ async function executeAutoUpgradeChecks() {
 }
 
 // ─── Booking-schedule discovery ──────────────────────────────────────────────
-// Refresh booking caches for users who have cancellation reminders enabled and at
-// least one push subscription. Runs every few hours — reminders themselves fire
-// locally from the cache with no extra API cost.
-// One gym's bookings, via its own adapter, with the usual 401→relogin→retry.
+// T-B: the background booking sync lives in booking-sync.js, the ONLY background
+// writer of booking_cache + waitlist_cache, for EVERY account and enabled gym (no
+// longer only push subscribers with reminders on). These names stay as thin
+// aliases for existing callers and suites. Reminders fire locally from the cache.
+const bookingSync = require('./booking-sync');
 async function listBookingsWithRelogin(userId, gymId) {
   const provider = getProvider(gymId);
-  let session = db.getUserSession(userId, gymId);
+  const session = db.getUserSession(userId, gymId);
   if (!session || !session.accessToken) throw new Error(`no session for ${gymId}`);
   try {
     return await provider.listBookings(session);
@@ -1229,97 +1229,8 @@ async function listBookingsWithRelogin(userId, gymId) {
     return provider.listBookings({ ...session, accessToken: newJwt });
   }
 }
-
-/**
- * Turn one gym's NormalizedBooking[] into booking_cache rows.
- *
- * CodexFit's list endpoint carries no embedded event, so the start time — the
- * one field a reminder cannot work without — has to be fetched per booking.
- * MarianaTek embeds it, and is used directly. The shared per-gym event cache
- * keeps this from becoming N live calls every sweep.
- */
-async function bookingCacheRowsFor(userId, gymId) {
-  const bookings = await listBookingsWithRelogin(userId, gymId);
-  const rows = [];
-  for (const nb of bookings || []) {
-    if (!nb || nb.isWaitlist || !nb.eventId) continue;
-    let ev = nb.event;
-    if (!ev || !ev.startAt) {
-      ev = getCachedEvent(gymId, nb.eventId)?.event;
-      if (!ev) {
-        const details = await getProvider(gymId)
-          .fetchEventDetails(nb.eventId, db.getUserSession(userId, gymId));
-        if (!details) continue;
-        setCachedEvent(gymId, nb.eventId, details, 30000);
-        ev = details.event;
-      }
-    }
-    if (!ev || !ev.startAt) continue;
-    rows.push({
-      bookingId: nb.bookingId,
-      gymId,
-      eventId: nb.eventId,
-      startAt: ev.startAt,
-      className: ev.name || '',
-      groupName: ev.discipline || '',
-      instructorName: ev.instructors?.[0]?.name || '',
-      studioName: ev.studioName || '',
-      locationName: ev.locationName || '',
-      locationAddress: ev.locationAddress || null,
-      durationMin: ev.durationMin ?? null,
-      slotLabel: formatSpotLabel(gymId, nb.slotLabel ?? nb.slotId ?? '', nb.spotSection),
-    });
-  }
-  return rows;
-}
-
-async function refreshBookingCaches() {
-  const userIds = db.getUserIdsWithPushSubs();
-  for (const userId of userIds) {
-    try {
-      const prefs = notifications.getPrefs(userId);
-      if (!prefs.cancellationReminder.enabled) continue;
-      // Calendar-enabled users have their booking_cache kept fresh (and correctly
-      // event-enriched) by calendar.js — skip here so we don't overwrite it.
-      const settings = db.getUserSettings(userId);
-      if (settings && settings.calendar && settings.calendar.enabled) continue;
-
-      // EVERY linked gym. This used to read whichever single gym resolved from
-      // the account, so a two-gym member got cancellation reminders for one of
-      // them and silence for the other — and it used a raw CodexFit path, so
-      // the gym it did read was only ever right for a CodexFit gym.
-      const gymIds = (db.getUserGyms(userId) || []).filter((g) => g.account_enabled).map((g) => g.gym_id).filter(Boolean);
-      const rows = [];
-      const synced = [];
-      for (const gymId of gymIds) {
-        // C2-3b: skip a throttled gym. Not counted as "synced", so its cached
-        // rows are kept rather than cleared.
-        if (isGymRateLimited(gymId)) continue;
-        // Disabled gym/link: never fetched; not "synced", so its cached rows stay.
-        if (gymOutbound.isOutboundBlocked(gymId, userId)) continue;
-        await new Promise(r => setTimeout(r, 2000 + Math.floor(Math.random() * 6000)));
-        try {
-          rows.push(...await bookingCacheRowsFor(userId, gymId));
-          synced.push(gymId);
-        } catch (err) {
-          // Scope the write to the gyms that actually answered: a gym that
-          // failed must keep its existing rows rather than have them cleared.
-          noteThrottleError(gymId, err);
-          console.error(`[Reminders] ${gymId} failed for user ${userId}:`, err.message);
-        }
-      }
-      if (synced.length === 0) continue;
-      db.replaceBookingCache(userId, rows, synced);
-      console.log(`[Reminders] Cached ${rows.length} upcoming booking(s) for user ${userId} across ${synced.length} gym(s).`);
-    } catch (err) {
-      console.error(`[Reminders] Failed to refresh bookings for user ${userId}:`, err.message);
-    }
-  }
-  // Housekeeping: drop past classes and stale dedupe keys.
-  const now = DateTime.now().toISO();
-  db.pruneBookingCache(now);
-  db.pruneSentNotifications(DateTime.now().minus({ days: 30 }).toISO());
-}
+const bookingCacheRowsFor = (userId, gymId) => bookingSync.bookingRowsFor(userId, gymId);
+const refreshBookingCaches = (opts) => bookingSync.runCycle(opts);
 
 // ─── Local reminder firing (no API calls) ────────────────────────────────────
 function checkCancellationReminders() {
@@ -1453,10 +1364,12 @@ module.exports = {
       checkCancellationReminders();
       await checkBookingWindowReminder();
     });
-    // Infrequent booking-schedule discovery to keep the local cache fresh.
-    cron.schedule('0 */6 * * *', async () => {
-      console.log('[Reminders] Running booking-cache discovery poll...');
-      await refreshBookingCaches();
+    // T-B: the ONE background booking-sync loop. Ticks every 15 min and syncs
+    // only the (user, gym) pairs that are due on their own cadence (2 h priority,
+    // 3 h calendar feed, 6 h everyone else — booking-sync.js cadenceFor), so load
+    // spreads out instead of landing on every account at once.
+    cron.schedule('*/15 * * * *', async () => {
+      try { await refreshBookingCaches(); } catch (e) { console.error('[BookingSync] cycle failed:', e.message); }
     });
     // F-10-0: class-history incremental refresh (missing or >6h stale, every gym of every user).
     cron.schedule('25 */6 * * *', async () => {

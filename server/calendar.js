@@ -23,7 +23,7 @@ const gymOutbound = require('./gym-outbound');
 const { cleanClassName: cleanClassNameShared, disciplineHead } = require('./class-name');
 const { policyOf, isRollingWeekly, mostRecentRelease } = require('./providers/booking-window');
 const { normalizeCalendarPrefs } = require('./calendar-prefs');
-const { formatSpotLabel } = require('./spot-label');
+const bookingSync = require('./booking-sync');
 
 // Interim single-gym bridge, same as scheduler.js/poller.js (WP-D3 will replace).
 // No module-level provider (WP-D7) — resolved per user, since a calendar feed is
@@ -115,60 +115,12 @@ async function refreshLocationMap(userId, force = false, gymId = null) {
   } catch (_) { /* keep whatever is cached */ }
 }
 
-// ─── CodexFit fetch + enrichment ─────────────────────────────────────────────
-// The /bookings and /waitlists list endpoints return only { id, event_id, slot, … }
-// with NO embedded class details — those live on /events/{id} under `relations`.
-// So we fetch event details (cached briefly) and join them onto each booking.
-const EVENT_TTL_MS = 5 * 60 * 1000;
-const eventDetailCache = new Map(); // eventId → { ts, data }
-
-// Map a NormalizedEvent onto the flat shape the ICS builder wants. Everything
-// here comes from the adapter now (WP-D7) — this used to reach straight into
-// CodexFit's `relations` envelope, which no other platform has.
-function eventToCalendarShape(ev) {
-  if (!ev) return null;
-  return {
-    startAt: ev.startAt,
-    durationMin: ev.durationMin || null,
-    className: ev.name || 'Class',
-    groupName: ev.discipline || '',
-    instructorName: (ev.instructors && ev.instructors[0] && ev.instructors[0].name) || '',
-    studioName: ev.studioName || '',
-    studioId: ev.studioId || null,
-    locationName: ev.locationName || '',
-    locationAddress: ev.locationAddress || null,
-  };
-}
-
-// Cache key includes the gym: event ids are PROVIDER ids, so two gyms can both
-// serve an event "1000" and a user-blind cache would cross them over.
-async function fetchEventDetail(userId, eventId, explicitGymId) {
-  const gymId = explicitGymId || db.resolveActiveGymId(userId);
-  const key = `${gymId}:${eventId}`;
-  const cached = eventDetailCache.get(key);
-  if (cached && Date.now() - cached.ts < EVENT_TTL_MS) return cached.data;
-
-  // Same per-gym session rule as listWithRelogin above.
-  const user = db.runWithGymContext(userId, gymId, () => db.getUserById(userId));
-  const session = user && user.jwt ? { accessToken: user.jwt } : null;
-  let data = null;
-  try {
-    const { event } = await getProvider(gymId).fetchEventDetails(eventId, session);
-    data = eventToCalendarShape(event);
-  } catch (err) {
-    if (err && err.status === 401) {
-      try {
-        const newJwt = await triggerAutoRelogin(userId, gymId);
-        const { event } = await getProvider(gymId).fetchEventDetails(eventId, { accessToken: newJwt });
-        data = eventToCalendarShape(event);
-      } catch (_) { return null; }
-    } else {
-      return null;
-    }
-  }
-  eventDetailCache.set(key, { ts: Date.now(), data });
-  return data;
-}
+// ─── Bookings + waitlists ────────────────────────────────────────────────────
+// T-B: the feed no longer fetches. server/booking-sync.js is the one background
+// writer of booking_cache + waitlist_cache (same enrichment: start, names,
+// duration, address, normalized slot label) and calls afterBookingSync() below
+// once a calendar user's gyms are refreshed, so the feed is built from exactly
+// the rows that sync stored, with no second fetch and no overwrite.
 
 // Attempt a normalized list call with the same 401-triggers-relogin ladder the
 // old inline fetchCodexFit() gave every authenticated call (WP-N3), mirroring
@@ -197,53 +149,20 @@ async function listWithRelogin(userId, method, explicitGymId) {
   }
 }
 
-// Returns booking_cache-shaped rows (one per booked spot), enriched with event
-// details. The list HTTP call + id/event_id/cancelled_at parsing now goes
-// through the adapter (WP-N3). Event enrichment and slot labels are normalized
-// too; generic code must not inspect a provider's raw booking payload.
+// booking_cache-shaped rows for one gym, via the sync module's builder (kept as
+// calendar exports for the WP-N3 adapter-routing suite). null on failure.
 async function fetchUserBookings(userId, gymId) {
-  let normalized;
   try {
-    normalized = await listWithRelogin(userId, 'listBookings', gymId);
+    return await bookingSync.bookingRowsFor(userId, gymId || db.resolveActiveGymId(userId));
   } catch (err) {
     console.error(`[Calendar] fetchUserBookings failed for user ${userId}:`, err.message);
     return null;
   }
-  const out = [];
-  for (const nb of normalized) {
-    const eventId = nb.eventId;
-    if (!eventId) continue;
-    const ev = await fetchEventDetail(userId, eventId, gymId);
-    if (!ev || !ev.startAt) continue;
-    out.push({
-      bookingId: nb.bookingId, eventId, startAt: ev.startAt,
-      className: ev.className, groupName: ev.groupName, instructorName: ev.instructorName,
-      studioName: ev.studioName, locationName: ev.locationName, locationAddress: ev.locationAddress,
-      durationMin: ev.durationMin,
-      slotLabel: formatSpotLabel(gymId, nb.slotLabel ?? nb.slotId ?? '', nb.spotSection),
-    });
-  }
-  return out;
 }
 
-// Returns waitlist_cache-shaped rows (one per waitlisted class), enriched.
-// Same adapter-routing + preserved-enrichment approach as fetchUserBookings.
+// waitlist_cache-shaped rows for one gym (throws on failure).
 async function fetchUserWaitlists(userId, gymId) {
-  const normalized = await listWithRelogin(userId, 'listWaitlists', gymId);
-  const out = [];
-  for (const nb of normalized) {
-    const eventId = nb.eventId;
-    if (!eventId) continue;
-    const ev = await fetchEventDetail(userId, eventId, gymId);
-    if (!ev || !ev.startAt) continue;
-    out.push({
-      eventId, startAt: ev.startAt,
-      className: ev.className, groupName: ev.groupName, instructorName: ev.instructorName,
-      studioName: ev.studioName, locationName: ev.locationName, locationAddress: ev.locationAddress,
-      studioId: ev.studioId,
-    });
-  }
-  return out;
+  return bookingSync.waitlistRowsFor(userId, gymId || db.resolveActiveGymId(userId));
 }
 
 // ─── Gather a user's live classes (precedence: confirmed > waitlist > autobook) ─
@@ -636,43 +555,27 @@ function regenerateSnapshot(userId) {
   }
 }
 
-// Fetch a single user's bookings + waitlists from CodexFit, update caches, republish.
+// Called by booking-sync.js after it stored a calendar user's rows: refresh the
+// (TTL-cached) location addresses of the gyms just synced, then republish.
+async function afterBookingSync(userId, gymIds) {
+  for (const gymId of gymIds || []) {
+    if (gymOutbound.isOutboundBlocked(gymId, userId)) continue;
+    try { await refreshLocationMap(userId, false, gymId); } catch (_) { /* keep cached addresses */ }
+  }
+  return regenerateSnapshot(userId);
+}
+
+// Refresh one account now (after a book/cancel/waitlist action through the app,
+// or an explicit feed refresh): a FORCED booking sync across its enabled gyms,
+// for every account (T-B: not only calendar users). The sync republishes the
+// feed itself when anything was stored; with every gym skipped or failed, the
+// feed is still republished from the last good rows.
 async function refreshUser(userId) {
+  const synced = await bookingSync.syncUser(userId, { force: true });
   const settings = db.getUserSettings(userId) || {};
   if (!settings.calendar || !settings.calendar.enabled) return;
-
-  // Fan out across every linked gym. One gym failing must NOT blank the feed:
-  // the user's other gym's classes are still valid, and a calendar that empties
-  // itself during someone else's outage is worse than one that is briefly stale.
-  let totalBookings = 0;
-  for (const gymId of linkedGymIds(userId)) {
-    // Disabled gym/link: never fetched. Its stored booking_cache rows are left in
-    // place, so the feed keeps the last-known classes rather than dropping them.
-    if (gymOutbound.isOutboundBlocked(gymId, userId)) continue;
-    try {
-      await refreshLocationMap(userId, false, gymId);
-
-      const bookings = await fetchUserBookings(userId, gymId);
-      if (bookings) {
-        // Scoped to this gym: the loop handles each linked gym in turn, so one
-        // iteration must never clear or rewrite another's rows.
-        db.replaceBookingCache(userId, bookings.map((b) => ({ ...b, gymId })), [gymId]);
-        totalBookings += bookings.length;
-      }
-
-      try {
-        const waitlists = await fetchUserWaitlists(userId, gymId);
-        if (waitlists) db.runWithGymContext(userId, gymId, () => db.replaceWaitlistCache(userId, waitlists));
-      } catch (wErr) {
-        console.warn(`[Calendar] waitlist fetch failed for user ${userId} (${gymId}):`, wErr.message);
-      }
-    } catch (gErr) {
-      console.error(`[Calendar] refresh failed for user ${userId} at ${gymId}:`, gErr.message);
-    }
-  }
-
-  regenerateSnapshot(userId);
-  console.log(`[Calendar] Refreshed + published snapshot for user ${userId} (${totalBookings} booking row(s) across ${linkedGymIds(userId).length} gym(s)).`);
+  if (!synced.length) regenerateSnapshot(userId);
+  console.log(`[Calendar] Refreshed + published snapshot for user ${userId} (${synced.length} gym(s) synced).`);
 }
 
 // Debounced one-shot refresh, fired ~1 min after an in-app booking mutation so the
@@ -688,20 +591,19 @@ function scheduleRefresh(userId, delayMs = 60000) {
   refreshTimers.set(userId, t);
 }
 
-// ─── 3-hourly poll: refresh bookings + waitlists, then publish, for all users ──
+// ─── 3-hourly republish for all feed users (DB only; T-B) ──────────────────────
+// No provider calls: booking-sync.js keeps the rows fresh (3 h cadence for feed
+// users) and republishes after each sync. This pass catches what changes without
+// a sync: auto-book queue edits, upgrade notes, booking-window reminder events
+// and classes moving into the past.
 async function pollAndPublishAll() {
   const userIds = db.getCalendarEnabledUserIds();
-  if (userIds.length === 0) return;
   for (const userId of userIds) {
-    try {
-      await new Promise(r => setTimeout(r, 1000 + Math.floor(Math.random() * 4000)));
-      await refreshUser(userId);
-    } catch (err) {
-      console.error(`[Calendar] poll failed for user ${userId}:`, err.message);
-    }
+    try { regenerateSnapshot(userId); }
+    catch (err) { console.error(`[Calendar] republish failed for user ${userId}:`, err.message); }
   }
   // Housekeeping: drop stale waitlist rows for past classes.
-  try { db.db.prepare('DELETE FROM waitlist_cache WHERE start_at < ?').run(DateTime.now().toISO()); } catch (_) {}
+  try { db.pruneWaitlistCache(DateTime.now().toISO()); } catch (_) {}
 }
 
 module.exports = {
@@ -711,7 +613,7 @@ module.exports = {
     db.setKV('heartbeat:calendar', Date.now().toString());
     cron.schedule('0 */3 * * *', async () => {
       db.setKV('heartbeat:calendar', Date.now().toString());
-      console.log('[Calendar] Running 3-hourly poll + publish cycle...');
+      console.log('[Calendar] Running 3-hourly republish cycle...');
       await pollAndPublishAll();
     });
     setTimeout(() => { pollAndPublishAll().catch(() => {}); }, 60000 + Math.floor(Math.random() * 30000));
@@ -725,6 +627,7 @@ module.exports = {
   regenerateSnapshot,
   pollAndPublishAll,
   refreshUser,
+  afterBookingSync,
   scheduleRefresh,
   refreshLocationMap,
   cachedLocationMap,

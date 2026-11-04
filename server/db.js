@@ -280,6 +280,20 @@ db.exec(`
     PRIMARY KEY (user_id, gym_id)
   );
 
+  -- T-B: when each (user, gym) booking_cache + waitlist_cache pair was last
+  -- refreshed by server/booking-sync.js (the ONLY writer of this table). Kept
+  -- apart from the cache rows because a gym with no upcoming classes has no row
+  -- to stamp, yet "Updated 3 h ago" still has to be answerable for it.
+  CREATE TABLE IF NOT EXISTS booking_sync_state (
+    user_id INTEGER NOT NULL,
+    gym_id TEXT NOT NULL,
+    last_synced_at TEXT,
+    last_attempt_at TEXT,
+    last_error TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, gym_id)
+  );
+
   -- F-12: gym-neutral FAVOURITES for gyms with no native bookmarks. A favourite is a
   -- recurring slot (studio + weekday + start time in the class's zone), the same shape as
   -- CodexFit's native bookmark key so one API serves both. studio_id is a PROVIDER id,
@@ -1776,6 +1790,32 @@ module.exports = {
     return db.prepare('SELECT * FROM booking_cache WHERE user_id = ? AND gym_id = ?')
       .all(userId, resolveActiveGymId(userId));
   },
+  // T-B: every (user, gym) link whose member has it switched on — the population
+  // of the universal background booking sync. Cross-user scanner: deliberately
+  // NOT scoped to an active gym (rule 2 of WP-D6).
+  getEnabledGymLinks() {
+    return db.prepare(`SELECT user_id, gym_id, status, relogin_suspended FROM user_gyms
+      WHERE account_enabled = 1 ORDER BY user_id ASC, gym_id ASC`).all();
+  },
+  getBookingSyncState(userId, gymId) {
+    return db.prepare('SELECT * FROM booking_sync_state WHERE user_id = ? AND gym_id = ?').get(userId, gymId) || null;
+  },
+  // Partial upsert: a field left undefined keeps its stored value.
+  setBookingSyncState(userId, gymId, { lastSyncedAt, lastAttemptAt, lastError } = {}) {
+    db.prepare(`INSERT INTO booking_sync_state (user_id, gym_id, last_synced_at, last_attempt_at, last_error)
+      VALUES (@u, @g, @s, @a, @e)
+      ON CONFLICT(user_id, gym_id) DO UPDATE SET
+        last_synced_at = CASE WHEN @hasS THEN @s ELSE last_synced_at END,
+        last_attempt_at = CASE WHEN @hasA THEN @a ELSE last_attempt_at END,
+        last_error = CASE WHEN @hasE THEN @e ELSE last_error END`).run({
+      u: userId, g: gymId,
+      s: lastSyncedAt ?? null, a: lastAttemptAt ?? null, e: lastError ?? null,
+      hasS: lastSyncedAt !== undefined ? 1 : 0, hasA: lastAttemptAt !== undefined ? 1 : 0, hasE: lastError !== undefined ? 1 : 0,
+    });
+  },
+  pruneWaitlistCache(beforeISO) {
+    db.prepare('DELETE FROM waitlist_cache WHERE start_at < ?').run(beforeISO);
+  },
   pruneBookingCache(beforeISO) {
     db.prepare('DELETE FROM booking_cache WHERE start_at < ?').run(beforeISO);
   },
@@ -2278,7 +2318,7 @@ module.exports = {
     const tx = db.transaction(() => {
       for (const table of ['auto_bookings', 'auto_upgrades', 'studio_preferences', 'settings',
                            'booking_cache', 'waitlist_cache', 'calendar_classes', 'guest_booking_groups',
-                           'class_history', 'class_history_sync', 'favourites']) {
+                           'class_history', 'class_history_sync', 'favourites', 'booking_sync_state']) {
         try { db.prepare(`DELETE FROM ${table} WHERE user_id = ? AND gym_id = ?`).run(userId, gymId); }
         catch (_) { /* table may predate its gym_id column on an old DB — skip */ }
       }

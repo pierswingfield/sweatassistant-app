@@ -206,6 +206,8 @@ app.get('/api/health', async (req, res) => {
     uptimeSec: Math.round(process.uptime()),
     scheduleCache: scheduleCacheStats,
     freshness: (() => { try { return require('./freshness').getStats(); } catch (_) { return null; } })(),
+    // T-B: universal background booking sync (cycles, users/gyms synced, skipped, failed).
+    bookingSync: (() => { try { return require('./booking-sync').getStats(); } catch (_) { return null; } })(),
     layoutCache: layoutCacheStats,
     instructorPhotoCache,
     nextReleaseAt: nextRelease,
@@ -240,6 +242,8 @@ app.get('/metrics', (req, res) => {
   let fs = { heartbeatChecks: 0, heartbeatFailures: 0 };
   try { fs = require('./freshness').getStats(); } catch (_) {}
   try { cs = require('./schedule-cache').getStats(); } catch (_) {}
+  let bs = { cycles: 0, usersSynced: 0, gymsSynced: 0, gymsFailed: 0, skipped: {} };
+  try { bs = require('./booking-sync').getStats(); } catch (_) {}
   let pending = 0;
   try { pending = db.db.prepare("SELECT COUNT(*) AS n FROM auto_bookings WHERE status = 'pending' AND executed_at IS NULL").get().n; } catch (_) {}
   const next = Date.parse(db.getKV('scheduler_next_release') || '');
@@ -258,6 +262,13 @@ app.get('/metrics', (req, res) => {
       [{ result: 'heartbeat_check' }, fs.heartbeatChecks || 0], [{ result: 'heartbeat_failure' }, fs.heartbeatFailures || 0],
       [{ result: 'unchanged_saved' }, cs.stampUnchanged || 0], [{ result: 'refetch_changed' }, cs.stampChanged || 0],
       [{ result: 'refetch_ceiling' }, cs.ceilingRefetches || 0]], 'counter'),
+    // T-B: background booking sync. Fixed result labels only; no gym/user dimension.
+    gauge('booking_sync_total', 'Background booking sync outcomes (cycles, accounts/gyms synced, failed, skipped by reason).', [
+      [{ result: 'cycle' }, bs.cycles || 0], [{ result: 'account_synced' }, bs.usersSynced || 0],
+      [{ result: 'gym_synced' }, bs.gymsSynced || 0], [{ result: 'gym_failed' }, bs.gymsFailed || 0],
+      [{ result: 'skipped_disabled' }, (bs.skipped && bs.skipped.disabled) || 0],
+      [{ result: 'skipped_throttled' }, (bs.skipped && bs.skipped.throttled) || 0],
+      [{ result: 'skipped_needs_relogin' }, (bs.skipped && bs.skipped.needsRelogin) || 0]], 'counter'),
     gauge('scheduler_pending_bookings', 'Pending auto-book queue entries (all users, all gyms).', [[{}, pending]]),
     gauge('scheduler_next_release_timestamp_seconds', 'Armed next auto-book release (unix seconds; 0 when idle).', [[{}, Number.isFinite(next) ? Math.round(next / 1000) : 0]]),
     gauge('service_heartbeat_age_seconds', 'Seconds since a background service last wrote its heartbeat (-1 = never).', beats),

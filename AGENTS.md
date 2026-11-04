@@ -46,10 +46,11 @@ App/
 │   ├── crypto.js            # AES-256-GCM encrypt/decrypt for credentials (env key required)
 │   ├── scheduler.js         # Auto-book precision scheduler — queue-driven wake clock
 │   │                        #   (WP-I), priority tiers, SSE
-│   ├── poller.js            # Auto-upgrade polling + cancellation/window reminders + cache refresh
+│   ├── poller.js            # Auto-upgrade polling + cancellation/window reminders; ticks the booking-sync loop
+│   ├── booking-sync.js      # ★ T-B universal background booking sync: the ONLY background writer of booking_cache + waitlist_cache
 │   ├── push.js              # Web Push (VAPID) notification fan-out service
 │   ├── notifications.js     # Notification dispatch layer (5 types, per-user prefs)
-│   ├── calendar.js          # iCalendar (.ics) feed generation, token auth, 3-hourly poll
+│   ├── calendar.js          # iCalendar (.ics) feed generation, token auth, 3-hourly DB-only republish (no fetch; T-B)
 │   ├── metrics.js           # C7-3 hand-rolled Prometheus registry + route-template HTTP middleware
 │   ├── logger.js            # C7-3 structured JSON logger + request-log middleware (redacts by key; no bodies/headers/queries)
 │   ├── admin.js             # Admin panel API router (user list, detail, priority tiers, delete)
@@ -208,6 +209,7 @@ Server runs on port 3000. Vite dev server proxies `/api` to `localhost:3000`.
 - **Priority tiers + fair dispatch**: `users.priority` (lower = higher precedence; default 100, new users get 200) drives dispatch ordering within a release group. `getPendingAutoBookings()` JOINs `users.priority` and sorts `ORDER BY priority ASC, created_at ASC`; Fisher-Yates shuffle within each tier gives statistical fairness over weeks. `CLAIM_STAGGER_MS = 80ms` staggers consecutive users in the same class. Cross-user `claimedSlots`/`burnedSlots` Sets prevent duplicate `POST /bookings` across concurrent users targeting the same event/slot. Admin-editable via `PUT /api/admin/users/:id/priority`.
 - **Auto-upgrade**: Configurable polling (1min/15min/1hr) via `node-cron` every minute. Stops at 12h before class start (or one final "keep original" attempt if `keepOriginalOnCutoff`). Hard stop at 1h.
 - **Provider throttling (C2-3, 2026-09-26)**: `classifyProviderThrottle()` (`providers/base.js`) treats any 429 as throttling, but a 403 only when it has corroborating evidence (a `Retry-After` header or throttle wording). A plain permission 403 is left alone. The per-gym backoff and its once-a-day `providerThrottled` notification live in **one shared module, `server/rate-limit-backoff.js`**, used by both `scheduler.js` and `poller.js`. Never keep a second copy of the backoff state. `calendar.js` does not consult it yet.
+- **Universal background booking sync (T-B, 2026-11-04)**: `server/booking-sync.js` is the ONLY background writer of `booking_cache` and `waitlist_cache`. One loop (poller cron every 15 min, `runCycle`) walks **every account and every link with `account_enabled`**, regardless of push, reminders, calendar or app use, and syncs each (user, gym) pair that is due: **2 h** for the priority set (`setPriorityPredicate`, empty until T-2 supplies Team members), **3 h** for calendar-feed users (the feed's old cadence), **6 h** for everyone else; 2-8 s jitter per gym. Uses the ROW gym's session. Skips without fetching, and keeps stored rows for, a disabled gym/link (`gymOutbound`), a throttled gym (`rate-limit-backoff`), and a link that is `needs_relogin` or relogin-suspended. Each of bookings/waitlists is written only if its own fetch succeeded, scoped to that gym; a failure never touches other gyms. `booking_sync_state.last_synced_at` moves only when both succeeded; a failed gym retries after 30 min. `calendar.js` does not fetch: the sync calls `calendar.afterBookingSync()` for feed users, and `calendar.refreshUser` (debounced after any book/cancel/waitlist action, for every account) is a forced sync. Counters: `/api/health` `bookingSync`, `/metrics` `booking_sync_total{result}`. Remaining non-background writers: `POST /api/bookings/sync` (client push) and the admin detail page's warm. Pinned by `server/test-booking-sync.js`.
 - **Background relogin suspension (C6-4, 2026-09-28)**: `user_gyms` counts consecutive background relogin failures. After **3 credential rejections**, retries for that link are suspended; they fail fast without contacting the gym, so a changed gym password can't get the account locked. A provider outage counts toward the total but never suspends. A successful renewal, a re-link or an admin credential reset clears the count. Admins see a pill per gym in `/admin`.
 - **Competing auto-books (C5-3, 2026-09-28)**: `server/competing-bookings.js` is pure. An exact duplicate that is still pending (same gym and event) gets **409 `DUPLICATE_AUTO_BOOK`**. Time overlaps, including across gyms, and "already booked" come back as `warnings[]` on a 200, not errors, because a member may queue alternatives on purpose. Overlap uses each row's own gym timezone and `auto_bookings.duration_min`, defaulting to 45.
 - **Paused auto-upgrades resume (C5-1)**: `poller.resumePausedUpgrades()` re-checks `paused_no_credits` monitors each cycle, at most every 15 min per monitor, with one credits read per user and gym. It uses the same usable-credit rule as the pause, so a monitor can't flap. A monitor past its cutoff becomes `stopped` instead of resuming.
@@ -215,7 +217,7 @@ Server runs on port 3000. Vite dev server proxies `/api` to `localhost:3000`.
 - **CORS**: Browser-origin allowlist (`config.corsOrigins`, override via `CORS_ORIGINS`). The PWA is served same-origin in production, so only the public host is allowed; localhost dev origins are added when `NODE_ENV !== 'production'`. Requests with no `Origin` header (curl, native calendar clients, same-origin nav) pass through; disallowed origins get no CORS headers (browser blocks them) rather than a 500.
 - **Admin auth**: `/api/admin/login` compares the password in constant time (`crypto.timingSafeEqual` over SHA-256 digests) to avoid timing leaks, and is brute-force-limited (5/15min per IP).
 - **Credential storage**: AES-256-GCM encryption at rest. Master key MUST come from the `ENCRYPTION_KEY` env var — the server refuses to start if it is absent (no DB fallback). Never in DB as plaintext.
-- **Calendar feed**: Per-**account** rotatable token (`users.calendar_token`) authenticates the public `.ics` URL, and one feed carries every linked gym. A 3-hourly cron polls CodexFit bookings/waitlists and regenerates each enabled user's snapshot; booking mutations trigger a debounced (60s) refresh. RFC 5545 serialization with `Europe/London` VTIMEZONE and optional VALARM.
+- **Calendar feed**: Per-**account** rotatable token (`users.calendar_token`) authenticates the public `.ics` URL, and one feed carries every linked gym. The feed never fetches: `booking-sync.js` stores bookings/waitlists and calls `calendar.afterBookingSync()` to republish; a 3-hourly cron republishes from stored rows only; booking mutations trigger a debounced (60s) forced sync via `calendar.scheduleRefresh` → `refreshUser`. RFC 5545 serialization with `Europe/London` VTIMEZONE and optional VALARM.
 - **Admin panel**: Standalone SPA at `/admin`, gated by `ADMIN_PASSWORD` env var (503 if absent) + 1h admin JWT. Read-only user list/detail plus inline priority-tier editing and user deletion.
 - **PWA must work on iOS 16.4+** via "Add to Home Screen". No background sync on iOS — server handles everything. Push notifications require the PWA to be installed to home screen. First-run onboarding guides install + login + notifications + calendar + spot maps.
 - **Timezone**: All cutoff/release calculations must use `Europe/London` timezone. The server uses Luxon; the client uses Luxon via `src/lib.js`. Never use bare `new Date()` for booking window math.
@@ -281,8 +283,8 @@ The background services (auto-book scheduler, auto-upgrade poller, calendar feed
 | **Cancellation Reminders**| ✅ Functional | 24h/14h before class, deduped, reads booking cache |
 | **Booking Window Reminder**| ✅ Functional | 1hr before Monday release, contextual tip |
 | **SSE Live Status** | ✅ Functional | Real-time auto-book execution updates via Server-Sent Events |
-| **Booking Cache Sync** | ✅ Functional | Client pushes bookings to server for reminder cache |
-| **Calendar Feed** | ✅ Functional | Per-**account** .ics feed spanning every linked gym (webcal/Google), token auth, 3-hourly poll, VALARM, Europe/London VTIMEZONE |
+| **Booking Cache Sync** | ✅ Functional | T-B: server refreshes every account's bookings + waitlists for every enabled gym in the background (see Architecture Constraints); the client may also push what it fetched |
+| **Calendar Feed** | ✅ Functional | Per-**account** .ics feed spanning every linked gym (webcal/Google), token auth, built from the background booking sync, VALARM, Europe/London VTIMEZONE |
 | **First-run Onboarding** | ✅ Functional | 6-step guided flow (intro → install → login → notifs → calendar → spot maps) |
 | **Offline Support** | ✅ Functional | SW network-first shell + cache-first assets, offline banner, button disabling |
 | **Pull-to-refresh** | ✅ Functional | Reusable pull-to-refresh on scroll containers (timetable, bookings, auto-book) |
@@ -447,7 +449,7 @@ POST   /api/notify/booking-success  # Client reports manual/quick booking → se
 POST   /api/bookings/sync           # Client pushes bookings to warm server reminder cache
 ```
 
-## SQLite Schema (20 tables)
+## SQLite Schema (21 tables)
 
 | Table | Purpose | Key columns |
 |-------|---------|-------------|
@@ -460,10 +462,11 @@ POST   /api/bookings/sync           # Client pushes bookings to warm server remi
 | `settings` | Per-**gym** settings | `gym_id`, `preferences` (JSON blob — the gym-scoped keys: detectedBookingOffset, cartInstanceId, calendar, autoBookFavourites…), `UNIQUE(user_id, gym_id)` |
 | `account_settings` | Per-**account** settings (WP-D6) | `preferences` (JSON blob — `ACCOUNT_SCOPED_SETTING_KEYS` only: notifications, debugMode, autoUpgrade*, prefetchWeeks, theme). Merged with the gym row by `getUserSettings()` |
 | `push_subscriptions` | Web Push endpoints | `subscription` (JSON string) |
-| `booking_cache` | Reminder cache (client-synced) | `booking_id`, `event_id`, `start_at`, `slot_label`, `duration_min`, `location_address`, `UNIQUE(user_id, booking_id)` |
-| `waitlist_cache` | Waitlist reminder cache (client-synced) | `event_id`, `start_at`, `studio_id`, `location_address`, `UNIQUE(user_id, event_id)` |
+| `booking_cache` | Upcoming bookings per (user, gym), refreshed by `booking-sync.js` (+ client push) | `booking_id`, `event_id`, `start_at`, `slot_label`, `duration_min`, `location_address`, `UNIQUE(user_id, booking_id)` |
+| `waitlist_cache` | Waitlists per (user, gym), refreshed by `booking-sync.js` | `event_id`, `start_at`, `studio_id`, `location_address`, `UNIQUE(user_id, event_id)` |
 | `class_history` | H-0 past classes, one row per (user, gym, provider booking id), normalized fields only (`status`: attended/unconfirmed/late-cancel/cancelled/no-show/class-cancelled; `start_ts` epoch ms for range queries). Written ONLY via `server/class-history.js`; shaped for C8-1 to adopt | `gym_id` NOT NULL, `booking_id`, `instructor_id/name`, `start_at`, `UNIQUE(user_id, gym_id, booking_id)` |
 | `class_history_sync` | Per (user, gym) last-synced time/error/row count | `last_synced_at`, `last_error`, PK `(user_id, gym_id)` |
+| `booking_sync_state` | T-B: per (user, gym) booking/waitlist sync time ("Updated 3 h ago"), last attempt, last error. Written only by `booking-sync.js` | `last_synced_at`, `last_attempt_at`, `last_error`, PK `(user_id, gym_id)` |
 | `landing_events` | M step 3 landing analytics (pageview/cta/open). No user id, no IP: `visitor_hash` is a daily-rotating hash. Written/read ONLY via `server/landing-events.js`; purged after 13 months (poller cron 03:40) | `ts`, `type`, `referrer_host`, `country`, `device`, `utm_campaign`, `cta_src`, `is_bot` |
 | `favourites` | F-12 gym-neutral favourites for gyms without native bookmarks (Psycle uses native; capability `bookmarks`). One row per recurring slot | `gym_id` NOT NULL, `studio_id`, `day_of_week` (Sun=0), `start_time` HHmm (class-local), display labels, `UNIQUE(user_id, gym_id, studio_id, day_of_week, start_time)` |
 | `sent_notifications` | Notification dedupe | `dedupe_key`, `UNIQUE(user_id, dedupe_key)` |

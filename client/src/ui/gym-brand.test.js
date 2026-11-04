@@ -7,40 +7,40 @@ describe('gymBrand: presentation contract lookup (F-7 item 2)', () => {
   beforeEach(() => setGymCatalogue(CATALOGUE));
 
   it('resolves each gym by exact id from the catalogue', () => {
-    expect(gymBrand('psycle-london').logoSvg).toContain('/gyms/psycle-london.avif');
-    expect(gymBrand('psycle-london').logoSvg).toContain('is-half');
-    expect(gymBrand('jab-boxing').logoSvg).toContain('/gyms/jab-boxing.svg');
+    expect(gymBrand('psycle-london', 'full').logo).toContain('/gyms/psycle-london.avif');
+    expect(gymBrand('psycle-london', 'half').logo).toContain('gym-logo--half');
+    expect(gymBrand('jab-boxing').logo).toContain('/gyms/jab-boxing.svg');
     expect(gymBrand('jab-boxing').brandBg).toBe('#6C1F20');
   });
   it('does not match by substring: an id merely containing "jab" is neutral', () => {
     const b = gymBrand('jabberwocky-fitness');
     expect(b.id).toBe('neutral');
-    expect(b.logoSvg).not.toContain('jab-boxing');
-    expect(b.logoSvg).toContain('ab-gym-logo-text');
+    expect(b.logo).not.toContain('jab-boxing');
+    expect(b.logo).toContain('ab-gym-logo-text');
   });
   it('unknown gym or unloaded catalogue gets the neutral fallback, never Psycle', () => {
     setGymCatalogue([]);
     const b = gymBrand('psycle-london');
     expect(b.id).toBe('neutral');
-    expect(b.logoSvg).not.toContain('.avif');
+    expect(b.logo).not.toContain('.avif');
     expect(getGymPresentation('nope')).toBeNull();
   });
   it('a third gym with a text-only wordmark needs no client code', () => {
     const b = gymBrand('third-gym');
     expect(b.id).toBe('third-gym');
-    expect(b.logoSvg).toContain('THIRD');
+    expect(b.logo).toContain('THIRD');
     expect(b.brandBg).toBe('#0a7a3c');
     expect(gymChip('third-gym')).toContain('background:#0a7a3c');
   });
   it('uses the filter drawer logo-plate contract for compact full wordmarks', () => {
     const plate = gymLogoPlate('psycle-london');
     expect(plate).toContain('fr-logo-plate');
-    expect(plate).toContain('is-full');
+    expect(plate).toContain('gym-logo--full');
     expect(plate).not.toContain('app-gym-chip');
   });
   it('escapes wordmark text', () => {
     setGymCatalogue([{ id: 'x', presentation: { ...CATALOGUE[2].presentation, wordmark: { text: '<b>X</b>' } } }]);
-    expect(gymBrand('x').logoSvg).not.toContain('<b>');
+    expect(gymBrand('x').logo).not.toContain('<b>');
   });
 });
 
@@ -106,9 +106,9 @@ describe('gymBrand wordmark scale (data-driven, E2)', () => {
     const jab = CATALOGUE.find((g) => g.id === 'jab-boxing');
     const scaled = [{ ...jab, presentation: { ...jab.presentation, wordmark: { ...jab.presentation.wordmark, scale: 0.95 } } }];
     setGymCatalogue(scaled);
-    expect(gymBrand('jab-boxing').logoSvg).toContain('--logo-scale:0.95');
+    expect(gymBrand('jab-boxing').logo).toContain('--logo-scale:0.95');
     setGymCatalogue(CATALOGUE);
-    expect(gymBrand('jab-boxing').logoSvg).not.toContain('--logo-scale');
+    expect(gymBrand('jab-boxing').logo).not.toContain('--logo-scale');
   });
 });
 
@@ -120,4 +120,37 @@ it('uses a settings-only banner width without changing timetable chips or drawer
   expect(gymChip(gym.id)).toContain('--logo-w:40px');
   expect(gymLogoPlate(gym.id)).not.toContain('--logo-w:84px');
   expect(gymLogoBanner(gym.id)).toContain('--logo-w:40px');
+});
+
+describe('gymBrand form factors (single size-keyed API)', () => {
+  beforeEach(() => setGymCatalogue(CATALOGUE));
+  it('stamps one size-keyed class per form and defaults to full', () => {
+    for (const f of ['square', 'half', 'full']) expect(gymBrand('psycle-london', f).logo).toContain(`gym-logo--${f}`);
+    expect(gymBrand('psycle-london').form).toBe('full');
+    expect(gymBrand('psycle-london', 'bogus').form).toBe('full');
+  });
+  it('half is a distinct asset for Psycle, full falls back for single-asset gyms', () => {
+    expect(gymBrand('psycle-london', 'half').logo).toContain('half');
+    expect(gymBrand('psycle-london').hasHalf).toBe(true);
+    expect(gymBrand('jab-boxing').hasHalf).toBe(false);
+    expect(gymBrand('jab-boxing', 'half').logo).toContain('/gyms/jab-boxing.svg');
+  });
+  it('square falls back to the first letter when there is no mark; text-only gym shows its text', () => {
+    setGymCatalogue([{ id: 'x', presentation: { ...CATALOGUE[2].presentation, shortName: 'Zed', wordmark: { text: 'ZED' } } }]);
+    expect(gymBrand('x', 'square').logo).toContain('>Z<');
+    expect(gymBrand('x', 'half').logo).toContain('ZED');
+    expect(gymBrand('x', 'full').logo).toContain('ZED');
+  });
+  it('a squareMark gym shows its mark for half and square, its wordmark for full', () => {
+    const g = CATALOGUE[1];
+    setGymCatalogue([{ ...g, presentation: { ...g.presentation, wordmark: { ...g.presentation.wordmark, mark: { src: '/m.svg' }, squareMark: true } } }]);
+    expect(gymBrand(g.id, 'half').logo).toContain('/m.svg');
+    expect(gymBrand(g.id, 'half').isMark).toBe(true);
+    expect(gymBrand(g.id, 'full').logo).not.toContain('/m.svg');
+  });
+  it('chip switches by viewport only when the gym has a distinct half', () => {
+    expect(gymChip('psycle-london')).toContain('is-responsive');
+    expect(gymChip('psycle-london', { responsive: false })).not.toContain('gym-logo--half');
+    expect(gymChip('jab-boxing')).not.toContain('is-responsive');
+  });
 });

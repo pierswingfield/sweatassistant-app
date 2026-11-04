@@ -611,26 +611,26 @@
    auto` alone will happily overflow the plate. object-fit keeps the aspect if
    the max-width ever does bite. */
 /* Wordmark height as a share of the plate, not an absolute px value. */
-.app-gym-chip-logo .ab-gym-logo-img { height: calc(var(--tt-chip-h) * 0.42); width: auto; max-width: 76px; object-fit: contain; }
-.app-gym-chip-logo .ab-gym-logo-svg { height: calc(var(--tt-chip-h) * 0.55); width: auto; max-width: 76px; object-fit: contain; }
+.app-gym-chip-logo .gym-logo-pair { height: calc(var(--tt-chip-h) * 0.42); width: auto; max-width: 76px; object-fit: contain; }
+.app-gym-chip-logo .gym-logo-flat { height: calc(var(--tt-chip-h) * 0.55); width: auto; max-width: 76px; object-fit: contain; }
 
 /* FULL vs HALF wordmark. Both are in the DOM; CSS picks. Wide layouts get the
    full mark, narrow ones the half — see the note in cards.js gymBrand(). */
-.ab-gym-logo-img.is-half { display: none; }
+.app-gym-chip.is-responsive .gym-logo--half { display: none; }
 /* Aligned with the column-merge breakpoint (1240px) on purpose: the plate
    narrowing and the columns merging are the same transition, so the row changes
    shape ONCE as you resize instead of jumping at three separate widths. The
    narrower plate also frees the width the merge needs. */
 @media (max-width: 1240px) {
-  .ab-gym-logo-img.is-full { display: none; }
-  .ab-gym-logo-img.is-half { display: block; }
+  .app-gym-chip.is-responsive .gym-logo--full { display: none; }
+  .app-gym-chip.is-responsive .gym-logo--half { display: block; }
   /* The half mark is ~3.7:1, so the plate can shrink with it. */
   .app-gym-chip {
     min-width: 62px;
     padding: 5px 7px;
   }
-  .app-gym-chip-logo .ab-gym-logo-img { max-width: 48px; }
-  .app-gym-chip-logo .ab-gym-logo-svg { max-width: 48px; height: 12px; }
+  .app-gym-chip-logo .gym-logo-pair { max-width: 48px; }
+  .app-gym-chip-logo .gym-logo-flat { max-width: 48px; height: 12px; }
   #app-helper-container .app-table td.col-gym,
   #app-helper-container .app-table th.col-gym { width: 78px !important; }
 }
@@ -2280,7 +2280,7 @@ html, body, * {
 .home-book-gym-row.is-centered .home-book-gym { flex: 0 1 calc((100% - 16px) / 3); }
 .home-book-gym { min-width: 0; min-height: 48px; max-height: none; justify-content: center; padding: 6px; }   /* tile 64 -> 48 (-25%); still >= 44 tap target */
 .home-book-gym .fr-logo-plate { width: 100%; max-width: 90px; min-width: 0; box-sizing: border-box; height: 23px; padding: 0 10px; }
-.home-book-gym .fr-logo-plate .ab-gym-logo-img.is-full, .home-book-gym .fr-logo-plate .ab-gym-logo-svg { height: 11px; }
+.home-book-gym .fr-logo-plate .gym-logo-pair.gym-logo--full, .home-book-gym .fr-logo-plate .gym-logo-flat { height: 11px; }
 .home-book-all { width: 100%; min-height: 48px; justify-content: center; gap: 8px; border-radius: 999px; background: var(--accent-fill); color: var(--on-accent-fill); }
 .home-book-all:hover { border-color: var(--accent-fill-hover); background: var(--accent-fill-hover); }
 
@@ -5832,9 +5832,9 @@ html, body, * {
 }
 .app-hgb-logo img { height: 7px; width: auto; display: block; }
 .app-hgb-logo-text { font-size: 7px; font-weight: 700; color: #fff; text-transform: uppercase; }
-.app-hgb-logo .app-hgb-logo-mark { display: none; }
-.app-badges-compact .app-hgb-logo .app-hgb-logo-wide { display: none; }
-.app-badges-compact .app-hgb-logo .app-hgb-logo-mark { display: block; }
+.app-hgb-logo .gym-logo--square { display: none; }
+.app-badges-compact .app-hgb-logo .gym-logo--half { display: none; }
+.app-badges-compact .app-hgb-logo .gym-logo--square { display: block; }
 .app-badges-compact .app-hgb-logo { padding: 0 4px; }
 .app-header-gym-badge[data-gym] .app-hgb-pill,
 .app-hgb-pill { background: none !important; padding: 0; color: var(--text) !important; }
@@ -6263,9 +6263,8 @@ html, body, * {
 
 /* The card rail is 58px wide, so it ALWAYS uses the half mark regardless of
    viewport — the full 7.4:1 wordmark has never fitted here. */
-.ab-card-gym-rail .ab-gym-logo-img.is-full { display: none; }
-.ab-card-gym-rail .ab-gym-logo-img.is-half { display: block; width: 42px; height: auto; }
-.ab-card-gym-rail .ab-gym-logo-svg { width: 40px; height: auto; }
+.ab-card-gym-rail .gym-logo-pair.gym-logo--half { display: block; width: 42px; height: auto; }
+.ab-card-gym-rail .gym-logo-flat { width: 40px; height: auto; }
 
 
 .ab-card-main {
@@ -7627,10 +7626,8 @@ html, body, * {
 .app-onb-gym-logos:not(.is-marquee) .app-onb-gym-logos-set { flex-wrap: wrap; width: 100%; }
 .app-onb-gym-logo { flex: 0 0 auto; }
 .app-onb-gym-logo .app-gym-chip { min-width: 120px !important; height: 48px !important; padding: 0 14px !important; }
-.app-onb-gym-logo .app-gym-chip-logo .ab-gym-logo-img,
-.app-onb-gym-logo .app-gym-chip-logo .ab-gym-logo-svg { height: 24px !important; max-width: 110px !important; width: auto; object-fit: contain; }
-.app-onb-gym-logo .ab-gym-logo-img.is-half { display: none !important; }
-.app-onb-gym-logo .ab-gym-logo-img.is-full { display: block !important; }
+.app-onb-gym-logo .app-gym-chip-logo .gym-logo-pair,
+.app-onb-gym-logo .app-gym-chip-logo .gym-logo-flat { height: 24px !important; max-width: 110px !important; width: auto; object-fit: contain; }
 @keyframes app-onb-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 .app-onb-gym-logos.is-marquee .app-onb-gym-logos-track { animation: app-onb-marquee 24s linear infinite; }
 .app-onb-gym-logos.is-marquee:hover .app-onb-gym-logos-track,
@@ -7949,9 +7946,8 @@ html, body, * {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 14%, transparent);
 }
 /* A square plate always takes the HALF Psycle mark, whatever the viewport. */
-.app-gym-mark .ab-gym-logo-img.is-full { display: none; }
-.app-gym-mark .ab-gym-logo-img.is-half { display: block; width: 21px; height: auto; }
-.app-gym-mark .ab-gym-logo-svg { display: block; width: 21px; height: auto; }
+.app-gym-mark .gym-logo-pair.gym-logo--half { display: block; width: 21px; height: auto; }
+.app-gym-mark .gym-logo-flat { display: block; width: 21px; height: auto; }
 
 /* On the iOS-style list the row spreads its children (space-between) around the
    chevron, so let the label take the slack instead of floating mid-row. */
@@ -8315,9 +8311,8 @@ html, body, * {
 .fr-gym-dot { overflow: hidden; }
 .fr-gym-dot.sm { width: 20px; height: 20px; }
 .fr-logo-plate { display: inline-flex; align-items: center; justify-content: center; height: 30px; padding: 0 14px; border-radius: 8px; }
-.fr-logo-plate .ab-gym-logo-img.is-full { display: block !important; height: 15px; width: auto; max-width: 100%; object-fit: contain; }
-.fr-logo-plate .ab-gym-logo-img.is-half { display: none !important; }
-.fr-logo-plate .ab-gym-logo-svg { height: 15px; width: auto; max-width: 100%; object-fit: contain; }
+.fr-logo-plate .gym-logo-pair.gym-logo--full { display: block; height: 15px; width: auto; max-width: 100%; object-fit: contain; }
+.fr-logo-plate .gym-logo-flat { height: 15px; width: auto; max-width: 100%; object-fit: contain; }
 .fr-sec-plain { padding: 4px 0 8px; border-top: 0; }
 .fr-gymrow { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); cursor: pointer; }
 .fr-gymrow.on { border-color: var(--accent); }
@@ -8337,7 +8332,7 @@ html, body, * {
 .fr-igroup-body { display: flex; flex-direction: column; gap: 6px; padding: 0 8px 8px; }
 
 /* --- U2-5 round 3: card sections, 2-wide gyms, merged locations, P mark --- */
-.fr-gym-dot .fr-mark-img { width: 100%; height: 100%; padding: 2px; object-fit: contain; }
+.fr-gym-dot .gym-logo--square { width: 100%; height: 100%; padding: 2px; object-fit: contain; }
 .fr-body { display: flex; flex-direction: column; gap: 10px; padding: 4px 16px 14px; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
 .fr-sec { border: 1px solid var(--border-strong); border-radius: 16px; background: var(--surface-2); overflow: hidden; }
 .fr-sec-plain { border: 0; background: none; overflow: visible; padding: 0; }
@@ -8350,8 +8345,8 @@ html, body, * {
 .fr-gymrows { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; box-sizing: border-box; }
 .fr-gymrow { min-width: 0; width: 100%; box-sizing: border-box; flex-direction: row; justify-content: center; align-items: center; gap: 8px; padding: 6px; min-height: 44px; overflow: hidden; }
 .fr-logo-plate--selector { flex: 1 1 0; min-width: 0; max-width: 100%; width: 100%; padding: 0 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-.fr-logo-plate .ab-gym-logo-img.is-full,
-.fr-logo-plate .ab-gym-logo-svg { max-width: 100%; height: 15px; width: auto; object-fit: contain; }
+.fr-logo-plate .gym-logo-pair.gym-logo--full,
+.fr-logo-plate .gym-logo-flat { max-width: 100%; height: 15px; width: auto; object-fit: contain; }
 .fr-sheet button, .fr-opt, .fr-gymrow { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .fr-grid { padding: 0; gap: 8px; }
 .fr-opt { min-height: 44px; padding: 6px 8px; gap: 6px; }
@@ -9169,7 +9164,9 @@ body::before {
 }
 
 /* E2. Per-gym wordmark optical scale (presentation.wordmark.scale -> --logo-scale); the chip is unchanged. */
-.ab-gym-logo-img, .ab-gym-logo-svg { transform: scale(var(--logo-scale, 1)); }
+.gym-logo-pair, .gym-logo-flat { transform: scale(var(--logo-scale, 1)); }
+/* The 1:1 mark (filter-tray dots) was never optically scaled; keep it that way. */
+.gym-logo--square { transform: none; }
 
 /* E3. Bottom nav: 60% alpha, 15px blur (saturate + hairline kept). */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
@@ -9181,16 +9178,16 @@ body::before {
 
 /* E6. Logo loading states (see ui/gym-logo-loader.js): invisible until loaded (plate colour shows),
    late loads fade in, cached ones appear instantly, failures fall back to the gym initial. */
-.js-logo-fade :is(.ab-gym-logo-img, .ab-gym-logo-svg, .fr-mark-img, .app-hgb-logo img):not(.is-loaded) { opacity: 0; }
-.js-logo-fade :is(.ab-gym-logo-img, .ab-gym-logo-svg, .fr-mark-img, .app-hgb-logo img).is-late { transition: opacity var(--dur-base) var(--ease-out); }
+.js-logo-fade :is(.gym-logo, .app-hgb-logo img):not(.is-loaded) { opacity: 0; }
+.js-logo-fade :is(.gym-logo, .app-hgb-logo img).is-late { transition: opacity var(--dur-base) var(--ease-out); }
 
 /* 
    ===== Auto-Book tab and Auto-Upgrade =====
     */
-.js-logo-fade :is(.ab-gym-logo-img, .ab-gym-logo-svg, .fr-mark-img, .app-hgb-logo img).is-failed { display: none !important; }
+.js-logo-fade :is(.gym-logo, .app-hgb-logo img).is-failed { display: none !important; }
 .is-logo-fallback::after { content: attr(data-initial); color: #fff; font-weight: 700; font-size: 12px; line-height: 1; }
 @media (prefers-reduced-motion: reduce) {
-  .js-logo-fade :is(.ab-gym-logo-img, .ab-gym-logo-svg, .fr-mark-img, .app-hgb-logo img).is-late { transition: none; }
+  .js-logo-fade :is(.gym-logo, .app-hgb-logo img).is-late { transition: none; }
 }
 
 /* ---- Batch F ---- */
@@ -9298,8 +9295,9 @@ html[data-hdr-hidden] { background: var(--bg); }
 
 /* Inline sprite logos (<svg><use>): sized exactly like the <img> wordmarks they replace, always visible. */
 svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !important; overflow: visible; }
-.ab-gym-logo-img.is-half.gym-logo-inline, .ab-gym-logo-img.is-full.gym-logo-inline { /* keep the full/half switching rules */ }
 .app-hgb-logo svg.gym-logo-inline { height: 7px; width: auto; }
+/* The header pill never applied the optical --logo-scale (it is for plates); keep it that way. */
+.app-hgb-logo .gym-logo { transform: none; }
 
 
 /* ---- Batch I ---- */
@@ -9379,8 +9377,8 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
 /* 
    ===== Timetable, tooltips and mobile class cards =====
     */
-.app-gym-mark .ab-gym-logo-svg.is-mark { width: auto; height: 15px; }
-.ab-card-gym-rail .ab-gym-logo-svg.is-mark { width: auto; height: 38px; max-width: 100%; object-fit: contain; }
+.app-gym-mark .gym-logo-flat.is-mark { width: auto; height: 15px; }
+.ab-card-gym-rail .gym-logo-flat.is-mark { width: auto; height: 38px; max-width: 100%; object-fit: contain; }
 
 /* Full with no waitlist: the action is blanked (status pill says it); keep the box so rows align. */
 .app-tt-seg.is-blank, .app-mobile-seg.is-blank { visibility: hidden !important; pointer-events: none !important; }
@@ -9455,7 +9453,7 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
 
 /* ===== Task G ===== */
 /* Very wide wordmark in table chips (presentation.wordmark.logoWidth -> --logo-w on the chip). */
-#app-helper-container .app-gym-chip.has-logo-w .app-gym-chip-logo :is(.ab-gym-logo-img, .ab-gym-logo-svg) {
+#app-helper-container .app-gym-chip.has-logo-w .app-gym-chip-logo :is(.gym-logo-pair, .gym-logo-flat) {
   width: var(--logo-w) !important; height: auto !important; max-width: none !important;
 }
 /* Instructor name = class name size (mobile row line 3 was 13px vs the class name's 14px). */
@@ -9487,13 +9485,13 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
 
 /* Header pill for squareMark gyms: oblong pill with the short A mark (the normal logo imgs are hidden). */
 .app-hgb-logo.is-markonly { padding: 0 9px; }
-.app-hgb-logo.is-markonly .app-hgb-logo-mark { display: block !important; height: 9px; width: auto; }
+.app-hgb-logo.is-markonly .gym-logo--half { display: block !important; height: 9px; width: auto; }
 /* Square mark glyph in the filter pane's gym dots: 20% smaller than before. */
 
 /* 
    ===== Modals, overlays and the spot map =====
     */
-.fr-gym-dot .fr-mark-img.is-squaremark { padding: 5px; }
+.fr-gym-dot .gym-logo--square.is-squaremark { padding: 5px; }
 
 /* Settings nav: gym entries indented under "Your Gyms" on the mobile list too. The mobile rule above sets
    `padding: 18px 24px` (24px left), which left the 30px sub indent only 6px deeper. This sits after it
@@ -9658,10 +9656,8 @@ body.app-scroll-locked { overflow: hidden; overscroll-behavior: none; }
 /* Gym logo banner: the full wordmark on its brand plate (same sizing as onboarding's). */
 .app-gym-logo-banner { display: inline-flex; vertical-align: middle; }
 .app-gym-logo-banner .app-gym-chip { min-width: 120px !important; height: 48px !important; padding: 0 16px; }
-.app-gym-logo-banner .app-gym-chip-logo .ab-gym-logo-img,
-.app-gym-logo-banner .app-gym-chip-logo .ab-gym-logo-svg { height: 24px !important; max-width: 120px !important; width: auto; object-fit: contain; }
-.app-gym-logo-banner .ab-gym-logo-img.is-half { display: none !important; }
-.app-gym-logo-banner .ab-gym-logo-img.is-full { display: block !important; }
+.app-gym-logo-banner .app-gym-chip-logo .gym-logo-pair,
+.app-gym-logo-banner .app-gym-chip-logo .gym-logo-flat { height: 24px !important; max-width: 120px !important; width: auto; object-fit: contain; }
 .app-gym-settings-heading .app-gym-logo-banner { display: flex; margin-bottom: 0; align-items: center; }
 .app-gym-conn-name .app-gym-conn-logo { display: block; margin-bottom: 6px; }
 .app-gym-form-logo { margin: 0 0 12px; }
@@ -9797,7 +9793,7 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
 .app-setup-inner { width: 100%; max-width: 390px; margin: auto auto !important; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 12px 14px; }
 .app-setup-logo .app-gym-logo-banner { display: inline-flex; }
 .app-setup-logo .app-gym-chip { min-width: 150px !important; height: 64px !important; }
-.app-setup-logo .app-gym-chip-logo .ab-gym-logo-img, .app-setup-logo .app-gym-chip-logo .ab-gym-logo-svg { height: 32px !important; max-width: 150px !important; }
+.app-setup-logo .app-gym-chip-logo .gym-logo-pair, .app-setup-logo .app-gym-chip-logo .gym-logo-flat { height: 32px !important; max-width: 150px !important; }
 .app-setup-where { font-size: 14px; color: var(--text-secondary); }
 .app-setup-preview { width: 200px; height: 84px; margin: 6px 0; }
 .app-setup-preview .pv-spot { fill: color-mix(in srgb, var(--text) 10%, transparent); }

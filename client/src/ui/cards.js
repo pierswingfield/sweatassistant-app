@@ -280,58 +280,69 @@ export function wordmarkElement(cls, src, styleAttr = '') {
   return `<img class="${cls}" src="${src}" alt="" aria-hidden="true" decoding="sync"${styleAttr}>`;
 }
 
-export function gymBrand(gymId) {
+/** Logo form factors, the ONLY size choice a caller makes:
+ *   square - 1:1 mark (filter tray dots); falls back to the gym's first letter
+ *   half   - compact wordmark for narrow plates (cards' rail, small plates, mobile); a gym whose wordmark
+ *            is too wide for them (presentation.wordmark.squareMark) shows its mark instead
+ *   full   - full wordmark (Settings, banners, Home plates)
+ *  Fallbacks: full -> compact -> name text; no mark -> first letter. */
+export const GYM_LOGO_FORMS = ['square', 'half', 'full'];
+
+/**
+ * THE gym-logo entry point. `gymBrand(gymId, form).logo` is the markup for that form: one element
+ * carrying the single size-keyed class `gym-logo--<form>` (styles.css sizes it per container), plus
+ * `gym-logo-pair` (distinct full/half assets) or `gym-logo-flat` (one asset) for optical sizing.
+ */
+export function gymBrand(gymId, form = 'full') {
+  const f = GYM_LOGO_FORMS.includes(form) ? form : 'full';
   const rawId = String(gymId || '');
   const p = getGymPresentation(rawId);
-  // Optional data-driven optical scale for a gym's wordmark inside its (unchanged) chip: presentation.wordmark.scale.
-  const scale = Number(p?.wordmark?.scale);
-  const sty = Number.isFinite(scale) && scale > 0 && scale !== 1 ? ` style="--logo-scale:${scale}"` : '';
-  // Optional data-driven wordmark width for table chips (very wide wordmarks): wordmark.logoWidth (px).
-  const logoW = Number(p?.wordmark?.logoWidth);
-  const hasLogoW = Number.isFinite(logoW) && logoW > 0;
-  const img = (cls, w) => wordmarkElement(cls, w.src, sty);
+  const textLogo = (txt) => (f === 'square'
+    ? `<span class="fr-mark-text" aria-hidden="true">${escapeHtml(txt)}</span>`
+    : `<span class="ab-gym-logo-text" aria-hidden="true">${escapeHtml(txt)}</span>`);
   if (!p) {
-    // Neutral fallback: unknown gym, or the catalogue has not loaded yet. A text
-    // wordmark on a neutral plate, never another gym's assets.
+    // Neutral fallback: unknown gym, or the catalogue has not loaded yet. A blank placeholder on a neutral
+    // plate (printing the raw gym id here is what flashed as text while logos loaded), never another gym's assets.
     const label = getGymShortName(rawId) || rawId || COPY.gymSettings.genericGym;
-    return {
-      id: 'neutral',
-      name: label,
-      shortName: label,
-      brandBg: '#3f3f46',
-      // Blank placeholder on the neutral plate: the catalogue has not arrived, and printing the raw
-      // gym id here is what flashed as text while logos loaded.
-      markHtml: `<span class="fr-mark-text" aria-hidden="true"></span>`,
-      logoSvg: `<span class="ab-gym-logo-text" aria-hidden="true"></span>`,
-    };
+    return { id: 'neutral', name: label, shortName: label, brandBg: '#3f3f46', form: f, isMark: false, hasHalf: false,
+      logoWidth: null, settingsLogoWidth: null, logo: textLogo('') };
   }
   const w = p.wordmark || {};
-  const full = w.full, compact = w.compact;
-  let logoSvg;
-  if (!full && !compact) {
-    logoSvg = `<span class="ab-gym-logo-text" aria-hidden="true">${escapeHtml(w.text)}</span>`;
-  } else if (full && compact && full.src !== compact.src) {
-    // Both always in the DOM; CSS picks by viewport (no flash on resize). See
-    // the .is-full/.is-half rules in styles.css.
-    logoSvg = wordmarkElement('ab-gym-logo-img is-full', full.src, sty)
-      + wordmarkElement('ab-gym-logo-img is-half', compact.src, sty);
+  const full = w.full, compact = w.compact, mark = w.mark;
+  // Optional data-driven optical scale for the wordmark inside its (unchanged) plate: wordmark.scale.
+  const scale = Number(w.scale);
+  const sty = Number.isFinite(scale) && scale > 0 && scale !== 1 ? ` style="--logo-scale:${scale}"` : '';
+  const logoW = Number(w.logoWidth);
+  const settingsW = Number(w.settingsLogoWidth);
+  const wideMark = !!(w.squareMark && mark); // wordmark far too wide for narrow plates: use the mark there
+  const pair = !!(full && compact && full.src !== compact.src);
+  const shape = pair ? 'gym-logo-pair' : 'gym-logo-flat';
+  const el = (asset, extra = '') => wordmarkElement(`gym-logo gym-logo--${f} ${shape}${extra}`, asset.src, sty);
+  let logo, isMark = false;
+  if (f === 'square') {
+    isMark = !!mark;
+    logo = mark
+      ? wordmarkElement(`gym-logo gym-logo--square gym-logo-flat is-mark${w.squareMark ? ' is-squaremark' : ''}`, mark.src, sty)
+      : textLogo(String(p.shortName).charAt(0));
+  } else if (f === 'half' && wideMark) {
+    isMark = true;
+    logo = wordmarkElement(`gym-logo gym-logo--half gym-logo-flat is-mark`, mark.src, sty);
   } else {
-    logoSvg = img('ab-gym-logo-svg', full || compact);
+    const asset = f === 'half' ? (compact || full) : (full || compact);
+    logo = asset ? el(asset) : textLogo(w.text);
   }
-  // Optional data-driven flag (presentation.wordmark.squareMark): a gym whose full wordmark is far
-  // too wide to read in a square/narrow container (Aarmy, ~4.5:1) renders its MARK there instead.
-  const squareLogoSvg = w.squareMark && w.mark ? wordmarkElement('ab-gym-logo-svg is-mark', w.mark.src, sty) : logoSvg;
   return {
     id: rawId,
     name: p.shortName,
-    squareMark: !!(w.squareMark && w.mark),
-    logoWidth: hasLogoW ? logoW : null,
-    settingsLogoWidth: Number.isFinite(Number(w.settingsLogoWidth)) && Number(w.settingsLogoWidth) > 0 ? Number(w.settingsLogoWidth) : null,
-    squareLogoSvg,
     shortName: p.shortName,
     brandBg: p.plate,
-    markHtml: w.mark ? img(`fr-mark-img${w.squareMark ? ' is-squaremark' : ''}`, w.mark) : `<span class="fr-mark-text" aria-hidden="true">${escapeHtml(String(p.shortName).charAt(0))}</span>`,
-    logoSvg,
+    form: f,
+    isMark,
+    /** true when 'half' is a genuinely different wordmark from 'full' (so a plate can switch by viewport) */
+    hasHalf: pair && !wideMark,
+    logoWidth: Number.isFinite(logoW) && logoW > 0 ? logoW : null,
+    settingsLogoWidth: Number.isFinite(settingsW) && settingsW > 0 ? settingsW : null,
+    logo,
   };
 }
 
@@ -339,52 +350,48 @@ export function gymBrand(gymId) {
  *  link/re-auth form). Reuses gymChip so there is still exactly one place that knows a gym's assets. */
 export function gymLogoBanner(gymId, { settings = false } = {}) {
   const width = settings ? gymBrand(gymId).settingsLogoWidth : null;
-  return `<span class="app-gym-logo-banner">${gymChip(gymId, { width })}</span>`;
+  return `<span class="app-gym-logo-banner">${gymChip(gymId, { width, responsive: false })}</span>`;
 }
 
-export function gymChip(gymId, { width = null } = {}) {
-  const brand = gymBrand(gymId);
-  // The gym's actual wordmark on its actual brand colour. A logo alone is still
-  // not the only signal — the row tint and, in cards, the rail carry it too —
-  // but the wordmark is what people recognise a gym by, and a generic glyph
-  // plus capitals was a stand-in for not having the real asset.
-  //
-  // `title` and the visually-hidden name keep the gym readable to screen
-  // readers and to anyone who doesn't know the marks yet, since the image
-  const logoWidth = width || brand.logoWidth;
+/**
+ * The wide table plate. `responsive` (default) emits the full AND half wordmark when the gym has both and
+ * CSS switches by viewport; `responsive: false` is always the full wordmark (banners, onboarding).
+ */
+export function gymChip(gymId, { width = null, responsive = true } = {}) {
+  const full = gymBrand(gymId, 'full');
+  const both = responsive && full.hasHalf;
+  const logoWidth = width || full.logoWidth;
   const wStyle = logoWidth ? `;--logo-w:${logoWidth}px` : '';
-  return `<span class="app-gym-chip app-gym-chip-${brand.id}${logoWidth ? ' has-logo-w' : ''}" title="${brand.name}" style="background:${brand.brandBg};border:1px solid ${brand.brandBg}${wStyle}">`
-    + `<span class="app-gym-chip-logo">${brand.logoSvg}</span>`
-    + `<span class="u-visually-hidden">${brand.name}</span>`
+  return `<span class="app-gym-chip app-gym-chip-${full.id}${logoWidth ? ' has-logo-w' : ''}${both ? ' is-responsive' : ''}" title="${full.name}" style="background:${full.brandBg};border:1px solid ${full.brandBg}${wStyle}">`
+    + `<span class="app-gym-chip-logo">${full.logo}${both ? gymBrand(gymId, 'half').logo : ''}</span>`
+    + `<span class="u-visually-hidden">${full.name}</span>`
     + `</span>`;
 }
 
 /** A compact full-wordmark plate shared by the timetable filter drawer and Home. */
 export function gymLogoPlate(gymId) {
-  const brand = gymBrand(gymId);
-  return `<span class="fr-logo-plate fr-logo-plate--selector" style="background:${brand.brandBg}" title="${escapeHtml(brand.name)}">${brand.logoSvg}<span class="u-visually-hidden">${escapeHtml(brand.name)}</span></span>`;
+  const brand = gymBrand(gymId, 'full');
+  return `<span class="fr-logo-plate fr-logo-plate--selector" style="background:${brand.brandBg}" title="${escapeHtml(brand.name)}">${brand.logo}<span class="u-visually-hidden">${escapeHtml(brand.name)}</span></span>`;
 }
 
-/**
- * A SQUARE (1:1) gym mark: the gym's own wordmark on the gym's own brand plate.
- *
- * `gymChip` is the wide table plate and `renderGymRail` the tall card rail; this
- * is the third shape, for places that want a small icon-sized identifier (the
- * per-gym Settings menu entries). Same assets and same brand colours as the other
- * two — the plate colour comes from `.app-gym-mark-<id>` in styles.css, which
- * mirrors `.app-gym-chip-<id>` — so the three can never disagree about what a
- * gym looks like. Decorative: the gym's name is always rendered beside it.
- */
+/** Small icon-sized plate (per-gym Settings entries, Home rows, booking identity): the HALF form on the
+ *  gym's brand plate. Decorative: the gym's name is always rendered beside it. */
 export function gymSquareChip(gymId) {
-  const brand = gymBrand(gymId);
-  return `<span class="app-gym-mark app-gym-mark-${brand.id}" style="background:${brand.brandBg}" aria-hidden="true">${brand.squareLogoSvg ?? brand.logoSvg}</span>`;
+  const brand = gymBrand(gymId, 'half');
+  return `<span class="app-gym-mark app-gym-mark-${brand.id}" style="background:${brand.brandBg}" aria-hidden="true">${brand.logo}</span>`;
+}
+
+/** The 1:1 filter-tray dot: the gym's mark (or first letter) on its plate. */
+export function gymDot(gymId, cls = '') {
+  const b = gymBrand(gymId, 'square');
+  return `<span class="fr-gym-dot ${cls}" style="background:${b.brandBg}" title="${escapeHtml(b.name)}">${b.logo}</span>`;
 }
 
 export function renderGymRail(gymId) {
-  const brand = gymBrand(gymId);
+  const brand = gymBrand(gymId, 'half');
   return `
     <div class="ab-card-gym-rail" data-gym="${brand.id}" title="${brand.name}" style="background:${brand.brandBg};border-right-color:${brand.brandBg}">
-      <div class="ab-gym-logo">${brand.squareLogoSvg ?? brand.logoSvg}</div>
+      <div class="ab-gym-logo">${brand.logo}</div>
       <span class="u-visually-hidden">${brand.name}</span>
     </div>
   `;

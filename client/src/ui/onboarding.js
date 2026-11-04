@@ -21,7 +21,7 @@ import { setGymCatalogue } from '../gym-context.js';
 import { COPY, formatCopyText, appCopy } from '../copy.js';
 import { escapeHtml, gymChip } from './cards';
 import { enableAutoUpgradeForGyms, gymsWithAutoUpgradeOn, shouldAnimateGymLogos, getPostLoginDestination as choosePostLoginDestination, detectInstallContext, shouldOfferInstall } from './onboarding-routing.js';
-import { cleanNameField, inferNames } from './name-capture.js';
+import { cleanNameField, inferNames, validPrefill } from './name-capture.js';
 import { pathFor } from '../router.js';
 
 const COMPLETE_KEY = 'appOnboardingComplete';
@@ -723,8 +723,8 @@ function stepName() {
     }
 
     const suggestion = inferNames(linkedGyms);
-    const prefillFirst = cleanNameField(settings.firstName) || suggestion.firstName;
-    const prefillLast = typeof settings.lastName === 'string' ? cleanNameField(settings.lastName) : suggestion.lastName;
+    const prefillFirst = validPrefill(settings.firstName) || suggestion.firstName;
+    const prefillLast = typeof settings.lastName === 'string' ? validPrefill(settings.lastName) : suggestion.lastName;
     const foundOn = suggestion.firstName
       ? (suggestion.sources.length === 1 ? formatCopyText(COPY.onboarding.nameFoundOn, { gym: suggestion.sources[0] }) : COPY.onboarding.nameFoundOnGyms)
       : '';

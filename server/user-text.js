@@ -12,8 +12,8 @@ const PERSON_NAME_MAX = 40;
 
 // eslint-disable-next-line no-control-regex
 const CONTROL_RE = /[\u0000-\u001f\u007f-\u009f]/;
-const BIDI_RE = /[؜‎‏‪-‮⁦-⁩]/;
-const ZERO_WIDTH_RE = /[​-‍⁠﻿]/;
+const BIDI_RE = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/;
+const ZERO_WIDTH_RE = /[\u200B-\u200D\u2060\uFEFF]/;
 
 /**
  * Validate one person-name field. Empty is allowed (it clears the name).
@@ -22,10 +22,13 @@ const ZERO_WIDTH_RE = /[​-‍⁠﻿]/;
 function checkPersonName(input, { label = 'Name', max = PERSON_NAME_MAX } = {}) {
   if (input === undefined || input === null) return { ok: true, value: '' };
   if (typeof input !== 'string') return { ok: false, error: `${label} must be text.` };
+  // NFKC first (fullwidth, compatibility forms and decomposed accents become one canonical
+  // string), so every check below sees what will be stored and shown.
+  const text = input.normalize('NFKC');
   // Test BEFORE collapsing whitespace: \s matches some of these (U+FEFF) and would hide them.
-  if (CONTROL_RE.test(input.replace(/[\t\n\r]/g, ' '))) return { ok: false, error: `${label} contains a character that is not allowed.` };
-  if (BIDI_RE.test(input) || ZERO_WIDTH_RE.test(input)) return { ok: false, error: `${label} contains a character that is not allowed.` };
-  const value = input.replace(/\s+/g, ' ').trim();
+  if (CONTROL_RE.test(text.replace(/[\t\n\r]/g, ' '))) return { ok: false, error: `${label} contains a character that is not allowed.` };
+  if (BIDI_RE.test(text) || ZERO_WIDTH_RE.test(text)) return { ok: false, error: `${label} contains a character that is not allowed.` };
+  const value = text.replace(/\s+/g, ' ').trim();
   if (/[<>]/.test(value)) return { ok: false, error: `${label} cannot contain < or >.` };
   if ([...value].length > max) return { ok: false, error: `${label} must be ${max} characters or fewer.` };
   return { ok: true, value };
@@ -64,4 +67,27 @@ function dropInvalidNameSettings(patch) {
   return patch;
 }
 
-module.exports = { PERSON_NAME_MAX, checkPersonName, normaliseNameSettings, dropInvalidNameSettings };
+// Single-character confusables folded by skeleton(): Cyrillic and Greek lookalikes of Latin
+// letters (applied after lower-casing), plus the digit/letter pairs 0/o and 1/l/i.
+const CONFUSABLES = {
+  '\u0430': 'a', '\u0435': 'e', '\u043E': 'o', '\u0440': 'p', '\u0441': 'c', '\u0443': 'y', '\u0445': 'x',
+  '\u0456': 'l', '\u0458': 'j', '\u0455': 's', '\u043A': 'k', '\u043C': 'm', '\u043D': 'h', '\u0442': 't', '\u0432': 'b',
+  '\u03B1': 'a', '\u03B2': 'b', '\u03B5': 'e', '\u03B6': 'z', '\u03B7': 'n', '\u03B9': 'l', '\u03BA': 'k', '\u03BC': 'm',
+  '\u03BD': 'n', '\u03BF': 'o', '\u03C1': 'p', '\u03C4': 't', '\u03C5': 'y', '\u03C7': 'x', '\u0131': 'l',
+  '0': 'o', '1': 'l', 'i': 'l',
+};
+
+/**
+ * Comparison key for "do these two names look the same?": NFKC, case-fold, strip combining
+ * marks, then fold Cyrillic/Greek Latin lookalikes and 0/o, 1/l/i onto one letter. Used ONLY
+ * to detect clashes (Teams display names); never stored or shown. It over-merges on purpose
+ * (a false clash only adds an initial; a missed one lets a lookalike pass as a teammate).
+ */
+function skeleton(input) {
+  const base = String(input ?? '').normalize('NFKC').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+  let out = '';
+  for (const ch of base.normalize('NFKC')) out += CONFUSABLES[ch] || ch;
+  return out;
+}
+
+module.exports = { PERSON_NAME_MAX, skeleton, checkPersonName, normaliseNameSettings, dropInvalidNameSettings };

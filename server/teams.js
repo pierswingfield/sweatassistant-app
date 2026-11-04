@@ -21,6 +21,7 @@ const dbm = require('./db');
 const sharing = require('./team-sharing');
 const { encrypt, decrypt } = require('./crypto');
 const config = require('./config');
+const { checkPersonName, skeleton } = require('./user-text');
 
 const { db } = dbm;
 
@@ -141,17 +142,24 @@ function shareFromInput(share) {
 // When that was never captured (not a string), fall back to the linked gym profile's
 // last word; an explicitly EMPTY lastName means the member chose none, so no initial.
 function nameParts(userId) {
+  // Stored text is re-validated at read time: whatever predates the validator (or came in by
+  // a path that skipped it) must not reach teammates. Invalid values fall to the next source.
+  const valid = (v, label) => {
+    if (typeof v !== 'string') return null;
+    const r = checkPersonName(v, { label });
+    return r.ok ? r.value : null;
+  };
   let first = '';
   let last = null;
   let full = '';
   try {
     const acct = dbm.getAccountSettings(userId) || {};
-    if (typeof acct.firstName === 'string') first = acct.firstName.replace(/\s+/g, ' ').trim().slice(0, NAME_MAX);
-    if (typeof acct.lastName === 'string') last = acct.lastName.replace(/\s+/g, ' ').trim();
+    first = valid(acct.firstName, 'First name') || '';
+    last = valid(acct.lastName, 'Last name');
   } catch (_) { /* no settings row */ }
   try {
-    const g = dbm.getUserGyms(userId).find((x) => x.display_name && String(x.display_name).trim());
-    if (g) full = String(g.display_name).replace(/\s+/g, ' ').trim();
+    const g = dbm.getUserGyms(userId).find((x) => x.display_name && valid(String(x.display_name), 'Name'));
+    if (g) full = valid(String(g.display_name), 'Name') || '';
   } catch (_) { /* no gyms */ }
   const words = full ? full.split(' ') : [];
   if (!first) first = words[0] || 'Member';
@@ -162,11 +170,13 @@ function nameParts(userId) {
 }
 
 // Unique names within one Team: a clash adds the last initial, a remaining clash a number.
+// Clashes are judged on skeleton() (case, accents, width, Cyrillic/Greek lookalikes), so a
+// lookalike of a teammate's name is always disambiguated.
 function resolveNames(userIds) {
   const parts = userIds.map((id) => ({ id, ...nameParts(id) }));
   const byFirst = new Map();
   for (const p of parts) {
-    const k = p.first.toLowerCase();
+    const k = skeleton(p.first);
     if (!byFirst.has(k)) byFirst.set(k, []);
     byFirst.get(k).push(p);
   }
@@ -174,11 +184,12 @@ function resolveNames(userIds) {
   for (const group of byFirst.values()) {
     if (group.length === 1) { out.set(group[0].id, group[0].first); continue; }
     const labels = group.map((p) => (p.initial ? `${p.first} ${p.initial}.` : p.first));
+    const keys = labels.map(skeleton);
     const seen = new Map();
     group.forEach((p, i) => {
-      const n = (seen.get(labels[i].toLowerCase()) || 0) + 1;
-      seen.set(labels[i].toLowerCase(), n);
-      const dupes = labels.filter((l) => l.toLowerCase() === labels[i].toLowerCase()).length;
+      const n = (seen.get(keys[i]) || 0) + 1;
+      seen.set(keys[i], n);
+      const dupes = keys.filter((k) => k === keys[i]).length;
       out.set(p.id, dupes > 1 ? `${labels[i]} ${n}` : labels[i]);
     });
   }

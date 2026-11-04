@@ -18,16 +18,32 @@ export function cleanNameField(value) {
 }
 
 /**
+ * Client mirror of server/user-text.js checkPersonName (keep the two in step): NFKC, no
+ * control / bidi / zero-width characters, no < or >, 40 code points max. Returns the
+ * normalised value, or '' when the server would reject it (so a gym-supplied prefill that
+ * would fail on Save is left empty instead).
+ */
+export function validPrefill(value) {
+  if (value === undefined || value === null) return '';
+  const text = String(value).normalize('NFKC');
+  if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/.test(text)) return '';
+  if (/[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069\u200B-\u200D\u2060\uFEFF]/.test(text)) return '';
+  const v = text.replace(/\s+/g, ' ').trim();
+  if (/[<>]/.test(v) || [...v].length > 40) return '';
+  return v;
+}
+
+/**
  * One gym profile's name as { first, last }. The profile's own first_name/last_name
  * win (the server lifts them from the stored profile), because a multi-word
  * display_name ("Mary Ann Smith") cannot be split reliably. Without them the
  * display_name splits at its first and last words.
  */
 export function gymProfileName(gym) {
-  const first = cleanNameField(gym?.first_name ?? gym?.firstName);
-  const last = cleanNameField(gym?.last_name ?? gym?.lastName);
+  const first = validPrefill(gym?.first_name ?? gym?.firstName);
+  const last = validPrefill(gym?.last_name ?? gym?.lastName);
   if (first || last) return { first, last };
-  const words = cleanNameField(gym?.display_name ?? gym?.displayName).split(' ').filter(Boolean);
+  const words = validPrefill(gym?.display_name ?? gym?.displayName).split(' ').filter(Boolean);
   if (!words.length) return { first: '', last: '' };
   return { first: words[0], last: words.length > 1 ? words[words.length - 1] : '' };
 }

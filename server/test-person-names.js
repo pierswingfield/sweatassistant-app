@@ -101,6 +101,49 @@ check('Teams: no account name at all uses the gym profile, then "Member"', () =>
   assert.deepStrictEqual(teamOf(teams, [g, m]), ['Member', 'Priya']);
 });
 
+check('checkPersonName: NFKC-normalises before validating and stores the normalised value', () => {
+  const { checkPersonName } = require('./user-text');
+  assert.deepStrictEqual(checkPersonName('\uFF21\uFF4C\uFF49\uFF43\uFF45'), { ok: true, value: 'Alice' }, 'fullwidth');
+  assert.deepStrictEqual(checkPersonName('Zoe\u0308'), { ok: true, value: 'Zo\u00EB' }, 'ASCII plus combining diaeresis composes');
+  assert.deepStrictEqual(checkPersonName('Jos\u0065\u0301'), { ok: true, value: 'Jos\u00E9' }, 'decomposed accent composes');
+  assert.deepStrictEqual(checkPersonName('Sam\u2028Lee'), { ok: true, value: 'Sam Lee' }, 'U+2028 collapses to a space');
+  assert.strictEqual(checkPersonName('Sam\uFF1C').ok, false, 'fullwidth < is < after NFKC');
+  for (const bad of ['Sa\u200Bm', 'Sa\u202Em', 'Sa\u2066m', 'Sa\uFEFFm']) assert.strictEqual(checkPersonName(bad).ok, false, JSON.stringify(bad));
+  const { normaliseNameSettings } = require('./user-text');
+  assert.strictEqual(normaliseNameSettings({ firstName: '\uFF21na' }).firstName, 'Ana');
+});
+
+check('skeleton: folds case, accents, width and Latin lookalikes to one key', () => {
+  const { skeleton } = require('./user-text');
+  const same = [['Alice', '\u0410lice'], ['Alice', '\uFF21\uFF4C\uFF49\uFF43\uFF45'], ['Jose', 'Jos\u00E9'], ['Jos\u00E9', 'Jose\u0301'],
+    ['Pablo', '\u0420ablo'], ['Cox', '\u0421\u043E\u0445'], ['Zoe', '\u0396\u03BF\u03B5'], ['Neo', 'Ne0'], ['Lia', '1ia'], ['Lia', 'Iia'], ['Kim', '\u039Aim'], ['Bo', '\u0392o']];
+  for (const [a, b] of same) assert.strictEqual(skeleton(a), skeleton(b), `${a} ~ ${b}`);
+  assert.notStrictEqual(skeleton('Alice'), skeleton('Alicia'));
+});
+
+check('Teams: a Cyrillic lookalike first name is disambiguated, not shown identically', () => {
+  const db = require('./db'); const teams = require('./teams');
+  const a = mkUser(db, { first: '\u0410lice', last: 'Zed' });
+  const b = mkUser(db, { first: 'Alice', last: 'Young' });
+  const names = teamOf(teams, [a, b]);
+  assert.deepStrictEqual(names, ['\u0410lice Z.', 'Alice Y.'].sort());
+  const c = mkUser(db, { first: 'Bob', last: 'Q' });
+  const d = mkUser(db, { first: 'B0b', last: 'Q' });
+  const e = mkUser(db, { first: 'Bob', last: 'Q' });
+  const n = teamOf(teams, [c, d, e]);
+  assert.strictEqual(new Set(n).size, 3, 'number suffixes keyed on the skeleton: ' + n);
+});
+
+check('Teams: invalid stored names never reach teammates', () => {
+  const db = require('./db'); const teams = require('./teams');
+  const bad = mkUser(db, { first: '<b>Eve', last: 'Sa\u202Ex', gymName: 'Gina Hall' });
+  const bad2 = mkUser(db, { first: 'Ok', last: 'Fine', gymName: '<i>Zed Zed' });
+  const bad3 = mkUser(db, { gymName: 'Q\u200Bx Rest' });
+  const names = teamOf(teams, [bad, bad2, bad3]);
+  assert.deepStrictEqual(names, ['Gina', 'Member', 'Ok']);
+  for (const n of names) assert.ok(!/[<>\u202E\u200B]/.test(n), n);
+});
+
 // --- 3. db -------------------------------------------------------------------------
 
 check('db: lastName is account-scoped; my-gyms rows expose the gym profile first/last name', () => {

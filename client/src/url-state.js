@@ -1,12 +1,16 @@
 // U4-19: pure URL <-> app-state mapping (no DOM, no history). Clean paths:
 //   /  /timetable  /bookings  /auto-book  /credits  /settings[/:section]
 // Lenient on input (never throws, drops malformed tokens), stable on output.
+// T-1 Teams: /teams, /teams/<id> and the invite link /t/<token> (case-sensitive ids,
+// parsed by ui/teams-model.js before the path is lower-cased).
+import { parseTeamsPath, teamsPathFor } from './ui/teams-model.js';
 
 export const TAB_TO_PATH = {
   'home': '/',
   'class-timetable': '/timetable',
   'my-bookings': '/bookings',
   'auto-book': '/auto-book',
+  'teams': '/teams',
   'buy-credits': '/credits',
   'settings': '/settings',
 };
@@ -70,7 +74,13 @@ function safeParams(search) {
  * (callers fall back to Home). Timetable params apply to /timetable only.
  */
 export function parseLocation(pathname, search = '') {
-  const out = { tab: 'home', section: null, valid: true, timetable: emptyTimetable(), bookings: emptyBookings() };
+  const out = { tab: 'home', section: null, valid: true, timetable: emptyTimetable(), bookings: emptyBookings(), teams: null };
+  const teamsRoute = parseTeamsPath(String(pathname || '/'));
+  if (teamsRoute) {
+    out.tab = 'teams';
+    out.teams = teamsRoute;
+    return out;
+  }
   let p = String(pathname || '/');
   try { p = decodeURI(p); } catch { /* keep raw */ }
   p = p.split(/[?#]/)[0].replace(/\/{2,}/g, '/');
@@ -116,6 +126,7 @@ export function serializeState(rawState) {
     const s = state.section && SECTION_RE.test(state.section) ? state.section : null;
     return s ? `/settings/${s}` : '/settings';
   }
+  if (tab === 'teams') return teamsPathFor(state.teams);
   const base = TAB_TO_PATH[tab];
   if (tab === 'my-bookings') {
     const day = state.bookings?.day ?? state.day;

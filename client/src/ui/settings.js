@@ -1144,7 +1144,7 @@ function setupSettingsNavigation() {
   // were already rewritten to paths at boot (router.migrateLegacyHash).
   const routeSection = currentRoute().section || '';
   let initialSection = 'account';
-  if (['general', 'account', 'gyms', 'about', 'calendar', 'notifications', 'favourites'].includes(routeSection)) initialSection = routeSection;
+  if (['general', 'account', 'gyms', 'about', 'calendar', 'notifications', 'privacy', 'favourites'].includes(routeSection)) initialSection = routeSection;
 
   let navHistory = [];
   let currentSection = initialSection;
@@ -1170,6 +1170,8 @@ function setupSettingsNavigation() {
 
     // F-12: the Favourites pane is painted from live caches each time it is shown.
     if (sectionId === 'favourites') renderFavouritesPane();
+    // T-1: Settings -> Privacy, "Who can see my classes" (live from GET /api/privacy/sharing).
+    if (sectionId === 'privacy') import('./teams-privacy.js').then((m) => m.renderPrivacyPane()).catch(() => {});
 
     // On mobile, drill down
     layout.classList.add('show-pane');
@@ -1886,7 +1888,7 @@ function openAccountPasswordModal() {
 // shared cards.js icon set) rather than pasted into index.html so the sidebar uses
 // exactly the same stroke, size and currentColor rules as every other icon in the
 // app. Idempotent; per-gym entries lead with the gym's own mark instead (U1-8).
-const SETTINGS_MENU_ICONS = { general: 'sliders', calendar: 'calendar', notifications: 'bell', favourites: 'heart', account: 'user', gyms: 'link', about: 'info' };
+const SETTINGS_MENU_ICONS = { general: 'sliders', calendar: 'calendar', notifications: 'bell', privacy: 'shield', favourites: 'heart', account: 'user', gyms: 'link', about: 'info' };
 export function decorateSettingsMenu() {
   document.querySelectorAll('.app-settings-menu > [data-settings-section]').forEach((item) => {
     const name = SETTINGS_MENU_ICONS[item.getAttribute('data-settings-section')];
@@ -2350,6 +2352,7 @@ function setupSettingsListeners() {
       showToast(COPY.settings.loggingOut, 'info');
       clearApiCache().catch(() => {}).finally(() => {
         localStorage.removeItem('appLocalToken');
+        try { localStorage.removeItem('appPendingTeamInvite'); } catch (_) { /* T-1: drop a stashed invite on sign-out */ }
         window.location.reload();
       });
     });
@@ -2384,6 +2387,7 @@ function setupSettingsListeners() {
         await apiFetch('/api/auth/me', { method: 'DELETE' });
         showToast(COPY.settings.allDataDeleted, 'success');
         localStorage.removeItem('appLocalToken');
+        try { localStorage.removeItem('appPendingTeamInvite'); } catch (_) { /* T-1: drop a stashed invite on sign-out */ }
         setTimeout(() => { window.location.reload(); }, 1500);
       } catch (err) {
         showToast(formatCopyText(COPY.settings.deleteFailed, { error: err.message }), 'error');

@@ -2,7 +2,7 @@
 // Home is the FIRST tab and the default landing tab (F-10-1).
 
 export const DEFAULT_TAB = 'home';
-export const VALID_TABS = ['home', 'class-timetable', 'my-bookings', 'auto-book', 'buy-credits', 'settings'];
+export const VALID_TABS = ['home', 'class-timetable', 'my-bookings', 'auto-book', 'teams', 'buy-credits', 'settings'];
 
 /**
  * Pick the tab to show at boot from the URL hash. A valid hash (deep link, push

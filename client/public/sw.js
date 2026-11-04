@@ -283,7 +283,8 @@ self.addEventListener('fetch', (event) => {
         // The navigation itself may use fresh HTML immediately. A late
         // response only replaces the fallback shell after the referenced
         // hashed assets prove it belongs to this installed generation.
-        if (response.ok && !/^\/admin(\/|$)/.test(url.pathname)) {
+        // T-1: the /t/<token> invite shell carries invite-only meta tags; never make it the app shell.
+        if (response.ok && !/^\/(?:admin|t)(\/|$)/.test(url.pathname)) {
           event.waitUntil(caches.open(CACHE_NAME).then((cache) => cacheCoherentShell(cache, response.clone())).catch(() => {}));
         }
         return response;

@@ -22,6 +22,7 @@ import { applyStaticCopy } from './copy.js';
 import { COPY, formatCopyText } from './copy.js';
 import { resetWindowScroll, installStaleScrollGuard } from './scroll-reset.js';
 import { syncTabScrollState } from './tab-scroll-state.js';
+import { parseTeamsPath, stashPendingInvite, peekPendingInvite, clearPendingInvite } from './ui/teams-model.js';
 
 installStaleScrollGuard();
 
@@ -443,7 +444,7 @@ let currentTabId = null;
 // Phase 5 motion: a directional one-shot enter (opacity + 12px translate, CSS-owned) on the panel that
 // becomes visible. Direction follows the bottom-nav order. Not played on first paint or for the same tab;
 // the class is removed on animationend with a timeout fallback so a skipped event can never leave it on.
-const TAB_ORDER = ['home', 'class-timetable', 'my-bookings', 'auto-book', 'buy-credits', 'settings', 'about'];
+const TAB_ORDER = ['home', 'class-timetable', 'my-bookings', 'auto-book', 'teams', 'buy-credits', 'settings', 'about'];
 function playTabEnter(panel, fromId, toId) {
   if (!panel || !fromId || fromId === toId) return;
   const dir = TAB_ORDER.indexOf(toId) >= TAB_ORDER.indexOf(fromId) ? 'fwd' : 'back';
@@ -504,8 +505,8 @@ function switchTab(tabId, opts = {}) {
 
   // U4-19: the tab lives in the PATH (/bookings, /settings/about ...) so refresh, back/forward
   // and shared links restore it. Skip when the URL already names this tab (keeps any query).
-  if (historyMode !== 'none' && routeDiffers(tabId, opts.section)) {
-    navigate(pathFor(tabId === 'about' ? { tab: 'settings', section: 'about' } : { tab: tabId, section: opts.section }),
+  if (historyMode !== 'none' && routeDiffers(tabId, opts.section, opts.teams)) {
+    navigate(pathFor(tabId === 'about' ? { tab: 'settings', section: 'about' } : { tab: tabId, section: opts.section, teams: opts.teams }),
       { replace: historyMode === 'replace' });
   }
 
@@ -513,10 +514,12 @@ function switchTab(tabId, opts = {}) {
   triggerTabRender(tabId);
 }
 
-function routeDiffers(tabId, section) {
+function routeDiffers(tabId, section, teams) {
   const r = currentRoute();
   const want = tabId === 'about' ? 'settings' : tabId;
   if (!r.valid || r.tab !== want) return true;
+  // T-1: Teams has sub-routes (/teams/<id>, /t/<token>); tapping the Teams tab returns to the list.
+  if (want === 'teams') return pathFor({ tab: 'teams', teams: teams || { view: 'list' } }) !== pathFor({ tab: 'teams', teams: r.teams });
   return want === 'settings' && !!section && r.section !== section;
 }
 
@@ -534,6 +537,9 @@ async function triggerTabRender(tabId) {
     } else if (tabId === 'auto-book') {
       const { initAutoBook } = await import('./ui/autobook');
       initAutoBook();
+    } else if (tabId === 'teams') {
+      const { initTeams } = await import('./ui/teams');
+      initTeams();
     } else if (tabId === 'buy-credits') {
       refreshUserData(true); // fire-and-forget — update credit badge with fresh counts
       const { initBundles } = await import('./ui/credits');
@@ -621,6 +627,9 @@ async function refreshActiveTab() {
       await invalidateApiCache('/api/settings');
       const { refreshAutoBookTab } = await import('./ui/autobook');
       await refreshAutoBookTab();
+    } else if (currentTabId === 'teams') {
+      const { initTeams } = await import('./ui/teams');
+      await initTeams();
     } else if (currentTabId === 'buy-credits') {
       await invalidateApiCache('/api/bundles');
       await invalidateApiCache('/api/profile');
@@ -1521,6 +1530,14 @@ export async function initApp() {
     const rt = takeReturnTo();
     if (rt && location.pathname === '/' && !location.search && !location.hash) history.replaceState(history.state, '', rt);
   }
+  // T-1 (PLAN-teams.md §5.6): an invite link opened while signed out resumes here once the
+  // member has logged in or signed up (and finished onboarding). The token is never logged.
+  {
+    const pendingInvite = peekPendingInvite(safeLocalStorage());
+    if (pendingInvite && !(parseTeamsPath(location.pathname)?.view === 'invite')) {
+      history.replaceState(history.state, '', `/t/${pendingInvite}`);
+    }
+  }
   const route = currentRoute();
   applyCreditsTabGate(); // TEMP: credits hidden unless debugMode (restore by removing gate)
   // The URL already names the tab ('none'); an unknown path is normalised to Home ('replace').
@@ -1545,7 +1562,7 @@ async function checkAuth() {
 
   // U4-19: a logged-out visit to a deep link (including via onboarding, which never calls showLogin)
   // remembers where it was headed.
-  if (!isLoggedIn()) stashReturnTo(location.pathname + location.search);
+  if (!isLoggedIn()) { stashReturnTo(location.pathname + location.search); rememberInviteForAuth(); }
   if (isLoggedIn()) {
     // Restore per-user cache key prefix from localStorage so cached data
     // is found on reload (the prefix was set during login but is lost on reload).
@@ -1602,8 +1619,19 @@ async function checkAuth() {
   }
 }
 
+// T-1: keep an invite link's token across login/signup/onboarding (validated, short TTL,
+// never logged). Leaving the login screen from any other page drops a stale one.
+function safeLocalStorage() {
+  try { return window.localStorage; } catch (_) { return null; }
+}
+function rememberInviteForAuth() {
+  const r = parseTeamsPath(location.pathname);
+  if (r && r.view === 'invite') stashPendingInvite(safeLocalStorage(), r.token);
+}
+
 function showLogin() {
   stashReturnTo(location.pathname + location.search);   // U4-19: same-origin path only; validated on both ends
+  rememberInviteForAuth();
   setCacheKeyPrefix('');
   clearApiCache().catch(() => {});
   localStorage.removeItem('appUserId');
@@ -1898,6 +1926,7 @@ if (recoverFindBtn) {
 
 // Listen for global logout triggers (e.g. from api.js 401 interceptor)
 window.addEventListener('app-logout-triggered', () => {
+  clearPendingInvite(safeLocalStorage()); // T-1: an invite stashed for one account never resumes for the next
   setCacheKeyPrefix('');
   clearApiCache().catch(() => {});
   showToast(COPY.auth.sessionExpired, 'warning');

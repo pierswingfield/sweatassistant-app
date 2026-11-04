@@ -1238,7 +1238,7 @@ app.post('/api/config/import', authenticateToken, (req, res) => {
 // /settings[/:section]). ONLY those get index.html; this is an allowlist, never a
 // catch-all, so a mistyped /api/* can never come back as HTML. Keep in step with
 // client/src/url-state.js TAB_TO_PATH.
-const SPA_PATH_RE = /^\/(?:index\.html|timetable|bookings|auto-book|credits|settings(?:\/[a-z0-9][a-z0-9_-]{0,79})?)\/?$/i;
+const SPA_PATH_RE = /^\/(?:index\.html|timetable|bookings|auto-book|credits|teams(?:\/[A-Za-z0-9_-]{4,64})?|settings(?:\/[a-z0-9][a-z0-9_-]{0,79})?)\/?$/i;
 
 if (process.env.NODE_ENV === 'production') {
   app.get(SPA_PATH_RE, (req, res) => {

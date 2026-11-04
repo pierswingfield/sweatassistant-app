@@ -1,6 +1,6 @@
 <!doctype html>
-<html lang="en" class="nav-docked js-logo-fade app-ready"><head>
-<!-- T-0 mock-up: DOM snapshot of the running dev app (Chrome via CDP, 2026-11-04) with the Teams changes injected; styled by the real client/src/styles.css. New onboarding step introducing Teams (PLAN-teams 5.8). -->
+<html lang="en" class="nav-docked js-logo-fade app-ready" data-timetable-performance="[{&quot;phase&quot;:&quot;render-prerequisites&quot;,&quot;durationMs&quot;:56.9,&quot;reason&quot;:&quot;interaction&quot;,&quot;source&quot;:&quot;refreshed&quot;}]"><head>
+<!-- T-0 mock-up: DOM snapshot of the running dev app (Chrome via CDP, 2026-11-04) with the Teams changes injected; styled by the real client/src/styles.css. Final setup page (Make it yours): a Teams card with 'Create or join a Team' (opens the Teams tab; its empty state explains joining by link), and the Auto-Upgrade note replacing the all-gyms tickbox when 1+ gym already has it (PLAN-teams 5.8, round 3). -->
   
 
   <meta charset="UTF-8">
@@ -64,15 +64,36 @@
   <div id="app-toast-container" class="app-toast-container"></div>
 
   <!-- 0. ONBOARDING (first-run guided flow) -->
-  <div id="app-onboarding-container" class="app-onboarding-container" style="display: flex;" data-step="teams" data-dir="fwd"><div class="app-onb-top"><button class="app-onb-back-top" type="button">← Back</button></div>
-<div class="app-onb-sheet" role="dialog" aria-modal="true">
-<div class="app-onb-hero" aria-hidden="true" style="overflow:hidden"><img src="img/pose-running.webp" alt="" style="width:78%;height:78%;object-fit:contain"></div>
-<div class="app-onb-eyebrow">New: Teams</div>
-<h2 class="app-onb-title">Train together</h2>
-<div class="app-onb-body"><p class="app-onb-lead">A Team is a private group (like friends, or a group chat) that can share their workout schedule and book in together.</p>
-<div class="app-onb-feature-list"><section class="app-onb-feature-card"><div class="app-onb-feature-heading"><span class="app-onb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7"></path></svg></span><div><h3>Nothing is shared yet</h3><p>Your classes stay private until you join or create a Team.</p></div></div></section><section class="app-onb-feature-card"><div class="app-onb-feature-heading"><span class="app-onb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7"></path></svg></span><div><h3>You choose what each Team sees</h3><p>Classes, waitlists and activity are on by default; spot numbers and your Auto-Book queue are off. Change it per Team.</p></div></div></section><section class="app-onb-feature-card"><div class="app-onb-feature-heading"><span class="app-onb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7"></path></svg></span><div><h3>Join with a link</h3><p>A Captain sends you a link. Open it to ask to join.</p></div></div></section></div></div>
-<div class="app-onb-footer"><button class="app-btn-primary" type="button"><span>Continue</span></button></div>
-</div></div>
+  <div id="app-onboarding-container" class="app-onboarding-container is-entering" style="display: flex;" data-step="features" data-dir="fwd">
+    <div class="app-onb-top"><button class="app-onb-back-top" type="button">← Back</button></div>
+    <div class="app-onb-sheet app-onb-features" role="dialog" aria-modal="true" aria-labelledby="app-onb-features-title">
+      <div class="app-onb-hero is-seal" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7"></path></svg></div>
+      <div class="app-onb-eyebrow">Set up for the best experience</div>
+      <h2 class="app-onb-title" id="app-onb-features-title">Make it yours</h2>
+      <p class="app-onb-lead">To help Dibs work for you, set up these key features. You can make changes or finish later in Settings.</p>
+      <div class="app-onb-feature-list">
+        <section class="app-onb-feature-card" data-feature="notifications">
+          <div class="app-onb-feature-heading"><span class="app-onb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg></span><div><h3>Notifications <span class="app-onb-recommended">Recommended</span></h3><p>Get booking, upgrade and cancellation updates.</p></div></div>
+          <div class="app-onb-feature-action"><button class="app-btn-mini" type="button" data-feature-action="notifications" disabled="">Not available in this browser</button></div>
+        </section>
+        <section class="app-onb-feature-card" data-feature="calendar">
+          <div class="app-onb-feature-heading"><span class="app-onb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path><path d="M8 16.5A2.5 2.5 0 0 1 13 15"></path><path d="M16 15.5A2.5 2.5 0 0 1 11 17"></path><path d="M13 13.5v2h2"></path><path d="M11 18.5v-2H9"></path></svg></span><div><h3>Calendar Sync</h3><p>Keep your classes in a live calendar feed.</p></div></div>
+          <div class="app-onb-feature-action"><button class="app-btn-mini" type="button" data-feature-action="calendar">Set up Calendar Sync</button></div>
+        </section>
+        <section class="app-onb-feature-card" data-feature="spotmaps">
+          <div class="app-onb-feature-heading"><span class="app-onb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"></path></svg></span><div><h3>Preferred Spot Maps</h3><p>The same preferred spots power <strong>Auto-Book</strong>, <strong>Quick-Book</strong> and <strong>Auto-Upgrade</strong>. Set them by gym, location and studio.</p></div></div>
+          <div class="app-onb-feature-action"><button class="app-btn-mini" type="button" data-feature-action="spotmaps">Set up Preferred Spot Maps</button></div>
+        </section>
+      <section class="app-onb-feature-card" data-feature="autoupgrade" style="outline: 2px dashed var(--info); outline-offset: 4px;">
+        <div class="app-onb-feature-heading"><span class="app-onb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"></path><path d="m6 11 6-6 6 6"></path></svg></span><div><h3>Auto-Upgrade</h3><p>Checks for a better spot 24/7 and upgrades you automatically.</p>
+          <p class="app-onb-auto-upgrade-note" style="margin:8px 0 0;display:flex;gap:6px;align-items:flex-start;color:var(--success);font-weight:600;font-size:var(--text-sm)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="flex:0 0 auto;margin-top:2px"><path d="m5 12 5 5 9-10"></path></svg><span>Auto-Upgrade is already on for Psycle. You can change it in Settings at any time.</span></p></div></div>
+        <div class="app-onb-feature-action"></div>
+      </section>
+      <section class="app-onb-feature-card" data-feature="teams" style="outline: 2px dashed var(--info); outline-offset: 4px;"><div class="app-onb-feature-heading"><span class="app-onb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.5" r="3.4"></circle><path d="M2.8 19.5c1.1-3 3.4-4.6 6.2-4.6s5.1 1.6 6.2 4.6"></path><circle cx="16.8" cy="9.6" r="2.7"></circle><path d="M15.6 14.3c2.6-.3 4.6 1.1 5.6 3.9"></path></svg></span><div><h3>Teams</h3><p>Share your workout plans with friends in a private group and book in together. Nothing is shared until you join one.</p></div></div><div class="app-onb-feature-action"><button class="app-btn-mini" type="button">Create or join a Team</button></div></section></div>
+      <div class="app-onb-footer">
+        <button class="app-btn-primary app-onb-finish" type="button">Set up later</button>
+      </div>
+    </div></div>
 
   <!-- 1. LOGIN SCREEN -->
   <div id="app-login-container" class="app-login-container" style="display: none;">
@@ -204,9 +225,9 @@
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
           </button>
         </div>
-        <div class="app-sticky-top">
+        <div class="app-sticky-top app-dates-first">
           <!-- Filters Area -->
-          <div class="app-filters-card" id="app-timetable-filters-container">
+          <div class="app-filters-card" id="app-timetable-filters-container"><div id="app-filter-rail" class="fr-rail"><button type="button" class="fr-trigger fr-search-btn" data-fr-search="1" aria-label="Search classes"><svg class="ab-ico" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"></circle><path d="M10.5 10.5 14 14"></path></svg></button><span class="fr-filtergroup"><button type="button" class="fr-trigger has-label" data-fr-open="1" aria-label="Filters"><svg class="ab-ico" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4.5h7M12 4.5h2M2 11.5h2M7 11.5h7"></path><circle cx="10.5" cy="4.5" r="1.6"></circle><circle cx="5.5" cy="11.5" r="1.6"></circle></svg><span class="fr-trigger-label">Filters</span></button></span></div>
             <div class="app-filters-row ui-filters-row">
             
               <!-- Gym Dropdown (Visible when >1 gym linked) -->
@@ -250,7 +271,7 @@
                     <span class="app-ms-menu-title" data-copy-text="static.instructors">INSTRUCTORS</span>
                     <button class="app-ms-clear-btn app-ms-clear-style" data-copy-text="static.clear">Clear</button>
                   </div>
-                  <div class="app-ms-options-list app-ms-options-style"></div>
+                  <input type="text" class="app-ms-search" placeholder="Search instructors…"><div class="app-ms-options-list app-ms-options-style"></div>
                 </div>
               </div>
 
@@ -270,9 +291,7 @@
               </div>
 
               <!-- Bookmarked Filter Toggle -->
-              <button id="app-filter-favorites-only" class="app-btn-mini" style="height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;">
-                <span data-copy-text="static.bookmarked">♡ Favourites</span>
-              </button>
+              <button id="app-filter-favorites-only" class="app-btn-mini" style="height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;">♡ Favourites</button>
 
               <!-- Save/Clear controls -->
               <div style="display: flex; gap: 6px; flex-shrink: 0; align-items: center; height: 40px !important;">
@@ -281,18 +300,18 @@
               </div>
 
             </div>
-          </div>
+          <div id="app-search" class="app-search"><div class="app-search-box"><span class="ss-glass" aria-hidden="true"><svg class="ab-ico" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"></circle><path d="M10.5 10.5 14 14"></path></svg></span><input class="app-search-input" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="app-search-list" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="Search classes, instructors, gyms…" aria-label="Search the timetable"><button type="button" class="app-search-x" aria-label="Clear search text" hidden="">✕</button></div><button type="button" class="app-search-cancel">Cancel</button><div class="app-search-list" id="app-search-list" role="listbox" aria-label="Search suggestions" hidden=""></div></div></div>
 
           <!-- Date Carousel -->
-          <div class="app-date-selector" id="app-timetable-carousel">
-            <!-- Date items will be injected here -->
-          </div>
+          <div class="app-weekstrip" id="app-timetable-carousel"><div class="app-wk-empty">No dates match filter criteria.</div></div>
         </div>
 
         <!-- Timetable Grid List -->
         <div class="app-timetable-list" id="app-timetable-grid">
-          <div class="app-skeleton-list" role="status" aria-label="Fetching timetable classes..." data-copy-aria-label="static.fetchingClasses"><div class="app-skeleton-card" aria-hidden="true"><div class="app-skeleton-card-head"><span class="app-skeleton-line is-strong" style="--skeleton-width:34%"></span><span class="app-skeleton-line is-chip" style="--skeleton-width:18%"></span></div><span class="app-skeleton-line" style="--skeleton-width:64%"></span><span class="app-skeleton-line is-short" style="--skeleton-width:56%"></span></div><div class="app-skeleton-card" aria-hidden="true"><div class="app-skeleton-card-head"><span class="app-skeleton-line is-strong" style="--skeleton-width:34%"></span><span class="app-skeleton-line is-chip" style="--skeleton-width:18%"></span></div><span class="app-skeleton-line" style="--skeleton-width:64%"></span><span class="app-skeleton-line is-short" style="--skeleton-width:56%"></span></div><div class="app-skeleton-card" aria-hidden="true"><div class="app-skeleton-card-head"><span class="app-skeleton-line is-strong" style="--skeleton-width:34%"></span><span class="app-skeleton-line is-chip" style="--skeleton-width:18%"></span></div><span class="app-skeleton-line" style="--skeleton-width:64%"></span><span class="app-skeleton-line is-short" style="--skeleton-width:56%"></span></div></div>
-        </div>
+      <div style="text-align: center; color: var(--text-secondary); padding: 40px; font-style: italic;">
+        No classes match the current filters. Clear filters to see more.
+      </div>
+    </div>
       </section>
 
       <!-- MY BOOKINGS TAB PANEL -->
@@ -719,7 +738,7 @@
     </main>
 
     <!-- Mobile Bottom Tab Bar (iOS-style — hidden on desktop, replaces top nav on mobile) -->
-    <nav class="app-bottom-nav" data-copy-aria-label="static.navPrimary" aria-label="Primary" style="--lens-x: 4px; --lens-w: 76px; --lens-o: 1;">
+    <nav class="app-bottom-nav" data-copy-aria-label="static.navPrimary" aria-label="Primary" style="--lens-o: 1; --lens-x: 4px; --lens-w: 76px;">
       <span class="app-nav-lens" aria-hidden="true" style=""></span>
       <button class="app-nav-btn app-bottom-nav-btn active" data-tab="home" data-copy-aria-label="static.navHome" aria-label="Home">
         <svg class="app-bn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

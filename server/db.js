@@ -446,6 +446,63 @@ db.exec(`
     FOREIGN KEY (gym_id) REFERENCES gyms(id),
     UNIQUE(user_id, gym_id)
   );
+
+  -- T-1 Teams (PLAN-teams.md §7.1). Read and written ONLY by server/teams.js.
+  -- Ids are random opaque strings, not sequences, so they reveal no counts.
+  -- The invite token is never stored: only its SHA-256 (hex). Rotating it replaces
+  -- the hash, which kills every old link without touching members.
+  CREATE TABLE IF NOT EXISTS teams (
+    id TEXT PRIMARY KEY,
+    invite_token_hash TEXT UNIQUE,
+    invite_enabled INTEGER NOT NULL DEFAULT 1 CHECK (invite_enabled IN (0, 1)),
+    invite_rotated_at TEXT,
+    name TEXT NOT NULL,
+    emoji TEXT,
+    approval_policy TEXT NOT NULL DEFAULT 'captains' CHECK (approval_policy IN ('captains', 'any')),
+    competition_enabled INTEGER NOT NULL DEFAULT 0 CHECK (competition_enabled IN (0, 1)),
+    created_by INTEGER,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+  );
+
+  -- member_ref is the per-Team opaque handle every payload uses; a user id never leaves.
+  CREATE TABLE IF NOT EXISTS team_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    team_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    member_ref TEXT NOT NULL,
+    is_captain INTEGER NOT NULL DEFAULT 0 CHECK (is_captain IN (0, 1)),
+    colour_index INTEGER NOT NULL,
+    share_json TEXT NOT NULL,      -- validated by server/team-sharing.js; missing key = private
+    paused_until TEXT,             -- ISO instant; NULL or past = not paused
+    joined_at TEXT NOT NULL,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(team_id, user_id),
+    UNIQUE(team_id, member_ref),
+    UNIQUE(team_id, colour_index)
+  );
+  CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members(user_id);
+
+  -- share_json is the requester's consent, applied on approval. A blocked request keeps
+  -- status 'declined' (blocked looks like declined to the requester, §5.6).
+  CREATE TABLE IF NOT EXISTS team_join_requests (
+    id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'declined', 'withdrawn', 'expired')),
+    blocked INTEGER NOT NULL DEFAULT 0 CHECK (blocked IN (0, 1)),
+    share_json TEXT,
+    created_at TEXT NOT NULL,
+    decided_by INTEGER,
+    decided_at TEXT,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (decided_by) REFERENCES users(id) ON DELETE SET NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_team_requests_team ON team_join_requests(team_id, status);
+  CREATE INDEX IF NOT EXISTS idx_team_requests_user ON team_join_requests(user_id, created_at);
 `);
 
 // Existing account links predate the per-account gym visibility switch.
@@ -1678,6 +1735,9 @@ module.exports = {
   },
   deleteAllUserData(userId) {
     db.pragma('foreign_keys = ON');
+    // T-1 §7.5: hand over any Team this account is the last Captain of BEFORE the
+    // cascade removes its memberships. Lazy require: teams.js depends on this module.
+    require('./teams').beforeAccountDelete(userId);
     db.prepare('DELETE FROM users WHERE id = ?').run(userId);
   },
 
@@ -1974,6 +2034,7 @@ module.exports = {
     }
   },
   deleteUser(userId) {
+    require('./teams').beforeAccountDelete(userId); // T-1 §7.5, as deleteAllUserData
     db.prepare('DELETE FROM users WHERE id = ?').run(userId);
   },
 

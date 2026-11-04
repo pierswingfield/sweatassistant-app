@@ -108,7 +108,10 @@ router.post('/login', (req, res) => {
 // GET /api/admin/users — list all users with queue counts
 router.get('/users', authenticateAdmin, (req, res) => {
   try {
-    const users = db.getAllUsers();
+    // T-1: a Team COUNT per user only (PLAN-teams.md §7.4); the operator has no product
+    // need for Team membership or member class data. teams.js owns the tables.
+    const teamCounts = require('./teams').teamCountsByUser();
+    const users = db.getAllUsers().map((u) => ({ ...u, team_count: teamCounts.get(u.id) || 0 }));
     res.json({ users });
   } catch (err) {
     res.status(500).json({ message: err.message });

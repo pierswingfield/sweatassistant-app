@@ -42,7 +42,7 @@ App/
 ├── server/                  # Express.js backend
 │   ├── server.js            # Main server — routes, proxy, cart/checkout, SSE, rate limiters
 │   ├── auth.js              # CodexFit login, JWT issuance, auto-relogin on 401
-│   ├── db.js                # SQLite schema + CRUD (better-sqlite3, 20 tables)
+│   ├── db.js                # SQLite schema + CRUD (better-sqlite3, 28 tables)
 │   ├── crypto.js            # AES-256-GCM encrypt/decrypt for credentials (env key required)
 │   ├── scheduler.js         # Auto-book precision scheduler — queue-driven wake clock
 │   │                        #   (WP-I), priority tiers, SSE
@@ -70,11 +70,14 @@ App/
 │   ├── mock.js              # Dev-mode mock CodexFit API (the gym's devMock.email)
 │   ├── mock-marianatek.js   # Dev-mode mock MarianaTek API (the gym's devMock.email)
 │   ├── class-history.js     # ★ H-0 class-history store + sync (the ONLY reader/writer of class_history)
+│   ├── teams.js             # ★ T-1 Teams membership core: the ONLY reader/writer of teams/team_members/team_join_requests (roles, invite tokens stored hashed, requests, limits, last-Captain guard)
+│   ├── team-sharing.js      # T-1 per-Team share schema + D3 defaults; a MISSING key resolves to PRIVATE (opposite of capability flags)
+│   ├── teams-routes.js      # T-1 /api/teams/* + /api/privacy/sharing router and the invite rate limiters (per IP + per account)
 │   ├── landing-events.js    # M step 3: ONLY reader/writer of landing_events + public /_a/pv, /_a/go routes (cookieless, daily-hash visitors)
 │   ├── schedule-cache.js    # ★ Shared user-agnostic provider cache (SWR + single-flight)
 │   ├── rate-limit-backoff.js # ★ Per-gym provider 429 backoff, shared by scheduler.js AND poller.js (C2-3/C2-3b)
 │   ├── run-tests.js         # Test runner — discovers server/test-*.js by filename
-│   └── test-*.js            # 76 suites; see Documentation/TESTING.md
+│   └── test-*.js            # 104 suites; see Documentation/TESTING.md
 ├── client/                  # Vite PWA frontend
 │   ├── index.html           # SPA shell with 6 tab panels (Home first) + modals + iOS bottom nav
 │   ├── src/
@@ -138,7 +141,7 @@ npm run dev:client           # Start Vite dev server only (port 5173, proxies /a
 npm run build:client         # Production build of client
 npm start                    # Production start (server serves built client)
 
-npm test                     # EVERYTHING: 76 server suites + the client Vitest suite
+npm test                     # EVERYTHING: 104 server suites + the client Vitest suite
 npm run test:server          # Server only
 npm run test:client          # Client only (vitest)
 ```
@@ -296,6 +299,8 @@ The background services (auto-book scheduler, auto-upgrade poller, calendar feed
 
 ## Known Bugs, Open Work and Invariants
 
+- **Teams (T-1, PLAN-teams.md): the server enforces privacy, not the client.** `server/teams.js` is the only module that touches the three Teams tables (`test-team-membership.js` scans for others). Sharing fails safe by HIDING: a share key that is missing or mistyped resolves to private (`team-sharing.js`), the opposite of capability flags. Invite tokens are stored only as SHA-256 and scrubbed from request logs (`logger.js scrubPath`). Account deletion (`db.deleteAllUserData`, `db.deleteUser`) calls `teams.beforeAccountDelete` first, so a Team never loses its last Captain to a cascade.
+
 - **Per-class credit cost and accepted types come from the PROVIDER, never from arithmetic on a balance (2026-09-15).** Psycle's public `GET /events` publishes `required_credits`, `credit_types`/`accepted_credits` and a `relations.credit_types` bag on every event — measured on 2,482 live events: 2,472 cost 1, **5 cost 2, 2 cost 3**, 3 cost 0, and **11 of 46 credit types are `is_guest_use_only`** (classes accept them, for booking a *guest* in). None of this was normalized, so `NormalizedEvent` had no `credit_types` at all, the client's per-class matching was dead code returning `Infinity`, and the only real check was the server's `sum(all credits) > 0` — wrong in both directions (bookable when you can't afford a 2-credit class; blocked when you hold the wrong type). Now `NormalizedEvent.credits = { required, acceptedTypeIds }` and `NormalizedCredit.isGuestOnly`; `getAvailableCreditsForEvent` returns **bookable spots** (`floor(usable / required)`), not a credit count. **An absent `credits` field means "the payload said nothing", not "free"** — treating it as free is what let the normalization gap go unnoticed, so it falls back to cost 1 / any type. `mock.js` models all of these fields; without that a regression here goes undetected.
 - **The schedule cache is SHARED and user-agnostic (`server/schedule-cache.js`, 2026-09-15).** The timetable was slow on the *second* load too, because nothing cached it server-side: live Psycle is **6,105ms cold for 2,482 events, 0ms warm**, and a merged two-gym view paid a cold fetch per gym per user per visit. Stale-while-revalidate with single-flight (N concurrent cold readers → one provider call, which is what a release instant looks like). **The key is `gymId + date range and deliberately carries no user id.** `releaseAt` depends on the member's own booking-window tier and is stamped per request *after* the cache — caching the stamped result serves one member's release times to another, a correctness bug rather than a staleness trade. Write paths invalidate their own gym; `?refresh=1` bypasses, set only by the explicit refresh control. A failed background refresh keeps the last good value rather than emptying the page for everyone. Counters on `/api/health`. **Fetch window (C2-4, 2026-10-06):** CodexFit fills it with unscoped ranged v2 `/events` calls chunked at 7 days (live 502s from ~14 days unscoped); MarianaTek uses one shared single-flight date-bounded parallel-paginated class list, and its metadata is bounded to 28 days. **HTTP cache:** normalized responses carry `Vary: x-gym-id` and `Cache-Control: private, no-cache`, and the client appends `?gym=` to gym-scoped GETs, so the browser cache cannot serialise or cross-serve gyms.
 - **Heartbeat-validated freshness (C2-5 rebuilt, 2026-10-06; supersedes the abandoned first attempt).** Providers may implement the optional hook `hasFreshnessStamps()`/`getFreshnessStamps()` (CodexFit: public `GET /api/v1/customer/heartbeat`, in `providers/codexfit.js`; MarianaTek has none and keeps plain TTL). `server/freshness.js` memoises it per gym (5 s), single-flights it, times out at 4 s and negative-memoises failures/429 (15 s). `schedule-cache.js` `opts.stamp`/`opts.ceilingMs`: a TTL-stale entry whose stamp is unchanged is re-validated instead of refetched, until a hard max-age ceiling (timetable 5 min on `events`; metadata 6 h on `locations|studios|instructors|event-types`; studio layouts 7 d on `studios`). Changed stamp, ceiling, or heartbeat failure falls back to the existing SWR path (never empty). **Accepted staleness: the `events` stamp does NOT move on seat-count changes, so occupancy/'spots' can lag up to 5 min (the official website behaves the same); book/cancel still invalidate immediately.** Counters on `/api/health` (`scheduleCache.stamp*`, `ceilingRefetches`, `freshness.heartbeat*`) and `/metrics` (`schedule_cache_freshness_total{result}`). Mock: `/heartbeat` with `mock.setMockHeartbeatStamp()`. Test: `server/test-freshness-cache.js`. Bundles are not server-cached, so nothing to stamp there.
@@ -447,9 +452,32 @@ POST   /api/push/test/:type         # Send typed sample notification (debug)
 # Notifications & Sync
 POST   /api/notify/booking-success  # Client reports manual/quick booking → server fans out push
 POST   /api/bookings/sync           # Client pushes bookings to warm server reminder cache
+
+# Teams (T-1 membership core; teams-routes.js -> teams.js). Any authz failure for a
+# non-member (unknown Team, bad/rotated/disabled token) is 404, never 403; a member
+# asking for a Captain-only action on their own Team is 403. Payloads carry no user
+# id, email or gym identity: members are addressed by memberRef. No class data yet (T-2).
+GET    /api/teams                   # My Teams (name, emoji, role, memberCount, paused, pendingRequestCount for approvers)
+POST   /api/teams                   # Create { name<=40, emoji?, share? } -> 201 { team, inviteToken } (token shown once)
+GET    /api/teams/:id               # Team + members (memberRef, name, colourIndex, isCaptain) + my role + my share/pause
+PATCH  /api/teams/:id               # Captain: { name, emoji, approvalPolicy: captains|any, competitionEnabled }
+DELETE /api/teams/:id               # Captain: delete
+POST   /api/teams/:id/invite/rotate # Captain: new link token (old links die)
+PUT    /api/teams/:id/invite        # Captain: { enabled }
+GET    /api/teams/invite/:token     # Preview: { name, emoji, myRequestStatus } ONLY (rate limited per IP + account)
+POST   /api/teams/invite/:token/request   # { share } -> pending (idempotent; 10/hour/account)
+DELETE /api/teams/invite/:token/request   # Withdraw
+GET    /api/teams/:id/requests      # Captains (or any member when approvalPolicy = any)
+POST   /api/teams/:id/requests/:rid # { decision: approve|decline|block } (TEAM_FULL at 16)
+PUT    /api/teams/:id/me            # { share (patch), pause: 24h|7d|indefinite|null }
+DELETE /api/teams/:id/me            # Leave (last Captain leaving promotes the longest-standing member)
+PUT    /api/teams/:id/members/:memberRef  # Captain: { captain } (LAST_CAPTAIN guard)
+DELETE /api/teams/:id/members/:memberRef  # Captain: remove
+GET    /api/privacy/sharing         # "Who can see my classes": every Team, its share + pause, my pending requests
+GET    /t/:token                    # (production) SPA shell with GENERIC Open Graph tags + Referrer-Policy: no-referrer
 ```
 
-## SQLite Schema (21 tables)
+## SQLite Schema (28 tables)
 
 | Table | Purpose | Key columns |
 |-------|---------|-------------|
@@ -473,6 +501,9 @@ POST   /api/bookings/sync           # Client pushes bookings to warm server remi
 | `calendar_classes` | Per-user calendar event rows | `event_id`, `start_at`, `class_name`, `slot_label`, `status`, `upgrade_note`, `sequence`, `content_hash`, `UNIQUE(user_id, event_id)` |
 | `calendar_snapshots` | Generated .ics per user | `ics`, `etag`, `class_count`, `generated_at` (PK `user_id`) |
 | `admin_audit_log` | C7-3 admin action audit trail (append-only; never holds passwords/tokens; no FK so `user.delete` rows survive) | `ts`, `actor`, `action`, `target_user_id`, `ip`, `detail` (JSON, key-redacted) |
+| `teams` | T-1 Teams. Random text id; only `server/teams.js` reads/writes | `invite_token_hash` (SHA-256 of the 128-bit link token; the raw token is never stored), `invite_enabled`, `name`, `emoji`, `approval_policy` (`captains`/`any`), `competition_enabled`, `created_by` (FK SET NULL) |
+| `team_members` | T-1 one row per (Team, account) | `member_ref` (per-Team opaque handle; the only member id in payloads), `is_captain`, `colour_index` (unique per Team, palette 16), `share_json` (`team-sharing.js`), `paused_until`, `joined_at`; `UNIQUE(team_id, user_id)`, cascades from `teams` and `users` |
+| `team_join_requests` | T-1 join requests | `status` (pending/approved/declined/withdrawn/expired), `blocked` (stored as declined), `share_json` (consent, applied on approval), `created_at`, `decided_by`, `decided_at`; 7-day decline cooldown, 14-day expiry |
 | `server_kv` | Key-value store | `jwt_secret`, `vapid_public_key`, `vapid_private_key`, `locations_json`, `studio_name_map` |
 
 ## Client-Side Storage Schema (PWA)

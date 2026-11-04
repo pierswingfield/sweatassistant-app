@@ -25,6 +25,8 @@ const { isRollingWeekly } = require('./providers/booking-window');
 const adminRouter = require('./admin');
 const normalizedRouter = require('./routes-normalized');
 const instructorPhotoRouter = require('./instructor-photo-routes');
+const teamsRoutes = require('./teams-routes');
+const teams = require('./teams');
 const config = require('./config');
 const competing = require('./competing-bookings');
 const { getGymConfig } = require('./gyms.config');
@@ -305,7 +307,7 @@ const PUBLIC_DIR = process.env.PUBLIC_DIR || path.join(__dirname, 'public');
 
 // Cache the templated file keyed by path AND mtime: a rebuilt client (new hashed bundle names in
 // index.html) is served on the next request instead of after a process restart.
-function sendTemplated(filePath, res, contentType) {
+function sendTemplated(filePath, res, contentType, transform = null) {
   let mtimeMs;
   try {
     mtimeMs = fs.statSync(filePath).mtimeMs;
@@ -321,7 +323,8 @@ function sendTemplated(filePath, res, contentType) {
       return res.status(404).send('Not found');
     }
   }
-  const content = entry.text.replaceAll(APP_NAME_TOKEN, escapeForType(config.appName, contentType));
+  let content = entry.text.replaceAll(APP_NAME_TOKEN, escapeForType(config.appName, contentType));
+  if (transform) content = transform(content);
   // Always revalidate. Without an explicit header Cloudflare cached sw.js at
   // the edge for 4 h, so phones kept installing a worker that precached the
   // previous build's deleted chunks; its install failed and push never started.
@@ -381,6 +384,7 @@ app.use('/api/admin/login', adminLoginLimiter);
 app.use('/api/admin', adminRouter);
 app.use('/api', instructorPhotoRouter);
 app.use('/api', normalizedRouter);
+app.use('/api', teamsRoutes.router); // T-1 Teams
 
 // -------------------------------------------------------------
 // BFF AUTHENTICATION
@@ -1154,6 +1158,8 @@ app.get('/api/config/export', authenticateToken, (req, res) => {
       gymSettings,
       studioPreferences,
       autoBookings: formattedBookings,
+      // T-1: the member's OWN per-Team share settings only, never other members' data.
+      teamSharing: teams.exportMyShares(req.userId),
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -1161,7 +1167,7 @@ app.get('/api/config/export', authenticateToken, (req, res) => {
 });
 
 app.post('/api/config/import', authenticateToken, (req, res) => {
-  const { accountSettings, gymSettings, studioPreferences, autoBookings } = req.body;
+  const { accountSettings, gymSettings, studioPreferences, autoBookings, teamSharing } = req.body;
   const skipped = []; // human-readable notes on anything not restored
   try {
     const linkedIds = db.getUserGyms(req.userId).map((g) => g.gym_id).filter(Boolean);
@@ -1216,6 +1222,8 @@ app.post('/api/config/import', authenticateToken, (req, res) => {
         }
       });
     }
+    // T-1: only to Teams this account is still a member of; never joins or creates one.
+    if (Array.isArray(teamSharing)) skipped.push(...teams.importMyShares(req.userId, teamSharing).skipped);
     res.json({ success: true, skipped });
   } catch (err) {
     res.status(/no gym specified/i.test(err.message) ? 400 : 500).json({ message: err.message });
@@ -1235,6 +1243,28 @@ const SPA_PATH_RE = /^\/(?:index\.html|timetable|bookings|auto-book|credits|sett
 if (process.env.NODE_ENV === 'production') {
   app.get(SPA_PATH_RE, (req, res) => {
     sendTemplated(path.join(PUBLIC_DIR, 'index.html'), res, 'text/html');
+  });
+
+  // T-1 Teams invite link (PLAN-teams.md §2 principle 4, §7.4). The shell is served for
+  // ANY token, valid or not, and the page is byte-identical either way: the token is a
+  // secret, so the response must not reveal whether it works or which Team it names.
+  // Open Graph tags are generic because a chat unfurl is seen by everyone in the chat,
+  // not just the invitee. no-referrer keeps the token out of every third-party request
+  // the page makes. Client routing for /t/ is T-1 UI work (waits for mock-ups).
+  app.get('/t/:token', teamsRoutes.inviteIpLimiter, (req, res) => {
+    const invite = escapeForType(`You've been invited to a Team on ${config.appName}`, 'text/html');
+    const desc = escapeForType(`Open the link to see the invite in ${config.appName}.`, 'text/html');
+    const tags = `<meta property="og:title" content="${invite}">`
+      + `<meta property="og:description" content="${desc}">`
+      + '<meta property="og:type" content="website">'
+      + '<meta name="robots" content="noindex">'
+      + '<meta name="referrer" content="no-referrer">';
+    res.set('Referrer-Policy', 'no-referrer');
+    res.set('X-Robots-Tag', 'noindex');
+    sendTemplated(path.join(PUBLIC_DIR, 'index.html'), res, 'text/html', (html) => {
+      const titled = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${invite}</title>`);
+      return /<\/head>/i.test(titled) ? titled.replace(/<\/head>/i, `${tags}</head>`) : `${tags}${titled}`;
+    });
   });
 }
 

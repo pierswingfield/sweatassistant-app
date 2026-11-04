@@ -353,12 +353,13 @@
           <th>Priority</th>
           <th>Auto-Books</th>
           <th>Upgrades</th>
+          <th>Teams</th>
           <th>Last seen</th>
           <th>Joined</th>
           <th></th>
         </tr>
       </thead>
-      <tbody id="user-tbody"><tr><td colspan="7" class="loading">Loading…</td></tr></tbody>
+      <tbody id="user-tbody"><tr><td colspan="8" class="loading">Loading…</td></tr></tbody>
     </table>
   </div>
 
@@ -542,13 +543,13 @@
 
   async function loadUsers() {
     const tbody = document.getElementById('user-tbody');
-    tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="loading">Loading…</td></tr>';
     try {
       const res = await apiFetch('/api/admin/users');
       const { users } = await res.json();
       renderUsers(users);
     } catch (e) {
-      if (adminToken) tbody.innerHTML = `<tr><td colspan="7" class="loading" style="color:var(--red)">${e.message}</td></tr>`;
+      if (adminToken) tbody.innerHTML = `<tr><td colspan="8" class="loading" style="color:var(--red)">${e.message}</td></tr>`;
     }
   }
 
@@ -565,7 +566,7 @@
     `;
 
     if (users.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="loading">No users yet.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="loading">No users yet.</td></tr>';
       return;
     }
 
@@ -602,6 +603,7 @@
         </td>
         <td>${pendingBadge}</td>
         <td>${upgradesBadge}</td>
+        <td>${u.team_count > 0 ? `<span class="badge">${u.team_count}</span>` : '<span class="badge-zero">—</span>'}</td>
         <td><span class="last-seen${seenStale ? ' stale' : ''}">${seen}</span></td>
         <td><span class="created">${joined}</span></td>
         <td>

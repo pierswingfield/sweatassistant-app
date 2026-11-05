@@ -28,9 +28,12 @@ async function call(path, { method = 'GET', body } = {}) {
 }
 
 const id = (v) => encodeURIComponent(String(v));
+const deviceTz = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (_) { return 'UTC'; } };
 
 export const teamsApi = {
-  list: () => call('/api/teams'),
+  // T-2: the device zone decides "today" for the list's summaries.
+  list: () => call(`/api/teams?tz=${id(deviceTz())}`),
+  today: (teamId) => call(`/api/teams/${id(teamId)}/today?tz=${id(deviceTz())}`),
   create: ({ name, emoji, share }) => call('/api/teams', { method: 'POST', body: { name, emoji: emoji || null, share } }),
   get: (teamId) => call(`/api/teams/${id(teamId)}`),
   update: (teamId, patch) => call(`/api/teams/${id(teamId)}`, { method: 'PATCH', body: patch }),

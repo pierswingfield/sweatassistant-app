@@ -11947,6 +11947,13 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container .tm-mascot-disc { position: absolute; inset: 6%; border-radius: 50%; background: color-mix(in srgb, var(--accent) 8%, var(--surface-2)); }
 #app-helper-container .tm-mascot img { position: relative; width: 80%; height: 80%; object-fit: contain; }
 #app-helper-container .tm-mascot.is-dim img { filter: grayscale(.6); opacity: .7; }
+/* T-2: day-progress ring (§5.4), drawn from 12 o'clock; cooling down renders smaller (fit) */
+#app-helper-container .tm-mascot .tm-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+#app-helper-container .tm-mascot .tm-ring circle { fill: none; stroke-width: 3; }
+#app-helper-container .tm-mascot .tm-ring-track { stroke: color-mix(in srgb, var(--text) 10%, transparent); }
+#app-helper-container .tm-mascot .tm-ring-prog { stroke: var(--accent); stroke-linecap: round; }
+#app-helper-container .tm-mascot.has-ring img { width: 76%; height: 76%; }
+#app-helper-container .tm-mascot.is-fit img { width: 62%; height: 62%; }
 
 /* Page heads */
 #app-helper-container .tm-page-head { display: flex; align-items: center; gap: 12px; padding: 4px 0 4px; }
@@ -11967,6 +11974,14 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container .tm-team-card .tm-pin { position: absolute; top: 10px; right: 10px; color: var(--text-tertiary); }
 #app-helper-container .tm-team-card .tm-pin.is-on { color: var(--accent); }
 #app-helper-container .tm-team-foot { display: flex; align-items: center; gap: 10px; min-height: 28px; }
+#app-helper-container .tm-today b { color: var(--text); font-weight: 600; }
+#app-helper-container .tm-today .tm-muted { color: var(--text-secondary); }
+#app-helper-container .tm-hot {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; min-width: 0;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-2)); color: var(--text); font-size: var(--text-sm);
+}
+#app-helper-container .tm-hot svg { color: var(--accent); flex: 0 0 auto; }
+#app-helper-container .tm-hot b { font-weight: 600; }
 #app-helper-container .tm-team-card.is-paused .tm-team-name { color: var(--text-secondary); }
 #app-helper-container .tm-hidden-banner {
   display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px;

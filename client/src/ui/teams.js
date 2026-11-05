@@ -7,6 +7,8 @@ import { currentRoute } from '../router.js';
 import { teamsApi } from '../teams-api.js';
 import { escapeHtml } from './cards.js';
 import { showToast } from '../main.js';
+import { formatInZone, dayKeyInZone, deviceZone } from '../lib.js';
+import { todayLineSegments, hottestSegments, segmentsText } from './teams-today.js';
 import {
   orderTeams, canOfferPin, canTogglePin, pinsUsed, sortMembers, paginate, readSortChoice, writeSortChoice,
   SORT_MODES, MEMBERS_PER_PAGE, validateTeamName, validateEmoji, defaultShare, consumePendingInvite, TEAMS_HOME_PATH,
@@ -96,20 +98,31 @@ async function renderList(el, { stale }) {
   const offerPin = canOfferPin(teams.length);
   const hasPinned = ordered.some((t) => t.pinned);
   const card = (t) => {
-    const members = membersCache.get(t.id) || [];
+    // T-2: the list payload carries today's summary and the active-today avatars.
+    const members = (t.activeToday && t.activeToday.length) ? t.activeToday : (t.members || membersCache.get(t.id) || []);
+    if (t.members) membersCache.set(t.id, t.members);
     const pinControl = offerPin
       ? `<button type="button" class="tm-icon-btn tm-pin${t.pinned ? ' is-on' : ''}" data-pin="${escapeHtml(t.id)}" aria-pressed="${t.pinned ? 'true' : 'false'}" aria-label="${escapeHtml(t.pinned ? T.unpin : fmt(T.pinTeam, { name: t.name }))}" ${canTogglePin(t, teams) ? '' : 'disabled'}>${ICONS.pin}</button>`
       : '';
-    const hidden = t.paused ? `<div class="tm-hidden-banner">${ICONS.hidden}<span class="tm-grow"><b>${escapeHtml(T.hiddenFromTeam)}</b></span><button type="button" class="tm-btn tm-btn-sm" data-unhide="${escapeHtml(t.id)}">${escapeHtml(T.unhide)}</button></div>` : '';
+    const until = t.pausedUntil ? pauseWhen(t.pausedUntil) : null;
+    const untilHtml = t.paused ? `<br><span class="tm-muted tm-xs">${escapeHtml(until ? fmt(T.hiddenUntil, { when: until }) : T.hiddenIndefinite)}</span>` : '';
+    const hot = t.paused ? null : hottestSegments(t.today, whenOf, T);
+    const hotHtml = hot ? `<div class="tm-hot">${ICONS.flame}<span class="tm-grow tm-ellip">${segmentsHtml(hot)}</span>${avatarStackHtml(hotAvatars(t), { max: 4 })}</div>` : '';
+    const lineSegs = todayLineSegments(t.today, whenOf, T);
+    const mascotAlt = t.mascot
+      ? fmt(T.mascotStateAlt, { state: T.mascotStates[t.mascot.state] || t.mascot.state, percent: Math.round((Number(t.mascot.ring) || 0) * 100) })
+      : T.mascotAlt;
+    const hidden = t.paused ? `<div class="tm-hidden-banner">${ICONS.hidden}<span class="tm-grow"><b>${escapeHtml(T.hiddenFromTeam)}</b>${untilHtml}</span><button type="button" class="tm-btn tm-btn-sm" data-unhide="${escapeHtml(t.id)}">${escapeHtml(T.unhide)}</button></div>` : '';
     return `<article class="tm-card tm-team-card${t.paused ? ' is-paused' : ''}" data-team="${escapeHtml(t.id)}">
       <a class="tm-team-link" href="/teams/${encodeURIComponent(t.id)}" data-open-team="${escapeHtml(t.id)}">
-        ${mascotHtml({ size: 60, dim: t.paused, alt: T.mascotAlt })}
+        ${mascotHtml({ size: 60, dim: t.paused, alt: mascotAlt, mascot: t.mascot || null })}
         <span class="tm-grow tm-min0">
           <span class="tm-team-name tm-ellip">${teamTitleHtml(t)}</span>
-          <span class="tm-today">${escapeHtml(T.classActivitySoon)}</span>
+          <span class="tm-today" aria-label="${escapeHtml(segmentsText(lineSegs))}">${segmentsHtml(lineSegs)}</span>
         </span>
       </a>
       ${pinControl}
+      ${hotHtml}
       ${hidden}
       <div class="tm-team-foot">${avatarStackHtml(members)}<span class="tm-muted tm-xs tm-grow">${escapeHtml(memberCountLabel(t.memberCount))}</span>${t.myRole === 'captain' ? `<span class="tm-pill tm-pill-accent">${escapeHtml(T.captain)}</span>` : ''}</div>
     </article>`;
@@ -149,20 +162,32 @@ async function renderList(el, { stale }) {
     try { await teamsApi.updateMe(b.getAttribute('data-unhide'), { pause: null }); } catch (err) { showToast(errorText(err), 'error'); }
     initTeams();
   }));
+}
 
-  // Avatar stacks: GET /api/teams carries no member list (T-2 adds today's summaries), so
-  // fetch each Team's members in the background and fill the stacks in place.
-  Promise.all(teams.map(async (t) => {
-    try {
-      const detail = await teamsApi.get(t.id);
-      membersCache.set(t.id, detail.members || []);
-      if (stale()) return;
-      const foot = el.querySelector(`[data-team="${CSS.escape(t.id)}"] .tm-team-foot`);
-      if (!foot) return;
-      foot.querySelector('.tm-stack')?.remove();
-      foot.insertAdjacentHTML('afterbegin', avatarStackHtml(detail.members || []));
-    } catch (_) { /* the card still works without its stack */ }
-  }));
+// ---- T-2 card helpers ---------------------------------------------------------------------
+
+/** Class times in the CLASS's zone (AGENTS.md: never a bare Date), with a suffix when it differs from the device's. */
+function whenOf(startAt, timeZone) {
+  const zone = timeZone || deviceZone();
+  const f = formatInZone(startAt, zone);
+  let isToday = false;
+  try { isToday = dayKeyInZone(startAt, zone) === dayKeyInZone(new Date().toISOString(), zone); } catch (_) { isToday = false; }
+  return { time: f.timeLabel, day: (f.date || '').split(' ')[0], isToday };
+}
+
+function segmentsHtml(segs) {
+  return (segs || []).map((seg, i) => {
+    const body = seg.strong ? `<b>${escapeHtml(seg.text.trimStart())}</b>` : escapeHtml(seg.text.trimStart());
+    const wrapped = seg.muted ? `<span class="tm-muted">${body}</span>` : body;
+    if (i === 0) return wrapped;
+    return seg.text.startsWith(' ') ? ` ${wrapped}` : ` · ${wrapped}`;
+  }).join('');
+}
+
+function hotAvatars(t) {
+  const refs = (t.today && t.today.hottest && t.today.hottest.attendees) || [];
+  const byRef = new Map((t.members || []).map((m) => [m.memberRef, m]));
+  return refs.map((r) => byRef.get(r)).filter(Boolean);
 }
 
 function renderEmpty(el) {

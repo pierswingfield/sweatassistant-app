@@ -944,6 +944,12 @@ export const COPY = Object.freeze({
     pinLimit: 'You can pin at most 2 Teams.', pinNotYet: 'You can pin Teams once you are in more than 3.',
     loadFailed: "Couldn't load your Teams.", retry: 'Retry', loading: 'Loading',
     back: 'Teams', backAria: 'Back to Teams', share: 'Share link', shareAria: 'Share invite link', manage: 'Manage', manageAria: 'Manage Team',
+    // T-2 list card lines (§5.2) and mascot states (§5.4)
+    restDay: 'Rest day', allDone: 'All done for today 🏆', classesTodayOne: '1 class today', classesTodayMany: '{count} classes today',
+    inClassNow: '{count} in class now', nDone: '{count} done', firstAt: 'first at {time}', nDoing: '{count} doing', nameDoing: '{name} doing',
+    tomorrow: 'Tomorrow', next: 'Next', otherGyms: '+{count} at other gyms',
+    mascotStates: Object.freeze({ sleeping: 'sleeping', resting: 'resting', warming: 'warming up', exercising: 'exercising', cooling: 'cooling down', champion: 'champion' }),
+    mascotStateAlt: 'Team mascot, {state}. {percent}% of today\'s classes done',
     mascotAlt: 'Team mascot', teamGone: "This Team isn't available.", backToTeams: 'Back to Teams',
     // Team page (T-1 shell; class widgets arrive in T-2/T-3/T-4)
     todaysWorkouts: "Today's workouts", thisWeek: 'This week', classesTogether: 'Classes together', teamStats: 'Team stats',

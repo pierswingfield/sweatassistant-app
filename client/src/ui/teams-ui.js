@@ -41,10 +41,22 @@ const MASCOT = {
  * The Team mascot. T-1 has no class data (T-2 brings the state machine, §5.4), so callers
  * use the neutral resting pose; `dim` marks a hidden/not-a-member state.
  */
-export function mascotHtml({ size = 60, pose = 'resting', dim = false, alt = '' } = {}) {
-  const src = MASCOT[pose] || MASCOT.resting;
+export function mascotHtml({ size = 60, pose = 'resting', dim = false, alt = '', mascot = null } = {}) {
+  // T-2: the server's mascot ({ state, pose, asset, ring, fit }, server/team-mascot.js) is
+  // the one source of truth; `pose` only names the neutral T-1 art for screens without it.
+  const assetOk = mascot && typeof mascot.asset === 'string' && /^\/characters\/team-[a-z]+\.webp$/.test(mascot.asset);
+  const src = assetOk ? mascot.asset : (MASCOT[pose] || MASCOT.resting);
   const altAttr = alt ? `alt="${escapeHtml(alt)}"` : 'alt="" aria-hidden="true"';
-  return `<span class="tm-mascot${dim ? ' is-dim' : ''}" style="--s:${Number(size) || 60}px"><span class="tm-mascot-disc"></span><img src="${src}" ${altAttr} width="${size}" height="${size}" decoding="async"></span>`;
+  const s = Number(size) || 60;
+  let ring = '';
+  if (mascot) {
+    const r = 28;
+    const c = 2 * Math.PI * r;
+    const frac = Math.max(0, Math.min(1, Number(mascot.ring) || 0));
+    ring = `<svg class="tm-ring" viewBox="0 0 60 60" aria-hidden="true"><circle class="tm-ring-track" cx="30" cy="30" r="${r}"/>${frac > 0 ? `<circle class="tm-ring-prog" cx="30" cy="30" r="${r}" stroke-dasharray="${(frac * c).toFixed(1)} ${c.toFixed(1)}"/>` : ''}</svg>`;
+  }
+  const cls = `tm-mascot${dim ? ' is-dim' : ''}${mascot && mascot.fit ? ' is-fit' : ''}${mascot ? ' has-ring' : ''}`;
+  return `<span class="${cls}" style="--s:${s}px"><span class="tm-mascot-disc"></span>${ring}<img src="${src}" ${altAttr} width="${s}" height="${s}" decoding="async"></span>`;
 }
 
 /** "🚲 Tuesday Riders" with both parts escaped. */
@@ -65,6 +77,7 @@ export const ICONS = {
   manage: svg('<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>'),
   sort: svg('<path d="M7 4v16M3 16l4 4 4-4"/><path d="M17 20V4M13 8l4-4 4 4"/>', 20),
   pin: '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M15 3l6 6-3 1-4 4 1 5-2 2-4-5-5 5-1-1 5-5-5-4 2-2 5 1 4-4Z"/></svg>',
+  flame: svg('<path d="M12 22c4 0 7-2.8 7-6.8 0-3.2-2-5.5-3.6-7.2-.3 1.7-1.2 3-2.4 3.7.3-3.6-1.5-6.6-4-8.7-.2 3.3-2.1 5.4-3.7 7.2C4.1 11.6 5 13.1 5 15.2 5 19.2 8 22 12 22Z"/>', 16),
   hidden: svg('<path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c5 0 9 4.5 10 7-.4 1-1.3 2.4-2.6 3.7M6.6 6.6C4.4 8 2.8 10.1 2 12c1 2.5 5 7 10 7 1.7 0 3.3-.5 4.6-1.3"/>', 20),
   crown: '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="m3 7 4.5 4L12 4l4.5 7L21 7l-2 12H5Z"/></svg>',
   shield: svg('<path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6Z"/><path d="m9 12 2 2 4-4"/>', 20),

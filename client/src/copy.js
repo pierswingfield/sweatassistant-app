@@ -974,7 +974,7 @@ export const COPY = Object.freeze({
     sharingWith: "What you'll share with {name}", sharingHelpJoin: 'Shared only once a Captain approves you. Change it any time from the Team or Settings → Privacy.',
     sharingHelpCreate: 'What this Team will see about you. Change it any time from the Team or Settings → Privacy.',
     sharingHelpManage: 'What {name} can see about you. Changes apply straight away.',
-    gyms: 'Gyms', gymsDesc: "Which gyms' classes this Team can see", allMyGyms: 'All my gyms', choose: 'Choose', gymsLater: '+ gyms you link later', noGymsLinked: 'No gyms linked yet',
+    gyms: 'Gyms', gymsDesc: "Which gyms' classes this Team can see. Teammates who don't use a gym still see that you trained, not the details.", allMyGyms: 'All my gyms', choose: 'Choose', gymsLater: '+ gyms you link later', noGymsLinked: 'No gyms linked yet',
     rowUpcoming: 'Upcoming classes', rowUpcomingDesc: 'Gym, class, time, studio and instructor',
     rowWaitlists: 'Waitlists', rowWaitlistsDesc: '"On the waitlist for Ride 45, Wed 07:30"',
     rowActivity: 'Activity counts', rowActivityDesc: 'Classes this week and month. Powers the Team mascot',

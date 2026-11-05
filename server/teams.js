@@ -179,8 +179,10 @@ function nameParts(userId) {
 // Unique names within one Team: a clash adds the last initial, a remaining clash a number.
 // Clashes are judged on skeleton() (case, accents, width, Cyrillic/Greek lookalikes), so a
 // lookalike of a teammate's name is always disambiguated.
-function resolveNames(userIds) {
-  const parts = userIds.map((id) => ({ id, ...nameParts(id) }));
+// `partsOf` lets a caller spanning several Teams share one memo (namePartsMemo), so each
+// unique user is looked up once per request, not once per Team they appear in.
+function resolveNames(userIds, partsOf = nameParts) {
+  const parts = userIds.map((id) => ({ id, ...partsOf(id) }));
   const byFirst = new Map();
   for (const p of parts) {
     const k = skeleton(p.first);
@@ -201,6 +203,14 @@ function resolveNames(userIds) {
     });
   }
   return out;
+}
+
+function namePartsMemo() {
+  const memo = new Map();
+  return (id) => {
+    if (!memo.has(id)) memo.set(id, nameParts(id));
+    return memo.get(id);
+  };
 }
 
 // Deterministic, clash-free: start at a slot derived from the Team id, take the first free.
@@ -279,9 +289,10 @@ function projectionsFor(userId, teamIds, { zone, includeDetail }) {
   const allIds = [...new Set([...byTeam.values()].flat().map((r) => r.user_id))];
   const data = teamData.rowsForUsers(allIds, { now });
   const linked = teamData.linkedGymIds(userId);
+  const partsOf = namePartsMemo(); // one name lookup per unique user across every Team
   const out = new Map();
   for (const [teamId, rows] of byTeam) {
-    const names = resolveNames(rows.map((r) => r.user_id));
+    const names = resolveNames(rows.map((r) => r.user_id), partsOf);
     out.set(teamId, projectTeam({
       viewer: { userId, linkedGymIds: linked },
       team: { id: teamId },
@@ -516,9 +527,10 @@ function listRequests(userId, teamId) {
   expireStale();
   const rows = db.prepare("SELECT id, user_id, created_at FROM team_join_requests WHERE team_id = ? AND status = 'pending' ORDER BY created_at ASC, rowid ASC")
     .all(team.id);
+  const partsOf = namePartsMemo();
   return rows.map((r) => ({
     id: r.id,
-    name: resolveNames([r.user_id]).get(r.user_id),
+    name: resolveNames([r.user_id], partsOf).get(r.user_id),
     colourIndex: requestColour(r.id),
     requestedAt: r.created_at,
   }));

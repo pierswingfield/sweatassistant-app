@@ -42,6 +42,8 @@ A per-member, per-Team record called `share`. **Defaults (D3, agreed): everythin
 
 The brief says other members' classes at a gym the viewer has not linked are not shown. Refinement (D2, agreed): **details are hidden but the activity still counts.** The Team mascot, "8 classes today" and member counts include them, shown as "+2 at other gyms" with no gym, time or class. Without this, a JAB-only member sees a mascot resting while the Psycle members are all mid-class, and the dashboard misdescribes the Team's day. The sharer has already chosen to share that gym with the Team, so the count reveals nothing they withheld.
 
+**Accepted residual disclosure (T-2 review, 2026-11-05):** the counts are not content-free. The mascot's state and ring, "N classes today" and the member counts move with each class's start and end, so a viewer can infer roughly *when* a teammate trains at a gym the viewer has not linked, and the bike or boxing pose can hint at the class type. The spec accepts this (the sharer already shared that gym with the Team), and the sharing sheet says so where the gyms choice is explained: "Teammates who don't use a gym still see that you trained, not the details." (`copy.js` `teams.gymsDesc`). To withhold even that, the member narrows "Gyms" or turns off Activity counts.
+
 A gym the viewer has linked but paused (`user_gyms.account_enabled = 0`) is treated as linked for visibility. The Book CTA then says "Turn on *Gym* to book".
 
 ## 5. UX
@@ -228,6 +230,10 @@ The projection reads stored data and never calls a gym per view:
   - A failure for one gym leaves the other gyms' rows intact.
 
 Book, cancel and waitlist actions made through Dibs also invalidate the member's Teams' projections.
+
+**Started classes the next sync omits (T-2 review, 2026-11-05).** A gym's upcoming list drops a booking once the class starts, but it equally drops one that was late-cancelled, and the list alone cannot say which. `replaceBookingCache` keeps such a started server row for 24 h (`RETAIN_STARTED_MS`) and stamps it `missing_since`; the stamp clears if the gym lists the booking again. **Rule:** a row with `missing_since` is not shown, not counted and does not move the mascot, ring or "today" totals in any Team projection until `class_history` holds the same gym-qualified booking id (`gymId:bookingId`) with a counted status (`attended` or `unconfirmed`). For a gym whose past list has no attendance signal (CodexFit: every past booking is `unconfirmed`, and the list carries no cancelled rows), presence in the past-bookings list is the confirmation and absence is not. A late cancel (MarianaTek `late-cancel`, or simply absent at CodexFit) therefore never appears as done. The member's own non-Team views (reminders, calendar, Home) read the row as before. The trade-off: between the class starting and the next history sync (up to 6 h), a class the gym has already dropped from its upcoming list drops out of the Team's day; a class still in the latest sync shows normally.
+
+**Booking ids are gym-qualified everywhere origin is decided.** When a client push is merged, the server rows it carries through are keyed `gymId:bookingId`, never by bare id: two gyms can both publish booking 7777, and a bare key let a client-only push to gym B inherit gym A's `origin = 'server'` and reach a Team.
 
 ### 7.3 Projection rule
 

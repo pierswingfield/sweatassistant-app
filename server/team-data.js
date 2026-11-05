@@ -37,7 +37,7 @@ function rowsForUsers(userIds, { now = Date.now() } = {}) {
     links: db.prepare(`SELECT user_id, gym_id, account_enabled FROM user_gyms WHERE user_id IN (${ph})`).all(...ids),
     // Only rows the server's own sync wrote: a client push alone never reaches a Team.
     bookings: db.prepare(`SELECT user_id, gym_id, booking_id, event_id, start_at, class_name, group_name, instructor_name,
-      studio_name, location_name, slot_label, duration_min, origin FROM booking_cache
+      studio_name, location_name, slot_label, duration_min, origin, missing_since FROM booking_cache
       WHERE origin = 'server' AND user_id IN (${ph})`).all(...ids),
     waitlists: db.prepare(`SELECT user_id, gym_id, event_id, start_at, class_name, group_name, instructor_name,
       studio_name, location_name FROM waitlist_cache WHERE user_id IN (${ph})`).all(...ids),

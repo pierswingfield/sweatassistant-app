@@ -12,7 +12,9 @@
 //     ∧ the item's gym is in M.share.gyms
 //     ∧ M's link to that gym exists and is enabled (user_gyms.account_enabled)
 //     ∧ the item is not cancelled, late-cancelled, no-show or class-cancelled
-//     ∧ (booking rows) it came from the SERVER's sync, never only from a client push.
+//     ∧ (booking rows) it came from the SERVER's sync, never only from a client push
+//     ∧ (booking rows the latest sync no longer lists, `missing_since`) class_history
+//       confirms it: attended/unconfirmed for the same gym-qualified booking id.
 //   Details (gym, time, class, place, spot) are shown only if V has that gym linked
 //   (enabled, or paused-but-linked, §4); otherwise it only adds to "+N at other gyms".
 //
@@ -149,6 +151,11 @@ function projectTeam(input) {
       countedHistory.push(h);
     }
 
+    // §7.2: history rows that confirm a booking happened (present in the gym's past list,
+    // not penalised). A booking_cache row the latest sync no longer lists (missing_since)
+    // may have been late-cancelled, so it is shown or counted only once confirmed here.
+    const confirmedBookings = new Set(countedHistory.map((h) => classKey(h.gym_id, h.booking_id)));
+
     // Activity counts dedupe by gym-qualified booking id across history and today's
     // already-finished bookings (the history sync can lag the class by hours).
     const counted = new Map(); // gym:bookingId -> startMs
@@ -161,6 +168,7 @@ function projectTeam(input) {
     for (const b of m.bookings || []) {
       if (!b || b.origin !== 'server' || !b.gym_id || b.event_id == null) continue;
       if (excludedBookings.has(classKey(b.gym_id, b.booking_id))) continue;
+      if (b.missing_since && !confirmedBookings.has(classKey(b.gym_id, b.booking_id))) continue;
       if (!gymOk(b.gym_id)) continue;
       const dt = toInstant(b.start_at, zoneFor(b.gym_id));
       if (!dt) continue;

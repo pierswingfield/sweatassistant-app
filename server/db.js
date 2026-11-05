@@ -200,6 +200,9 @@ db.exec(`
     -- only the member's own client pushed it (POST /api/bookings/sync). Team projections
     -- show server rows only. Default 'client' so an unmarked row is never shared.
     origin TEXT NOT NULL DEFAULT 'client' CHECK (origin IN ('server', 'client')),
+    -- T-2: set when a started server row is kept although the gym's latest list omits it
+    -- (started, or late-cancelled). Teams show such a row only once class_history confirms it.
+    missing_since TEXT,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (gym_id) REFERENCES gyms(id),
     UNIQUE(user_id, gym_id, booking_id)
@@ -522,6 +525,9 @@ if (!db.prepare('PRAGMA table_info(user_gyms)').all().some((col) => col.name ===
 // 'client' (never shown to a Team) until the next server sync rewrites them.
 if (!db.prepare('PRAGMA table_info(booking_cache)').all().some((col) => col.name === 'origin')) {
   db.exec("ALTER TABLE booking_cache ADD COLUMN origin TEXT NOT NULL DEFAULT 'client' CHECK (origin IN ('server', 'client'))");
+}
+if (!db.prepare('PRAGMA table_info(booking_cache)').all().some((col) => col.name === 'missing_since')) {
+  db.exec('ALTER TABLE booking_cache ADD COLUMN missing_since TEXT');
 }
 if (!db.prepare('PRAGMA table_info(user_gyms)').all().some((col) => col.name === 'account_enabled_queue_cutoff')) {
   db.exec('ALTER TABLE user_gyms ADD COLUMN account_enabled_queue_cutoff INTEGER');
@@ -1783,11 +1789,14 @@ module.exports = {
    */
   /*
    * T-2 options: `origin` ('server' only from booking-sync.js's own fetch; anything else
-   * is stored as 'client'); `serverBookingIds` (a Set of booking ids in the payload that
-   * are the server's own rows carried through a client merge, stored as 'server');
-   * `retainStartedMs` keeps SERVER rows that started within that window and are absent
-   * from the payload (a gym's list drops a class once it starts, but the Team's day
-   * still needs it as done).
+   * is stored as 'client'); `serverBookingIds` (a Set of GYM-QUALIFIED `gymId:bookingId`
+   * keys for the server's own rows carried through a client merge, stored as 'server'.
+   * Bare ids collide across gyms: a client push to gym B must never inherit gym A's
+   * server origin); `retainStartedMs` keeps SERVER rows that started within that window
+   * and are absent from the payload (a gym's list drops a class once it starts). A kept
+   * row is stamped `missing_since`: it may equally have been late-cancelled, so the Team
+   * projection shows it only once class_history confirms it (PLAN-teams.md §7.2). The
+   * stamp clears when the gym lists the booking again.
    */
   replaceBookingCache(userId, bookings, scopeGymIds = null, { origin = 'client', serverBookingIds = null, retainStartedMs = 0, now = Date.now() } = {}) {
     const list = Array.isArray(bookings) ? bookings : [];
@@ -1811,6 +1820,8 @@ module.exports = {
         (user_id, gym_id, booking_id, event_id, start_at, class_name, group_name, instructor_name, studio_name, location_name, slot_label, duration_min, location_address, origin, synced_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `);
+    const markMissing = db.prepare('UPDATE booking_cache SET missing_since = COALESCE(missing_since, ?) WHERE id = ?');
+    const missingIso = new Date(now).toISOString();
     const keepStarted = (row, incoming) => {
       if (!(retainStartedMs > 0) || row.origin !== 'server' || incoming.has(String(row.booking_id))) return false;
       const t = Date.parse(row.start_at);
@@ -1820,12 +1831,15 @@ module.exports = {
       for (const gym of scope) {
         if (!(retainStartedMs > 0)) { del.run(uid, gym); continue; }
         const incoming = new Set((rowsByGym.get(gym) || []).map((b) => String(b.bookingId)));
-        for (const row of sel.all(uid, gym)) if (!keepStarted(row, incoming)) delOne.run(row.id);
+        for (const row of sel.all(uid, gym)) {
+          if (keepStarted(row, incoming)) markMissing.run(missingIso, row.id);
+          else delOne.run(row.id);
+        }
       }
       for (const [gym, rows] of rowsByGym) {
         if (!scope.includes(gym)) continue; // not ours to write
         for (const b of rows) {
-          const rowOrigin = baseOrigin === 'server' || (serverBookingIds && serverBookingIds.has(String(b.bookingId))) ? 'server' : 'client';
+          const rowOrigin = baseOrigin === 'server' || (serverBookingIds && serverBookingIds.has(`${gym}:${b.bookingId}`)) ? 'server' : 'client';
           ins.run(uid, gym, b.bookingId, b.eventId ?? null, b.startAt, b.className ?? null, b.groupName ?? null,
             b.instructorName ?? null, b.studioName ?? null, b.locationName ?? null, String(b.slotLabel ?? ''), b.durationMin ?? null, b.locationAddress ?? null, rowOrigin);
         }

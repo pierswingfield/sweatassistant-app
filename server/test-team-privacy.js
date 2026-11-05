@@ -348,6 +348,62 @@ check('a re-sync keeps today\'s started server rows (done classes) but drops can
   const names = db.db.prepare('SELECT class_name FROM booking_cache WHERE user_id = ?').all(E).map((r) => r.class_name);
   assert.deepStrictEqual(names, ['started']);
 });
+check('booking-id collision across gyms: a client push to gym B never inherits gym A\'s server origin', () => {
+  const X = mkUser('Collider', [PSY, JAB]);
+  join(X, shareWith());
+  book(X, PSY, { id: 7777, event: 7001, start: at(20, 15), name: 'POS-collide-server' });
+  flush();
+  bookingSync.acceptClientBookings(X, [
+    { bookingId: 7777, gymId: PSY, eventId: 7001, startAt: at(20, 15), className: 'POS-collide-server' },
+    { bookingId: 7777, gymId: JAB, eventId: 7002, startAt: at(20, 30), className: 'MARK-collide-client' },
+  ], [PSY, JAB], NOW + 3600e3);
+  const origin = (gym) => db.db.prepare('SELECT origin FROM booking_cache WHERE user_id = ? AND gym_id = ? AND booking_id = ?').get(X, gym, 7777).origin;
+  assert.strictEqual(origin(PSY), 'server');
+  assert.strictEqual(origin(JAB), 'client', 'the JAB push was marked server because Psycle holds booking 7777');
+  const json = JSON.stringify(teams.getTeamToday(V, TEAM, { zone: 'Europe/London' }));
+  assert.ok(json.includes('POS-collide-server'));
+  assert.ok(!json.includes('MARK-collide-client'), 'a client-only JAB row reached the Team');
+});
+check('a started server row missing from the next sync is hidden from Teams until class history confirms it', () => {
+  const Y = mkUser('Retainer', [PSY]);
+  join(Y, shareWith());
+  const total = () => teams.getTeamToday(V, TEAM, { zone: 'Europe/London' }).today.total;
+  const base = total();
+  const rows = [
+    { bookingId: 8801, gymId: PSY, eventId: 8801, startAt: at(8), className: 'MARK-retained-unconfirmed', durationMin: 45 },
+    { bookingId: 8802, gymId: PSY, eventId: 8802, startAt: at(8, 15), className: 'POS-retained-confirmed', durationMin: 45 },
+  ];
+  db.replaceBookingCache(Y, rows, [PSY], { origin: 'server', now: NOW });
+  db.setBookingSyncState(Y, PSY, { lastSyncedAt: new Date(NOW - 30 * 60000).toISOString() });
+  assert.strictEqual(total(), base + 2, 'present in the latest sync: shown');
+  // The next sync no longer lists either (started, or late-cancelled: the list cannot say which).
+  db.replaceBookingCache(Y, [], [PSY], { origin: 'server', retainStartedMs: bookingSync.RETAIN_STARTED_MS, now: NOW });
+  hist(Y, PSY, [{ bookingId: '8802', eventId: '8802', status: 'unconfirmed', startAt: at(8, 15), name: 'POS-retained-confirmed' }]);
+  const t = teams.getTeamToday(V, TEAM, { zone: 'Europe/London' });
+  const json = JSON.stringify(t) + JSON.stringify(teams.listTeams(V, { zone: 'Europe/London' }));
+  assert.ok(!json.includes('MARK-retained-unconfirmed'), 'an unconfirmed retained row was shown');
+  assert.ok(!t.classes.some((c) => c.key === `${PSY}:8801`));
+  assert.ok(json.includes('POS-retained-confirmed'), 'history-confirmed row is shown');
+  assert.strictEqual(t.today.total, base + 1, 'only the confirmed class counts toward the day and the mascot');
+  const yc = t.members.find((m) => m.name.startsWith('Retainer')).counts;
+  assert.strictEqual(yc.week, 1);
+  // The member's own (non-Team) views still see the retained row, as before.
+  const own = db.getBookingCacheAllGyms(Y).map((r) => r.class_name).sort();
+  assert.deepStrictEqual(own, ['MARK-retained-unconfirmed', 'POS-retained-confirmed']);
+});
+check('GET /api/teams resolves each member\'s name once per request, across all Teams', () => {
+  const { team: t2, inviteToken: tok2 } = teams.createTeam(V, { name: 'Second Crew' });
+  for (const uid of [A, B, V2]) {
+    const r = teams.requestJoin(uid, tok2, shareWith());
+    teams.decideRequest(V, t2.id, r.requestId, 'approve');
+  }
+  const orig = db.getAccountSettings;
+  const calls = new Map();
+  db.getAccountSettings = function (uid) { calls.set(uid, (calls.get(uid) || 0) + 1); return orig.apply(this, arguments); };
+  try { teams.listTeams(V, { zone: 'Europe/London' }); } finally { db.getAccountSettings = orig; }
+  assert.ok(calls.size > 0, 'the name resolver was not observed');
+  for (const [uid, n] of calls) assert.strictEqual(n, 1, `user ${uid} resolved ${n} times`);
+});
 
 (async () => {
   let failed = 0;

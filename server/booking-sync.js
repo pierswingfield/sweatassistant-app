@@ -375,7 +375,7 @@ function acceptClientBookings(userId, bookings, scope, now = Date.now()) {
     const prev = gymId && b.bookingId != null ? existing.get(`${gymId}:${b.bookingId}`) : null;
     if (!prev) return b;
     if (prev.origin === 'server') {
-      serverBookingIds.add(String(b.bookingId));
+      serverBookingIds.add(`${gymId}:${b.bookingId}`); // gym-qualified: ids collide across gyms
       return {
         bookingId: prev.booking_id, gymId, eventId: prev.event_id, startAt: prev.start_at,
         className: prev.class_name, groupName: prev.group_name, instructorName: prev.instructor_name,

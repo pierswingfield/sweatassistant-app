@@ -343,6 +343,32 @@ check("the client's booking push never clobbers the sync's enriched rows", async
   assert.ok(!/replaceBookingCache\s*\(/.test(src), 'admin warm-up and client route do not write booking_cache directly');
 });
 
+check('a started server row the next sync omits is kept and stamped missing_since; relisting clears it', async () => {
+  const uid = twoGymUser();
+  const started = new Date(Date.now() - 2 * 3600e3).toISOString();
+  const row = { bookingId: 4242, gymId: PSYCLE, eventId: 4242, startAt: started, className: 'Kept' };
+  db.replaceBookingCache(uid, [row], [PSYCLE], { origin: 'server' });
+  assert.strictEqual(bookingRows(uid, PSYCLE)[0].missing_since, null);
+  db.replaceBookingCache(uid, [], [PSYCLE], { origin: 'server', retainStartedMs: bookingSync.RETAIN_STARTED_MS });
+  const kept = bookingRows(uid, PSYCLE);
+  assert.strictEqual(kept.length, 1, 'kept for the member\'s own views');
+  assert.ok(kept[0].missing_since, 'stamped as missing from the latest sync');
+  db.replaceBookingCache(uid, [row], [PSYCLE], { origin: 'server', retainStartedMs: bookingSync.RETAIN_STARTED_MS });
+  assert.strictEqual(bookingRows(uid, PSYCLE)[0].missing_since, null, 'listed again: cleared');
+});
+
+check('a client push keys server rows by gym: the same booking id at another gym stays client', async () => {
+  const uid = twoGymUser();
+  db.replaceBookingCache(uid, [{ bookingId: 5150, gymId: PSYCLE, eventId: 1, startAt: future(2), className: 'P' }], [PSYCLE], { origin: 'server' });
+  stale(uid, PSYCLE, 3600e3);
+  bookingSync.acceptClientBookings(uid, [
+    { bookingId: 5150, gymId: PSYCLE, eventId: 1, startAt: future(2), className: 'P' },
+    { bookingId: 5150, gymId: JAB, eventId: 2, startAt: future(2), className: 'J' },
+  ], [PSYCLE, JAB]);
+  assert.strictEqual(bookingRows(uid, PSYCLE)[0].origin, 'server');
+  assert.strictEqual(bookingRows(uid, JAB)[0].origin, 'client');
+});
+
 check('a cycle runs gyms in parallel lanes, never two concurrent calls to one gym', async () => {
   const a = twoGymUser();
   const b = twoGymUser();

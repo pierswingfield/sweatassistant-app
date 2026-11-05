@@ -63,9 +63,12 @@ router.delete('/teams/invite/:token/request', inviteIpLimiter, authenticateToken
 router.delete('/teams/requests/:requestId', authenticateToken,
   handle((req) => teams.withdrawRequestById(req.userId, req.params.requestId)));
 
-router.get('/teams', authenticateToken, handle((req) => ({ teams: teams.listTeams(req.userId) })));
+// T-2: ?tz=<IANA zone> is the device's zone for "today" (validated; else the first gym's).
+const tzOf = (req) => (typeof req.query.tz === 'string' ? req.query.tz.slice(0, 64) : undefined);
+router.get('/teams', authenticateToken, handle((req) => ({ teams: teams.listTeams(req.userId, { zone: tzOf(req) }) })));
 router.post('/teams', authenticateToken, handle((req) => teams.createTeam(req.userId, body(req)), 201));
 router.get('/teams/:id', authenticateToken, handle((req) => teams.getTeam(req.userId, req.params.id)));
+router.get('/teams/:id/today', authenticateToken, handle((req) => teams.getTeamToday(req.userId, req.params.id, { zone: tzOf(req) })));
 router.patch('/teams/:id', authenticateToken, handle((req) => teams.updateTeam(req.userId, req.params.id, body(req))));
 router.delete('/teams/:id', authenticateToken, handle((req) => teams.deleteTeam(req.userId, req.params.id)));
 

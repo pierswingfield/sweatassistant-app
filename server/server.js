@@ -20,6 +20,8 @@ const { getProvider } = require('./providers');
 const gymOutbound = require('./gym-outbound');
 const poller = require('./poller');
 const { resolveSyncScope } = require('./booking-sync-scope');
+// T-2: members a Team can see the upcoming classes of are synced on the 2 h cadence (T-B).
+require('./booking-sync').setPriorityPredicate(() => require('./teams').priorityMemberIds());
 const calendar = require('./calendar');
 const { normalizeCalendarPrefs, applyCalendarPatch } = require('./calendar-prefs');
 const { isRollingWeekly } = require('./providers/booking-window');

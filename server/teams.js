@@ -22,6 +22,13 @@ const sharing = require('./team-sharing');
 const { encrypt, decrypt } = require('./crypto');
 const config = require('./config');
 const { checkPersonName, skeleton } = require('./user-text');
+const { projectTeam } = require('./team-projection');
+const teamData = require('./team-data');
+const { zoneOfGym, isValidZone } = require('./providers/timezone');
+
+// T-2: "Updated 3 h ago" once a member's rows are older than the 2 h Team cadence
+// (booking-sync.js PRIORITY_CADENCE_MS; not required here to keep the module graph flat).
+const TEAM_STALE_AFTER_MS = 2 * 3600 * 1000;
 
 const { db } = dbm;
 
@@ -254,14 +261,99 @@ function createTeam(userId, { name, emoji, share } = {}) {
   return { team: teamSummary(teamRow(id)), inviteToken };
 }
 
-function listTeams(userId) {
+// --- T-2 projection ------------------------------------------------------------------
+// Every Team payload that carries class data goes through projectTeam (team-projection.js),
+// with members taken from team_members only: a pending requester, a declined, removed,
+// blocked or departed person is not a row there, so nothing of theirs can be projected.
+
+/** The viewer's zone for "today": a valid IANA name from the client, else their first gym's. */
+function viewerZone(userId, requested) {
+  if (isValidZone(requested)) return requested;
+  const gyms = teamData.linkedGymIds(userId);
+  return gyms.length ? zoneOfGym(gyms[0]) : 'UTC';
+}
+
+function projectionsFor(userId, teamIds, { zone, includeDetail }) {
+  const now = nowFn();
+  const byTeam = new Map(teamIds.map((id) => [id, memberRows(id)]));
+  const allIds = [...new Set([...byTeam.values()].flat().map((r) => r.user_id))];
+  const data = teamData.rowsForUsers(allIds, { now });
+  const linked = teamData.linkedGymIds(userId);
+  const out = new Map();
+  for (const [teamId, rows] of byTeam) {
+    const names = resolveNames(rows.map((r) => r.user_id));
+    out.set(teamId, projectTeam({
+      viewer: { userId, linkedGymIds: linked },
+      team: { id: teamId },
+      members: rows.map((r) => ({
+        userId: r.user_id, memberRef: r.member_ref, name: names.get(r.user_id), colourIndex: r.colour_index,
+        isCaptain: r.is_captain === 1, share: r.share_json, pausedUntil: r.paused_until,
+        ...data.get(r.user_id),
+      })),
+      now, zone, zoneOf: zoneOfGym, staleAfterMs: TEAM_STALE_AFTER_MS, includeDetail,
+    }));
+  }
+  return out;
+}
+
+// The list card's slice of the projection (§5.2): today line inputs, hottest class,
+// mascot, and the avatars of members active today. No class lists.
+function listCard(p) {
+  const byRef = new Map(p.members.map((m) => [m.memberRef, m]));
+  const avatar = (ref) => { const m = byRef.get(ref); return m ? { memberRef: m.memberRef, name: m.name, colourIndex: m.colourIndex } : null; };
+  return {
+    today: p.today,
+    mascot: p.mascot,
+    activeToday: p.today.activeToday.map(avatar).filter(Boolean),
+    members: p.members.map((m) => ({ memberRef: m.memberRef, name: m.name, colourIndex: m.colourIndex })),
+  };
+}
+
+function listTeams(userId, { zone } = {}) {
   expireStale();
   const rows = db.prepare(`SELECT t.*, m.is_captain, m.paused_until, m.pinned, m.joined_at AS my_joined_at
     FROM team_members m JOIN teams t ON t.id = m.team_id WHERE m.user_id = ? ORDER BY m.pinned DESC, m.joined_at ASC, m.id ASC`).all(userId);
-  return rows.map((t) => {
+  const projections = projectionsFor(userId, rows.map((t) => t.id), { zone: viewerZone(userId, zone), includeDetail: false });
+  const list = rows.map((t, i) => {
     const me = { is_captain: t.is_captain, paused_until: t.paused_until };
-    return { ...teamSummary(t), myRole: t.is_captain === 1 ? 'captain' : 'member', paused: isPaused(me), pinned: t.pinned === 1 };
+    const p = projections.get(t.id);
+    return {
+      ...teamSummary(t), myRole: t.is_captain === 1 ? 'captain' : 'member', paused: isPaused(me), pausedUntil: isPaused(me) ? t.paused_until : null,
+      pinned: t.pinned === 1, ...listCard(p), _order: i, _soonest: p.soonestAt ? Date.parse(p.soonestAt) : Infinity,
+    };
   });
+  // §5.2: pinned first, then by the soonest upcoming shared class, then join order.
+  list.sort((a, b) => (b.pinned - a.pinned) || (a._soonest - b._soonest) || (a._order - b._order));
+  return list.map(({ _order, _soonest, ...t }) => t);
+}
+
+/** The dashboard's class data for one Team (T-3 builds its widgets on this). */
+function getTeamToday(userId, teamId, { zone } = {}) {
+  expireStale();
+  const { team, me } = requireMember(userId, teamId);
+  const p = projectionsFor(userId, [team.id], { zone: viewerZone(userId, zone), includeDetail: true }).get(team.id);
+  const { soonestAt, teamId: _t, ...rest } = p;
+  return { team: teamSummary(team), myRole: me.is_captain === 1 ? 'captain' : 'member', ...myState(me), ...rest };
+}
+
+/**
+ * T-B priority set (booking-sync.js, 2 h cadence): members whose upcoming classes some
+ * OTHER member of a Team can see — not paused, sharing upcoming classes, with at least
+ * one gym shared, in a Team of two or more.
+ */
+function priorityMemberIds() {
+  const now = nowIso();
+  const rows = db.prepare(`SELECT m.user_id, m.share_json, m.paused_until FROM team_members m
+    WHERE (SELECT COUNT(*) FROM team_members o WHERE o.team_id = m.team_id) >= 2`).all();
+  const out = new Set();
+  for (const r of rows) {
+    if (r.paused_until && r.paused_until > now) continue;
+    const share = sharing.resolveShare(r.share_json);
+    if (!share.upcoming) continue;
+    if (share.gyms !== 'all' && !(Array.isArray(share.gyms) && share.gyms.length)) continue;
+    out.add(r.user_id);
+  }
+  return out;
 }
 
 function getTeam(userId, teamId) {
@@ -620,7 +712,7 @@ function importMyShares(userId, list) {
 
 module.exports = {
   TeamError, LIMITS, COLOUR_PALETTE_SIZE, TOKEN_RE,
-  createTeam, listTeams, getTeam, updateTeam, deleteTeam,
+  createTeam, listTeams, getTeam, getTeamToday, priorityMemberIds, updateTeam, deleteTeam,
   rotateInvite, setInviteEnabled, getInvite, withdrawRequestById,
   previewInvite, requestJoin, withdrawRequest, listRequests, decideRequest,
   updateMe, setPinned, leaveTeam, setCaptain, removeMember,

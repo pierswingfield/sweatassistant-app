@@ -42,11 +42,15 @@ const FAILURE_RETRY_MS = 30 * 60 * 1000; // a failed gym is retried no sooner th
 const CLIENT_PUSH_GRACE_MS = 5 * 60 * 1000; // a server sync this recent beats a client push
 const MAX_LANES = 3;                      // gyms fetched concurrently in one cycle (one lane per gym)
 const BOOT_STAGGER_MS = 60 * 1000;        // first cycle after boot: each lane starts after a random 0-60 s
+// T-2: a gym's booking list drops a class once it starts, but a Team's day (done classes,
+// the mascot's ring) still needs it. Server rows that started within this window survive
+// a re-sync; the cycle prunes anything older.
+const RETAIN_STARTED_MS = 24 * HOUR;
 
 // ── Priority set (pluggable) ─────────────────────────────────────────────────
 // Returns the user ids that get the 2 h cadence. Teams do not exist yet, so the
-// default is empty. T-2 supplies Team members whose upcoming classes a Team can
-// see, via setPriorityPredicate(() => teams.visibleMemberIds()).
+// default is empty; server.js installs teams.priorityMemberIds() (T-2): members a
+// Team can see the upcoming classes of.
 const EMPTY_PRIORITY = () => new Set();
 let priorityPredicate = EMPTY_PRIORITY;
 function setPriorityPredicate(fn) { priorityPredicate = typeof fn === 'function' ? fn : EMPTY_PRIORITY; }
@@ -192,7 +196,7 @@ async function fetchAndStore(userId, gymId) {
   let waitlists = null;
   try {
     bookings = await bookingRowsFor(userId, gymId);
-    db.replaceBookingCache(userId, bookings, [gymId]);
+    db.replaceBookingCache(userId, bookings, [gymId], { origin: 'server', retainStartedMs: RETAIN_STARTED_MS });
   } catch (err) { noteThrottleError(gymId, err); errors.push(`bookings: ${err.message}`); }
   // A gym that just failed (or got throttled) is not asked again in this pass;
   // its stored waitlist rows stay as they were.
@@ -332,7 +336,7 @@ function runCycle(opts = {}) {
     await Promise.all(Array.from({ length: Math.min(MAX_LANES, queue.length) }, worker));
     // Housekeeping: past classes and stale dedupe keys.
     const nowIso = DateTime.now().toISO();
-    db.pruneBookingCache(nowIso);
+    db.pruneBookingCache(new Date(Date.now() - RETAIN_STARTED_MS).toISOString());
     db.pruneWaitlistCache(nowIso);
     db.pruneSentNotifications(DateTime.now().minus({ days: 30 }).toISO());
     stats.cycles++;
@@ -360,15 +364,28 @@ function acceptClientBookings(userId, bookings, scope, now = Date.now()) {
   });
   if (!gyms.length) return [];
   const existing = new Map();
-  const sel = db.db.prepare('SELECT booking_id, duration_min, location_address FROM booking_cache WHERE user_id = ? AND gym_id = ?');
+  const sel = db.db.prepare('SELECT * FROM booking_cache WHERE user_id = ? AND gym_id = ?');
   for (const gymId of gyms) for (const r of sel.all(userId, gymId)) existing.set(`${gymId}:${r.booking_id}`, r);
+  // T-2: a booking the server's own sync already holds keeps the SERVER's fields and
+  // stays 'server' (Team-visible); one only the client knows is stored as 'client' and
+  // never reaches a Team. The client's list can still remove a row (a cancel).
+  const serverBookingIds = new Set();
   const merged = list.map((b) => {
     const gymId = b && b.gymId;
     const prev = gymId && b.bookingId != null ? existing.get(`${gymId}:${b.bookingId}`) : null;
     if (!prev) return b;
+    if (prev.origin === 'server') {
+      serverBookingIds.add(String(b.bookingId));
+      return {
+        bookingId: prev.booking_id, gymId, eventId: prev.event_id, startAt: prev.start_at,
+        className: prev.class_name, groupName: prev.group_name, instructorName: prev.instructor_name,
+        studioName: prev.studio_name, locationName: prev.location_name, slotLabel: prev.slot_label,
+        durationMin: prev.duration_min, locationAddress: prev.location_address,
+      };
+    }
     return { ...b, durationMin: b.durationMin ?? prev.duration_min, locationAddress: b.locationAddress ?? prev.location_address };
   });
-  db.replaceBookingCache(userId, merged, gyms);
+  db.replaceBookingCache(userId, merged, gyms, { serverBookingIds, retainStartedMs: RETAIN_STARTED_MS, now });
   return gyms;
 }
 
@@ -391,4 +408,5 @@ module.exports = {
   FAILURE_RETRY_MS,
   CLIENT_PUSH_GRACE_MS,
   MAX_LANES,
+  RETAIN_STARTED_MS,
 };

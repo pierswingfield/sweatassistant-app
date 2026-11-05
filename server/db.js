@@ -196,6 +196,10 @@ db.exec(`
     synced_at TEXT DEFAULT CURRENT_TIMESTAMP,
     duration_min INTEGER,
     location_address TEXT,
+    -- T-2: who wrote the row. 'server' = booking-sync.js read it from the gym; 'client' =
+    -- only the member's own client pushed it (POST /api/bookings/sync). Team projections
+    -- show server rows only. Default 'client' so an unmarked row is never shared.
+    origin TEXT NOT NULL DEFAULT 'client' CHECK (origin IN ('server', 'client')),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (gym_id) REFERENCES gyms(id),
     UNIQUE(user_id, gym_id, booking_id)
@@ -513,6 +517,11 @@ if (!db.prepare('PRAGMA table_info(user_gyms)').all().some((col) => col.name ===
 }
 if (!db.prepare('PRAGMA table_info(user_gyms)').all().some((col) => col.name === 'account_enabled_at')) {
   db.exec('ALTER TABLE user_gyms ADD COLUMN account_enabled_at TEXT');
+}
+// T-2: booking_cache row origin. Rows written before this column existed are marked
+// 'client' (never shown to a Team) until the next server sync rewrites them.
+if (!db.prepare('PRAGMA table_info(booking_cache)').all().some((col) => col.name === 'origin')) {
+  db.exec("ALTER TABLE booking_cache ADD COLUMN origin TEXT NOT NULL DEFAULT 'client' CHECK (origin IN ('server', 'client'))");
 }
 if (!db.prepare('PRAGMA table_info(user_gyms)').all().some((col) => col.name === 'account_enabled_queue_cutoff')) {
   db.exec('ALTER TABLE user_gyms ADD COLUMN account_enabled_queue_cutoff INTEGER');
@@ -1772,8 +1781,17 @@ module.exports = {
    *   at a gym actually disappears. Defaults to just the gyms present in the
    *   payload, so a single-gym caller cannot wipe another gym's cache.
    */
-  replaceBookingCache(userId, bookings, scopeGymIds = null) {
+  /*
+   * T-2 options: `origin` ('server' only from booking-sync.js's own fetch; anything else
+   * is stored as 'client'); `serverBookingIds` (a Set of booking ids in the payload that
+   * are the server's own rows carried through a client merge, stored as 'server');
+   * `retainStartedMs` keeps SERVER rows that started within that window and are absent
+   * from the payload (a gym's list drops a class once it starts, but the Team's day
+   * still needs it as done).
+   */
+  replaceBookingCache(userId, bookings, scopeGymIds = null, { origin = 'client', serverBookingIds = null, retainStartedMs = 0, now = Date.now() } = {}) {
     const list = Array.isArray(bookings) ? bookings : [];
+    const baseOrigin = origin === 'server' ? 'server' : 'client';
     const rowsByGym = new Map();
     for (const b of list) {
       if (b.bookingId == null || !b.startAt) continue;
@@ -1786,18 +1804,30 @@ module.exports = {
       : [...rowsByGym.keys()];
 
     const del = db.prepare('DELETE FROM booking_cache WHERE user_id = ? AND gym_id = ?');
+    const delOne = db.prepare('DELETE FROM booking_cache WHERE id = ?');
+    const sel = db.prepare("SELECT id, booking_id, start_at, origin FROM booking_cache WHERE user_id = ? AND gym_id = ?");
     const ins = db.prepare(`
       INSERT OR REPLACE INTO booking_cache
-        (user_id, gym_id, booking_id, event_id, start_at, class_name, group_name, instructor_name, studio_name, location_name, slot_label, duration_min, location_address, synced_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        (user_id, gym_id, booking_id, event_id, start_at, class_name, group_name, instructor_name, studio_name, location_name, slot_label, duration_min, location_address, origin, synced_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `);
+    const keepStarted = (row, incoming) => {
+      if (!(retainStartedMs > 0) || row.origin !== 'server' || incoming.has(String(row.booking_id))) return false;
+      const t = Date.parse(row.start_at);
+      return Number.isFinite(t) && t <= now && t > now - retainStartedMs;
+    };
     const tx = db.transaction((uid) => {
-      for (const gym of scope) del.run(uid, gym);
+      for (const gym of scope) {
+        if (!(retainStartedMs > 0)) { del.run(uid, gym); continue; }
+        const incoming = new Set((rowsByGym.get(gym) || []).map((b) => String(b.bookingId)));
+        for (const row of sel.all(uid, gym)) if (!keepStarted(row, incoming)) delOne.run(row.id);
+      }
       for (const [gym, rows] of rowsByGym) {
         if (!scope.includes(gym)) continue; // not ours to write
         for (const b of rows) {
+          const rowOrigin = baseOrigin === 'server' || (serverBookingIds && serverBookingIds.has(String(b.bookingId))) ? 'server' : 'client';
           ins.run(uid, gym, b.bookingId, b.eventId ?? null, b.startAt, b.className ?? null, b.groupName ?? null,
-            b.instructorName ?? null, b.studioName ?? null, b.locationName ?? null, String(b.slotLabel ?? ''), b.durationMin ?? null, b.locationAddress ?? null);
+            b.instructorName ?? null, b.studioName ?? null, b.locationName ?? null, String(b.slotLabel ?? ''), b.durationMin ?? null, b.locationAddress ?? null, rowOrigin);
         }
       }
     });

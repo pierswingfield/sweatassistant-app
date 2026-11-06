@@ -25,10 +25,12 @@ export function avatarColourIndex(index) {
   return ((n % size) + size) % size;
 }
 
-/** "Sam" -> "S", "Sam B." -> "SB", "Sam B. 2" -> "SB". Unicode-safe; never empty. */
+/** "Sam" -> "S", "Sam B." -> "SB", "Sam Bland Smith" -> "SS" (first + last). Unicode-safe; never empty. */
 export function initials(name, max = 2) {
   const words = String(name ?? '').trim().split(/\s+/).filter((w) => /^\p{L}/u.test(w));
-  const letters = words.slice(0, max).map((w) => Array.from(w)[0].toLocaleUpperCase());
+  // First and last name (a middle name never wins a slot); one word falls back to one letter.
+  const picked = max >= 2 && words.length > 1 ? [words[0], words[words.length - 1]] : words.slice(0, 1);
+  const letters = picked.map((w) => Array.from(w)[0].toLocaleUpperCase());
   return letters.join('') || '?';
 }
 

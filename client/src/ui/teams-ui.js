@@ -5,7 +5,7 @@
 import { COPY, formatCopyText } from '../copy.js';
 import { appConfig } from '../config.js';
 import { inviteSharePayload, inviteClipboardText } from './teams-create-model.js';
-import { escapeHtml, gymSquareChip } from './cards.js';
+import { escapeHtml, gymSquareChip, gymDot } from './cards.js';
 import { openPage, closePage } from './modal-nav.js';
 import { teamAvatarHtml } from './team-avatar.js';
 import { getAllLinkedGyms, getGymShortName } from '../gym-context.js';
@@ -32,7 +32,21 @@ export function avatarHtml(member, { size = 'md', letters = 2, label = true } = 
 export function avatarStackHtml(members, { max = 5 } = {}) {
   const list = (members || []).slice(0, max);
   if (!list.length) return '';
-  return `<span class="tm-stack" aria-hidden="true">${list.map((m) => avatarHtml(m, { size: 'xs', letters: 1, label: false })).join('')}</span>`;
+  return `<span class="tm-stack" aria-hidden="true">${list.map((m) => avatarHtml(m, { size: 'xs', letters: 2, label: false })).join('')}</span>`;
+}
+
+/** The circular 1:1 gym logo (the mobile timetable filter bar's gymDot), sized by CSS (.tm-gcirc). */
+export function gymCircleHtml(gymId, { size = 'md', badge = '' } = {}) {
+  return `<span class="tm-gcirc tm-gcirc-${size}">${gymDot(gymId)}${badge}</span>`;
+}
+
+/** The member's gyms as an overlapping row of circular logos, leftmost on top (as in the filter bar). */
+export function gymStackHtml(gymIds, { max = 4 } = {}) {
+  const ids = (gymIds || []).filter(Boolean);
+  if (!ids.length) return '';
+  const shown = ids.slice(0, max);
+  const more = ids.length - shown.length;
+  return `<span class="tm-gstack" aria-hidden="true">${shown.map((g, i) => `<span class="tm-gstack-i" style="z-index:${Math.max(1, shown.length - i)}">${gymCircleHtml(g, { size: 'sm' })}</span>`).join('')}${more > 0 ? `<span class="tm-gstack-more">+${more}</span>` : ''}</span>`;
 }
 
 const MASCOT = {

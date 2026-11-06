@@ -46,6 +46,8 @@ describe('avatar palette and initials (§5.5)', () => {
     expect(initials('Sam B. 2')).toBe('SB');
     expect(initials('  émile  zola ')).toBe('ÉZ');
     expect(initials('Sam B.', 1)).toBe('S');
+    expect(initials('Sam Bland Smith')).toBe('SS'); // first + last, never the middle name
+    expect(initials('Ana')).toBe('A'); // one name falls back to one letter
     expect(initials('')).toBe('?');
     expect(initials('<b>')).toBe('?');
   });

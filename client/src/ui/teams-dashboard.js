@@ -16,7 +16,7 @@ import { formatInZone, deviceZone } from '../lib.js';
 import { getAllLinkedGyms, getGymShortName } from '../gym-context.js';
 import { renderHomeFavouriteCard, isDisabledLinkedGym } from './home.js';
 import {
-  T, fmt, avatarHtml, avatarStackHtml, ICONS, captainBadgeHtml, openTeamsPage,
+  T, fmt, avatarHtml, avatarStackHtml, gymCircleHtml, gymStackHtml, ICONS, captainBadgeHtml, openTeamsPage,
 } from './teams-ui.js';
 import {
   sortMembers, paginate, readSortChoice, writeSortChoice, SORT_MODES, MEMBERS_PER_PAGE, relativeTime,
@@ -92,7 +92,7 @@ export function heroLines(data, now) {
   } else if (h.inProgress > 0) {
     state = fmt(T.heroInClassCount, { count: h.inProgress });
   }
-  const sub = h.total > 0 ? fmt(T.heroDoneOf, { done: h.done, total: h.total }) : T.heroRest;
+  const sub = h.total > 0 ? (h.done === 1 ? T.heroDoneOne : fmt(T.heroDoneOf, { done: h.done })) : T.heroRest;
   return { state, sub };
 }
 
@@ -109,8 +109,8 @@ export function renderTodaysWorkouts(section, data, now) {
     const title = `${escapeHtml(c.className)}${placeOf(c) ? ` · ${escapeHtml(placeOf(c))}` : ''}`;
     const who = attendeesHtml(c, byRef, { kinds: ['booked'] });
     if (status === 'done') {
-      return `<li class="tm-tw is-done"><span class="tm-tw-lead"><span class="tm-tw-check" aria-hidden="true">${ICONS.check}</span></span>
-        <span class="tm-grow tm-min0"><span class="tm-tw-title">${escapeHtml(timeOf(c))} ${title}</span><span class="tm-tw-who">${who} <span class="tm-muted">· ${escapeHtml(T.doneWord)}</span></span></span></li>`;
+      return `<li class="tm-tw is-done"><span class="tm-tw-lead">${gymCircleHtml(c.gymId, { size: 'lg', badge: `<span class="tm-tw-check" aria-hidden="true">${ICONS.check}</span>` })}</span>
+        <span class="tm-grow tm-min0"><span class="tm-tw-title">${escapeHtml(timeOf(c))} ${title}</span><span class="tm-tw-who">${who}</span></span></li>`;
     }
     if (status === 'inProgress') {
       return `<li class="tm-tw is-live"><span class="tm-tw-lead">${progressRingHtml(progress, fmt(T.minLeft, { n: minutesLeft }), fmt(T.minLeftAria, { n: minutesLeft }))}</span>
@@ -145,18 +145,16 @@ export function renderThisWeek(section, data, now) {
   const rowHtml = (c) => {
     const people = attendeeMembers(c, byRef, ['booked', 'waitlist', 'queued']);
     return `<li class="tm-wrow${statusAt(c, now) === 'done' ? ' is-done' : ''}">
-      <div class="tm-wrow-head"><span class="tm-wrow-time">${escapeHtml(timeOf(c))}</span><span class="tm-wrow-name tm-ellip">${escapeHtml(c.className)}</span></div>
-      <div class="tm-wrow-sub">${c.instructorName ? `<span class="tm-wrow-inst">${escapeHtml(c.instructorName)}</span><span class="tm-wrow-sep" aria-hidden="true">·</span>` : ''}${avatarStackHtml(people, { max: 4 })}<span class="tm-wrow-who">${attendeesHtml(c, byRef)}</span></div>
+      <div class="tm-wrow-head">${gymCircleHtml(c.gymId, { size: 'md' })}<span class="tm-wrow-time">${escapeHtml(timeOf(c))}</span><span class="tm-wrow-name tm-ellip">${escapeHtml(c.className)}</span>${c.instructorName ? `<span class="tm-wrow-inst tm-ellip">${escapeHtml(c.instructorName)}</span>` : ''}</div>
+      <div class="tm-wrow-sub">${avatarStackHtml(people, { max: 4 })}<span class="tm-wrow-who">${attendeesHtml(c, byRef)}</span></div>
     </li>`;
   };
 
   const paint = () => {
     const d = days[selected];
-    const heading = DateTime.fromISO(d.date, { zone }).toFormat('cccc d LLLL');
     const { rows, hidden } = visibleWeekRows(d.classes, expanded);
     section.innerHTML = `<div class="tm-card-head"><h3 class="tm-card-title">${escapeHtml(T.thisWeek)}</h3></div>
       <div class="tm-week" role="tablist" aria-label="${escapeHtml(T.thisWeek)}">${days.map(dayBtn).join('')}</div>
-      <p class="tm-week-heading">${d.isToday ? `${escapeHtml(T.weekToday)} · ` : ''}${escapeHtml(heading)}</p>
       ${rows.length ? `<ul class="tm-wrows">${rows.map(rowHtml).join('')}</ul>` : `<p class="tm-muted tm-sm tm-week-empty">${escapeHtml(T.noClassesDay)}</p>`}
       ${hidden ? `<button type="button" class="tm-btn tm-btn-block tm-mt-s" data-more>${escapeHtml(fmt(T.seeMore, { count: hidden }))}</button>` : ''}
       ${expanded && d.classes.length > 3 ? `<button type="button" class="tm-btn tm-btn-ghost tm-btn-block tm-mt-s" data-less>${escapeHtml(T.seeLess)}</button>` : ''}`;
@@ -198,10 +196,9 @@ export async function renderClassesTogether(section, data, now, { stale = () => 
   const byRef = new Map(data.members.map((m) => [m.memberRef, m]));
   const me = data.members.find((m) => m.isMe);
   const head = `<div class="tm-card-head"><h3 class="tm-card-title">${escapeHtml(T.classesTogether)}</h3></div>`;
-  if (!list.length) {
-    section.innerHTML = `${head}<p class="tm-muted tm-sm">${escapeHtml(T.togetherEmpty)}</p>`;
-    return;
-  }
+  // Nothing booked together: the whole section disappears (no empty-state copy).
+  if (!list.length) { section.hidden = true; section.innerHTML = ''; return; }
+  section.hidden = false;
   let tt = null;
   try { tt = await import('./timetable.js'); } catch (_) { tt = null; }
   if (stale() || !section.isConnected) return;
@@ -249,8 +246,6 @@ function memberLines(m, act, now) {
   }
   if (act && act.inClass) {
     lines.push({ text: fmt(T.inClassLine, { cls: act.inClass.className }) + (act.spotIn ? `${T.spotSep}${act.spotIn}` : '') });
-  } else if (act && act.next) {
-    lines.push({ text: fmt(T.nextLine, { when: whenLabel(act.next, now), cls: act.next.className }) + (act.spotNext ? `${T.spotSep}${act.spotNext}` : '') });
   }
   if (m.stale && m.updatedAt) {
     lines.push({ text: fmt(T.updatedAgo, { ago: relativeTime(m.updatedAt, now, { now: T.timeNow, min: T.timeMin, hour: T.timeHour, yesterday: T.timeYesterday, days: T.timeDays }) }), warn: true });
@@ -268,14 +263,14 @@ export function renderMembers(section, data, now) {
   const memberCard = (m) => {
     const lines = memberLines(m, activity.get(m.memberRef), now);
     // Only gyms the viewer has linked arrive here; nothing marks an unlinked one (T-3 review).
-    const chips = (m.gyms || []).map((g) => `<span class="tm-mem-gym" title="${escapeHtml(getGymShortName(g) || '')}">${gymSquareChip(g)}</span>`).join('');
+    const gymNames = (m.gyms || []).map((g) => getGymShortName(g) || '').filter(Boolean).join(', ');
     return `<button type="button" class="tm-mem-card" data-member="${escapeHtml(m.memberRef)}" aria-label="${escapeHtml(fmt(T.openMember, { name: m.isMe ? T.you : m.name }))}">
       ${avatarHtml(m, { size: 'lg', label: false })}
       <span class="tm-grow tm-min0">
         <span class="tm-mem-name"><span class="tm-ellip">${escapeHtml(m.isMe ? T.you : m.name)}</span>${m.isCaptain ? captainBadgeHtml() : ''}</span>
         ${lines.map((l) => `<span class="tm-mem-line${l.muted ? ' tm-muted' : ''}${l.warn ? ' tm-warn' : ''}">${escapeHtml(l.text)}</span>`).join('')}
       </span>
-      <span class="tm-mem-gyms">${chips}</span>
+      <span class="tm-mem-gyms"${gymNames ? ` title="${escapeHtml(gymNames)}"` : ''}>${gymStackHtml(m.gyms, { max: 4 })}</span>
     </button>`;
   };
 
@@ -285,7 +280,7 @@ export function renderMembers(section, data, now) {
     section.innerHTML = `
       <div class="tm-card-head">
         <h3 class="tm-card-title">${escapeHtml(T.members)}</h3>
-        <span class="tm-grow"></span><span class="tm-card-meta">${members.length}</span>
+        <span class="tm-card-meta tm-count-pill">${members.length}</span><span class="tm-grow"></span>
         <div class="tm-sort">
           <button type="button" class="tm-icon-btn tm-sort-btn" data-sort-toggle aria-haspopup="menu" aria-expanded="false" aria-label="${escapeHtml(T.sortMembers)}">${ICONS.sort}</button>
           <div class="tm-menu" role="menu" hidden>
@@ -376,7 +371,6 @@ function chartCard(title, meta, body, aria) {
   return `<figure class="tm-chart" role="group" aria-label="${escapeHtml(title)}">
     <figcaption class="tm-chart-title">${escapeHtml(title)}</figcaption>
     <div role="img" aria-label="${escapeHtml(aria)}">${body}</div>
-    ${meta ? `<p class="tm-chart-meta">${escapeHtml(meta)}</p>` : ''}
   </figure>`;
 }
 
@@ -419,14 +413,19 @@ function busiestTimesHtml(charts) {
  */
 export function teamGoalHtml(goal, { canEdit = false } = {}) {
   const g = goalView(goal);
-  if (!g) return canEdit ? `<button type="button" class="tm-goal-set" data-goal-edit>${escapeHtml(T.goalSet)}</button>` : '';
-  const state = g.reached ? T.goalReached : g.remaining === 1 ? T.goalToGoOne : fmt(T.goalToGo, { n: g.remaining });
+  if (!g) return '';
+  const msg = g.reached ? T.goalMsgDone : g.count === 0 ? T.goalMsgStart : g.remaining === 1 ? T.goalMsgOne : fmt(T.goalMsgGoing, { n: g.remaining });
+  const r = 34;
+  const circ = 2 * Math.PI * r;
+  const ring = `<span class="tm-goal-ring" aria-hidden="true"><svg viewBox="0 0 80 80"><circle class="tm-goal-ring-track" cx="40" cy="40" r="${r}"/><circle class="tm-goal-ring-prog" cx="40" cy="40" r="${r}" stroke-dasharray="${((g.percent / 100) * circ).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 40 40)"/></svg><span class="tm-goal-ring-num"><b>${g.count}</b><i>${escapeHtml(fmt(T.goalRingOf, { target: g.target }))}</i></span></span>`;
   return `<div class="tm-goal${g.reached ? ' is-reached' : ''}" role="group" aria-label="${escapeHtml(fmt(T.goalAria, { count: g.count, target: g.target }))}">
-      <div class="tm-goal-head"><span class="tm-stat-label">${escapeHtml(T.goalName)}</span><span class="tm-grow"></span>
-        ${canEdit ? `<button type="button" class="tm-goal-edit" data-goal-edit aria-label="${escapeHtml(T.goalEditAria)}">${escapeHtml(T.goalEdit)}</button>` : ''}</div>
-      <div class="tm-goal-num"><span class="tm-stat-big">${g.count}</span><span class="tm-goal-of">${escapeHtml(fmt(T.goalOf, { target: g.target }))}</span></div>
-      <div class="tm-goal-track" aria-hidden="true"><i style="width:${g.percent}%"></i></div>
-      <span class="tm-stat-delta${g.reached ? ' is-up' : ''}">${escapeHtml(state)}</span>
+      ${ring}
+      <div class="tm-goal-body">
+        <div class="tm-goal-head"><span class="tm-goal-name">${escapeHtml(T.goalTitle)}</span><span class="tm-grow"></span>
+          ${canEdit ? `<button type="button" class="tm-goal-edit" data-goal-edit aria-label="${escapeHtml(T.goalEditAria)}">${escapeHtml(T.goalEdit)}</button>` : ''}</div>
+        <div class="tm-goal-of">${escapeHtml(T.statsClassesWeek)}</div>
+        <p class="tm-goal-msg">${escapeHtml(msg)}</p>
+      </div>
     </div>`;
 }
 
@@ -439,16 +438,20 @@ export function renderTeamStats(section, data, now, { onEditGoal = null } = {}) 
   const st = streakText(streakView(stats.streak, { now, zone: deviceZone() }));
   const charts = stats.charts || {};
   const slides = [busiestDaysHtml(charts), gymMixHtml(charts), busiestTimesHtml(charts)];
+  const canEditGoal = !!onEditGoal && data.myRole === 'captain';
+  // No goal yet: a Captain gets the "Set a weekly Team goal" prompt at the foot of the card.
+  const setGoal = !goalView(data.goal) && canEditGoal ? `<button type="button" class="tm-goal-set" data-goal-edit>${escapeHtml(T.goalSet)}</button>` : '';
   section.innerHTML = `<div class="tm-card-head"><h3 class="tm-card-title">${escapeHtml(T.teamStats)}</h3><span class="tm-grow"></span><span class="tm-card-meta">${escapeHtml(T.statsWeekMeta)}</span></div>
-    ${teamGoalHtml(data.goal, { canEdit: !!onEditGoal && data.myRole === 'captain' })}
+    ${teamGoalHtml(data.goal, { canEdit: canEditGoal })}
     <div class="tm-stat-tiles">
       <div class="tm-stat-tile"><span class="tm-stat-big">${wk.thisWeek}</span><span class="tm-stat-label">${escapeHtml(wk.thisWeek === 1 ? T.statsClassWeek : T.statsClassesWeek)}</span>
         <span class="tm-stat-delta is-${wk.tone}">${escapeHtml(deltaText)}</span></div>
       <div class="tm-stat-tile"><span class="tm-stat-big">${escapeHtml(st.big)}</span><span class="tm-stat-label">${escapeHtml(T.streakName)}</span>
-        ${st.sub ? `<span class="tm-stat-sub">${escapeHtml(st.sub)}</span>` : ''}</div>
+</div>
     </div>
     <div class="tm-stats-carousel" tabindex="0" aria-label="${escapeHtml(T.statsChartsAria)}">${slides.map((h, i) => `<div class="tm-stats-slide" aria-label="${escapeHtml(fmt(T.statsChartsPage, { n: i + 1, total: slides.length }))}">${h}</div>`).join('')}</div>
-    <div class="tm-dots tm-stats-dots" aria-hidden="true">${slides.map((_, i) => `<i class="${i === 0 ? 'is-on' : ''}"></i>`).join('')}</div>`;
+    <div class="tm-dots tm-stats-dots" aria-hidden="true">${slides.map((_, i) => `<i class="${i === 0 ? 'is-on' : ''}"></i>`).join('')}</div>
+    ${setGoal}`;
   section.querySelectorAll('[data-goal-edit]').forEach((b) => b.addEventListener('click', () => onEditGoal && onEditGoal()));
   const car = section.querySelector('.tm-stats-carousel');
   const dots = section.querySelectorAll('.tm-stats-dots i');

@@ -131,3 +131,17 @@ describe('Teams pages use modal-nav (DESIGN.md §6.2.1)', () => {
     await expect(p).resolves.toBe(true);
   });
 });
+
+describe('sharing summary line (T12)', () => {
+  const rows = { upcoming: true, waitlists: true, activity: true, recent: true, spots: true, autoBookQueue: true };
+  it('counts gyms and bands the class information', () => {
+    expect(ui.sharingSummaryText({ gyms: ['gym-a', 'gym-b'], ...rows })).toBe("You're sharing 2 gyms and all of your class information");
+    expect(ui.sharingSummaryText({ gyms: 'all', ...rows, spots: false })).toBe("You're sharing 2 gyms and some of your class information");
+    expect(ui.sharingSummaryText({ gyms: ['gym-a'], ...rows })).toBe("You're sharing 1 gym and all of your class information");
+    expect(ui.sharingSummaryText({ gyms: 'all', ...rows }, 0)).toBe("You're sharing all your gyms and all of your class information");
+  });
+  it('says nothing is shared when no gym or no information is on', () => {
+    expect(ui.sharingSummaryText({ gyms: [], ...rows })).toBe("You're not sharing anything");
+    expect(ui.sharingSummaryText({ gyms: 'all' })).toBe("You're not sharing anything");
+  });
+});

@@ -206,6 +206,31 @@ export function shareChips(share) {
   ];
 }
 
+/**
+ * How much a member shares, in three bands each (T12 summary line). `gyms`: 'all' | 'some' |
+ * 'none' (+ `gymCount`); `info`: 'all' when every toggle row is on, 'none' when none is,
+ * else 'some'. Missing or bad values count as private (normaliseShare).
+ */
+export function sharingLevel(share, linkedCount = 0) {
+  const s = normaliseShare(share);
+  const gyms = s.gyms === 'all' ? 'all' : (s.gyms.length ? 'some' : 'none');
+  const gymCount = s.gyms === 'all' ? Math.max(0, Number(linkedCount) || 0) : s.gyms.length;
+  const on = SHARE_ROWS.filter((r) => s[r.key]).length;
+  const info = on === 0 ? 'none' : (on === SHARE_ROWS.length ? 'all' : 'some');
+  return { gyms, gymCount, info, nothing: gyms === 'none' || info === 'none' };
+}
+
+/**
+ * Why the Team notifications switch is disabled, or null when it is usable. Hidden wins over
+ * device: a hidden member gets nothing whatever the device state.
+ * @returns {null | 'hidden' | 'device'}
+ */
+export function notificationsDisabledReason({ hidden = false, pushReady = true } = {}) {
+  if (hidden) return 'hidden';
+  if (!pushReady) return 'device';
+  return null;
+}
+
 // ---- Pause (§3, §5.7) ----------------------------------------------------------------------
 
 export const PAUSE_OPTIONS = Object.freeze(['24h', '7d', 'indefinite']);

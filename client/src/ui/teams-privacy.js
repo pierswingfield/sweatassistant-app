@@ -8,7 +8,7 @@ import { showToast } from '../main.js';
 import { getGymShortName } from '../gym-context.js';
 import { shareChips } from './teams-model.js';
 import {
-  T, fmt, teamAvatar, teamTitleText, memberCountLabel, ICONS, errorText, pauseWhenShort, openTeamsPage, setFooter, confirmPage, renderSharingSheet, leaveBodyText,
+  T, fmt, teamAvatar, teamTitleText, memberCountLabel, ICONS, errorText, pauseWhenShort, sharingSummaryText, openTeamsPage, setFooter, confirmPage, renderSharingSheet, leaveBodyText,
 } from './teams-ui.js';
 
 const CHIP_LABEL = { upcoming: 'chipUpcoming', waitlists: 'chipWaitlists', activity: 'chipActivity', recent: 'chipRecent', spots: 'chipSpots', autoBookQueue: 'chipAutoBookQueue' };
@@ -17,13 +17,6 @@ function gymChipLabel(chip) {
   if (chip.scope === 'all') return T.chipAllGyms;
   if (chip.scope === 'none') return T.chipNoGyms;
   return fmt(T.chipSomeGyms, { gyms: chip.gymIds.map((g) => getGymShortName(g) || g).join(', ') });
-}
-
-function chipsHtml(share) {
-  return shareChips(share).map((c) => {
-    const label = c.key === 'gyms' ? gymChipLabel(c) : T[CHIP_LABEL[c.key]];
-    return `<span class="tm-pill ${c.on ? 'tm-pill-accent' : 'tm-pill-off'}">${c.on ? '' : `<span class="u-visually-hidden">${escapeHtml(T.notSharedSr)} </span>`}${escapeHtml(label)}</span>`;
-  }).join('');
 }
 
 function hiddenSummary(share) {
@@ -55,7 +48,7 @@ export async function renderPrivacyPane() {
           <div class="tm-grow tm-min0"><div class="tm-card-sub tm-ellip">${escapeHtml(teamTitleText(t))}</div><div class="tm-muted tm-sm">${escapeHtml(roleOf.get(t.id) === 'captain' ? fmt(T.privacyMembersCaptain, { members }) : members)}</div></div>
           ${t.paused ? `<span class="tm-pill tm-pill-warn">${escapeHtml(when ? fmt(T.hiddenPill, { when }) : T.hiddenPillIndefinite)}</span>` : `<span class="tm-pill tm-pill-success">${escapeHtml(T.visible)}</span>`}
         </div>
-        <div class="tm-shares">${t.paused ? `<span class="tm-muted tm-sm">${escapeHtml(hiddenSummary(t.share))}</span>` : chipsHtml(t.share)}</div>
+        <div class="tm-shares"><span class="tm-muted tm-sm">${escapeHtml(t.paused ? hiddenSummary(t.share) : sharingSummaryText(t.share))}</span></div>
         <div class="tm-btn-row">
           <button type="button" class="tm-btn tm-btn-sm tm-grow" data-edit>${escapeHtml(T.editSharing)}</button>
           ${t.paused
@@ -72,12 +65,12 @@ export async function renderPrivacyPane() {
     const name = teamTitleText(t);
     card.querySelector('[data-edit]').addEventListener('click', () => {
       const page = openTeamsPage({ title: fmt(T.whatTeamSees, { name }), onClose: () => renderPrivacyPane() });
-      page.body.innerHTML = `<p class="tm-group-help">${escapeHtml(fmt(T.sharingHelpManage, { name }))}</p><div class="tm-sheet"></div>`;
+      page.body.innerHTML = '<div class="tm-sheet"></div>';
       renderSharingSheet(page.body.querySelector('.tm-sheet'), {
         share: t.share,
         onChange: async (share) => { await teamsApi.updateMe(t.id, { share }); showToast(T.shareSaved, 'success'); },
       });
-      setFooter(page, [{ label: T.done, kind: 'primary', onClick: () => page.close() }]);
+      setFooter(page, [{ label: T.save, kind: 'primary', onClick: () => page.close() }]);
     });
     card.querySelector('[data-pause]')?.addEventListener('click', () => openPausePage(t, name));
     card.querySelector('[data-unhide]')?.addEventListener('click', async (e) => {

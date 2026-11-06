@@ -14,14 +14,15 @@ import { teamsApi } from '../teams-api.js';
 import { escapeHtml } from './cards.js';
 import { showToast } from '../main.js';
 import {
-  canOfferPin, canTogglePin, pinsUsed, PAUSE_OPTIONS, pauseOptionFor, validateTeamName, validateEmoji, relativeTime, shareChips,
+  canOfferPin, canTogglePin, pinsUsed, PAUSE_OPTIONS, pauseOptionFor, relativeTime, notificationsDisabledReason,
 } from './teams-model.js';
 import {
   T, fmt, avatarHtml, teamTitleText, ICONS, captainBadgeHtml, errorText, pauseWhen, joinedLabel,
-  openTeamsPage, setFooter, confirmPage, renderSharingSheet, switchHtml, shareInvite, leaveBodyText,
+  openTeamsPage, setFooter, confirmPage, renderSharingSheet, switchHtml, shareInvite, leaveBodyText, sharingSummaryText,
 } from './teams-ui.js';
 import { goTeams } from './teams.js';
-import { getGymShortName } from '../gym-context.js';
+import { openEditTeamPage } from './teams-edit.js';
+import { devicePushReady } from './device-push.js';
 import { validateWeeklyGoal, GOAL_MAX } from './teams-stats-model.js';
 
 const PAUSE_LABEL = { '24h': 'pause24h', '7d': 'pause7d', indefinite: 'pauseIndefinite' };
@@ -32,7 +33,7 @@ function timeLabels() {
 
 /** Load everything the page needs for this viewer. Requests only for Captains. */
 async function load(teamId) {
-  const [detail, list] = await Promise.all([teamsApi.get(teamId), teamsApi.list().catch(() => ({ teams: [] }))]);
+  const [detail, list, pushReady] = await Promise.all([teamsApi.get(teamId), teamsApi.list().catch(() => ({ teams: [] })), devicePushReady()]);
   const teams = list.teams || [];
   const mine = teams.find((t) => t.id === teamId) || { id: teamId, pinned: false };
   let requests = [];
@@ -43,17 +44,7 @@ async function load(teamId) {
       teamsApi.getInvite(teamId).catch(() => null),
     ]);
   }
-  return { detail, teams, mine, requests, invite };
-}
-
-/** Share summary line for the Captain's "My sharing" row. */
-function shareSummary(share) {
-  const labels = { upcoming: T.chipUpcoming, waitlists: T.chipWaitlists, activity: T.chipActivity, recent: T.chipRecent, spots: T.chipSpots, autoBookQueue: T.chipAutoBookQueue };
-  const chips = shareChips(share);
-  const gym = chips[0];
-  const gymText = gym.scope === 'all' ? T.chipAllGyms : gym.scope === 'none' ? T.chipNoGyms : fmt(T.chipSomeGyms, { gyms: gym.gymIds.map((g) => getGymShortName(g) || g).join(', ') });
-  const on = chips.slice(1).filter((c) => c.on).map((c) => labels[c.key].toLowerCase());
-  return [gymText, ...(on.length ? on : [T.nothingShared])].join(' · ');
+  return { detail, teams, mine, requests, invite, pushReady };
 }
 
 function pauseStatus(detail) {
@@ -71,9 +62,9 @@ function renderMemberSections(host, ctx, refresh) {
   const name = teamTitleText(team);
   const offerPin = canOfferPin(teams.length);
   const pauseMode = detail.paused ? pauseOptionFor(detail.pausedUntil) : null;
+  const notifyOff = notificationsDisabledReason({ hidden: !!detail.paused, pushReady: ctx.pushReady !== false });
   host.innerHTML = `
     <h2 class="tm-group-title">${escapeHtml(T.mySharing)}</h2>
-    <p class="tm-group-help">${escapeHtml(fmt(T.sharingHelpManage, { name }))}</p>
     <div class="tm-sheet"></div>
 
     <h2 class="tm-group-title">${escapeHtml(T.pause)}</h2>
@@ -81,19 +72,18 @@ function renderMemberSections(host, ctx, refresh) {
       <div class="tm-sw-row tm-sw-wrap">
         <div class="tm-grow"><div class="tm-t">${escapeHtml(T.hideMe)}</div><div class="tm-d${detail.paused ? ' tm-warn' : ''}">${escapeHtml(pauseStatus(detail))}</div></div>
         ${switchHtml('pause', detail.paused, T.hideMe, 'data-pause-switch')}
-        <span class="tm-seg tm-seg-full" role="group" aria-label="${escapeHtml(T.pause)}">
+        ${detail.paused ? `<span class="tm-seg tm-seg-full" role="group" aria-label="${escapeHtml(T.pause)}">
           ${PAUSE_OPTIONS.map((p) => `<button type="button" data-pause="${p}" aria-pressed="${pauseMode === p}" class="${pauseMode === p ? 'is-on' : ''}">${escapeHtml(T[PAUSE_LABEL[p]])}</button>`).join('')}
-        </span>
+        </span>` : ''}
       </div>
     </div>
     <p class="tm-group-help tm-mt-s">${escapeHtml(T.pauseHelp)}</p>
 
     <h2 class="tm-group-title">${escapeHtml(T.alerts)}</h2>
-    <div class="tm-list">
-      <div class="tm-sw-row"><div class="tm-grow"><div class="tm-t">${escapeHtml(fmt(T.alertsSwitch, { name }))}</div><div class="tm-d">${escapeHtml(detail.myRole === 'captain' ? T.alertsDescCaptain : T.alertsDescMember)}</div></div>
-      ${switchHtml('alerts', !!detail.alertsEnabled, fmt(T.alertsSwitch, { name }), 'data-alerts-switch')}</div>
+    <div class="tm-list${notifyOff ? ' is-disabled' : ''}" data-notify-card>
+      <div class="tm-sw-row"><div class="tm-grow"><div class="tm-t">${escapeHtml(T.alertsSwitch)}</div><div class="tm-d${notifyOff ? ' tm-warn' : ''}">${escapeHtml(notifyOff === 'hidden' ? T.alertsDisabledHidden : notifyOff === 'device' ? T.alertsDisabledDevice : (detail.myRole === 'captain' ? T.alertsDesc : T.alertsDescMember))}</div></div>
+      ${switchHtml('alerts', !!detail.alertsEnabled, T.alertsSwitch, `data-alerts-switch ${notifyOff ? 'disabled' : ''}`)}</div>
     </div>
-    <p class="tm-group-help tm-mt-s">${escapeHtml(T.alertsHelp)}</p>
 
     ${offerPin ? `<h2 class="tm-group-title">${escapeHtml(T.pin)}</h2>
     <div class="tm-list">
@@ -119,7 +109,7 @@ function renderMemberSections(host, ctx, refresh) {
     }
     refresh();
   };
-  host.querySelector('[data-pause-switch]').addEventListener('change', (e) => setPause(e.target.checked ? '24h' : null));
+  host.querySelector('[data-pause-switch]').addEventListener('change', (e) => setPause(e.target.checked ? 'indefinite' : null));
   host.querySelectorAll('[data-pause]').forEach((b) => b.addEventListener('click', () => setPause(b.getAttribute('data-pause'))));
   host.querySelector('[data-alerts-switch]').addEventListener('change', async (e) => {
     try {
@@ -166,6 +156,7 @@ async function leaveFlow(ctx, page, onChange) {
 function renderRequests(host, ctx, refresh) {
   const { detail, requests } = ctx;
   const teamId = detail.team.id;
+  const infoId = `tm-req-info-${teamId}`;
   host.innerHTML = `
     <h2 class="tm-group-title">${escapeHtml(T.joinRequests)}${requests.length ? ` <span class="tm-count">${requests.length}</span>` : ''}</h2>
     <div class="tm-list">
@@ -177,8 +168,17 @@ function renderRequests(host, ctx, refresh) {
             <button type="button" class="tm-btn tm-btn-sm" data-decide="decline">${escapeHtml(T.decline)}</button>
             <button type="button" class="tm-btn tm-btn-sm tm-btn-danger-ghost" data-decide="block">${escapeHtml(T.declineBlock)}</button>
           </div></div>`).join('') : `<div class="tm-li"><span class="tm-muted">${escapeHtml(T.noRequests)}</span></div>`}
-    </div>
-    <p class="tm-group-help tm-mt-s">${escapeHtml(T.requestsHelp)}</p>`;
+      <div class="tm-info-row">
+        <button type="button" class="tm-info-btn" data-info-toggle aria-expanded="false" aria-controls="${infoId}">${ICONS.info}<span>${escapeHtml(T.requestsInfoLabel)}</span></button>
+        <p class="tm-info-text" id="${infoId}" hidden>${escapeHtml(T.requestsHelp)}</p>
+      </div>
+    </div>`;
+  const infoBtn = host.querySelector('[data-info-toggle]');
+  infoBtn.addEventListener('click', () => {
+    const open = infoBtn.getAttribute('aria-expanded') !== 'true';
+    infoBtn.setAttribute('aria-expanded', String(open));
+    infoBtn.nextElementSibling.hidden = !open;
+  });
   host.querySelectorAll('[data-request]').forEach((row) => {
     const rid = row.getAttribute('data-request');
     const req = requests.find((r) => r.id === rid);
@@ -244,34 +244,6 @@ function renderMembers(host, ctx, refresh) {
   });
 }
 
-function editTextPage({ title, label, value, help, maxlength, validate, save }) {
-  const page = openTeamsPage({ title });
-  page.body.innerHTML = `<label class="tm-field"><span class="tm-field-label"></span><input type="text" class="tm-input" autocomplete="off" maxlength="${maxlength}"><span class="tm-field-help"></span></label><p class="tm-field-error" role="alert" hidden></p>`;
-  page.body.querySelector('.tm-field-label').textContent = label;
-  page.body.querySelector('.tm-field-help').textContent = help || '';
-  const input = page.body.querySelector('input');
-  const errEl = page.body.querySelector('.tm-field-error');
-  input.value = value || '';
-  const submit = async (btn) => {
-    const v = validate(input.value);
-    if (!v.ok) { errEl.textContent = v.message; errEl.hidden = false; return; }
-    if (btn) btn.disabled = true;
-    try {
-      await save(v.value);
-      showToast(T.saved, 'success');
-      page.close();
-    } catch (err) {
-      if (btn) btn.disabled = false;
-      errEl.textContent = errorText(err);
-      errEl.hidden = false;
-    }
-  };
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(null); } });
-  setFooter(page, [{ label: T.save, kind: 'primary', onClick: submit }]);
-  setTimeout(() => input.focus({ preventScroll: true }), 60);
-  return page;
-}
-
 function renderTeamSettings(host, ctx, refresh, onChange, managePage) {
   const { detail, invite } = ctx;
   const team = detail.team;
@@ -279,23 +251,13 @@ function renderTeamSettings(host, ctx, refresh, onChange, managePage) {
   host.innerHTML = `
     <h2 class="tm-group-title">${escapeHtml(T.teamSettings)}</h2>
     <div class="tm-list">
-      <button type="button" class="tm-li tm-li-link" data-edit="name"><span class="tm-grow tm-min0"><span class="tm-li-sub">${escapeHtml(T.name)}</span><span class="tm-li-title tm-ellip">${escapeHtml(team.name)}</span></span>${ICONS.chevron}</button>
-      <button type="button" class="tm-li tm-li-link" data-edit="emoji"><span class="tm-grow"><span class="tm-li-sub">${escapeHtml(T.emoji)}</span><span class="tm-li-title">${escapeHtml(team.emoji || T.emojiNone)}</span></span>${ICONS.chevron}</button>
+      <button type="button" class="tm-li tm-li-link" data-edit="name"><span class="tm-grow tm-min0"><span class="tm-li-sub">${escapeHtml(T.nameEmojiRow)}</span><span class="tm-li-title tm-ellip">${escapeHtml(team.emoji ? `${team.emoji} ${team.name}` : team.name)}</span></span>${ICONS.chevron}</button>
       <button type="button" class="tm-li tm-li-link" data-edit="goal"><span class="tm-grow"><span class="tm-li-sub">${escapeHtml(T.goalRow)}</span><span class="tm-li-title">${escapeHtml(team.weeklyGoal ? fmt(T.goalRowValue, { n: team.weeklyGoal }) : T.goalRowNone)}</span></span>${ICONS.chevron}</button>
-      <button type="button" class="tm-li tm-li-link" data-reset><span class="tm-grow"><span class="tm-li-title">${escapeHtml(T.resetLink)}</span><span class="tm-li-sub">${escapeHtml(T.resetLinkDesc)}</span></span>${ICONS.chevron}</button>
-      <div class="tm-sw-row"><div class="tm-grow"><div class="tm-t">${escapeHtml(T.joiningByLink)}</div><div class="tm-d">${escapeHtml(T.joiningByLinkDesc)}</div></div>${switchHtml('inviteEnabled', inviteEnabled, T.joiningByLink, 'data-joining')}</div>
+      <button type="button" class="tm-li tm-li-link" data-reset><span class="tm-grow"><span class="tm-li-title">${escapeHtml(T.resetLink)}</span></span>${ICONS.chevron}</button>
+      <div class="tm-sw-row"><div class="tm-grow"><div class="tm-t">${escapeHtml(T.joiningByLink)}</div></div>${switchHtml('inviteEnabled', inviteEnabled, T.joiningByLink, 'data-joining')}</div>
     </div>`;
 
-  host.querySelector('[data-edit="name"]').addEventListener('click', () => editTextPage({
-    title: T.renameTitle, label: T.nameLabel, value: team.name, help: T.nameHelp, maxlength: 40,
-    validate: (v) => { const r = validateTeamName(v); return r.ok ? r : { ok: false, message: r.error === 'tooLong' ? T.nameTooLong : r.error === 'angle' ? T.nameAngle : T.nameRequired }; },
-    save: async (name) => { await teamsApi.update(team.id, { name }); refresh(); onChange?.(); },
-  }));
-  host.querySelector('[data-edit="emoji"]').addEventListener('click', () => editTextPage({
-    title: T.emojiTitle, label: T.emojiLabel, value: team.emoji || '', help: T.emojiHelp, maxlength: 16,
-    validate: (v) => { const r = validateEmoji(v); return r.ok ? r : { ok: false, message: T.emojiInvalid }; },
-    save: async (emoji) => { await teamsApi.update(team.id, { emoji }); refresh(); onChange?.(); },
-  }));
+  host.querySelector('[data-edit="name"]').addEventListener('click', () => openEditTeamPage(team, { onSaved: () => { refresh(); onChange?.(); } }));
   host.querySelector('[data-edit="goal"]').addEventListener('click', () => openGoalPage(team, { onSaved: () => { refresh(); onChange?.(); } }));
   host.querySelector('[data-joining]').addEventListener('change', async (e) => {
     try { await teamsApi.setInviteEnabled(team.id, e.target.checked); } catch (err) { showToast(errorText(err), 'error'); }
@@ -399,6 +361,7 @@ export function openManage(teamId, { onChange = null } = {}) {
     page.setTitle(name);
     const scroll = page.body.scrollTop;
     const captain = detail.myRole === 'captain';
+    setFooter(page, [{ label: captain ? T.done : T.save, kind: 'primary', onClick: () => page.close() }]);
     if (!captain) {
       page.body.innerHTML = `<div data-sec="me"></div>
         <h2 class="tm-group-title">${escapeHtml(T.leave)}</h2>
@@ -409,16 +372,12 @@ export function openManage(teamId, { onChange = null } = {}) {
       page.body.innerHTML = `<div data-sec="requests"></div><div data-sec="members"></div><div data-sec="settings"></div>
         <h2 class="tm-group-title">${escapeHtml(T.mySharing)}</h2>
         <div class="tm-list">
-          <button type="button" class="tm-li tm-li-link" data-my-sharing><span class="tm-grow tm-min0"><span class="tm-li-title">${escapeHtml(fmt(T.whatTeamSees, { name }))}</span><span class="tm-li-sub">${escapeHtml(shareSummary(detail.myShare))}</span></span>${ICONS.chevron}</button>
-          <button type="button" class="tm-li tm-li-link" data-my-sharing><span class="tm-grow"><span class="tm-li-title">${escapeHtml(T.pause)}</span><span class="tm-li-sub${detail.paused ? ' tm-warn' : ''}">${escapeHtml(pauseStatus(detail))}</span></span>${ICONS.chevron}</button>
-          <button type="button" class="tm-li tm-li-link" data-my-sharing><span class="tm-grow"><span class="tm-li-title">${escapeHtml(T.alerts)}</span><span class="tm-li-sub">${escapeHtml(detail.alertsEnabled ? T.alertsOn : T.alertsOff)}</span></span>${ICONS.chevron}</button>
-          ${canOfferPin(ctx.teams.length) ? `<button type="button" class="tm-li tm-li-link" data-my-sharing><span class="tm-grow"><span class="tm-li-title">${escapeHtml(T.pin)}</span><span class="tm-li-sub">${escapeHtml(ctx.mine.pinned ? T.pinned : T.notPinned)}</span></span>${ICONS.chevron}</button>` : ''}
+          <button type="button" class="tm-li tm-li-link" data-my-sharing><span class="tm-grow tm-min0"><span class="tm-li-title">${escapeHtml(T.sharingManage)}</span><span class="tm-li-sub">${escapeHtml(sharingSummaryText(detail.myShare))}</span>${detail.paused ? `<span class="tm-li-sub tm-warn">${escapeHtml(pauseStatus(detail))}</span>` : ''}</span>${ICONS.chevron}</button>
         </div>
         <h2 class="tm-group-title">${escapeHtml(T.leaveOrDelete)}</h2>
         <section class="tm-card tm-card-flat">
           <button type="button" class="tm-btn tm-btn-danger-ghost tm-btn-block" data-leave>${escapeHtml(fmt(T.leaveTeam, { name }))}</button>
           <button type="button" class="tm-btn tm-btn-danger tm-btn-block tm-mt-s" data-delete>${escapeHtml(T.deleteTeam)}</button>
-          <p class="tm-muted tm-xs tm-mt-s">${escapeHtml(fmt(T.deleteTeamHelp, { count: detail.team.memberCount }))}</p>
         </section>`;
       renderRequests(page.body.querySelector('[data-sec="requests"]'), ctx, refresh);
       renderMembers(page.body.querySelector('[data-sec="members"]'), ctx, refresh);
@@ -433,10 +392,10 @@ export function openManage(teamId, { onChange = null } = {}) {
   return page;
 }
 
-/** Captains: My sharing / Pause / Alerts / Pin on a stacked page (mock 04b rows). */
+/** Captains: My sharing / Hide / Notifications / Pin on a stacked page, reached from ONE row (T12). */
 function openMySharingPage(ctx, refreshManage) {
   const page = openTeamsPage({ id: 'teams-my-sharing', title: T.mySharing, onClose: () => refreshManage() });
-  setFooter(page, [{ label: T.done, kind: 'primary', onClick: () => page.close() }]);
+  setFooter(page, [{ label: T.save, kind: 'primary', onClick: () => page.close() }]);
   const host = document.createElement('div');
   page.body.appendChild(host);
   const refresh = async () => {

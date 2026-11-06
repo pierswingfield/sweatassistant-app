@@ -13,7 +13,7 @@ import { showToast } from '../main.js';
 import { teamsApi } from '../teams-api.js';
 import { formatInZone, dayKeyInZone, deviceZone } from '../lib.js';
 import {
-  avatarColourIndex, initials, SHARE_ROWS, normaliseShare, applyShareChange, inviteUrlOn, isIndefinitePause,
+  avatarColourIndex, initials, SHARE_ROWS, normaliseShare, applyShareChange, inviteUrlOn, isIndefinitePause, sharingLevel,
 } from './teams-model.js';
 
 export const T = COPY.teams;
@@ -128,6 +128,7 @@ export const ICONS = {
   chevron: svg('<path d="m9 6 6 6-6 6"/>', 18),
   clock: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', 16),
   check: svg('<path d="m5 12.5 5 5 9-10"/>', 16),
+  info: svg('<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01" stroke-width="2.4"/>', 18),
 };
 
 export function captainBadgeHtml() {
@@ -359,6 +360,14 @@ const ROW_COPY = {
 
 function linkedGymIds() {
   return (getAllLinkedGyms() || []).map((g) => String(g.gym_id || g.id)).filter(Boolean);
+}
+
+/** The one-line "what am I sharing" summary shown on the single My sharing row (T12). */
+export function sharingSummaryText(share, linkedCount = linkedGymIds().length) {
+  const lv = sharingLevel(share, linkedCount);
+  if (lv.nothing) return T.sharingNone;
+  const gyms = lv.gyms === 'all' && !lv.gymCount ? T.sharingGymsAll : (lv.gymCount === 1 ? T.sharingGymsOne : fmt(T.sharingGymsN, { n: lv.gymCount }));
+  return fmt(T.sharingSummary, { gyms, info: lv.info === 'all' ? T.sharingInfoAll : T.sharingInfoSome });
 }
 
 export function switchHtml(key, on, label, extra = '') {

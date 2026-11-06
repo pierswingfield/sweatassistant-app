@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AVATAR_PALETTE, avatarColourIndex, initials, orderTeams, canOfferPin, canTogglePin, pinsUsed,
   sortMembers, paginate, readSortChoice, writeSortChoice, DEFAULT_SORT,
-  defaultShare, normaliseShare, applyShareChange, shareChips, isIndefinitePause, pauseOptionFor,
+  defaultShare, normaliseShare, applyShareChange, shareChips, sharingLevel, notificationsDisabledReason, isIndefinitePause, pauseOptionFor,
   parseTeamsPath, teamsPathFor, inviteUrlOn, stashPendingInvite, peekPendingInvite, clearPendingInvite, PENDING_TTL_MS,
   validateTeamName, validateEmoji, invitePageState, relativeTime, consumePendingInvite, resolveMemberTeamId,
 } from './teams-model.js';
@@ -265,5 +265,29 @@ describe('resolveMemberTeamId', () => {
   it('returns null when ambiguous or unknown', () => {
     expect(resolveMemberTeamId({ name: 'Crew', emoji: null }, teams)).toBeNull();
     expect(resolveMemberTeamId({ name: 'Nope' }, teams)).toBeNull();
+  });
+});
+
+describe('sharing summary bands (T12)', () => {
+  const all = { gyms: 'all', upcoming: true, waitlists: true, activity: true, recent: true, spots: true, autoBookQueue: true };
+  it('all gyms + every toggle = all / all', () => {
+    expect(sharingLevel(all, 2)).toMatchObject({ gyms: 'all', gymCount: 2, info: 'all', nothing: false });
+  });
+  it('a subset of toggles is "some"; a subset of gyms keeps its count', () => {
+    expect(sharingLevel({ ...all, spots: false, autoBookQueue: false, gyms: ['a', 'b'] }, 3)).toMatchObject({ gyms: 'some', gymCount: 2, info: 'some' });
+  });
+  it('no toggles or no gyms is "nothing", and bad input fails private', () => {
+    expect(sharingLevel({ ...all, upcoming: false, waitlists: false, activity: false, recent: false, spots: false, autoBookQueue: false })).toMatchObject({ info: 'none', nothing: true });
+    expect(sharingLevel({ ...all, gyms: [] })).toMatchObject({ gyms: 'none', nothing: true });
+    expect(sharingLevel(null).nothing).toBe(true);
+  });
+});
+
+describe('Team notifications availability (T12)', () => {
+  it('hidden wins, then an unset device, else usable', () => {
+    expect(notificationsDisabledReason({ hidden: true, pushReady: false })).toBe('hidden');
+    expect(notificationsDisabledReason({ hidden: false, pushReady: false })).toBe('device');
+    expect(notificationsDisabledReason({ hidden: false, pushReady: true })).toBeNull();
+    expect(notificationsDisabledReason()).toBeNull();
   });
 });

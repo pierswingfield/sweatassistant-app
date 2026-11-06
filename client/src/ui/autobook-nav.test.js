@@ -7,9 +7,11 @@ import { pathFor } from '../router.js';
 import { resolve } from 'node:path';
 
 describe('T8 Auto-Book mobile routing', () => {
-  it('Back pops history only when Bookings was the previous in-app tab', () => {
-    expect(autoBookBackAction('my-bookings')).toBe('history-back');
-    for (const t of [null, 'home', 'class-timetable', 'teams']) expect(autoBookBackAction(t)).toBe('replace-bookings');
+  it('Back pops history when the member arrived from any in-app tab (T12: Home included)', () => {
+    for (const t of ['my-bookings', 'home', 'class-timetable', 'teams', 'settings']) expect(autoBookBackAction(t)).toBe('history-back');
+  });
+  it('Back falls back to Bookings when there is no in-app tab behind it (deep link, push click)', () => {
+    for (const t of [null, undefined, '', 'auto-book']) expect(autoBookBackAction(t)).toBe('replace-bookings');
   });
   it('a deep link to /auto-book still resolves to the auto-book tab', () => {
     const r = parseLocation('/auto-book');

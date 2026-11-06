@@ -12781,3 +12781,28 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   border-radius: 14px; border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
   background: color-mix(in srgb, var(--accent) 8%, transparent); color: var(--accent); font-weight: 600;
 }
+
+/* =========================================================================================
+   T12 Team settings polish: join-request info toggle, disabled notifications card, the Team
+   edit page (reuses the create-flow classes). Light and dark both ride the theme tokens.
+   ========================================================================================= */
+#app-helper-container .tm-info-row { display: flex; flex-direction: column; align-items: stretch; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 4%, transparent); }
+#app-helper-container .tm-info-btn {
+  display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; min-height: 44px; padding: 0 14px; border: 0; background: transparent;
+  color: var(--text-secondary); font: 600 var(--text-sm) var(--font-sans); cursor: pointer; text-align: left;
+}
+#app-helper-container .tm-info-btn svg { flex: 0 0 auto; color: var(--accent); }
+#app-helper-container .tm-info-btn[aria-expanded="true"] { color: var(--text); }
+#app-helper-container .tm-info-btn:hover { color: var(--text); }
+#app-helper-container .tm-info-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 10px; }
+#app-helper-container .tm-info-text {
+  margin: 0 14px 12px; padding: 10px 12px; border-radius: 12px; font-size: var(--text-sm); line-height: 1.45; color: var(--text-secondary);
+  background: color-mix(in srgb, var(--surface) 70%, transparent); border: 1px solid var(--border);
+  -webkit-backdrop-filter: blur(8px) saturate(1.3); backdrop-filter: blur(8px) saturate(1.3);
+}
+#app-helper-container .tm-info-text[hidden] { display: none !important; }
+#app-helper-container .tm-list.is-disabled { background: color-mix(in srgb, var(--surface) 60%, var(--surface-inset)); }
+#app-helper-container .tm-list.is-disabled .tm-t { color: var(--text-secondary); }
+#app-helper-container .tm-list.is-disabled .tm-switch { cursor: not-allowed; }
+#app-helper-container .tm-cf--edit { padding-top: 4px; }
+#app-helper-container .tm-cf-sectionlabel { align-self: center; margin-top: 4px; }

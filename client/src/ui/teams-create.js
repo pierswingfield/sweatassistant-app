@@ -36,6 +36,25 @@ export function bubbleHtml(text) {
   return `<p class="tm-cf-bubble">${escapeHtml(text)}</p>`;
 }
 
+/** Pure markup: the name suggestion chips for a seed (shared with the edit flow). */
+export function suggestionsHtml(seed) {
+  return suggestionSet(seed, 5).map((s) => `<button type="button" class="tm-cf-suggest" data-suggest="${escapeHtml(s)}">${escapeHtml(s)}</button>`).join('');
+}
+
+/** Pure markup: the emoji grid plus "type any emoji" (shared with the edit flow). */
+export function emojiPickerHtml(selected) {
+  const sel = selected || '';
+  const cell = (e) => `<button type="button" class="tm-cf-emo${sel === e ? ' is-on' : ''}" role="radio" aria-checked="${sel === e}" data-emoji="${escapeHtml(e)}" aria-label="${escapeHtml(fmt(T.emojiPick, { emoji: e }))}">${escapeHtml(e)}</button>`;
+  const typed = sel && !EMOJI_CHOICES.includes(sel) ? sel : '';
+  return `<div class="tm-cf-emojis" role="radiogroup" aria-label="${escapeHtml(T.emojiGridLabel)}">${EMOJI_CHOICES.map(cell).join('')}
+      <button type="button" class="tm-cf-emo tm-cf-emo-none${sel ? '' : ' is-on'}" role="radio" aria-checked="${!sel}" data-emoji="" aria-label="${escapeHtml(T.emojiNoneAria)}">${escapeHtml(T.emojiNone)}</button>
+    </div>
+    <label class="tm-cf-other"><span class="tm-cf-label">${escapeHtml(T.emojiOther)}</span>
+      <input type="text" class="tm-cf-other-input${typed ? ' is-on' : ''}" name="teamEmoji" maxlength="16" autocomplete="off" spellcheck="false" aria-label="${escapeHtml(T.emojiOtherAria)}" placeholder="🙂">
+    </label>
+    <p class="tm-cf-error" role="alert" hidden></p>`;
+}
+
 /** Pure markup: the ready page's content (tested). No page title: the avatar leads. */
 export function readyHtml(team) {
   const name = String(team?.name ?? '');
@@ -76,7 +95,7 @@ export function openCreateTeamFlow({ onCreated = () => {}, onGoToTeam = () => {}
   // ---- 1. Name -------------------------------------------------------------------------------
   const stepName = () => {
     page.setTitle(T.createTitle);
-    const suggestions = () => suggestionSet(seed, 5).map((s) => `<button type="button" class="tm-cf-suggest" data-suggest="${escapeHtml(s)}">${escapeHtml(s)}</button>`).join('');
+    const suggestions = () => suggestionsHtml(seed);
     shell('name', `
       <div class="tm-cf-guide">${bubbleHtml(T.guideName)}${avatarFor('lg')}</div>
       <label class="tm-cf-namefield">
@@ -124,17 +143,10 @@ export function openCreateTeamFlow({ onCreated = () => {}, onGoToTeam = () => {}
   // ---- 2. Emoji ------------------------------------------------------------------------------
   const stepEmoji = () => {
     page.setTitle(T.emojiStepTitle);
-    const cell = (e) => `<button type="button" class="tm-cf-emo${draft.emoji === e ? ' is-on' : ''}" role="radio" aria-checked="${draft.emoji === e}" data-emoji="${escapeHtml(e)}" aria-label="${escapeHtml(fmt(T.emojiPick, { emoji: e }))}">${escapeHtml(e)}</button>`;
-    const typed = draft.emoji && !EMOJI_CHOICES.includes(draft.emoji) ? draft.emoji : '';
     shell('emoji', `
       <div class="tm-cf-guide">${bubbleHtml(T.guideEmoji)}<span data-cf-preview>${avatarFor('lg', { emptyBadge: true })}</span><p class="tm-cf-previewname">${escapeHtml(draft.name)}</p></div>
-      <div class="tm-cf-emojis" role="radiogroup" aria-label="${escapeHtml(T.emojiGridLabel)}">${EMOJI_CHOICES.map(cell).join('')}
-        <button type="button" class="tm-cf-emo tm-cf-emo-none${draft.emoji ? '' : ' is-on'}" role="radio" aria-checked="${!draft.emoji}" data-emoji="" aria-label="${escapeHtml(T.emojiNoneAria)}">${escapeHtml(T.emojiNone)}</button>
-      </div>
-      <label class="tm-cf-other"><span class="tm-cf-label">${escapeHtml(T.emojiOther)}</span>
-        <input type="text" class="tm-cf-other-input${typed ? ' is-on' : ''}" name="teamEmoji" maxlength="16" autocomplete="off" spellcheck="false" aria-label="${escapeHtml(T.emojiOtherAria)}" placeholder="🙂">
-      </label>
-      <p class="tm-cf-error" role="alert" hidden></p>`);
+      ${emojiPickerHtml(draft.emoji)}`);
+    const typed = draft.emoji && !EMOJI_CHOICES.includes(draft.emoji) ? draft.emoji : '';
     const preview = page.body.querySelector('[data-cf-preview]');
     const other = page.body.querySelector('.tm-cf-other-input');
     const errEl = page.body.querySelector('.tm-cf-error');

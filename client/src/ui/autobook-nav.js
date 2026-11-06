@@ -8,13 +8,14 @@ export function countPendingAutoBooks(rows) {
 }
 
 /**
- * What the mobile Auto-Book "Back" button does. Arriving from Bookings in-app means the previous
- * history entry IS Bookings, so pop it (browser back and this button then agree). Anything else
- * (deep link, Home tile, push click) has no Bookings entry behind it: replace the current entry
- * with /bookings so Back never leaves the app and the Auto-Book entry does not linger.
+ * What the mobile Auto-Book "Back" button does. Arriving from any in-app tab (Bookings, Home,
+ * Timetable, ...) means the previous history entry IS that tab, so pop it: Back returns to where
+ * the member came from and agrees with browser back. With no in-app tab behind it (deep link,
+ * push click, first paint) there is no entry to pop: replace the current one with /bookings so
+ * Back never leaves the app and the Auto-Book entry does not linger.
  */
 export function autoBookBackAction(previousTab) {
-  return previousTab === 'my-bookings' ? 'history-back' : 'replace-bookings';
+  return typeof previousTab === 'string' && previousTab && previousTab !== 'auto-book' ? 'history-back' : 'replace-bookings';
 }
 
 /** Bottom-nav button that stays highlighted for a tab id (Auto-Book is reached from Bookings). */

@@ -684,13 +684,18 @@ export function getHomeFavouriteStatus(event, now = DateTime.now(), viewingZone)
   return { kind: 'unknown', label: 'Availability not published' };
 }
 
-export function renderHomeFavouriteCard(event, primaryActionForEvent, actionGlyph = null) {
+/**
+ * `options` (T-3 Teams "Classes together" reuses this card, PLAN-teams.md §5.3):
+ *   extra   an element placed left of the CTA (the teammates' avatars)
+ *   status  { kind, label } overriding the availability line (e.g. a class not in the loaded timetable)
+ */
+export function renderHomeFavouriteCard(event, primaryActionForEvent, actionGlyph = null, options = {}) {
   const zone = zoneFor(event);
   const dt = DateTime.fromISO(String(event.startAt), { setZone: true }).setZone(zone);
   const formatted = formatInZone(event.startAt, zone);
   const instructor = event.instructors?.[0] || {};
   const instructorName = String(instructor.name || '').trim();
-  const status = getHomeFavouriteStatus(event);
+  const status = options.status || getHomeFavouriteStatus(event);
   const card = document.createElement('article');
   card.className = 'home-favourite-card';
   const media = document.createElement('div');
@@ -751,7 +756,14 @@ export function renderHomeFavouriteCard(event, primaryActionForEvent, actionGlyp
   if (action.title) { button.title = action.title; button.setAttribute('aria-label', action.title); }
   if (action.disabled) button.disabled = true;
   else if (action.run) button.addEventListener('click', () => action.run(button));
-  body.append(button);
+  if (options.extra) {
+    const foot = document.createElement('div');
+    foot.className = 'home-favourite-foot';
+    foot.append(options.extra, button);
+    body.append(foot);
+  } else {
+    body.append(button);
+  }
   card.append(media, body);
   return card;
 }

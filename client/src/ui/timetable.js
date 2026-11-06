@@ -2271,6 +2271,14 @@ function eventActionState(event, autoBookedIds = autoBookingIdSet()) {
 }
 
 /** Primary action for compact, read-only consumers such as Home favourites. */
+/** T-3: whether the signed-in member holds a booking for this event (Teams "You're in"). */
+export function isEventBookedByMe(event) {
+  if (!event) return false;
+  // Gym-qualified (WP-G): two gyms can publish the same event id.
+  const gymOf = (b) => b.gymId ?? b.gym_id ?? null;
+  return userBookings().some((b) => matchesEvent(b, event) && (!gymOf(b) || !event.gymId || gymOf(b) === event.gymId));
+}
+
 export function primaryActionForEvent(event) {
   return buildActionModel(event, { ...eventActionState(event), compact: true }).primary;
 }

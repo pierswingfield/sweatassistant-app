@@ -1,7 +1,7 @@
 // T-1 Teams tab (PLAN-teams.md §5.2 list, §5.3 Team page shell, §5.6 create).
 // Routes: /teams (list), /teams/<id> (Team page), /t/<token> (invite page, teams-join.js).
-// T-1 has no class data (T-2): cards and widgets show Teams and members only, and the class
-// widgets are clearly-labelled empty placeholders, never sample data.
+// T-2 brings the list's class summaries; T-3 the dashboard widgets (teams-dashboard.js).
+// Team stats (T-4) is still a clearly-labelled placeholder, never sample data.
 
 import { currentRoute } from '../router.js';
 import { teamsApi } from '../teams-api.js';
@@ -10,12 +10,12 @@ import { showToast } from '../main.js';
 import { formatInZone, dayKeyInZone, deviceZone } from '../lib.js';
 import { todayLineSegments, hottestSegments, segmentsText } from './teams-today.js';
 import {
-  orderTeams, canOfferPin, canTogglePin, pinsUsed, sortMembers, paginate, readSortChoice, writeSortChoice,
-  SORT_MODES, MEMBERS_PER_PAGE, validateTeamName, validateEmoji, defaultShare, consumePendingInvite, TEAMS_HOME_PATH,
+  orderTeams, canOfferPin, canTogglePin, pinsUsed,
+  validateTeamName, validateEmoji, defaultShare, consumePendingInvite, TEAMS_HOME_PATH,
 } from './teams-model.js';
 import {
-  T, fmt, avatarHtml, avatarStackHtml, mascotHtml, teamTitleHtml, teamTitleText, memberCountLabel, ICONS,
-  captainBadgeHtml, errorText, pauseWhen, joinedLabel, openTeamsPage, setFooter, shareInvite, renderSharingSheet,
+  T, fmt, avatarStackHtml, mascotHtml, teamTitleHtml, teamTitleText, memberCountLabel, ICONS,
+  errorText, pauseWhen, openTeamsPage, setFooter, shareInvite, renderSharingSheet,
 } from './teams-ui.js';
 
 let renderSeq = 0;
@@ -293,13 +293,23 @@ export function openCreateFlow() {
   stepName();
 }
 
-// ---- Team page shell (§5.3) -------------------------------------------------------------------
+// ---- Team dashboard (§5.3; T-3 widgets in teams-dashboard.js) ----------------------------------
+
+let dashTimer = null;
+let dashListener = null;
+function stopDashboardTimers() {
+  if (dashTimer) { clearInterval(dashTimer); dashTimer = null; }
+  if (dashListener) { window.removeEventListener('app-timetable-rendered', dashListener); dashListener = null; }
+}
 
 async function renderTeamPage(el, teamId, { stale }) {
+  stopDashboardTimers();
   if (!el.querySelector(`.tm-team-page[data-team-id="${CSS.escape(teamId)}"]`)) el.innerHTML = loadingHtml();
   let data;
+  let dash;
   try {
-    data = await teamsApi.get(teamId);
+    // One projection call (GET /api/teams/:id/today): members, classes, today, mascot.
+    [data, dash] = await Promise.all([teamsApi.today(teamId), import('./teams-dashboard.js')]);
   } catch (err) {
     if (stale()) return;
     if (err.status === 404) {
@@ -311,34 +321,44 @@ async function renderTeamPage(el, teamId, { stale }) {
     return;
   }
   if (stale()) return;
+  data.members = data.members || [];
+  data.classes = data.classes || [];
+  data.recent = data.recent || [];
   const { team } = data;
   const isCaptain = data.myRole === 'captain';
+  const pending = isCaptain ? Number(data.pendingRequestCount) || 0 : 0;
   const placeholder = (title, body) => `<section class="tm-card tm-placeholder" aria-label="${escapeHtml(title)}">
       <div class="tm-card-head"><h3 class="tm-card-title">${escapeHtml(title)}</h3><span class="tm-pill tm-pill-off">${escapeHtml(T.widgetSoon)}</span></div>
       <p class="tm-muted tm-sm">${escapeHtml(body)}</p></section>`;
   const until = data.paused ? (pauseWhen(data.pausedUntil) ? fmt(T.hiddenUntil, { when: pauseWhen(data.pausedUntil) }) : T.hiddenIndefinite) : '';
+  const now = Date.now();
+  const hero = dash.heroLines(data, now);
+  const mascotAlt = data.mascot
+    ? fmt(T.mascotStateAlt, { state: T.mascotStates[data.mascot.state] || data.mascot.state, percent: Math.round((Number(data.mascot.ring) || 0) * 100) })
+    : T.mascotAlt;
+  const manageAria = pending ? `${T.manageAria}. ${fmt(T.requestsWaiting, { count: pending })}` : T.manageAria;
 
   el.innerHTML = `<div class="tm-team-page" data-team-id="${escapeHtml(team.id)}">
     <div class="tm-dash-top">
       <a class="tm-back" href="/teams" data-back aria-label="${escapeHtml(T.backAria)}"><span aria-hidden="true">‹</span> ${escapeHtml(T.back)}</a>
       <span class="tm-grow"></span>
       ${isCaptain ? `<button type="button" class="tm-icon-btn tm-head-btn" data-share aria-label="${escapeHtml(T.shareAria)}">${ICONS.share}<span class="tm-head-txt">${escapeHtml(T.share)}</span></button>` : ''}
-      <button type="button" class="tm-icon-btn tm-head-btn" data-manage aria-label="${escapeHtml(T.manageAria)}">${ICONS.manage}<span class="tm-head-txt">${escapeHtml(T.manage)}</span></button>
+      <button type="button" class="tm-icon-btn tm-head-btn" data-manage aria-label="${escapeHtml(manageAria)}">${ICONS.manage}<span class="tm-head-txt">${escapeHtml(T.manage)}</span>${pending ? `<span class="tm-count tm-head-count" aria-hidden="true">${pending}</span>` : ''}</button>
     </div>
     <div class="tm-dash">
       <div class="tm-dash-col">
         <section class="tm-card tm-hero">
-          ${mascotHtml({ size: 108, dim: data.paused, alt: T.mascotAlt })}
+          ${mascotHtml({ size: 108, dim: data.paused, alt: mascotAlt, mascot: data.mascot || null })}
           <div class="tm-grow tm-min0">
             <h1 class="tm-hero-title">${teamTitleHtml(team)}</h1>
-            <p class="tm-hero-state">${escapeHtml(fmt(T.heroMembers, { count: memberCountLabel(team.memberCount) }))}</p>
-            ${isCaptain ? `<p class="tm-muted tm-sm">${escapeHtml(T.heroCaptain)}</p>` : ''}
+            ${hero.state ? `<p class="tm-hero-state">${escapeHtml(hero.state)}</p>` : ''}
+            <p class="tm-muted tm-sm tm-hero-sub">${escapeHtml(hero.sub)}</p>
           </div>
         </section>
         ${data.paused ? `<div class="tm-hidden-banner">${ICONS.hidden}<span class="tm-grow"><b>${escapeHtml(T.hiddenFromTeam)}</b><br><span class="tm-muted tm-xs">${escapeHtml(until)}</span></span><button type="button" class="tm-btn tm-btn-sm" data-unhide>${escapeHtml(T.unhide)}</button></div>` : ''}
-        ${placeholder(T.todaysWorkouts, T.todaysWorkoutsSoon)}
-        ${placeholder(T.thisWeek, T.thisWeekSoon)}
-        ${placeholder(T.classesTogether, T.classesTogetherSoon)}
+        <section class="tm-card tm-today-w" data-w-today hidden></section>
+        <section class="tm-card tm-week-w" data-w-week></section>
+        <section class="tm-card tm-together-w" data-w-together></section>
       </div>
       <div class="tm-dash-col">
         <section class="tm-card tm-members" data-members></section>
@@ -347,7 +367,7 @@ async function renderTeamPage(el, teamId, { stale }) {
     <div class="tm-dash-full">${placeholder(T.teamStats, T.teamStatsSoon)}</div>
   </div>`;
 
-  el.querySelector('[data-back]').addEventListener('click', (e) => { e.preventDefault(); goTeams({ view: 'list' }); });
+  el.querySelector('[data-back]').addEventListener('click', (e) => { e.preventDefault(); stopDashboardTimers(); goTeams({ view: 'list' }); });
   el.querySelector('[data-share]')?.addEventListener('click', () => shareInvite(team));
   el.querySelector('[data-manage]').addEventListener('click', async () => {
     const { openManage } = await import('./teams-manage.js');
@@ -358,70 +378,32 @@ async function renderTeamPage(el, teamId, { stale }) {
     try { await teamsApi.updateMe(team.id, { pause: null }); } catch (err) { showToast(errorText(err), 'error'); }
     initTeams();
   });
-  renderMembersWidget(el.querySelector('[data-members]'), team, data.members || []);
-}
 
-// ---- Members widget (§5.3 item 5) --------------------------------------------------------------
-
-const SORT_LABEL = { name: 'sortName', activity: 'sortActivity', shuffle: 'sortShuffle' };
-
-function renderMembersWidget(section, team, members) {
-  let mode = readSortChoice(storage(), team.id);
-  const shuffleSeed = `${team.id}:${new Date().toISOString().slice(0, 10)}`;
-
-  const memberCard = (m) => `<div class="tm-mem-card">
-      ${avatarHtml(m, { size: 'lg' })}
-      <div class="tm-grow tm-min0">
-        <div class="tm-mem-name"><span class="tm-ellip">${escapeHtml(m.isMe ? `${m.name} (${T.you})` : m.name)}</span>${m.isCaptain ? captainBadgeHtml() : ''}</div>
-        <div class="tm-muted tm-xs">${escapeHtml(joinedLabel(m.joinedAt))}</div>
-      </div>
-    </div>`;
-
-  const paint = () => {
-    const sorted = sortMembers(members, mode, { seed: shuffleSeed });
-    const pages = paginate(sorted, MEMBERS_PER_PAGE);
-    section.innerHTML = `
-      <div class="tm-card-head">
-        <h3 class="tm-card-title">${escapeHtml(T.members)}</h3><span class="tm-card-meta">${members.length}</span>
-        <span class="tm-grow"></span>
-        <div class="tm-sort">
-          <button type="button" class="tm-icon-btn" data-sort-toggle aria-haspopup="menu" aria-expanded="false" aria-label="${escapeHtml(T.sortMembers)}">${ICONS.sort}</button>
-          <div class="tm-menu" role="menu" hidden>
-            <div class="tm-menu-cap">${escapeHtml(T.sortBy)}</div>
-            ${SORT_MODES.map((s) => `<button type="button" role="menuitemradio" aria-checked="${s === mode}" class="tm-menu-item${s === mode ? ' is-on' : ''}" data-sort="${s}">${s === mode ? ICONS.check : '<span class="tm-menu-gap"></span>'}<span>${escapeHtml(T[SORT_LABEL[s]])}</span></button>`).join('')}
-          </div>
-        </div>
-      </div>
-      <div class="tm-pager" tabindex="0" aria-label="${escapeHtml(T.members)}">${pages.map((p, i) => `<div class="tm-page" aria-label="${escapeHtml(fmt(T.membersPage, { n: i + 1, total: pages.length }))}">${p.map(memberCard).join('')}</div>`).join('')}</div>
-      ${pages.length > 1 ? `<div class="tm-dots" aria-hidden="true">${pages.map((_, i) => `<i class="${i === 0 ? 'is-on' : ''}"></i>`).join('')}</div>` : ''}`;
-
-    const toggle = section.querySelector('[data-sort-toggle]');
-    const menu = section.querySelector('.tm-menu');
-    const closeMenu = () => { menu.hidden = true; toggle.setAttribute('aria-expanded', 'false'); document.removeEventListener('click', outside, true); };
-    const outside = (e) => { if (!e.target.closest('.tm-sort')) closeMenu(); };
-    toggle.addEventListener('click', () => {
-      const open = menu.hidden;
-      menu.hidden = !open;
-      toggle.setAttribute('aria-expanded', String(open));
-      if (open) { document.addEventListener('click', outside, true); menu.querySelector('.is-on')?.focus(); }
-    });
-    menu.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeMenu(); toggle.focus(); } });
-    menu.querySelectorAll('[data-sort]').forEach((b) => b.addEventListener('click', () => {
-      mode = b.getAttribute('data-sort');
-      writeSortChoice(storage(), team.id, mode);
-      closeMenu();
-      paint();
-    }));
-
-    const pager = section.querySelector('.tm-pager');
-    const dots = section.querySelectorAll('.tm-dots i');
-    if (dots.length) {
-      pager.addEventListener('scroll', () => {
-        const i = Math.round(pager.scrollLeft / Math.max(1, pager.clientWidth));
-        dots.forEach((d, j) => d.classList.toggle('is-on', j === i));
-      }, { passive: true });
-    }
+  // Each widget is isolated: one throwing never blanks another.
+  const guard = (section, fn) => {
+    try { const r = fn(); if (r && typeof r.catch === 'function') r.catch((err) => failWidget(section, err)); } catch (err) { failWidget(section, err); }
   };
-  paint();
-}
+  const failWidget = (section, err) => {
+    console.error('[Teams] widget failed:', err && err.message);
+    section.hidden = false;
+    section.innerHTML = `<p class="tm-muted tm-sm" role="alert">${escapeHtml(T.widgetError)}</p>`;
+  };
+  const todayEl = el.querySelector('[data-w-today]');
+  const togetherEl = el.querySelector('[data-w-together]');
+  guard(todayEl, () => dash.renderTodaysWorkouts(todayEl, data, now));
+  guard(el.querySelector('[data-w-week]'), () => dash.renderThisWeek(el.querySelector('[data-w-week]'), data, now));
+  guard(togetherEl, () => dash.renderClassesTogether(togetherEl, data, now, { stale }));
+  guard(el.querySelector('[data-members]'), () => dash.renderMembers(el.querySelector('[data-members]'), data, now));
 
+  // Keep "in class" rings honest on a page left open, and repaint the CTAs once the
+  // timetable (the booking flow's own state) loads or changes after a booking.
+  dashListener = () => {
+    if (stale() || !togetherEl.isConnected) { stopDashboardTimers(); return; }
+    guard(togetherEl, () => dash.renderClassesTogether(togetherEl, data, Date.now(), { stale }));
+  };
+  window.addEventListener('app-timetable-rendered', dashListener);
+  dashTimer = setInterval(() => {
+    if (stale() || !todayEl.isConnected) { stopDashboardTimers(); return; }
+    guard(todayEl, () => dash.renderTodaysWorkouts(todayEl, data, Date.now()));
+  }, 60000);
+}

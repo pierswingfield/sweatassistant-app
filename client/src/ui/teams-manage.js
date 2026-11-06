@@ -1,5 +1,5 @@
 // T-1 Manage page (PLAN-teams.md §5.7): one modal-nav page, sections by role.
-//   Everyone: My sharing (§3 sheet + competition opt-in when the Team has it on), Pause,
+//   Everyone: My sharing (§3 sheet; the competition opt-in is unshown, D13), Pause,
 //             Alerts (T-5b: this Team's pushes, §5.3 opt-in per Team, off by default),
 //             Pin to top (only in more than 3 Teams), Leave.
 //   Captains: Join requests, Members (Make/Remove Captain, Remove [+ block]), Team settings

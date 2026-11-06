@@ -1043,7 +1043,7 @@ export const COPY = Object.freeze({
     lastCaptain: 'A Team needs at least one Captain. Make someone else a Captain first.',
     removeConfirmTitle: 'Remove {name}?', removeConfirmBody: '{name} leaves the Team straight away and can ask to rejoin after 7 days.', removeAction: 'Remove', blockToo: 'Also block them from asking again',
     removed: '{name} was removed', madeCaptain: '{name} is now a Captain', unmadeCaptain: '{name} is no longer a Captain',
-    teamSettings: 'Team settings', name: 'Name', emoji: 'Emoji', emojiNone: 'None', competitionTeamDesc: 'Leaderboards and streaks for members who opt in',
+    teamSettings: 'Team settings', name: 'Name', emoji: 'Emoji', emojiNone: 'None',
     resetLink: 'Reset link', resetLinkDesc: "Old links stop working. Members aren't affected.",
     resetConfirmTitle: 'Reset the invite link?', resetConfirmBody: 'Every old link stops working. Members and pending requests are not affected.', resetAction: 'Reset link', linkReset: 'New invite link ready',
     joiningByLink: 'Joining by link', joiningByLinkDesc: 'Turn off to stop new requests. Pending requests stay.',

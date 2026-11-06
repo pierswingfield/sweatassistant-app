@@ -2237,7 +2237,8 @@ html, body, * {
     grid-area: auto;
   }
 
-  #app-helper-container #app-panel-home > #app-home-widgets > .home-desktop-column {
+  #app-helper-container #app-panel-home > #app-home-widgets > .home-desktop-column,
+  #app-helper-container #app-panel-home > #app-home-widgets > .home-desktop-tail {
     display: contents;
   }
 }
@@ -10455,6 +10456,23 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   }
 
   #app-helper-container #app-panel-home > #app-home-widgets > .home-desktop-column > .home-widget {
+    min-width: 0;
+    width: auto;
+    margin: 0 !important;
+  }
+
+  /* T-7: a widget the registry places last (the no-Team "Create a Team" card) sits in a
+     row under BOTH columns, at the left column's width (syncHomeDesktopFlow). */
+  #app-helper-container #app-panel-home > #app-home-widgets > .home-desktop-tail {
+    grid-column: 1;
+    min-width: 0;
+    margin-top: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  #app-helper-container #app-panel-home > #app-home-widgets > .home-desktop-tail > .home-widget {
     min-width: 0;
     width: auto;
     margin: 0 !important;

@@ -487,6 +487,42 @@ check('forced syncs are budgeted per (user, gym): FORCED_MAX per window, then sk
   }
 });
 
+check('a forced sync past the budget is deferred, not lost: one trailing sync when the window frees a slot', async () => {
+  const uid = twoGymUser();
+  let t = Date.now();
+  const timers = [];
+  bookingSync._setClock(() => t);
+  bookingSync._setTimer((fn, ms) => { timers.push({ fn, ms }); return 0; });
+  bookingSync._resetForcedLog();
+  resetCalls();
+  try {
+    for (let i = 0; i < bookingSync.FORCED_MAX; i++) { await bookingSync.syncUser(uid, { force: true, gymIds: [PSYCLE] }); t += 1000; }
+    const deferredBefore = bookingSync.getStats().forceDeferred;
+    // Three more asks inside the window (a burst of book/cancel): skipped quietly, ONE deferral.
+    for (let i = 0; i < 3; i++) {
+      const synced = await bookingSync.syncUser(uid, { force: true, gymIds: [PSYCLE] });
+      assert.deepStrictEqual(synced, [], 'a limited forced sync resolves quietly with nothing synced');
+    }
+    assert.strictEqual(calls[PSYCLE].listBookings, bookingSync.FORCED_MAX);
+    assert.strictEqual(timers.length, 1, 'skipped calls coalesce into one trailing sync');
+    assert.strictEqual(bookingSync._deferredForcedCount(), 1);
+    assert.strictEqual(bookingSync.getStats().forceDeferred - deferredBefore, 1);
+    // It is timed for the moment the oldest forced fetch leaves the window (never sooner).
+    const firstAt = t - bookingSync.FORCED_MAX * 1000;
+    assert.ok(t + timers[0].ms >= firstAt + bookingSync.FORCED_WINDOW_MS, `deferred until a slot frees (${timers[0].ms} ms)`);
+    // When it fires, the gym is fetched once (the latest booking lands) and the budget holds.
+    t = firstAt + bookingSync.FORCED_WINDOW_MS + 1;
+    timers[0].fn();
+    for (let i = 0; i < 20 && calls[PSYCLE].listBookings === bookingSync.FORCED_MAX; i++) await new Promise((r) => setTimeout(r, 10));
+    assert.strictEqual(calls[PSYCLE].listBookings, bookingSync.FORCED_MAX + 1, 'the trailing sync reached the gym once');
+    assert.strictEqual(bookingSync._deferredForcedCount(), 0);
+  } finally {
+    bookingSync._setClock(null);
+    bookingSync._setTimer(null);
+    bookingSync._resetForcedLog();
+  }
+});
+
 (async () => {
   let failed = 0;
   console.log('\n🧪 Universal background booking sync (T-B)\n');

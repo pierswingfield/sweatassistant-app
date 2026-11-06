@@ -945,27 +945,26 @@ let renderRun = 0;
 // Mobile reading order comes from the widget registry: each section's data-widget-order,
 // which mountWidget sets from the widget's order or orderFor(outcome). Desktop keeps its two
 // columns in their own fixed order, except that a widget the registry has placed LAST
-// (order >= HOME_ORDER_LAST, e.g. the no-Team "Create a Team" card) drops to the end of
-// its column.
+// (order >= HOME_ORDER_LAST, e.g. the no-Team "Create a Team" card) leaves its column for
+// a tail row under BOTH columns (owner: "the bottom of the other widgets"), at its
+// column's width.
 const HOME_LEFT_COLUMN_ORDER = ['upcoming', 'teams', 'book', 'stats'];
 const HOME_RIGHT_COLUMN_ORDER = ['credits', 'favourites', 'top-instructors'];
 
-/** Pure: [{ id, order }] (effective registry orders) -> { mobile, left, right } id lists. */
+/** Pure: [{ id, order }] (effective registry orders) -> { mobile, left, right, tail } id lists. */
 export function homeLayout(entries) {
   const list = (entries || []).filter((e) => e && e.id);
   const mobile = orderIds(list);
   const orderOf = new Map(list.map((e) => [e.id, e.order]));
   const present = new Set(mobile);
-  const column = (ids) => {
-    const inCol = ids.filter((id) => present.has(id));
-    const last = (id) => (orderOf.get(id) >= HOME_ORDER_LAST ? 1 : 0);
-    return inCol.map((id, i) => ({ id, i })).sort((a, b) => (last(a.id) - last(b.id)) || (a.i - b.i)).map((x) => x.id);
-  };
+  const isLast = (id) => orderOf.get(id) >= HOME_ORDER_LAST;
+  const column = (ids) => ids.filter((id) => present.has(id) && !isLast(id));
   const known = new Set([...HOME_LEFT_COLUMN_ORDER, ...HOME_RIGHT_COLUMN_ORDER]);
   return {
     mobile,
     left: column(HOME_LEFT_COLUMN_ORDER),
     right: column([...HOME_RIGHT_COLUMN_ORDER, ...mobile.filter((id) => !known.has(id))]),
+    tail: mobile.filter(isLast),
   };
 }
 const sectionEntries = (widgets) => widgets.map((w) => {
@@ -1005,7 +1004,7 @@ export function syncHomeDesktopFlow(root) {
       const widget = byId.get(id);
       if (widget) root.appendChild(widget);
     });
-    root.querySelectorAll(':scope > .home-desktop-column').forEach((column) => column.remove());
+    root.querySelectorAll(':scope > .home-desktop-column, :scope > .home-desktop-tail').forEach((column) => column.remove());
     return;
   }
 
@@ -1021,6 +1020,13 @@ export function syncHomeDesktopFlow(root) {
   const byId = new Map(widgets.map((widget) => [widget.dataset.widgetId, widget]));
   layout.left.forEach((id) => { const widget = byId.get(id); if (widget) left.appendChild(widget); });
   layout.right.forEach((id) => { const widget = byId.get(id); if (widget) right.appendChild(widget); });
+  // Widgets placed last get a row of their own under both columns (only while there are any).
+  let tail = root.querySelector(':scope > .home-desktop-tail');
+  if (layout.tail.length) {
+    if (!tail) { tail = document.createElement('div'); tail.className = 'home-desktop-tail'; }
+    root.appendChild(tail); // always after the two columns
+    layout.tail.forEach((id) => { const widget = byId.get(id); if (widget) tail.appendChild(widget); });
+  } else if (tail) tail.remove();
 }
 
 function widgetCopy() {

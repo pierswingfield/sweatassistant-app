@@ -163,16 +163,55 @@ describe('Home ordering: the Teams widget (owner, 2026-11-06)', () => {
     expect(def.orderFor('ready')).toBe(30);
     expect(def.orderFor('loading')).toBe(30);
   });
-  it('homeLayout: in a Team, Teams sits after Upcoming; in no Team, below everything (mobile) and at its column end (desktop)', () => {
+  it('homeLayout: in a Team, Teams sits after Upcoming; in no Team, below everything (mobile) and in a tail row under both columns (desktop)', () => {
     const base = [['upcoming', 20], ['book', 40], ['favourites', 50], ['credits', 60], ['stats', 70], ['top-instructors', 80]];
     const inTeam = homeLayout([...base, ['teams', 30]].map(([id, order]) => ({ id, order })));
     expect(inTeam.mobile).toEqual(['upcoming', 'teams', 'book', 'favourites', 'credits', 'stats', 'top-instructors']);
     expect(inTeam.left).toEqual(['upcoming', 'teams', 'book', 'stats']);
     expect(inTeam.right).toEqual(['credits', 'favourites', 'top-instructors']);
+    expect(inTeam.tail).toEqual([]);
     const noTeam = homeLayout([...base, ['teams', 1000]].map(([id, order]) => ({ id, order })));
     expect(noTeam.mobile).toEqual(['upcoming', 'book', 'favourites', 'credits', 'stats', 'top-instructors', 'teams']);
-    expect(noTeam.left).toEqual(['upcoming', 'book', 'stats', 'teams']);
+    expect(noTeam.left).toEqual(['upcoming', 'book', 'stats']);
     expect(noTeam.right).toEqual(['credits', 'favourites', 'top-instructors']);
+    expect(noTeam.tail).toEqual(['teams']);
+  });
+  it('syncHomeDesktopFlow on desktop: the no-Team card goes to a tail row after both columns, and back when in a Team', () => {
+    const root = document.createElement('div');
+    const make = (id, order) => {
+      const el = document.createElement('section');
+      el.className = 'home-widget';
+      el.dataset.widgetId = id;
+      el.dataset.widgetOrder = String(order);
+      root.appendChild(el);
+      return el;
+    };
+    const teams = make('teams', 1000);
+    [['upcoming', 20], ['book', 40], ['credits', 60], ['stats', 70]].forEach(([id, o]) => make(id, o));
+    const media = { matches: true, addEventListener() {}, addListener() {} };
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = () => media;
+    try {
+      syncHomeDesktopFlow(root);
+      expect([...root.children].map((n) => n.className)).toEqual([
+        'home-desktop-column home-desktop-column--left',
+        'home-desktop-column home-desktop-column--right',
+        'home-desktop-tail',
+      ]);
+      expect([...root.children[0].children].map((n) => n.dataset.widgetId)).toEqual(['upcoming', 'book', 'stats']);
+      expect([...root.children[2].children].map((n) => n.dataset.widgetId)).toEqual(['teams']);
+      // Joined a Team: the widget returns to its column place and the tail row goes.
+      teams.dataset.widgetOrder = '30';
+      syncHomeDesktopFlow(root);
+      expect(root.querySelector('.home-desktop-tail')).toBeNull();
+      expect([...root.children[0].children].map((n) => n.dataset.widgetId)).toEqual(['upcoming', 'teams', 'book', 'stats']);
+      // Back to no Team, then mobile: one flat list with the card last and no wrappers left.
+      teams.dataset.widgetOrder = '1000';
+      syncHomeDesktopFlow(root);
+      media.matches = false;
+      syncHomeDesktopFlow(root);
+      expect([...root.children].map((n) => n.dataset.widgetId)).toEqual(['upcoming', 'book', 'credits', 'stats', 'teams']);
+    } finally { window.matchMedia = originalMatchMedia; }
   });
   it('syncHomeDesktopFlow reads the sections\' registry order on mobile', () => {
     const root = document.createElement('div');

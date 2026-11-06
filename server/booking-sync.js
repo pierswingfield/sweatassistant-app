@@ -48,9 +48,12 @@ const BOOT_STAGGER_MS = 60 * 1000;        // first cycle after boot: each lane s
 const RETAIN_STARTED_MS = 24 * HOUR;
 // Forced syncs (calendar refresh after a book/cancel, an explicit refresh) skip the
 // cadence, so they get their own budget per (user, gym): at most FORCED_MAX in any
-// FORCED_WINDOW_MS. Past it a forced call is skipped ('forceLimited'); the stored rows stay
-// and the regular cadence catches up. One gym hit by one account cannot be driven harder
-// than this however often its client asks.
+// FORCED_WINDOW_MS. Past it a forced call is skipped quietly ('forceLimited'; the stored
+// rows stay) and ONE trailing forced sync is deferred to the moment the window frees a
+// slot, so the latest book/cancel still lands in minutes rather than waiting for the 2-6 h
+// cadence (a cancelled booking would otherwise keep showing to the Team, and keep granting
+// D13 spot visibility, that long). The trailing run takes a slot like any other, so one gym
+// hit by one account cannot be driven harder than this however often its client asks.
 const FORCED_WINDOW_MS = 10 * 60 * 1000;
 const FORCED_MAX = 6;
 
@@ -82,6 +85,7 @@ function cadenceFor(userId, priority = prioritySet()) {
 const stats = {
   cycles: 0, ticksSkipped: 0, usersSynced: 0, gymsSynced: 0, gymsFailed: 0, gymsSkipped: 0,
   skipped: { disabled: 0, throttled: 0, needsRelogin: 0, forceLimited: 0 },
+  forceDeferred: 0,
   lastCycleAt: null, lastCycleMs: null,
 };
 // ── New-booking listener (T-5) ───────────────────────────────────────────────
@@ -282,6 +286,24 @@ const pause = (jitter) => sleep(jitter ? 2000 + Math.floor(Math.random() * 6000)
 // which only ever allows a little more, never blocks the background cycle).
 const forcedLog = new Map();
 let clock = () => Date.now();
+// (user, gym) -> the one deferred trailing forced sync (coalesces every skipped call).
+const forcedDeferred = new Map();
+let setTimer = (fn, ms) => { const t = setTimeout(fn, ms); if (t && t.unref) t.unref(); return t; };
+const DEFER_SLACK_MS = 1000;
+/** Queue one trailing forced sync for (user, gym) when its budget frees a slot. */
+function deferForced(userId, gymId, now = clock()) {
+  const key = flightKey(userId, gymId);
+  if (forcedDeferred.has(key)) return;
+  const live = (forcedLog.get(key) || []).filter((t) => now - t < FORCED_WINDOW_MS);
+  const oldest = live.length ? Math.min(...live) : now - FORCED_WINDOW_MS;
+  const wait = Math.max(0, oldest + FORCED_WINDOW_MS - now) + DEFER_SLACK_MS;
+  stats.forceDeferred++;
+  forcedDeferred.set(key, setTimer(() => {
+    forcedDeferred.delete(key);
+    syncUser(userId, { force: true, gymIds: [gymId] })
+      .catch((err) => console.error(`[BookingSync] deferred forced sync failed for user ${userId} ${gymId}:`, err && err.message));
+  }, wait));
+}
 /** Take one forced-sync slot for (user, gym); false when the budget is spent. */
 function takeForcedSlot(userId, gymId, now = clock()) {
   const key = flightKey(userId, gymId);
@@ -300,7 +322,11 @@ async function syncLink(userId, link, { force = false } = {}) {
   const gymId = link.gym_id;
   const reason = skipReason(userId, gymId, link);
   if (reason) { stats.gymsSkipped++; stats.skipped[reason]++; return false; }
-  if (force && !takeForcedSlot(userId, gymId)) { stats.gymsSkipped++; stats.skipped.forceLimited++; return false; }
+  if (force && !takeForcedSlot(userId, gymId)) {
+    stats.gymsSkipped++; stats.skipped.forceLimited++;
+    deferForced(userId, gymId);
+    return false;
+  }
   try {
     const r = await syncUserGym(userId, gymId, { force });
     return !!(r.ok || r.bookings || r.waitlists);
@@ -478,5 +504,11 @@ module.exports = {
   FORCED_MAX,
   _takeForcedSlot: takeForcedSlot,
   _setClock: (fn) => { clock = typeof fn === 'function' ? fn : () => Date.now(); },
-  _resetForcedLog: () => forcedLog.clear(),
+  _resetForcedLog: () => {
+    forcedLog.clear();
+    for (const t of forcedDeferred.values()) { try { clearTimeout(t); } catch (_) {} }
+    forcedDeferred.clear();
+  },
+  _setTimer: (fn) => { setTimer = typeof fn === 'function' ? fn : (f, ms) => { const t = setTimeout(f, ms); if (t && t.unref) t.unref(); return t; }; },
+  _deferredForcedCount: () => forcedDeferred.size,
 };

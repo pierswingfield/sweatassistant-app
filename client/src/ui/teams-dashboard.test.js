@@ -124,3 +124,38 @@ describe('Team dashboard widgets render escaped, from the projection only', () =
     noInjection(page);
   });
 });
+
+describe('T-4 Team stats widget', () => {
+  const stats = {
+    week: { thisWeek: 14, lastWeek: 11, delta: 3 },
+    streak: { days: 5, since: '2026-10-31', capped: false },
+    charts: { windowDays: 28, total: 6, busiestDays: [1, 1, 0, 0, 0, 3, 1], busiestTimes: Object.assign(new Array(24).fill(0), { 7: 4, 18: 2 }),
+      gymMix: [{ gymId: 'gym-off', count: 2 }, { gymId: 'gym-a', count: 4 }] },
+  };
+  it('renders tiles, "+3 on last week" with no bracketed total, three charts in order, escaped gym names', () => {
+    const el = document.createElement('section');
+    document.body.appendChild(el);
+    expect(dash.renderTeamStats(el, { ...data, stats }, NOW)).toBe(true);
+    const text = el.textContent;
+    expect(text).toContain('+3 on last week');
+    expect(text).not.toMatch(/\(\s*1[14]\s*\)/);
+    expect(text).toContain('5 days');
+    expect(text).toContain('Team streak');
+    expect(text).toContain('every day since Sat');
+    expect([...el.querySelectorAll('.tm-chart-title')].map((n) => n.textContent)).toEqual(['Busiest days', 'Gym mix', 'Busiest times']);
+    expect(text).toContain("Saturday is the Team's day");
+    expect(el.querySelector('off')).toBe(null); // the gym name is text, never markup
+    expect(el.textContent).toContain('Gym <Off>');
+    expect(el.querySelectorAll('.tm-stats-dots i').length).toBe(3);
+  });
+  it('hides without a stats block, and shows empty charts and no streak gracefully', () => {
+    const el = document.createElement('section');
+    expect(dash.renderTeamStats(el, { ...data }, NOW)).toBe(false);
+    expect(el.hidden).toBe(true);
+    const empty = { week: { thisWeek: 0, lastWeek: 0, delta: 0 }, streak: { days: 0, since: null }, charts: { total: 0, busiestDays: [], busiestTimes: [], gymMix: [] } };
+    dash.renderTeamStats(el, { ...data, stats: empty }, NOW);
+    expect(el.textContent).toContain('Same as last week');
+    expect(el.textContent).toContain('No streak');
+    expect(el.querySelectorAll('.tm-chart-empty').length).toBe(3);
+  });
+});

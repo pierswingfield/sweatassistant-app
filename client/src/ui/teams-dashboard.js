@@ -11,7 +11,7 @@
 // (the widget-registry rule, §5.3).
 
 import { DateTime } from 'luxon';
-import { escapeHtml, gymSquareChip } from './cards.js';
+import { escapeHtml, gymSquareChip, gymBrand } from './cards.js';
 import { formatInZone, deviceZone } from '../lib.js';
 import { getAllLinkedGyms, getGymShortName } from '../gym-context.js';
 import { renderHomeFavouriteCard, isDisabledLinkedGym } from './home.js';
@@ -25,6 +25,7 @@ import {
   todaysWorkouts, weekDays, initialDayIndex, visibleWeekRows, classesTogether, memberActivity,
   activityScore, heroState, namesList, ctaKind, memberProfile, statusAt,
 } from './teams-dashboard-model.js';
+import { weekChange, streakView, busiestDaysView, busiestTimesView, gymMixView } from './teams-stats-model.js';
 
 const SORT_LABEL = { name: 'sortName', activity: 'sortActivity', shuffle: 'sortShuffle' };
 
@@ -351,3 +352,89 @@ export function openMemberProfile(m, data, now = Date.now()) {
   return page;
 }
 
+
+// ---- Team stats (§5.3 item 6, T-4) ------------------------------------------------------------
+// Two tiles (classes this week with the change on last week; the Team streak), then a
+// carousel of three charts in the approved order: busiest days, gym mix, busiest times.
+// Mobile swipes between them (scroll-snap, dots); desktop lays them side by side
+// (styles.css, no swiping). The numbers come from the server's `stats` block
+// (server/team-stats.js); the charts only cover classes this viewer could already see.
+
+function streakText(v) {
+  if (!v.days) return { big: T.streakNone, sub: T.streakNoneSub };
+  const big = v.capped ? fmt(T.streakDaysCapped, { n: v.days }) : (v.days === 1 ? T.streakDay : fmt(T.streakDays, { n: v.days }));
+  if (v.capped) return { big, sub: T.streakCappedSub };
+  const k = v.since && v.since.kind;
+  if (k === 'today') return { big, sub: T.streakToday };
+  if (k === 'yesterday') return { big, sub: T.streakYesterday };
+  if (k === 'weekday') return { big, sub: fmt(T.streakSinceDay, { day: v.since.label }) };
+  if (k === 'date') return { big, sub: fmt(T.streakSinceDate, { day: v.since.label }) };
+  return { big, sub: '' };
+}
+
+function chartCard(title, meta, body, aria) {
+  return `<figure class="tm-chart" role="group" aria-label="${escapeHtml(title)}">
+    <figcaption class="tm-chart-title">${escapeHtml(title)}</figcaption>
+    <div role="img" aria-label="${escapeHtml(aria)}">${body}</div>
+    ${meta ? `<p class="tm-chart-meta">${escapeHtml(meta)}</p>` : ''}
+  </figure>`;
+}
+
+const emptyChart = () => `<p class="tm-muted tm-sm tm-chart-empty">${escapeHtml(T.statsChartEmpty)}</p>`;
+
+function busiestDaysHtml(charts) {
+  const v = busiestDaysView(charts.busiestDays);
+  const aria = fmt(T.busiestDaysAria, { list: v.bars.map((b) => `${b.long} ${b.count}`).join(', ') });
+  const body = v.total ? `<div class="tm-vbars tm-vbars-days">${v.bars.map((b) => `<span class="tm-vbar${b.isPeak ? ' is-peak' : ''}"><i style="height:${Math.max(b.count ? 6 : 2, Math.round(b.frac * 100))}%"></i><span class="tm-vbar-lab">${escapeHtml(b.label)}</span></span>`).join('')}</div>` : emptyChart();
+  const meta = v.total ? `${T.last4Weeks}${v.peakName ? ` · ${fmt(T.teamsDay, { day: v.peakName })}` : ''}` : '';
+  return chartCard(T.busiestDays, meta, body, aria);
+}
+
+function gymMixHtml(charts) {
+  const v = gymMixView(charts.gymMix, (gymId) => {
+    const b = gymBrand(gymId, 'half');
+    return { name: getGymShortName(gymId) || b.name || '', colour: b.brandBg || '' };
+  });
+  const safeColour = (c) => (/^#[0-9a-f]{3,8}$/i.test(c) || /^rgba?\([\d\s.,%]+\)$/i.test(c) ? c : 'var(--text-secondary)');
+  const aria = fmt(T.gymMixAria, { list: v.rows.map((r) => `${r.name} ${r.percent}%`).join(', ') });
+  const body = v.total ? `<ul class="tm-mix">${v.rows.map((r) => `<li class="tm-mix-row">
+      <span class="tm-mem-gym">${gymSquareChip(r.gymId)}</span><span class="tm-mix-name tm-ellip">${escapeHtml(r.name)}</span>
+      <span class="tm-mix-track"><i style="width:${Math.max(4, Math.round(r.frac * 100))}%;background:${safeColour(r.colour)}"></i></span>
+      <b class="tm-mix-pc">${r.percent}%</b></li>`).join('')}</ul>` : emptyChart();
+  return chartCard(T.gymMix, v.total ? `${T.last4Weeks} · ${T.gymMixNote}` : '', body, aria);
+}
+
+function busiestTimesHtml(charts) {
+  const v = busiestTimesView(charts.busiestTimes);
+  const aria = fmt(T.busiestTimesAria, { list: v.bars.filter((b) => b.count).map((b) => `${b.label} ${b.count}`).join(', ') || '0' });
+  const body = v.total ? `<div class="tm-vbars tm-vbars-times">${v.bars.map((b) => `<span class="tm-vbar${b.isPeak ? ' is-peak' : ''}"><i style="height:${Math.max(b.count ? 6 : 2, Math.round(b.frac * 100))}%"></i><span class="tm-vbar-lab">${b.tick ? escapeHtml(b.label) : ''}</span></span>`).join('')}</div>` : emptyChart();
+  return chartCard(T.busiestTimes, v.total ? T.last4Weeks : '', body, aria);
+}
+
+/** @returns {boolean} false when the payload has no stats block (the widget hides). */
+export function renderTeamStats(section, data, now) {
+  const stats = data && data.stats;
+  if (!stats) { section.hidden = true; section.innerHTML = ''; return false; }
+  section.hidden = false;
+  const wk = weekChange(stats.week);
+  const deltaText = wk.tone === 'up' ? fmt(T.statsDeltaUp, { n: wk.delta }) : wk.tone === 'down' ? fmt(T.statsDeltaDown, { n: -wk.delta }) : T.statsDeltaSame;
+  const st = streakText(streakView(stats.streak, { now, zone: deviceZone() }));
+  const charts = stats.charts || {};
+  const slides = [busiestDaysHtml(charts), gymMixHtml(charts), busiestTimesHtml(charts)];
+  section.innerHTML = `<div class="tm-card-head"><h3 class="tm-card-title">${escapeHtml(T.teamStats)}</h3><span class="tm-grow"></span><span class="tm-card-meta">${escapeHtml(T.statsWeekMeta)}</span></div>
+    <div class="tm-stat-tiles">
+      <div class="tm-stat-tile"><span class="tm-stat-big">${wk.thisWeek}</span><span class="tm-stat-label">${escapeHtml(wk.thisWeek === 1 ? T.statsClassWeek : T.statsClassesWeek)}</span>
+        <span class="tm-stat-delta is-${wk.tone}">${escapeHtml(deltaText)}</span></div>
+      <div class="tm-stat-tile"><span class="tm-stat-big">${escapeHtml(st.big)}</span><span class="tm-stat-label">${escapeHtml(T.streakName)}</span>
+        ${st.sub ? `<span class="tm-stat-sub">${escapeHtml(st.sub)}</span>` : ''}</div>
+    </div>
+    <div class="tm-stats-carousel" tabindex="0" aria-label="${escapeHtml(T.statsChartsAria)}">${slides.map((h, i) => `<div class="tm-stats-slide" aria-label="${escapeHtml(fmt(T.statsChartsPage, { n: i + 1, total: slides.length }))}">${h}</div>`).join('')}</div>
+    <div class="tm-dots tm-stats-dots" aria-hidden="true">${slides.map((_, i) => `<i class="${i === 0 ? 'is-on' : ''}"></i>`).join('')}</div>`;
+  const car = section.querySelector('.tm-stats-carousel');
+  const dots = section.querySelectorAll('.tm-stats-dots i');
+  car.addEventListener('scroll', () => {
+    const i = Math.round(car.scrollLeft / Math.max(1, car.clientWidth));
+    dots.forEach((d, j) => d.classList.toggle('is-on', j === i));
+  }, { passive: true });
+  return true;
+}

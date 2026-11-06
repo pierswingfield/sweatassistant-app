@@ -12036,6 +12036,50 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container .tm-dots { display: flex; justify-content: center; gap: 6px; margin-top: 8px; }
 #app-helper-container .tm-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--border-strong); }
 #app-helper-container .tm-dots i.is-on { background: var(--accent); }
+
+/* T-4 Team stats: two tiles, then a chart carousel (mobile: swipe + dots; desktop: side by side). */
+#app-helper-container .tm-stat-tiles { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+#app-helper-container .tm-stat-tile, #app-helper-container .tm-chart {
+  background: color-mix(in srgb, var(--text) 4%, var(--surface)); border-radius: 16px; padding: 14px; min-width: 0;
+}
+#app-helper-container .tm-stat-tile { display: flex; flex-direction: column; gap: 2px; }
+#app-helper-container .tm-stat-big { font-family: var(--font-serif); font-weight: 600; font-size: 30px; line-height: 1.1; color: var(--text); }
+#app-helper-container .tm-stat-label { color: var(--text-secondary); font-size: var(--text-sm); }
+#app-helper-container .tm-stat-sub { color: var(--text-secondary); font-size: var(--text-xs, 12px); margin-top: 4px; }
+#app-helper-container .tm-stat-delta { font-size: var(--text-sm); font-weight: 600; margin-top: 4px; color: var(--text-secondary); }
+#app-helper-container .tm-stat-delta.is-up { color: var(--success); }
+#app-helper-container .tm-stats-carousel {
+  display: flex; gap: 10px; margin-top: 10px; overflow-x: auto; scroll-snap-type: x mandatory;
+  scrollbar-width: none; overscroll-behavior-x: contain;
+}
+#app-helper-container .tm-stats-carousel::-webkit-scrollbar { display: none; }
+#app-helper-container .tm-stats-slide { flex: 0 0 100%; scroll-snap-align: start; min-width: 0; display: flex; }
+#app-helper-container .tm-chart { margin: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: 8px; }
+#app-helper-container .tm-chart-title { font-weight: 600; color: var(--text); }
+#app-helper-container .tm-chart-meta { margin: 0; color: var(--text-secondary); font-size: var(--text-xs, 12px); }
+#app-helper-container .tm-chart-empty { margin: 8px 0; }
+#app-helper-container .tm-vbars { display: flex; align-items: flex-end; gap: 4px; height: 128px; padding-bottom: 18px; position: relative; }
+#app-helper-container .tm-vbar { flex: 1 1 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; position: relative; min-width: 0; }
+#app-helper-container .tm-vbar i { display: block; border-radius: 4px 4px 2px 2px; background: color-mix(in srgb, var(--accent) 45%, var(--surface)); }
+#app-helper-container .tm-vbar.is-peak i { background: var(--accent); }
+#app-helper-container .tm-vbar-lab {
+  position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%);
+  font-size: 11px; color: var(--text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+#app-helper-container .tm-vbars-times { gap: 3px; }
+#app-helper-container .tm-vbars-times .tm-vbar-lab { left: 0; transform: none; }
+#app-helper-container .tm-vbars-times .tm-vbar:last-child .tm-vbar-lab { left: auto; right: 0; }
+#app-helper-container .tm-mix { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+#app-helper-container .tm-mix-row { display: grid; grid-template-columns: auto minmax(0, 5em) minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+#app-helper-container .tm-mix-name { color: var(--text); }
+#app-helper-container .tm-mix-track { height: 12px; border-radius: 999px; background: color-mix(in srgb, var(--text) 8%, var(--surface)); overflow: hidden; }
+/* Brand plates are near-black: a hairline keeps the fill visible on a dark surface. */
+#app-helper-container .tm-mix-track i { display: block; height: 100%; border-radius: 999px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 22%, transparent); }
+#app-helper-container .tm-mix-pc { font-variant-numeric: tabular-nums; color: var(--text); min-width: 3.2em; text-align: right; }
+@media (min-width: 900px) {
+  #app-helper-container .tm-stats-carousel { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: visible; scroll-snap-type: none; }
+  #app-helper-container .tm-stats-dots { display: none; }
+}
 @media (min-width: 900px) {
   #app-helper-container .tm-pager { display: block; overflow: visible; }
   #app-helper-container .tm-dots { display: none; }

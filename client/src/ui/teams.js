@@ -1,7 +1,7 @@
 // T-1 Teams tab (PLAN-teams.md §5.2 list, §5.3 Team page shell, §5.6 create).
 // Routes: /teams (list), /teams/<id> (Team page), /t/<token> (invite page, teams-join.js).
 // T-2 brings the list's class summaries; T-3 the dashboard widgets (teams-dashboard.js).
-// Team stats (T-4) is still a clearly-labelled placeholder, never sample data.
+// T-4 adds Team stats (renderTeamStats in teams-dashboard.js, models in teams-stats-model.js).
 
 import { currentRoute } from '../router.js';
 import { teamsApi } from '../teams-api.js';
@@ -327,9 +327,6 @@ async function renderTeamPage(el, teamId, { stale }) {
   const { team } = data;
   const isCaptain = data.myRole === 'captain';
   const pending = isCaptain ? Number(data.pendingRequestCount) || 0 : 0;
-  const placeholder = (title, body) => `<section class="tm-card tm-placeholder" aria-label="${escapeHtml(title)}">
-      <div class="tm-card-head"><h3 class="tm-card-title">${escapeHtml(title)}</h3><span class="tm-pill tm-pill-off">${escapeHtml(T.widgetSoon)}</span></div>
-      <p class="tm-muted tm-sm">${escapeHtml(body)}</p></section>`;
   const until = data.paused ? (pauseWhen(data.pausedUntil) ? fmt(T.hiddenUntil, { when: pauseWhen(data.pausedUntil) }) : T.hiddenIndefinite) : '';
   const now = Date.now();
   const hero = dash.heroLines(data, now);
@@ -364,7 +361,7 @@ async function renderTeamPage(el, teamId, { stale }) {
         <section class="tm-card tm-members" data-members></section>
       </div>
     </div>
-    <div class="tm-dash-full">${placeholder(T.teamStats, T.teamStatsSoon)}</div>
+    <div class="tm-dash-full"><section class="tm-card tm-stats-w" data-w-stats aria-label="${escapeHtml(T.teamStats)}"></section></div>
   </div>`;
 
   el.querySelector('[data-back]').addEventListener('click', (e) => { e.preventDefault(); stopDashboardTimers(); goTeams({ view: 'list' }); });
@@ -394,6 +391,7 @@ async function renderTeamPage(el, teamId, { stale }) {
   guard(el.querySelector('[data-w-week]'), () => dash.renderThisWeek(el.querySelector('[data-w-week]'), data, now));
   guard(togetherEl, () => dash.renderClassesTogether(togetherEl, data, now, { stale }));
   guard(el.querySelector('[data-members]'), () => dash.renderMembers(el.querySelector('[data-members]'), data, now));
+  guard(el.querySelector('[data-w-stats]'), () => dash.renderTeamStats(el.querySelector('[data-w-stats]'), data, now));
 
   // Keep "in class" rings honest on a page left open, and repaint the CTAs once the
   // timetable (the booking flow's own state) loads or changes after a booking.

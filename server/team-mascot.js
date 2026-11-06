@@ -82,7 +82,15 @@ function mascotFor({ teamId, classes = [], now, zone }) {
   else if (done === total) state = 'champion';
   else if (done === 0) state = 'warming';
   else state = 'cooling';
-  const ring = total ? Math.round((done / total) * 1000) / 1000 : 0;
+  // §5.4 ring: progress through ALL of the Team's classes today (every gym, "+N at other
+  // gyms" included). A finished class counts 1, a class in progress its elapsed share,
+  // so the ring moves during a class rather than jumping only when one ends (T-4).
+  const progressOf = (c) => {
+    if (c.endMs <= now) return 1;
+    if (c.startMs > now) return 0;
+    return Math.max(0, Math.min(1, (now - c.startMs) / Math.max(1, c.endMs - c.startMs)));
+  };
+  const ring = total ? Math.round((classes.reduce((s, c) => s + progressOf(c), 0) / total) * 1000) / 1000 : 0;
   if (state === 'exercising') {
     const p = exercisingPose(teamId, local.toISODate(), classes);
     return { state, pose: p.id, asset: p.asset, fit: false, ring };

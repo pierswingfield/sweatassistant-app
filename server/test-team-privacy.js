@@ -447,6 +447,127 @@ check('T-3 every class attendee is a current member by memberRef; no attendee ca
   }
 });
 
+// ---- T-4 Team stats -----------------------------------------------------------------
+// A separate Team so the T-2/T-3 totals above stay as they are. NOW is Tuesday 10 Nov
+// 10:00 London; the week began Monday 9 Nov; "last week up to now" ends Tue 3 Nov 10:00.
+// Every withheld class lands on a day or in a bucket that would change an exact number.
+const S1 = mkUser('Statsall', [PSY, JAB]);
+const S2 = mkUser('Statsnorecent', [PSY]);
+const S3 = mkUser('Statsnoactivity', [PSY]);
+const S4 = mkUser('Statspaused', [PSY]);
+const { team: statsTeam, inviteToken: statsTok } = teams.createTeam(V, { name: 'Stats Crew', share: shareWith() });
+const joinStats = (uid, share) => teams.decideRequest(V, statsTeam.id, teams.requestJoin(uid, statsTok, share).requestId, 'approve');
+joinStats(V2, shareWith());
+joinStats(S1, shareWith());
+joinStats(S2, shareWith({ recent: false }));
+joinStats(S3, shareWith({ activity: false }));
+joinStats(S4, shareWith());
+hist(S1, PSY, [
+  { bookingId: 's1a', eventId: 1, status: 'attended', startAt: at(9, 0, -8), name: 'S1 Mon last week' },
+  { bookingId: 's1b', eventId: 2, status: 'unconfirmed', startAt: at(8, 0, -7), name: 'S1 Tue last week' },
+  { bookingId: 's1c', eventId: 3, status: 'attended', startAt: at(8, 0, -1), name: 'S1 Mon' },
+  { bookingId: 's1x', eventId: 4, status: 'late-cancel', startAt: at(12, 0, -1), name: 'S1 late cancel' },
+  { bookingId: 's1y', eventId: 5, status: 'cancelled', startAt: at(9, 0, -3), name: 'S1 cancelled Sat' },
+]);
+hist(S1, JAB, [{ bookingId: 's1j', eventId: 6, status: 'attended', startAt: at(18, 0, -2), name: 'S1 Sun JAB' }]);
+// A done server booking today (counts), a started one the next sync dropped and history
+// never confirmed (missing_since: must not count), and a client-only done row (never).
+db.replaceBookingCache(S1, [
+  { bookingId: 5101, gymId: PSY, eventId: 5101, startAt: at(7), className: 'S1 today', durationMin: 45 },
+  { bookingId: 5103, gymId: PSY, eventId: 5103, startAt: at(8), className: 'S1 dropped', durationMin: 45 },
+], [PSY], { origin: 'server', now: NOW });
+db.replaceBookingCache(S1, [{ bookingId: 5101, gymId: PSY, eventId: 5101, startAt: at(7), className: 'S1 today', durationMin: 45 }],
+  [PSY], { origin: 'server', retainStartedMs: bookingSync.RETAIN_STARTED_MS, now: NOW });
+db.setBookingSyncState(S1, PSY, { lastSyncedAt: new Date(NOW - 30 * 60000).toISOString() });
+bookingSync.acceptClientBookings(S1, [
+  { bookingId: 5101, gymId: PSY, eventId: 5101, startAt: at(7), className: 'S1 today' },
+  { bookingId: 5102, gymId: PSY, eventId: 5102, startAt: at(6), className: 'S1 client only' },
+], [PSY], NOW + 3600e3);
+hist(S2, PSY, [
+  { bookingId: 's2a', eventId: 7, status: 'attended', startAt: at(12, 0, -1), name: 'S2 Mon' },
+  { bookingId: 's2b', eventId: 8, status: 'attended', startAt: at(11, 0, -3), name: 'S2 Sat' },
+]);
+hist(S3, PSY, [
+  { bookingId: 's3a', eventId: 9, status: 'attended', startAt: at(10, 0, -3), name: 'S3 Sat' },
+  { bookingId: 's3b', eventId: 11, status: 'attended', startAt: at(10, 0, -1), name: 'S3 Mon' }, // this week: would move the week total
+]);
+hist(S4, PSY, [{ bookingId: 's4a', eventId: 10, status: 'attended', startAt: at(9, 0, -3), name: 'S4 Sat' }]);
+teams.updateMe(S4, statsTeam.id, { pause: '7d' });
+const statsFor = (uid) => teams.getTeamToday(uid, statsTeam.id, { zone: 'Europe/London' });
+
+check('T-4 fixture: the excluded rows exist in storage (so their absence below is meaningful)', () => {
+  const rows = db.db.prepare('SELECT booking_id, origin, missing_since FROM booking_cache WHERE user_id = ? ORDER BY booking_id').all(S1);
+  assert.ok(rows.some((r) => String(r.booking_id) === '5102' && r.origin === 'client'), JSON.stringify(rows));
+  assert.ok(rows.some((r) => String(r.booking_id) === '5103' && r.missing_since), JSON.stringify(rows));
+});
+check('T-4 classes this week: activity sharers, every shared gym; client-only, unconfirmed, cancelled and paused never count', () => {
+  // This week: S1 Mon 08:00, S1 today 07:00 (booking), S2 Mon 12:00. Last week up to now: S1 Mon 2, Tue 3 Nov.
+  // A leak of 5102 (client), 5103 (missing_since), s1x (late cancel), S3 Mon (activity off) or S4 (paused) changes 3 or 2.
+  assert.deepStrictEqual(statsFor(V).stats.week, { thisWeek: 3, lastWeek: 2, delta: 1 });
+});
+check('T-4 Team streak: activity AND recent sharers only; unlinked-gym days count (D2), the same for every viewer', () => {
+  // S1: Sun 8 (JAB), Mon 9, Tue 10 = 3 days. Saturday 7 Nov is offered only by S2 (recent off),
+  // S3 (activity off), S4 (paused) and S1's cancelled row: any leak makes it 4.
+  const expected = { days: 3, since: '2026-11-08', capped: false };
+  assert.deepStrictEqual(statsFor(V).stats.streak, expected);
+  assert.deepStrictEqual(statsFor(V2).stats.streak, expected, 'V2 lacks JAB, but the JAB day still holds the streak');
+});
+check('T-4 charts: recent sharers at gyms the viewer has linked only', () => {
+  const c = statsFor(V).stats.charts;
+  // S1: Mon 2 09h, Tue 3 08h, Sun 8 18h (JAB), Mon 9 08h, Tue 10 07h; S3 Sat 7 and Mon 9 10h (recent on, activity off).
+  assert.strictEqual(c.total, 7);
+  assert.deepStrictEqual(c.busiestDays, [3, 2, 0, 0, 0, 1, 1]);
+  assert.deepStrictEqual([c.busiestTimes[7], c.busiestTimes[8], c.busiestTimes[9], c.busiestTimes[10], c.busiestTimes[18]], [1, 2, 1, 2, 1]);
+  assert.strictEqual(c.busiestTimes[11] + c.busiestTimes[12], 0, 'S2 (recent off) is not charted');
+  assert.deepStrictEqual(c.gymMix, [{ gymId: PSY, count: 6 }, { gymId: JAB, count: 1 }]);
+});
+check('T-4 viewer without the gym: no gym id or name, and the unlinked gym never moves the gym mix or the charts', () => {
+  const p = statsFor(V2);
+  const json = JSON.stringify(p);
+  assert.ok(!json.includes(JAB), 'the unlinked gym id reached V2');
+  assert.ok(!/JAB/i.test(json.replace(/"name":"[^"]*"/g, '')), 'a JAB name reached V2');
+  assert.deepStrictEqual(p.stats.charts.gymMix, [{ gymId: PSY, count: 6 }], 'only V2\'s gyms, and the JAB class is not folded in');
+  assert.strictEqual(p.stats.charts.total, 6);
+  assert.deepStrictEqual(p.stats.charts.busiestDays, [3, 2, 0, 0, 0, 1, 0], 'the JAB Sunday is not charted for V2');
+  assert.deepStrictEqual(p.stats.week, statsFor(V).stats.week, 'D2: totals still count the unlinked gym');
+});
+check('T-4 stats carry no member identity: no memberRef, name, user id or class detail', () => {
+  const json = JSON.stringify(statsFor(V).stats);
+  assert.ok(!/memberRef|name|userId|email|className|eventId|booking/i.test(json), json);
+  for (const n of ['Statsall', 'Statsnorecent', 'S1 ', 'S2 ']) assert.ok(!json.includes(n), n);
+});
+check('T-4 small Team: a member who hides history cannot be recovered by subtracting the viewer\'s own classes', () => {
+  const DV = mkUser('Duoviewer', [PSY]);
+  const DM = mkUser('Duohider', [PSY]);
+  const { team: duo, inviteToken: duoTok } = teams.createTeam(DV, { name: 'Duo', share: shareWith() });
+  teams.decideRequest(DV, duo.id, teams.requestJoin(DM, duoTok, shareWith({ recent: false })).requestId, 'approve');
+  hist(DV, PSY, [{ bookingId: 'dv1', eventId: 1, status: 'attended', startAt: at(8, 0, -1), name: 'DV Mon' }]);
+  hist(DM, PSY, [
+    { bookingId: 'dm1', eventId: 2, status: 'attended', startAt: at(8, 0, -2), name: 'DM Sun' },
+    { bookingId: 'dm2', eventId: 3, status: 'attended', startAt: at(18, 0, -1), name: 'DM Mon' },
+  ]);
+  const p = teams.getTeamToday(DV, duo.id, { zone: 'Europe/London' });
+  // Charts and streak are exactly DV's own: nothing of DM's day or hour pattern.
+  assert.strictEqual(p.stats.charts.total, 1);
+  assert.strictEqual(p.stats.charts.busiestTimes[18], 0);
+  assert.deepStrictEqual(p.stats.streak, { days: 1, since: '2026-11-09', capped: false }, 'DM\'s Sunday must not extend the streak');
+  // The week total includes DM, but only as much as DM's own shared activity count already says.
+  const dm = p.members.find((m) => m.name.startsWith('Duohider'));
+  const dv = p.members.find((m) => m.isMe);
+  assert.strictEqual(p.stats.week.thisWeek, dm.counts.week + dv.counts.week);
+  // With activity off too, DM contributes nothing at all.
+  teams.updateMe(DM, duo.id, { share: { activity: false } });
+  const q = teams.getTeamToday(DV, duo.id, { zone: 'Europe/London' });
+  assert.strictEqual(q.stats.week.thisWeek, 1);
+});
+check('T-4 a non-member gets NOT_FOUND for the stats-bearing payload', () => {
+  for (const uid of [OUT, PD1]) assert.throws(() => teams.getTeamToday(uid, statsTeam.id), (e) => e.code === 'NOT_FOUND');
+});
+check('T-4 the list payload (GET /api/teams) carries no stats', () => {
+  const card = teams.listTeams(V, { zone: 'Europe/London' }).find((t) => t.id === statsTeam.id);
+  assert.ok(card && !('stats' in card));
+});
+
 check('GET /api/teams resolves each member\'s name once per request, across all Teams', () => {
   const { team: t2, inviteToken: tok2 } = teams.createTeam(V, { name: 'Second Crew' });
   for (const uid of [A, B, V2]) {

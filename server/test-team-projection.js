@@ -33,12 +33,13 @@ check('states: resting, warming, exercising, cooling, champion, sleeping', () =>
   assert.strictEqual(mascot.mascotFor({ teamId: 't', classes: [], now: Date.parse('2026-11-11T02:00:00Z'), zone: 'America/New_York' }).state, 'resting');
 });
 
-check('ring = share of ALL the day\'s classes completed; cooling down renders smaller (fit)', () => {
+check('ring = progress through ALL the day\'s classes (a class in progress counts its elapsed share); cooling down renders smaller (fit)', () => {
   const now = Date.parse('2026-11-10T12:00:00Z');
   const r = mascot.mascotFor({ teamId: 't', now, zone: LON,
     classes: [cls('2026-11-10T07:00:00Z'), cls('2026-11-10T08:00:00Z'), cls('2026-11-10T11:50:00Z'), cls('2026-11-10T18:00:00Z')] });
   assert.strictEqual(r.state, 'exercising');
-  assert.strictEqual(r.ring, 0.5);
+  // Two done (2) + 11:50 class 10 of 45 min in (0.222) + one to come (0), over 4 (T-4).
+  assert.strictEqual(r.ring, 0.556);
   const c = mascot.mascotFor({ teamId: 't', now, zone: LON, classes: [cls('2026-11-10T07:00:00Z'), cls('2026-11-10T18:00:00Z'), cls('2026-11-10T19:00:00Z')] });
   assert.strictEqual(c.state, 'cooling');
   assert.strictEqual(c.fit, true);

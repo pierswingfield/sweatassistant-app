@@ -29,6 +29,7 @@
 const { DateTime } = require('luxon');
 const sharing = require('./team-sharing');
 const mascot = require('./team-mascot');
+const { teamStats } = require('./team-stats');
 
 const COUNTED = new Set(['attended', 'unconfirmed']);
 const HOUR = 3600 * 1000;
@@ -88,6 +89,7 @@ function projectTeam(input) {
   const other = { upcoming: new Set(), today: new Set(), recent: new Set() };
   const outMembers = [];
   const nameOf = new Map();
+  const statEntries = []; // T-4: completed classes, tagged with what their sharer allowed (team-stats.js)
 
   const describe = (gymId, eventId, row, dt, durationMin) => {
     const startMs = dt.toMillis();
@@ -159,6 +161,13 @@ function projectTeam(input) {
     // Activity counts dedupe by gym-qualified booking id across history and today's
     // already-finished bookings (the history sync can lag the class by hours).
     const counted = new Map(); // gym:bookingId -> startMs
+    // T-4: every completed class that passed the item rules above (gymOk, not penalised,
+    // server-synced, confirmed), deduped the same way; team-stats.js applies the share.
+    const doneClasses = new Map(); // gym:bookingId -> { gymId, startMs }
+    const noteDone = (gymId, bookingId, startMs) => {
+      const k = classKey(gymId, bookingId);
+      if (!doneClasses.has(k)) doneClasses.set(k, { gymId, startMs });
+    };
     const countIfActivity = (gymId, bookingId, startMs) => {
       if (!share.activity || !gymOk(gymId)) return;
       counted.set(classKey(gymId, bookingId), startMs);
@@ -174,6 +183,7 @@ function projectTeam(input) {
       if (!dt) continue;
       const cls = describe(b.gym_id, b.event_id, b, dt, b.duration_min);
       const today = isTodayIn(dt.setZone(zoneFor(b.gym_id)));
+      if (cls._endMs <= now) noteDone(b.gym_id, b.booking_id, cls._startMs);
       if (cls._endMs <= now && !today) continue; // a lingering past row
       if (share.activity && today) {
         noteToday(cls);
@@ -195,6 +205,7 @@ function projectTeam(input) {
       const startMs = dt.toMillis();
       if (startMs > now) continue;
       countIfActivity(h.gym_id, h.booking_id, startMs);
+      noteDone(h.gym_id, h.booking_id, startMs);
       const eventId = h.event_id != null ? h.event_id : `b${h.booking_id}`;
       const cls = describe(h.gym_id, eventId, h, dt, h.duration_min);
       const today = isTodayIn(dt.setZone(z));
@@ -225,6 +236,15 @@ function projectTeam(input) {
         if (!dt || dt.toMillis() <= now) continue;
         if (!visible(q.gym_id)) continue;
         addAttendee(classes, describe(q.gym_id, q.event_id, q, dt, q.duration_min), m.memberRef, 'queued', null);
+      }
+    }
+
+    if (!paused && (share.activity || share.recent)) {
+      for (const d of doneClasses.values()) {
+        statEntries.push({
+          gymId: d.gymId, startMs: d.startMs, zone: zoneFor(d.gymId), viewerLinked: visible(d.gymId),
+          activity: !!share.activity, recent: !!share.recent && d.startMs >= recentStart,
+        });
       }
     }
 
@@ -344,6 +364,8 @@ function projectTeam(input) {
   if (includeDetail) {
     out.classes = ordered.filter((c) => c._endMs > now || zoneToday(c)).map(strip);
     out.recent = [...recent.values()].sort((a, b) => b._startMs - a._startMs).map(strip);
+    // T-4 (§5.3 item 6). gymMix names only gyms the viewer has linked (team-stats.js).
+    out.stats = teamStats({ entries: statEntries, now, zone });
   }
   return out;
 }

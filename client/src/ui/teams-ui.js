@@ -57,7 +57,7 @@ export function mascotHtml({ size = 60, pose = 'resting', dim = false, alt = '',
     ring = `<svg class="tm-ring" viewBox="0 0 60 60" aria-hidden="true"><circle class="tm-ring-track" cx="30" cy="30" r="${r}"/>${frac > 0 ? `<circle class="tm-ring-prog" cx="30" cy="30" r="${r}" stroke-dasharray="${(frac * c).toFixed(1)} ${c.toFixed(1)}"/>` : ''}</svg>`;
   }
   const cls = `tm-mascot${dim ? ' is-dim' : ''}${mascot && mascot.fit ? ' is-fit' : ''}${mascot ? ' has-ring' : ''}`;
-  return `<span class="${cls}" style="--s:${s}px"><span class="tm-mascot-disc"></span>${ring}<img src="${src}" ${altAttr} width="${s}" height="${s}" decoding="async"></span>`;
+  return `<span class="${cls}" style="--s:${s}px"><span class="tm-mascot-disc"></span>${ring}<img src="${escapeHtml(src)}" ${altAttr} width="${s}" height="${s}" decoding="async"></span>`;
 }
 
 /** Class times in the CLASS's zone (AGENTS.md: never a bare Date), with a suffix when it differs from the device's. */

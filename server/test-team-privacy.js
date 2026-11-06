@@ -394,26 +394,37 @@ check('a started server row missing from the next sync is hidden from Teams unti
 // ---- T-3 dashboard fields ----------------------------------------------------------
 
 const memberIn = (payload, name) => payload.members.find((m) => m.name.startsWith(name));
-check('T-3 member gym chips: only gyms the viewer has linked; an unlinked one is a bare flag', () => {
+check('T-3 member gym chips: only gyms the viewer has linked; an unlinked one is never named or flagged', () => {
   assert.deepStrictEqual(memberIn(today, 'Alice').gyms, [JAB, PSY].sort());
-  assert.strictEqual(memberIn(today, 'Alice').otherGym, false);
   const a2 = memberIn(today2, 'Alice');
   assert.deepStrictEqual(a2.gyms, [PSY], 'V2 has not linked JAB');
-  assert.strictEqual(a2.otherGym, true);
   assert.ok(!P.v2Today.includes(JAB), 'the unlinked gym id leaked to V2 via member chips');
+  for (const m of [...today.members, ...today2.members]) assert.ok(!('otherGym' in m), `per-member otherGym flag sent for ${m.name}`);
+});
+check('T-3 review: a member sharing only a gym the viewer has not linked shows no chips, flag or freshness', () => {
+  teams.updateMe(A, TEAM, { share: shareWith({ gyms: [JAB] }) });
+  try {
+    const seen = memberIn(teams.getTeamToday(V, TEAM, { zone: 'Europe/London' }), 'Alice');
+    assert.deepStrictEqual(seen.gyms, [JAB], 'control: V has JAB linked');
+    assert.ok(seen.updatedAt, 'control: V sees JAB freshness');
+    const hidden = memberIn(teams.getTeamToday(V2, TEAM, { zone: 'Europe/London' }), 'Alice');
+    assert.deepStrictEqual(hidden.gyms, []);
+    assert.ok(!('otherGym' in hidden));
+    assert.deepStrictEqual([hidden.updatedAt, hidden.stale], [null, false], 'JAB sync time leaked to a viewer without JAB');
+  } finally {
+    teams.updateMe(A, TEAM, { share: shareWith() });
+  }
 });
 check('T-3 member gym chips follow share.gyms, the member\'s link state, pause and an all-off share', () => {
   assert.deepStrictEqual(memberIn(today, 'Gymsub').gyms, [PSY], 'JAB is not in share.gyms');
-  assert.strictEqual(memberIn(today, 'Gymsub').otherGym, false);
   assert.deepStrictEqual(memberIn(today, 'Linkoff').gyms, [PSY], 'the JAB link is disabled');
-  const p = memberIn(today, 'Pausey');
-  assert.deepStrictEqual([p.gyms, p.otherGym], [[], false], 'a paused member shows no gyms');
+  assert.deepStrictEqual(memberIn(today, 'Pausey').gyms, [], 'a paused member shows no gyms');
   const allOff = { upcoming: false, waitlists: false, activity: false, recent: false, spots: false, autoBookQueue: false };
   teams.updateMe(U1, TEAM, { share: allOff });
   try {
     for (const viewer of [V, V2]) {
       const n = memberIn(teams.getTeamToday(viewer, TEAM, { zone: 'Europe/London' }), 'Upoff');
-      assert.deepStrictEqual([n.gyms, n.otherGym], [[], false], 'sharing nothing shows no gyms');
+      assert.deepStrictEqual(n.gyms, [], 'sharing nothing shows no gyms');
     }
   } finally {
     teams.updateMe(U1, TEAM, { share: shareWith({ upcoming: false }) });

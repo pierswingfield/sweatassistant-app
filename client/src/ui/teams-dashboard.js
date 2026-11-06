@@ -32,16 +32,6 @@ function storage() {
   try { return window.localStorage; } catch (_) { return null; }
 }
 
-/** One widget's body, isolated: a throw renders an inline error, never blanks the page. */
-function safely(section, fn) {
-  try {
-    fn();
-  } catch (err) {
-    console.error('[Teams] widget failed:', err && err.message);
-    section.innerHTML = `<p class="tm-muted tm-sm" role="alert">${escapeHtml(T.widgetError)}</p>`;
-  }
-}
-
 // ---- shared bits ---------------------------------------------------------------------------
 
 function timeOf(c) { return formatInZone(c.startAt, c.timeZone || deviceZone()).timeLabel; }
@@ -260,8 +250,6 @@ function memberLines(m, act, now) {
     lines.push({ text: fmt(T.inClassLine, { cls: act.inClass.className }) + (act.spotIn ? `${T.spotSep}${act.spotIn}` : '') });
   } else if (act && act.next) {
     lines.push({ text: fmt(T.nextLine, { when: whenLabel(act.next, now), cls: act.next.className }) + (act.spotNext ? `${T.spotSep}${act.spotNext}` : '') });
-  } else if (m.otherGym && !(m.gyms || []).length) {
-    lines.push({ text: T.otherGymOnly, muted: true });
   }
   if (m.stale && m.updatedAt) {
     lines.push({ text: fmt(T.updatedAgo, { ago: relativeTime(m.updatedAt, now, { now: T.timeNow, min: T.timeMin, hour: T.timeHour, yesterday: T.timeYesterday, days: T.timeDays }) }), warn: true });
@@ -278,8 +266,8 @@ export function renderMembers(section, data, now) {
 
   const memberCard = (m) => {
     const lines = memberLines(m, activity.get(m.memberRef), now);
-    const chips = (m.gyms || []).map((g) => `<span class="tm-mem-gym" title="${escapeHtml(getGymShortName(g) || '')}">${gymSquareChip(g)}</span>`).join('')
-      + (m.otherGym ? `<span class="tm-pill">${escapeHtml(T.otherGymPill)}</span>` : '');
+    // Only gyms the viewer has linked arrive here; nothing marks an unlinked one (T-3 review).
+    const chips = (m.gyms || []).map((g) => `<span class="tm-mem-gym" title="${escapeHtml(getGymShortName(g) || '')}">${gymSquareChip(g)}</span>`).join('');
     return `<button type="button" class="tm-mem-card" data-member="${escapeHtml(m.memberRef)}" aria-label="${escapeHtml(fmt(T.openMember, { name: m.isMe ? T.you : m.name }))}">
       ${avatarHtml(m, { size: 'lg', label: false })}
       <span class="tm-grow tm-min0">
@@ -359,8 +347,7 @@ export function openMemberProfile(m, data, now = Date.now()) {
       <div class="tm-muted tm-sm">${escapeHtml(lines[0] ? lines[0].text : '')}</div></div></div>
     ${upcoming.length ? `<h2 class="tm-group-title">${escapeHtml(T.profileUpcoming)}</h2><ul class="tm-list tm-plain">${upcoming.map(row).join('')}</ul>` : ''}
     ${recent.length ? `<h2 class="tm-group-title">${escapeHtml(T.profileRecent)}</h2><ul class="tm-list tm-plain">${recent.map(recentRow).join('')}</ul>` : ''}
-    ${!upcoming.length && !recent.length ? `<p class="tm-muted tm-mt">${escapeHtml(T.profileNothing)}</p>` : ''}
-    ${m.otherGym ? `<p class="tm-muted tm-xs tm-mt">${escapeHtml(T.profileHidden)}</p>` : ''}`;
+    ${!upcoming.length && !recent.length ? `<p class="tm-muted tm-mt">${escapeHtml(T.profileNothing)}</p>` : ''}`;
   return page;
 }
 

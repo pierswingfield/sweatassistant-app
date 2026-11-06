@@ -234,11 +234,13 @@ function projectTeam(input) {
       counts = { week: starts.filter((s) => s >= weekStart).length, month: starts.filter((s) => s >= monthStart).length };
     }
 
-    // Freshness: the oldest server sync among the gyms this member shares with the Team.
+    // Freshness: the oldest server sync among the gyms this member shares with the Team
+    // that the VIEWER can see (T-3 review): it describes the rows shown, and a gym the
+    // viewer hasn't linked must not surface as an "Updated 3 h ago" line either.
     let updatedAt = null;
     let stale = false;
     if (!paused && (share.upcoming || share.waitlists)) {
-      const gyms = [...enabledGyms].filter((g) => sharesGym(share, g));
+      const gyms = [...enabledGyms].filter((g) => sharesGym(share, g) && visible(g));
       const times = gyms.map((g) => {
         const st = (m.syncState || []).find((s) => s && s.gym_id === g);
         const t = st && st.last_synced_at ? Date.parse(st.last_synced_at) : NaN;
@@ -256,15 +258,13 @@ function projectTeam(input) {
     }
 
     // T-3 gym chips (§5.3 Members): the gyms this member shares with the Team that the
-    // viewer has also linked. A shared gym the viewer has NOT linked is never named; it
-    // only sets `otherGym` (the "Other gym" pill, the §4 accepted residual). Nothing
-    // when paused or when the member shares no category a gym could describe.
+    // viewer has also linked. A shared gym the viewer has NOT linked is never named or
+    // flagged (T-3 review: a per-member "other gym" flag disclosed gym membership, which
+    // the consent copy does not cover; §4 allows counts only). Nothing when paused or
+    // when the member shares no category a gym could describe.
     let gyms = [];
-    let otherGym = false;
     if (!paused && (share.upcoming || share.waitlists || share.activity || share.recent || share.autoBookQueue)) {
-      const sharedGyms = [...enabledGyms].filter((g) => sharesGym(share, g)).sort();
-      gyms = sharedGyms.filter((g) => visible(g));
-      otherGym = sharedGyms.some((g) => !visible(g));
+      gyms = [...enabledGyms].filter((g) => sharesGym(share, g) && visible(g)).sort();
     }
 
     outMembers.push({
@@ -277,7 +277,6 @@ function projectTeam(input) {
       updatedAt,
       stale,
       gyms,
-      otherGym,
     });
   }
 

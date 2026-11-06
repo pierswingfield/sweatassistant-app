@@ -26,9 +26,9 @@ const cls = (key, gymId, startAt, attendees, extra = {}) => ({
 const data = {
   team: { id: 'team1', name: 'Crew' },
   members: [
-    { memberRef: 'me', name: 'Piers', colourIndex: 0, isCaptain: true, isMe: true, counts: { week: 1, month: 2 }, gyms: ['gym-a'], otherGym: false },
+    { memberRef: 'me', name: 'Piers', colourIndex: 0, isCaptain: true, isMe: true, counts: { week: 1, month: 2 }, gyms: ['gym-a'] },
     { memberRef: 'a', name: `${EVIL}Ana`, colourIndex: 1, isCaptain: false, isMe: false, counts: { week: 3, month: 9 }, gyms: ['gym-a'], otherGym: true, stale: true, updatedAt: '2026-11-04T04:00:00Z' },
-    { memberRef: 'b', name: 'Sam', colourIndex: 2, isCaptain: false, isMe: false, counts: null, gyms: [], otherGym: false },
+    { memberRef: 'b', name: 'Sam', colourIndex: 2, isCaptain: false, isMe: false, counts: null, gyms: [], otherGym: true },
   ],
   today: { total: 3, done: 0, inProgress: 1 },
   classes: [
@@ -103,13 +103,15 @@ describe('Team dashboard widgets render escaped, from the projection only', () =
     noInjection(el);
   });
 
-  it('Members: 4 per page, sort menu, gym chips, Other gym pill, stale line, and a profile page', () => {
+  it('Members: 4 per page, sort menu, gym chips, no other-gym text even if a flag arrives, stale line, and a profile page', () => {
     const el = section();
     dash.renderMembers(el, data, NOW);
     expect(el.querySelectorAll('.tm-mem-card')).toHaveLength(3);
     expect(el.querySelectorAll('[data-sort]')).toHaveLength(3);
     const ana = [...el.querySelectorAll('.tm-mem-card')].find((c) => c.textContent.includes('Ana'));
-    expect(ana.textContent).toContain('Other gym');
+    // T-3 review: nothing marks a gym the viewer hasn't linked (the server no longer sends a flag).
+    expect(el.textContent).not.toMatch(/other gym|haven't linked/i);
+    expect(el.querySelector('.tm-pill')).toBeNull();
     expect(ana.textContent).toContain('Updated');
     expect(ana.textContent).toContain('In class now');
     expect(el.textContent).toContain('Activity not shared');
@@ -118,6 +120,7 @@ describe('Team dashboard widgets render escaped, from the projection only', () =
     const page = document.querySelector('.tm-ovl');
     expect(page).not.toBeNull();
     expect(page.querySelectorAll('.tm-li').length).toBeGreaterThanOrEqual(4);
+    expect(page.textContent).not.toMatch(/haven't linked/i);
     noInjection(page);
   });
 });

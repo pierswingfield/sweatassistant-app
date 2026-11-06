@@ -969,10 +969,8 @@ export const COPY = Object.freeze({
     youreIn: "You're in ✓", turnOnGym: 'Turn on {gym}', viewInTimetable: 'Open timetable', withTeam: 'With {names}',
     countsLine: '{week} this week · {month} in {monthName}', countsPrivate: 'Activity not shared',
     inClassLine: 'In class now · {cls}', nextLine: 'Next: {when} {cls}', updatedAgo: 'Updated {ago}',
-    otherGymPill: 'Other gym', otherGymOnly: "Trains at a gym you haven't linked",
     waitlistTag: 'waitlist', queuedTag: 'trying for it', spotSep: ' · ',
     profileUpcoming: 'Upcoming', profileRecent: 'Last 30 days', profileNothing: 'Nothing shared with you right now.',
-    profileHidden: "What they share at gyms you haven't linked stays private to them.",
     requestsWaiting: '{count} join requests waiting', widgetError: "Couldn't show this part.",
     openMember: "Open {name}'s classes",
     // Share

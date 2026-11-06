@@ -12,6 +12,7 @@ import { metadata, loadMetadata, getStudioMapInfo, pickStudioPrefs, rowGroupsFor
 import { findActiveUpgradeForBooking, findUpgradeForSeat } from './gym-isolation.js';
 import { haptic } from './haptics.js';
 import { COPY, formatCopyText } from '../copy.js';
+import { countPendingAutoBooks } from './autobook-nav.js';
 import { openPage as openNavPage, closePage as closeNavPage } from './modal-nav.js';
 import { applyBookingChrome, bookingContextEl, mountBookingContext } from './booking-chrome.js';
 import {
@@ -86,7 +87,22 @@ function focusBookingsDay(day) {
   target.focus({ preventScroll: true });
 }
 
+// T8: mobile Auto-Book bar on this page. Count is the queue's pending rows; hidden until loaded (not loaded is not zero).
+async function refreshAutoBookBar() {
+  const bar = document.getElementById('app-bookings-autobook-bar');
+  const badge = document.getElementById('app-bookings-autobook-count');
+  if (!bar || !badge) return;
+  try {
+    const n = countPendingAutoBooks(await api.getAutoBookings());
+    if (n == null) return;
+    badge.textContent = String(n);
+    badge.hidden = false;
+    bar.setAttribute('aria-label', formatCopyText(COPY.static.autoBookBarAria, { count: n }));
+  } catch (_) { /* no gym / offline: the bar still navigates, just without a count */ }
+}
+
 export async function renderBookings(day = currentRoute().bookings?.day) {
+  refreshAutoBookBar();
   const bookingsList = document.getElementById('app-bookings-list');
   const waitlistsList = document.getElementById('app-waitlists-list');
 

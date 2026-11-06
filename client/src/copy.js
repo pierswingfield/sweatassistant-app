@@ -1096,6 +1096,7 @@ export const COPY = Object.freeze({
   }),
   static: Object.freeze({
     navPrimary: 'Primary', navHome: 'Home', navTimetable: 'Timetable', navBookings: 'Bookings', navAutoBook: 'Auto-Book', navTeams: 'Teams',
+    autoBookBarAria: 'Auto-Book, {count} queued',
     navCredits: 'Credits and membership', navCreditsVisual: 'Credits', navSettings: 'Settings', headerLoading: 'Loading...',
     errorOpeningTab: 'Error opening tab: {error}', emailPlaceholder: 'name@example.com',
     linkedGymFallback: 'A linked gym',

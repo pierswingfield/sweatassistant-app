@@ -331,6 +331,13 @@
           </button>
         </div>
 
+        <button type="button" class="bk-autobook-bar" id="app-bookings-autobook-bar" data-goto-tab="auto-book">
+          <svg class="bk-autobook-icon" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M18,11a1,1,0,0,1-1,1,5,5,0,0,0-5,5,1,1,0,0,1-2,0,5,5,0,0,0-5-5,1,1,0,0,1,0-2,5,5,0,0,0,5-5,1,1,0,0,1,2,0,5,5,0,0,0,5,5A1,1,0,0,1,18,11Z"/><path d="M19,24a1,1,0,0,1-1,1,2,2,0,0,0-2,2,1,1,0,0,1-2,0,2,2,0,0,0-2-2,1,1,0,0,1,0-2,2,2,0,0,0,2-2,1,1,0,0,1,2,0,2,2,0,0,0,2,2A1,1,0,0,1,19,24Z"/><path d="M28,17a1,1,0,0,1-1,1,4,4,0,0,0-4,4,1,1,0,0,1-2,0,4,4,0,0,0-4-4,1,1,0,0,1,0-2,4,4,0,0,0,4-4,1,1,0,0,1,2,0,4,4,0,0,0,4,4A1,1,0,0,1,28,17Z"/></svg>
+          <span class="bk-autobook-label" data-copy-text="static.navAutoBook">Auto-Book</span>
+          <span class="bk-autobook-count" id="app-bookings-autobook-count" hidden></span>
+          <svg class="bk-autobook-chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 5 16 12 9 19"/></svg>
+        </button>
+
         <div class="bk-view-toolbar" id="app-bookings-toolbar">
           <div class="app-segmented bk-view-switch" id="app-bookings-view-switch" role="radiogroup" aria-label="Bookings view" data-copy-aria-label="static.bookingsViewLabel">
             <button type="button" class="app-segmented-btn active" role="radio" aria-checked="true" tabindex="0" data-bookings-view="combined" data-copy-text="static.bookingsViewCombined">Combined</button>
@@ -367,6 +374,13 @@
 
       <!-- AUTO-BOOK TAB PANEL -->
       <section id="app-panel-auto-book" class="app-tab-content" style="display: none;">
+        <div class="ab-mobile-header">
+          <button type="button" class="app-settings-back-btn ab-back-btn" id="app-autobook-back-btn">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            <span data-copy-text="static.back">Back</span>
+          </button>
+          <h3 class="ab-mobile-title" data-copy-text="static.navAutoBook">Auto-Book</h3>
+        </div>
         <!-- Global Release Countdown banner -->
         <div class="app-countdown-banner ab-banner">
           <button class="app-tab-refresh-btn" data-refresh-tab="auto-book" aria-label="Refresh auto-book queue" data-copy-aria-label="static.refreshAutobookQueue" title="Refresh" data-copy-title="static.refresh">
@@ -777,7 +791,7 @@
       <span class="app-nav-lens" aria-hidden="true"></span>
       <button class="app-nav-btn app-bottom-nav-btn active" data-tab="home" data-copy-aria-label="static.navHome">
         <svg class="app-bn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-6h4v6"/>
+          <g transform="translate(12 11.8) scale(.98)" stroke-width="1.85"><path d="M0-10c3.6 3.4 8.2 7 8.2 12.4a8.2 8.2 0 0 1-16.4 0C-8.2-3-3.6-6.6 0-10z"/><path d="M-7.6 0Q0 2.6 7.6 0"/><circle cx="-2.8" cy="4.6" r="0.8" fill="currentColor" stroke="none"/><circle cx="2.8" cy="4.6" r="0.8" fill="currentColor" stroke="none"/><path d="M-1.6 7.2q1.6 1.3 3.2 0"/></g>
         </svg>
         <span data-copy-text="static.navHome"></span>
       </button>
@@ -787,28 +801,20 @@
                 </svg>
         <span data-copy-text="static.navTimetable"></span>
       </button>
-      <button class="app-nav-btn app-bottom-nav-btn" data-tab="my-bookings" data-copy-aria-label="static.navBookings">
+      <button class="app-nav-btn app-bottom-nav-btn" data-tab="my-bookings" data-tab-group="my-bookings auto-book" data-copy-aria-label="static.navBookings">
         <svg class="app-bn-icon" viewBox="0 0 128 128" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
           <path d="M30 49c0 18.7 15.3 34 34 34s34-15.3 34-34-15.3-34-34-34-34 15.3-34 34zm60 0c0 14.3-11.7 26-26 26s-26-11.7-26-26 11.7-26 26-26 26 11.7 26 26z"/>
           <path d="M24.4 119.4C35 108.8 49 103 64 103s29 5.8 39.6 16.4l5.7-5.7C97.2 101.7 81.1 95 64 95s-33.2 6.7-45.3 18.7l5.7 5.7z"/>
         </svg>
         <span data-copy-text="static.navBookings"></span>
       </button>
-      <button class="app-nav-btn app-bottom-nav-btn" data-tab="auto-book" data-copy-aria-label="static.navAutoBook">
-        <svg class="app-bn-icon ui-brand-icon" fill="currentColor" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <g data-name="Layer 2" id="Layer_2">
-            <path d="M18,11a1,1,0,0,1-1,1,5,5,0,0,0-5,5,1,1,0,0,1-2,0,5,5,0,0,0-5-5,1,1,0,0,1,0-2,5,5,0,0,0,5-5,1,1,0,0,1,2,0,5,5,0,0,0,5,5A1,1,0,0,1,18,11Z"/>
-            <path d="M19,24a1,1,0,0,1-1,1,2,2,0,0,0-2,2,1,1,0,0,1-2,0,2,2,0,0,0-2-2,1,1,0,0,1,0-2,2,2,0,0,0,2-2,1,1,0,0,1,2,0,2,2,0,0,0,2,2A1,1,0,0,1,19,24Z"/>
-            <path d="M28,17a1,1,0,0,1-1,1,4,4,0,0,0-4,4,1,1,0,0,1-2,0,4,4,0,0,0-4-4,1,1,0,0,1,0-2,4,4,0,0,0,4-4,1,1,0,0,1,2,0,4,4,0,0,0,4,4A1,1,0,0,1,28,17Z"/>
-          </g>
-        </svg>
-        <span data-copy-text="static.navAutoBook"></span>
-      </button>
       <!-- T-1 (PLAN-teams.md §5.1): Teams replaces Credits here. Credits stays off the bottom nav even in
            debug mode (desktop nav + Home tile only), so a phone never shows seven items. -->
       <button class="app-nav-btn app-bottom-nav-btn" data-tab="teams" data-copy-aria-label="static.navTeams">
         <svg class="app-bn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="9" cy="8.5" r="3.4"/><path d="M2.8 19.5c1.1-3 3.4-4.6 6.2-4.6s5.1 1.6 6.2 4.6"/><circle cx="16.8" cy="9.6" r="2.7"/><path d="M15.6 14.3c2.6-.3 4.6 1.1 5.6 3.9"/>
+          <defs><mask id="bn-teams-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24"><rect width="24" height="24" fill="#fff"/><g transform="translate(7.9 13) scale(.86)"><path d="M0-10c3.6 3.4 8.2 7 8.2 12.4a8.2 8.2 0 0 1-16.4 0C-8.2-3-3.6-6.6 0-10z" fill="#000" stroke="#000" stroke-width="3.8"/></g></mask></defs>
+          <g mask="url(#bn-teams-mask)"><g transform="translate(16.9 10.9) scale(.8)" stroke-width="2.25"><path d="M0-10c3.6 3.4 8.2 7 8.2 12.4a8.2 8.2 0 0 1-16.4 0C-8.2-3-3.6-6.6 0-10z"/><circle cx="1" cy="3.6" r=".95" fill="currentColor" stroke="none"/><circle cx="4.6" cy="3.6" r=".95" fill="currentColor" stroke="none"/></g></g>
+          <g transform="translate(7.9 13) scale(.86)" stroke-width="2.1"><path d="M0-10c3.6 3.4 8.2 7 8.2 12.4a8.2 8.2 0 0 1-16.4 0C-8.2-3-3.6-6.6 0-10z"/><path d="M-7.6 0Q0 2.6 7.6 0"/><circle cx="-2.8" cy="4.6" r="0.85" fill="currentColor" stroke="none"/><circle cx="2.8" cy="4.6" r="0.85" fill="currentColor" stroke="none"/><path d="M-1.6 7.2q1.6 1.3 3.2 0"/></g>
         </svg>
         <span data-copy-text="static.navTeams"></span>
       </button>

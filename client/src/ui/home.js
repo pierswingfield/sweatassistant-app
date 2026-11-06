@@ -16,6 +16,7 @@ import { navigate } from '../router.js';
 import { DateTime } from 'luxon';
 import { groupBookingsByEvent, selectUpcoming } from './upcoming.js';
 import { mountBookingCard } from './bookings.js';
+import { countPendingAutoBooks } from './autobook-nav.js';
 import { formatInZone, formatOpensIn, getClassReleaseTime, zoneFor } from '../lib.js';
 import { instructorAvatar } from './tooltips.js';
 import { safeImageUrl } from './safe-url.js';
@@ -638,11 +639,7 @@ registerWidget({
   },
 });
 
-/** Pending = still in the queue (not executed), across every linked gym. */
-export function countPendingAutoBooks(rows) {
-  if (!Array.isArray(rows)) return null; // not loaded is not zero
-  return rows.filter((r) => !r.executed_at).length;
-}
+export { countPendingAutoBooks };
 
 function renderAutoBookQueue(el, count) {
   if (count === 0) return;

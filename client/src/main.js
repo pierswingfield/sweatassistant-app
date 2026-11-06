@@ -23,6 +23,7 @@ import { COPY, formatCopyText } from './copy.js';
 import { resetWindowScroll, installStaleScrollGuard } from './scroll-reset.js';
 import { syncTabScrollState } from './tab-scroll-state.js';
 import { parseTeamsPath, stashPendingInvite, consumePendingInvite, clearPendingInvite } from './ui/teams-model.js';
+import { autoBookBackAction } from './ui/autobook-nav.js';
 
 installStaleScrollGuard();
 
@@ -447,6 +448,8 @@ window.switchTab = switchTab;
 
 // The currently active tab — used by the shared pull-to-refresh dispatcher.
 let currentTabId = null;
+// T8: the tab we arrived from, so the mobile Auto-Book Back button can pop history when that was Bookings.
+let previousTabId = null;
 
 // Phase 5 motion: a directional one-shot enter (opacity + 12px translate, CSS-owned) on the panel that
 // becomes visible. Direction follows the bottom-nav order. Not played on first paint or for the same tab;
@@ -476,6 +479,7 @@ function switchTab(tabId, opts = {}) {
   // Leaving the timetable ends search: its own filter scope is dropped and the normal filters return.
   if (tabId !== 'class-timetable') import('./ui/timetable-search-state.js').then(m => { if (m.inSearchScope()) import('./ui/timetable').then(t => t.exitSearch()); });
   const prevTabId = currentTabId;
+  previousTabId = prevTabId;
   currentTabId = tabId;
   const targetPanelId = `app-panel-${tabId}`;
 
@@ -579,6 +583,13 @@ tabButtons.forEach(btn => {
     }
     switchTab(tabId);
   });
+});
+
+// T8: mobile Bookings -> Auto-Book bar, and the Auto-Book page's Back button.
+document.getElementById('app-bookings-autobook-bar')?.addEventListener('click', () => switchTab('auto-book'));
+document.getElementById('app-autobook-back-btn')?.addEventListener('click', () => {
+  if (autoBookBackAction(previousTabId) === 'history-back') history.back();
+  else switchTab('my-bookings', { history: 'replace' });
 });
 
 // --- PULL-TO-REFRESH ---

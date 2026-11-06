@@ -14,7 +14,11 @@
 # deletes the copy, alerts, and exits non-zero. NEVER copies .env / ENCRYPTION_KEY: the DB
 # holds encrypted gym credentials, and key + ciphertext must not travel together.
 #
-# ENCRYPTION (security audit part 2). The DB holds gym session tokens and (unless JWT_SECRET is
+# ENCRYPTION (2026-11-06, owner's choice): uploads go to the rclone CRYPT remote gdrive_crypt:
+# (Drive folder Backups/oracle-crypt, the same remote oracle-backup.sh uses), so Drive only ever
+# holds ciphertext. Override with BACKUP_REMOTE_BASE. A non-crypt remote with no age recipient
+# warns loudly (log + ntfy) on every run. age (below) is an optional extra layer.
+# ENCRYPTION, optional age layer (security audit part 2). The DB holds gym session tokens and (unless JWT_SECRET is
 # set in the environment) server_kv.jwt_secret, and the backup goes OFF-HOST to Google Drive. So
 # each backup can be encrypted with `age` to a PUBLIC key; only the offline private key can read it.
 # Configure with ONE of (env, or a root-only file /etc/sweatassistant-backup.env sourced below):
@@ -35,14 +39,14 @@
 #      prod .env (openssl rand -hex 32) so the signing secret is not in the DB at all (changing it logs everyone out once).
 # Restore of an encrypted backup: age -d -i <private key> FILE.db.gz.age | gunzip > app.db
 #
-# Destination: gdrive_pierswingfield:/Backups/sweatassistant-sqlite/{prod,dev}/  (rclone COPY, not
+# Destination: gdrive_crypt:/sweatassistant-sqlite/{prod,dev}/ (encrypted; was the plaintext gdrive_pierswingfield:/Backups/sweatassistant-sqlite until 2026-11-06). rclone COPY, not
 # sync — deletes never propagate; remote pruned by age). Restore: see the header of
 # Documentation/Workstreams/C1-critical-fixes.md (C1-5) or `--help`.
 set -uo pipefail
 
 NTFY_TOPIC="piers_server_backups"
 export RCLONE_CONFIG="/root/.config/rclone/rclone.conf"
-REMOTE_BASE="gdrive_pierswingfield:/Backups/sweatassistant-sqlite"
+REMOTE_BASE="${BACKUP_REMOTE_BASE:-gdrive_crypt:/sweatassistant-sqlite}"   # rclone CRYPT remote (same as oracle-backup.sh, 2026-11-06)
 ROOT="/var/backups/sweatassistant-sqlite"
 KEEP_LOCAL_DAYS=14
 KEEP_REMOTE_DAYS=30
@@ -83,9 +87,11 @@ if [ ${#AGE_ARGS[@]} -gt 0 ]; then
     log "!! WARNING: a backup recipient is configured but 'age' is not installed - backups will be UNENCRYPTED"
     notify "UNENCRYPTED" "age is not installed; backup recipient configured but ignored"
   fi
+elif rclone listremotes --long 2>/dev/null | grep -qE "^${REMOTE_BASE%%:*}:[[:space:]]+crypt\b"; then
+  log "encryption: rclone crypt remote ${REMOTE_BASE%%:*}: (no age recipient set; age is optional on top)"
 else
-  log "!! WARNING: no BACKUP_AGE_RECIPIENT(_FILE) set - this backup is UNENCRYPTED and is being copied off-host to Google Drive"
-  notify "UNENCRYPTED" "No age recipient configured: SQLite backups go to Drive unencrypted (see script header)"
+  log "!! WARNING: no BACKUP_AGE_RECIPIENT(_FILE) set and $REMOTE_BASE is not a crypt remote - this backup is UNENCRYPTED and is being copied off-host to Google Drive"
+  notify "UNENCRYPTED" "SQLite backups go to Drive unencrypted: set a crypt BACKUP_REMOTE_BASE or an age recipient (see script header)"
 fi
 DAY="$(date +%F)"; TS="$(date +%Y%m%d-%H%M%S)"
 FAILED=()
@@ -110,7 +116,7 @@ for env in prod dev; do
     rm -f "$out"; out="$out.age"
     [ -s "$out" ] || { fail "$env: encrypted file empty"; rm -f "$out"; continue; }
   fi
-  log "$env: wrote $out ($(du -h "$out" | cut -f1))$([ "$ENCRYPT" = 1 ] && echo ' [age-encrypted]' || echo ' [UNENCRYPTED]')"
+  log "$env: wrote $out ($(du -h "$out" | cut -f1))$([ "$ENCRYPT" = 1 ] && echo ' [age-encrypted]' || echo ' [no age layer]')"
   find "$dir" \( -name 'sweatassistant-*.db.gz' -o -name 'sweatassistant-*.db.gz.age' \) -mtime +$((KEEP_LOCAL_DAYS - 1)) -print -delete | sed "s/^/$env: pruned local /"
   if rclone copy "$out" "$REMOTE_BASE/$env/" --stats-one-line 2>&1; then
     log "$env: uploaded to $REMOTE_BASE/$env/"

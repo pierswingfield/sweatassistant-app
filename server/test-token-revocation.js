@@ -100,6 +100,17 @@ async function run() {
   await json('POST', '/api/account/password', ut, { currentPassword: 'sse-password-3', newPassword: 'sse-password-4' });
   assert.strictEqual(await open(`token=${ut}`), 403, 'revoked JWT rejected on the SSE legacy path');
 
+  // 7b. A ticket minted before a password change dies with the change; a user cannot hoard tickets.
+  const sign2 = await json('POST', '/api/auth/signup', null, { email: 'sse2@example.com', password: 'sse-password-5' });
+  const tkOld = await json('POST', '/api/auth/sse-ticket', sign2.body.token);
+  const chg2 = await json('POST', '/api/account/password', sign2.body.token, { currentPassword: 'sse-password-5', newPassword: 'sse-password-6' });
+  assert.strictEqual(await open(`ticket=${tkOld.body.ticket}`), 403, 'ticket minted before a password change is rejected');
+  const sign3 = await json('POST', '/api/auth/signup', null, { email: 'sse3@example.com', password: 'sse-password-7' });
+  let last;
+  for (let i = 0; i < 11; i++) last = await json('POST', '/api/auth/sse-ticket', sign3.body.token);
+  assert.strictEqual(last.status, 503, 'per-user ticket cap (10) stops one account filling the table');
+  assert.strictEqual((await json('POST', '/api/auth/sse-ticket', chg2.body.token)).status, 200, 'and does not starve other users');
+
   // 8. Login timing: an unknown email pays the same scrypt cost as a wrong password.
   const time = async (email) => { const t = process.hrtime.bigint(); await json('POST', '/api/auth/login', null, { email, password: 'whatever-123' }); return Number(process.hrtime.bigint() - t) / 1e6; };
   await time('warm@example.com');

@@ -42,9 +42,10 @@ db.setGymSession(uid, 'psycle-london', null);
 assert.strictEqual(raw(uid, 'psycle-london'), null);
 
 // --- AAD binding: the ciphertext only opens for its own purpose ------------------
-const ct = cryptoMod.encryptV2('{"accessToken":"x"}', db.SESSION_AAD);
+const aad = db.sessionAad(uid, 'psycle-london');
+const ct = cryptoMod.encryptV2('{"accessToken":"x"}', aad);
 assert.throws(() => cryptoMod.decryptV2(ct, 'some-other-context'), 'wrong AAD fails authentication');
-assert.throws(() => cryptoMod.decryptV2(ct.slice(0, -2) + '00', db.SESSION_AAD), 'tampered ciphertext fails');
+assert.throws(() => cryptoMod.decryptV2(ct.slice(0, -2) + '00', aad), 'tampered ciphertext fails');
 assert.strictEqual(cryptoMod.decrypt(cryptoMod.encrypt('legacy')), 'legacy', 'the old unversioned format still decrypts');
 
 // --- legacy plaintext rows: readable BEFORE migration, sealed by it, idempotent ----
@@ -74,16 +75,45 @@ for (const f of fs.readdirSync(__dirname).filter((n) => n.endsWith('.js') && !n.
   assert.ok(!/SELECT[^;`']*session_json[^;`']*FROM user_gyms/i.test(src), `${f} does not read session_json directly`);
 }
 
-// --- ENCRYPTION_KEY length gate ------------------------------------------------------
+// --- ENCRYPTION_KEY: weak keys WARN, never refuse (master accepted any string via sha256) ----
 const boot = (key) => spawnSync(process.execPath, ['-e', "require('./crypto')"], { cwd: __dirname, env: { ...process.env, ENCRYPTION_KEY: key }, encoding: 'utf8' });
-assert.strictEqual(boot('a'.repeat(64)).status, 0, '64 hex chars accepted');
-assert.strictEqual(boot(Buffer.alloc(32, 7).toString('base64')).status, 0, '32-byte base64 accepted');
-assert.strictEqual(boot('x'.repeat(32)).status, 0, 'raw 32-byte string accepted');
-for (const bad of ['short', 'a'.repeat(32 + 2) , 'a'.repeat(62), 'b'.repeat(66), 'not-32-bytes-at-all!']) {
-  const r = boot(bad);
-  assert.strictEqual(r.status, 1, `"${bad}" refused`);
-  assert.match(r.stderr, /exactly 32 bytes/);
+for (const good of ['a'.repeat(64), Buffer.alloc(32, 7).toString('base64'), 'x'.repeat(32)]) {
+  const r = boot(good);
+  assert.strictEqual(r.status, 0, 'strong key boots');
+  assert.ok(!/WARNING/.test(r.stderr), 'and does not warn');
 }
+for (const odd of ['short', 'a'.repeat(62), 'a correct horse battery staple passphrase', 'b'.repeat(66)]) {
+  const r = boot(odd);
+  assert.strictEqual(r.status, 0, `"${odd}" must still boot: master accepted it, so a live DB may be keyed with it`);
+  assert.match(r.stderr, /not a 32-byte secret/);
+}
+// ...and ciphertext produced by master's algorithm (sha256 of the raw string) decrypts identically.
+{
+  const nodeCrypto = require('crypto');
+  const pass = 'a correct horse battery staple passphrase';
+  const key = nodeCrypto.createHash('sha256').update(pass).digest();
+  const iv = nodeCrypto.randomBytes(12);
+  const c = nodeCrypto.createCipheriv('aes-256-gcm', key, iv);
+  const enc = c.update('gym-password', 'utf8', 'hex') + c.final('hex');
+  const legacy = `${iv.toString('hex')}:${c.getAuthTag().toString('hex')}:${enc}`;
+  const r = spawnSync(process.execPath, ['-e', `process.stdout.write(require('./crypto').decrypt(${JSON.stringify(legacy)}))`], { cwd: __dirname, env: { ...process.env, ENCRYPTION_KEY: pass }, encoding: 'utf8' });
+  assert.strictEqual(r.stdout, 'gym-password', 'master-format ciphertext decrypts under a passphrase key');
+}
+
+// --- AAD is bound to the row: a sealed session cannot be moved to another user/gym ----
+db.setGymSession(uid, 'psycle-london', { accessToken: 'ROW-A-TOKEN' });
+const sealedA = raw(uid, 'psycle-london');
+db.db.prepare('UPDATE user_gyms SET session_json = ? WHERE user_id = ?').run(sealedA, uid2);
+assert.strictEqual(db.getUserSession(uid2, 'psycle-london'), null, 'a ciphertext copied onto another account does not open');
+assert.strictEqual(db.getUserSession(uid, 'psycle-london').accessToken, 'ROW-A-TOKEN', 'and the original row is unaffected');
+
+// --- boot sealing survives a row it cannot handle ----------------------------------------
+db.db.prepare('UPDATE user_gyms SET session_json = ? WHERE user_id = ?').run('{"accessToken":"PLAIN-AGAIN"}', uid2);
+assert.doesNotThrow(() => db.migrateSessionEncryption(), 'migration never throws');
+assert.ok(raw(uid2, 'psycle-london').startsWith('s2:'), 'plaintext row sealed');
+db.db.prepare('UPDATE user_gyms SET session_json = ? WHERE user_id = ?').run('s2:garbage:not:valid', uid2);
+assert.doesNotThrow(() => db.migrateSessionEncryption(), 'an undecryptable sealed row is left alone, not fatal');
+assert.strictEqual(db.getUserSession(uid2, 'psycle-london'), null, 'and reads as no session (forces a re-login, not a crash)');
 
 // --- .ics text escaping: lone CR is normalised like CRLF ---------------------------------
 const { escapeIcsText } = require('./calendar');

@@ -17,23 +17,21 @@ if (!ENCRYPTION_KEY_RAW) {
   process.exit(1);
 }
 
-// Security audit part 2: the key must be a real 32-byte secret, not a short or
-// guessable string. Accepted encodings: 64 hex chars (`openssl rand -hex 32`),
-// base64 that decodes to 32 bytes (`openssl rand -base64 32`), or a raw 32-byte
-// string. The AES key is still sha256(raw string) — NOT the decoded bytes — so
-// every ciphertext already in a live DB keeps decrypting. This only refuses weak keys.
+// Security audit part 2: advise on weak keys, but NEVER refuse to start over one. The AES key is
+// sha256(raw string) of ANY string (that is how master has always read it), so a live DB whose
+// ENCRYPTION_KEY is a passphrase decrypts fine and must keep booting; exiting here would take
+// prod down for a key that works. Recommended: 64 hex chars (`openssl rand -hex 32`), or 32-byte
+// base64. Never change the key on a live DB: that is what makes ciphertext unreadable.
 function decodedKeyLength(raw) {
   if (/^[0-9a-fA-F]+$/.test(raw) && raw.length % 2 === 0) return raw.length / 2;
   if (/^[A-Za-z0-9+/]+={0,2}$/.test(raw) && raw.length % 4 === 0) return Buffer.from(raw, 'base64').length;
   return Buffer.byteLength(raw, 'utf8');
 }
 function keyLengthOk(raw) {
-  if (decodedKeyLength(raw) === 32) return true;
-  return Buffer.byteLength(raw, 'utf8') === 32; // raw 32-byte string that happens to look like hex/base64
+  return decodedKeyLength(raw) === 32 || Buffer.byteLength(raw, 'utf8') === 32;
 }
 if (!keyLengthOk(ENCRYPTION_KEY_RAW)) {
-  console.error(`[crypto] FATAL: ENCRYPTION_KEY must decode to exactly 32 bytes (64 hex chars, or 32-byte base64, or a 32-byte string); got ${decodedKeyLength(ENCRYPTION_KEY_RAW)} bytes. Generate one with: openssl rand -hex 32. Refusing to start.`);
-  process.exit(1);
+  console.warn(`[crypto] WARNING: ENCRYPTION_KEY is not a 32-byte secret (got ${decodedKeyLength(ENCRYPTION_KEY_RAW)} bytes); it still works, but a short or guessable key is weak. Do NOT rotate it on a live DB; use \`openssl rand -hex 32\` for new deployments.`);
 }
 
 function getEncryptionKey() {

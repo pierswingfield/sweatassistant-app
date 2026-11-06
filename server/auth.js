@@ -218,14 +218,18 @@ function authenticateToken(req, res, next) {
 // live status line across the deploy; remove it next release.
 const SSE_TICKET_TTL_MS = 60 * 1000;
 const SSE_TICKET_MAX = 5000;
+const SSE_TICKET_PER_USER = 10; // a user cannot exhaust the global cap and starve everyone else
 const sseTickets = new Map(); // ticket -> { userId, email, gymId, expiresAt }
 
 function mintSseTicket(req) {
   const now = Date.now();
   for (const [t, v] of sseTickets) if (v.expiresAt <= now) sseTickets.delete(t);
   if (sseTickets.size >= SSE_TICKET_MAX) return null;
+  let mine = 0;
+  for (const v of sseTickets.values()) if (v.userId === req.userId) mine++;
+  if (mine >= SSE_TICKET_PER_USER) return null;
   const ticket = crypto.randomBytes(32).toString('base64url');
-  sseTickets.set(ticket, { userId: req.userId, email: req.email, gymId: req.headers['x-gym-id'] || null, expiresAt: now + SSE_TICKET_TTL_MS });
+  sseTickets.set(ticket, { userId: req.userId, email: req.email, gymId: req.headers['x-gym-id'] || null, tv: db.getTokenVersion(req.userId), expiresAt: now + SSE_TICKET_TTL_MS });
   return { ticket, expiresInSec: SSE_TICKET_TTL_MS / 1000 };
 }
 
@@ -234,7 +238,8 @@ function redeemSseTicket(ticket) {
   if (!entry) return null;
   sseTickets.delete(String(ticket)); // single use, valid or not
   if (entry.expiresAt <= Date.now()) return null;
-  if (db.getTokenVersion(entry.userId) === null) return null; // account deleted since
+  const current = db.getTokenVersion(entry.userId);
+  if (current === null || current !== entry.tv) return null; // account deleted, or password changed/reset since minting
   return entry;
 }
 

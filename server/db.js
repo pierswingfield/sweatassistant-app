@@ -450,31 +450,44 @@ if (!db.prepare('PRAGMA table_info(users)').all().some((col) => col.name === 'to
 // plaintext value is JSON and starts with `{`, so the two are told apart by the
 // prefix and BOTH read fine. Every writer goes through upsertUserGym -> sealSession
 // and every reader through openSession, so nothing else needs to know the format.
-const SESSION_AAD = 'dibs:user_gyms.session_json:v2';
-function sealSession(value) {
+// AAD binds each ciphertext to its (user_id, gym_id) row, both immutable for the life
+// of a link, so a sealed value copied onto another row fails authentication.
+const sessionAad = (userId, gymId) => `dibs:user_gyms.session_json:v3:${userId}:${gymId}`;
+function sealSession(value, userId, gymId) {
   if (value == null || value === '') return null;
-  return isV2(value) ? value : encryptV2(value, SESSION_AAD);
+  return isV2(value) ? value : encryptV2(value, sessionAad(userId, gymId));
 }
 /** Plaintext JSON string for a stored value (legacy plaintext passes through); null if unreadable. */
-function openSession(stored) {
+function openSession(stored, userId, gymId) {
   if (!stored) return null;
   if (!isV2(stored)) return stored;
-  try { return decryptV2(stored, SESSION_AAD); } catch (_) { return null; }
+  try { return decryptV2(stored, sessionAad(userId, gymId)); } catch (_) { return null; }
 }
 function withOpenSession(row) {
-  return row ? { ...row, session_json: openSession(row.session_json) } : row;
+  return row ? { ...row, session_json: openSession(row.session_json, row.user_id, row.gym_id) } : row;
 }
-/** Idempotent: seals every plaintext session_json row; clears the vestigial plaintext users.jwt copy. */
+/**
+ * Idempotent: seals every plaintext session_json row; clears the vestigial plaintext users.jwt copy.
+ * Never throws: a row that cannot be sealed is logged and skipped (it keeps reading as legacy
+ * plaintext), so a bad row can never stop the server booting.
+ */
 function migrateSessionEncryption() {
-  const rows = db.prepare("SELECT id, session_json FROM user_gyms WHERE session_json IS NOT NULL AND session_json != '' AND session_json NOT LIKE 's2:%'").all();
-  const upd = db.prepare('UPDATE user_gyms SET session_json = ? WHERE id = ?');
-  const tx = db.transaction(() => {
-    for (const r of rows) upd.run(sealSession(r.session_json), r.id);
-    // users.jwt was a dual-written plaintext copy of the active gym token; nothing reads it.
-    db.prepare('UPDATE users SET jwt = NULL WHERE jwt IS NOT NULL').run();
-  });
-  tx();
-  return rows.length;
+  let sealed = 0;
+  try {
+    const rows = db.prepare("SELECT id, user_id, gym_id, session_json FROM user_gyms WHERE session_json IS NOT NULL AND session_json != '' AND session_json NOT LIKE 's2:%'").all();
+    const upd = db.prepare('UPDATE user_gyms SET session_json = ? WHERE id = ?');
+    db.transaction(() => {
+      for (const r of rows) {
+        try { upd.run(sealSession(r.session_json, r.user_id, r.gym_id), r.id); sealed++; }
+        catch (err) { console.error(`[db] session_json sealing skipped for user_gyms.id=${r.id}: ${err.message}`); }
+      }
+      // users.jwt was a dual-written plaintext copy of the active gym token; nothing reads it.
+      db.prepare('UPDATE users SET jwt = NULL WHERE jwt IS NOT NULL').run();
+    })();
+  } catch (err) {
+    console.error(`[db] session_json sealing pass failed (continuing to boot): ${err.message}`);
+  }
+  return sealed;
 }
 migrateSessionEncryption();
 
@@ -958,7 +971,7 @@ function mergeUserWithGym(user, gymId) {
   if (!user) return null;
   const ug = db.prepare('SELECT * FROM user_gyms WHERE user_id = ? AND gym_id = ?').get(user.id, gymId);
   let session = null;
-  if (ug && ug.session_json) { try { session = JSON.parse(openSession(ug.session_json)); } catch (_) {} }
+  if (ug && ug.session_json) { try { session = JSON.parse(openSession(ug.session_json, user.id, gymId)); } catch (_) {} }
   return {
     ...user,
     // `|| null` so the vestigial empty-string placeholder a gym-less account
@@ -1011,7 +1024,7 @@ module.exports = {
   // Direct access if needed
   db,
   migrateSessionEncryption, // boot migration, exported for its test
-  SESSION_AAD,
+  sessionAad,
   migrateAutoUpgradeSettingsScope,
   migrateCalendarSettingsToAccountScope,
 
@@ -1868,7 +1881,7 @@ module.exports = {
         'SELECT display_name, priority, profile_synced_at, session_json FROM user_gyms WHERE user_id = ? AND gym_id = ?'
       ).get(r.id, gymId);
       let jwtExpiresAt = null;
-      if (ug && ug.session_json) { try { jwtExpiresAt = JSON.parse(openSession(ug.session_json)).expiresAt || null; } catch (_) {} }
+      if (ug && ug.session_json) { try { jwtExpiresAt = JSON.parse(openSession(ug.session_json, r.id, gymId)).expiresAt || null; } catch (_) {} }
       return {
         id: r.id,
         email: r.email,
@@ -1905,7 +1918,7 @@ module.exports = {
     if (!base) return null;
     const ug = db.prepare('SELECT * FROM user_gyms WHERE user_id = ? AND gym_id = ?').get(userId, gymId);
     let jwtExpiresAt = null;
-    if (ug && ug.session_json) { try { jwtExpiresAt = JSON.parse(openSession(ug.session_json)).expiresAt || null; } catch (_) {} }
+    if (ug && ug.session_json) { try { jwtExpiresAt = JSON.parse(openSession(ug.session_json, userId, gymId)).expiresAt || null; } catch (_) {} }
     const user = {
       ...base,
       display_name: ug ? ug.display_name : null,
@@ -2280,7 +2293,7 @@ module.exports = {
         profile_synced_at = excluded.profile_synced_at, calendar_token = excluded.calendar_token,
         priority = excluded.priority, status = excluded.status,
         last_authenticated_at = excluded.last_authenticated_at, updated_at = CURRENT_TIMESTAMP
-    `).run(userId, gymId, merged.gym_email, merged.encrypted_password, sealSession(merged.session_json), merged.display_name,
+    `).run(userId, gymId, merged.gym_email, merged.encrypted_password, sealSession(merged.session_json, userId, gymId), merged.display_name,
       merged.profile_json, merged.profile_synced_at, merged.calendar_token, merged.priority, merged.status,
       merged.last_authenticated_at);
   },

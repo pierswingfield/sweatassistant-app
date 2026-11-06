@@ -11,6 +11,7 @@
 // Everything interpolated goes through the injected escapeHtml.
 
 import { todayLineSegments, segmentsText } from './teams-today.js';
+import { teamAvatarHtml } from './team-avatar.js';
 
 const glyph = (paths) => `<svg class="tcard-glyph" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 
@@ -67,7 +68,7 @@ export function teamCardModel(team, { when, copy, gymName = () => '', memberCoun
 
 /** The plain-text summary read by assistive tech for the whole card link. */
 export function teamCardAria(m, copy, fmt) {
-  const parts = [fmt(copy.cardOpenAria, { name: m.emoji ? `${m.emoji} ${m.name}` : m.name }), m.countLabel];
+  const parts = [fmt(copy.cardOpenAria, { name: m.name }), m.countLabel];
   if (m.isCaptain) parts.push(copy.captain);
   if (m.activityText) parts.push(m.activityText);
   if (m.next) parts.push(`${copy.cardNextClass}: ${m.next.text}`);
@@ -75,13 +76,12 @@ export function teamCardAria(m, copy, fmt) {
 }
 
 /**
- * Markup. `ui` = { escapeHtml, mascotHtml, avatarStackHtml, segmentsHtml, copy, fmt }.
+ * Markup. `ui` = { escapeHtml, mascotHtml, avatarStackHtml, segmentsHtml, copy, fmt }. The Team's
+ * identity is the shared Team avatar (T10): name alone, emoji on the avatar's badge.
  * `extras` is raw HTML for sibling controls (already escaped by the caller).
  */
-export function teamCardHtml(m, ui, { size = 72, compact = false, extras = '', attr = 'data-open-team' } = {}) {
+export function teamCardHtml(m, ui, { compact = false, extras = '', attr = 'data-open-team' } = {}) {
   const { escapeHtml, mascotHtml, avatarStackHtml, segmentsHtml, copy, fmt } = ui;
-  const title = m.emoji ? `${m.emoji} ${m.name}` : m.name;
-  const mascotAlt = '';
   const meta = `${avatarStackHtml(m.avatars, { max: 4 })}<span class="tcard-count">${escapeHtml(m.countLabel)}</span>${m.isCaptain
     ? `<span class="tcard-role">${CARD_GLYPHS.captain}<span>${escapeHtml(copy.captain)}</span></span>` : ''}`;
   const activityGlyph = m.paused ? CARD_GLYPHS.hidden : CARD_GLYPHS.activity;
@@ -90,9 +90,9 @@ export function teamCardHtml(m, ui, { size = 72, compact = false, extras = '', a
   return `<article class="tcard${m.paused ? ' is-paused' : ''}${compact ? ' is-compact' : ''}" data-team="${escapeHtml(m.id)}">
     <a class="tcard-link" href="/teams/${encodeURIComponent(m.id)}" ${attr}="${escapeHtml(m.id)}" aria-label="${escapeHtml(teamCardAria(m, copy, fmt))}">
       <span class="tcard-head">
-        ${mascotHtml({ size, dim: m.paused, alt: mascotAlt, mascot: m.mascot })}
+        ${teamAvatarHtml({ emoji: m.emoji, size: 'sm', dim: m.paused, mascot: m.mascot }, { mascotHtml })}
         <span class="tcard-id">
-          <span class="tcard-name">${escapeHtml(title)}</span>
+          <span class="tcard-name">${escapeHtml(m.name)}</span>
           <span class="tcard-meta">${meta}</span>
         </span>
       </span>

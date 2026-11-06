@@ -26,8 +26,15 @@ describe('Teams markup escapes every user-supplied string', () => {
     expect(html).toContain('tm-av-c5');
     expect(html).toContain('aria-label="&lt;img src=x onerror=1&gt; Bob"');
   });
-  it('team titles', () => {
-    expect(ui.teamTitleHtml({ name: '"><script>x</script>', emoji: '🚲' })).toBe('🚲 &quot;&gt;&lt;script&gt;x&lt;/script&gt;');
+  it('team titles: the name alone, escaped (T10: the emoji lives on the Team avatar)', () => {
+    expect(ui.teamTitleHtml({ name: '"><script>x</script>', emoji: '🚲' })).toBe('&quot;&gt;&lt;script&gt;x&lt;/script&gt;');
+    expect(ui.teamTitleText({ name: 'Riders', emoji: '🚲' })).toBe('Riders');
+  });
+  it('Team avatar: emoji in its badge, escaped', () => {
+    const html = ui.teamAvatar({ emoji: '<i>', size: 'lg' });
+    expect(html).toContain('tm-tav tm-tav-lg');
+    expect(html).toContain('&lt;i&gt;');
+    expect(html).toContain('tm-mascot');
   });
 });
 

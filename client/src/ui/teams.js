@@ -12,11 +12,11 @@ import { pitchHtml } from './teams-pitch.js';
 import { getGymShortName } from '../gym-context.js';
 import {
   orderTeams, canOfferPin, canTogglePin, pinsUsed,
-  validateTeamName, validateEmoji, defaultShare, consumePendingInvite, TEAMS_HOME_PATH,
+  consumePendingInvite, TEAMS_HOME_PATH,
 } from './teams-model.js';
 import {
-  T, fmt, avatarStackHtml, mascotHtml, teamTitleHtml, teamTitleText, memberCountLabel, ICONS,
-  errorText, pauseWhen, openTeamsPage, setFooter, shareInvite, renderSharingSheet, whenOf, segmentsHtml,
+  T, fmt, avatarStackHtml, mascotHtml, teamAvatar, teamTitleHtml, memberCountLabel, ICONS,
+  errorText, pauseWhen, shareInvite, whenOf, segmentsHtml,
 } from './teams-ui.js';
 
 let renderSeq = 0;
@@ -109,7 +109,7 @@ async function renderList(el, { stale }) {
     const until = t.pausedUntil ? pauseWhen(t.pausedUntil) : null;
     const untilHtml = t.paused ? `<br><span class="tm-muted tm-xs">${escapeHtml(until ? fmt(T.hiddenUntil, { when: until }) : T.hiddenIndefinite)}</span>` : '';
     const hidden = t.paused ? `<div class="tm-hidden-banner">${ICONS.hidden}<span class="tm-grow"><b>${escapeHtml(T.hiddenFromTeam)}</b>${untilHtml}</span><button type="button" class="tm-btn tm-btn-sm" data-unhide="${escapeHtml(t.id)}">${escapeHtml(T.unhide)}</button></div>` : '';
-    return teamCardHtml(m, cardUi, { size: 76, extras: `${pinControl}${hidden}` });
+    return teamCardHtml(m, cardUi, { extras: `${pinControl}${hidden}` });
   };
   const pinned = ordered.filter((t) => t.pinned);
   const rest = ordered.filter((t) => !t.pinned);
@@ -156,95 +156,14 @@ function renderEmpty(el) {
   el.querySelector('[data-create]').addEventListener('click', () => openCreateFlow());
 }
 
-// ---- Create (§5.6 step 1) ----------------------------------------------------------------------
+// ---- Create (§5.6 step 1; T10 guided flow in teams-create.js) --------------------------------
 
-function nameError(code) {
-  return code === 'tooLong' ? T.nameTooLong : code === 'angle' ? T.nameAngle : T.nameRequired;
-}
-
-export function openCreateFlow() {
-  const page = openTeamsPage({ id: 'teams-create', title: T.createTitle });
-  let draft = { name: '', emoji: '', share: defaultShare() };
-
-  const stepName = () => {
-    page.setTitle(T.createTitle);
-    page.body.innerHTML = `
-      <div class="tm-form">
-        <label class="tm-field"><span class="tm-field-label">${escapeHtml(T.nameLabel)}</span>
-          <input type="text" class="tm-input" name="teamName" maxlength="40" autocomplete="off" placeholder="${escapeHtml(T.namePlaceholder)}">
-          <span class="tm-field-help">${escapeHtml(T.nameHelp)}</span></label>
-        <label class="tm-field"><span class="tm-field-label">${escapeHtml(T.emojiLabel)}</span>
-          <input type="text" class="tm-input tm-input-emoji" name="teamEmoji" maxlength="16" autocomplete="off" placeholder="${escapeHtml(T.emojiPlaceholder)}">
-          <span class="tm-field-help">${escapeHtml(T.emojiHelp)}</span></label>
-        <p class="tm-field-error" role="alert" hidden></p>
-      </div>`;
-    const nameInput = page.body.querySelector('[name="teamName"]');
-    const emojiInput = page.body.querySelector('[name="teamEmoji"]');
-    const errEl = page.body.querySelector('.tm-field-error');
-    nameInput.value = draft.name;
-    emojiInput.value = draft.emoji;
-    const next = () => {
-      const n = validateTeamName(nameInput.value);
-      const em = validateEmoji(emojiInput.value);
-      if (!n.ok || !em.ok) {
-        errEl.textContent = !n.ok ? nameError(n.error) : T.emojiInvalid;
-        errEl.hidden = false;
-        (!n.ok ? nameInput : emojiInput).focus();
-        return;
-      }
-      draft = { ...draft, name: n.value, emoji: em.value || '' };
-      stepShare();
-    };
-    nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); next(); } });
-    emojiInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); next(); } });
-    setFooter(page, [{ label: T.continue, kind: 'primary', onClick: next }]);
-    setTimeout(() => nameInput.focus({ preventScroll: true }), 60);
-  };
-
-  const stepShare = () => {
-    const teamLike = { name: draft.name, emoji: draft.emoji };
-    page.setTitle(T.yourSharing);
-    page.body.innerHTML = `<h2 class="tm-group-title">${escapeHtml(fmt(T.sharingWith, { name: teamTitleText(teamLike) }))}</h2><p class="tm-group-help">${escapeHtml(T.sharingHelpCreate)}</p><div class="tm-sheet"></div>`;
-    const sheet = renderSharingSheet(page.body.querySelector('.tm-sheet'), { share: draft.share, onChange: (s) => { draft.share = s; } });
-    const [backBtn, createBtn] = setFooter(page, [
-      { label: T.backStep, kind: 'ghost', onClick: () => stepName() },
-      {
-        label: T.createAction,
-        kind: 'primary',
-        onClick: async (btn) => {
-          btn.disabled = true;
-          backBtn.disabled = true;
-          btn.textContent = T.creating;
-          try {
-            const res = await teamsApi.create({ name: draft.name, emoji: draft.emoji || null, share: sheet.getShare() });
-            stepDone(res);
-          } catch (err) {
-            btn.disabled = false;
-            backBtn.disabled = false;
-            btn.textContent = T.createAction;
-            showToast(errorText(err), 'error');
-          }
-        },
-      },
-    ]);
-    void createBtn;
-  };
-
-  const stepDone = ({ team, inviteToken }) => {
-    page.setTitle(teamTitleText(team));
-    page.body.innerHTML = `<div class="tm-center-hero">
-      ${mascotHtml({ size: 132, pose: 'warming', alt: T.mascotAlt })}
-      <h2 class="tm-hero-title">${escapeHtml(fmt(T.createdTitle, { name: teamTitleText(team) }))}</h2>
-      <p class="tm-muted">${escapeHtml(T.createdBody)}</p>
-    </div>`;
-    setFooter(page, [
-      { label: T.share, kind: 'ghost', onClick: () => shareInvite(team, { url: inviteToken }) },
-      { label: T.openTeam, kind: 'primary', onClick: () => page.closeThen(() => goTeams({ view: 'team', teamId: team.id })) },
-    ]);
-    if (currentRoute().teams?.view === 'list') initTeams();
-  };
-
-  stepName();
+export async function openCreateFlow() {
+  const { openCreateTeamFlow } = await import('./teams-create.js');
+  return openCreateTeamFlow({
+    onCreated: () => { if (currentRoute().teams?.view === 'list') initTeams(); },
+    onGoToTeam: (team) => goTeams({ view: 'team', teamId: team.id }),
+  });
 }
 
 // ---- Team dashboard (§5.3; T-3 widgets in teams-dashboard.js) ----------------------------------
@@ -299,7 +218,7 @@ async function renderTeamPage(el, teamId, { stale }) {
     <div class="tm-dash">
       <div class="tm-dash-col">
         <section class="tm-card tm-hero">
-          ${mascotHtml({ size: 108, dim: data.paused, alt: mascotAlt, mascot: data.mascot || null })}
+          ${teamAvatar({ emoji: team.emoji, size: 'lg', dim: data.paused, alt: mascotAlt, mascot: data.mascot || null })}
           <div class="tm-grow tm-min0">
             <h1 class="tm-hero-title">${teamTitleHtml(team)}</h1>
             ${hero.state ? `<p class="tm-hero-state">${escapeHtml(hero.state)}</p>` : ''}

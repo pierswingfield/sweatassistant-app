@@ -2,9 +2,12 @@
 // Every user- or Team-supplied string goes through escapeHtml (AGENTS.md); copy lives in
 // copy.js (COPY.teams). Pages are modal-nav full-screen pages on mobile (DESIGN.md §6.2.1).
 
-import { COPY, formatCopyText, appCopy } from '../copy.js';
+import { COPY, formatCopyText } from '../copy.js';
+import { appConfig } from '../config.js';
+import { inviteSharePayload, inviteClipboardText } from './teams-create-model.js';
 import { escapeHtml, gymSquareChip } from './cards.js';
 import { openPage, closePage } from './modal-nav.js';
+import { teamAvatarHtml } from './team-avatar.js';
 import { getAllLinkedGyms, getGymShortName } from '../gym-context.js';
 import { showToast } from '../main.js';
 import { teamsApi } from '../teams-api.js';
@@ -79,12 +82,19 @@ export function segmentsHtml(segs) {
   }).join('');
 }
 
-/** "🚲 Tuesday Riders" with both parts escaped. */
+/**
+ * A Team's display name: the name ALONE (T10). The emoji is never concatenated onto it; it
+ * lives in the Team avatar (team-avatar.js). Only the invite share text names both.
+ */
 export function teamTitleText(team) {
-  const name = String(team?.name ?? '');
-  return team?.emoji ? `${team.emoji} ${name}` : name;
+  return String(team?.name ?? '');
 }
 export const teamTitleHtml = (team) => escapeHtml(teamTitleText(team));
+
+/** The shared Team avatar (team-avatar.js) wired to this module's mascot. */
+export function teamAvatar(opts = {}) {
+  return teamAvatarHtml(opts, { mascotHtml });
+}
 
 export function memberCountLabel(n) {
   const count = Number(n) || 0;
@@ -301,14 +311,16 @@ export async function shareInvite(team, { url: knownUrl = null } = {}) {
   }
   const link = inviteUrlOn(window.location.origin, url);
   if (!link) { showToast(T.shareFailed, 'error'); return; }
-  const name = teamTitleText(team);
-  const payload = { title: appCopy(T.shareTitle, { name }), text: appCopy(T.shareText, { name }), url: link };
+  // "You're invited to <app>! Join my Team 🏃 Run Club." Plain text for the share sheet.
+  const payload = inviteSharePayload(team, {
+    url: link, appName: appConfig.appName, textTemplate: T.shareText, titleTemplate: T.shareTitle, format: formatCopyText,
+  });
   if (navigator.share && (!navigator.canShare || navigator.canShare(payload))) {
     try { await navigator.share(payload); return; } catch (err) { if (err && err.name === 'AbortError') return; }
   }
   try {
-    await navigator.clipboard.writeText(link);
-    showToast(T.linkCopied, 'success');
+    await navigator.clipboard.writeText(inviteClipboardText(payload));
+    showToast(T.inviteCopied, 'success');
     return;
   } catch (_) { /* clipboard blocked: show it */ }
   const page = openTeamsPage({ title: T.linkLabel });
@@ -352,11 +364,14 @@ export function renderSharingSheet(container, { share, onChange = null, competit
   const gymChips = () => {
     if (!linked.length) return `<span class="tm-muted tm-xs">${escapeHtml(T.noGymsLinked)}</span>`;
     const all = state.gyms === 'all';
-    return linked.map((g) => {
+    // T10: selected = accent-tinted glass card with a filled check badge; unselected = muted
+    // outline with an empty badge and a desaturated logo. "All my gyms" shows every card
+    // selected and locked (gyms linked later join automatically).
+    return `<div class="tm-gymcards">${linked.map((g) => {
       const on = all || (Array.isArray(state.gyms) && state.gyms.includes(g));
       const name = getGymShortName(g) || g;
-      return `<button type="button" class="tm-chip${on ? ' is-on' : ''}" data-gym="${escapeHtml(g)}" aria-pressed="${on}" ${all ? 'disabled' : ''}>${gymSquareChip(g)}<span>${escapeHtml(name)}</span></button>`;
-    }).join('') + (all ? `<span class="tm-muted tm-xs tm-chip-note">${escapeHtml(T.gymsLater)}</span>` : '');
+      return `<button type="button" class="tm-gymcard${on ? ' is-on' : ''}${all ? ' is-locked' : ''}" data-gym="${escapeHtml(g)}" aria-pressed="${on}" ${all ? 'disabled' : ''}><span class="tm-gymcard-logo">${gymSquareChip(g)}</span><span class="tm-gymcard-name">${escapeHtml(name)}</span><span class="tm-gymcard-check" aria-hidden="true">${ICONS.check}</span></button>`;
+    }).join('')}</div>${all ? `<span class="tm-muted tm-xs tm-chip-note">${escapeHtml(T.gymsLater)}</span>` : ''}`;
   };
 
   const paint = () => {
@@ -365,7 +380,8 @@ export function renderSharingSheet(container, { share, onChange = null, competit
       <div class="tm-list">
         <div class="tm-sw-row tm-sw-wrap">
           <div class="tm-grow"><div class="tm-t">${escapeHtml(T.gyms)}</div><div class="tm-d">${escapeHtml(T.gymsDesc)}</div></div>
-          <span class="tm-seg" role="group" aria-label="${escapeHtml(T.gyms)}">
+          <span class="tm-seg tm-seg-strong tm-seg-full" role="group" aria-label="${escapeHtml(T.gyms)}" data-mode="${all ? 'all' : 'choose'}">
+            <span class="tm-seg-thumb" aria-hidden="true"></span>
             <button type="button" data-gyms-mode="all" aria-pressed="${all}" class="${all ? 'is-on' : ''}">${escapeHtml(T.allMyGyms)}</button>
             <button type="button" data-gyms-mode="choose" aria-pressed="${!all}" class="${!all ? 'is-on' : ''}">${escapeHtml(T.choose)}</button>
           </span>

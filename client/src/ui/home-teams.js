@@ -24,7 +24,7 @@ export function renderHomeTeams(el, rows, { ui, onOpen }) {
   const { T, fmt, mascotHtml, avatarStackHtml, segmentsHtml, escapeHtml } = ui;
   const list = document.createElement('div');
   list.className = 'home-teams-list';
-  list.innerHTML = rows.map((r) => teamCardHtml(r, { escapeHtml, mascotHtml, avatarStackHtml, segmentsHtml, copy: T, fmt }, { size: 64, compact: true, attr: 'data-home-team' })).join('');
+  list.innerHTML = rows.map((r) => teamCardHtml(r, { escapeHtml, mascotHtml, avatarStackHtml, segmentsHtml, copy: T, fmt }, { compact: true, attr: 'data-home-team' })).join('');
   list.querySelectorAll('[data-home-team]').forEach((a) => a.addEventListener('click', (e) => {
     e.preventDefault();
     onOpen(a.getAttribute('data-home-team'));

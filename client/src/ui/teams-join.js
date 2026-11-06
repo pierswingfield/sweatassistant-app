@@ -9,7 +9,7 @@ import { teamsApi } from '../teams-api.js';
 import { escapeHtml } from './cards.js';
 import { showToast } from '../main.js';
 import { invitePageState, defaultShare, resolveMemberTeamId } from './teams-model.js';
-import { T, fmt, mascotHtml, teamTitleText, ICONS, errorText, renderSharingSheet } from './teams-ui.js';
+import { T, fmt, teamAvatar, teamTitleText, ICONS, errorText, renderSharingSheet } from './teams-ui.js';
 import { goTeams } from './teams.js';
 
 function shell(el, { title = T.inviteTitle, hero = '', below = '', actions = [] }) {
@@ -28,7 +28,7 @@ function shell(el, { title = T.inviteTitle, hero = '', below = '', actions = [] 
 
 function heroHtml(preview, { kicker = '', heading, body = '', dim = false, extra = '' }) {
   return `<div class="tm-center-hero">
-    ${mascotHtml({ size: 132, pose: dim ? 'resting' : 'warming', dim, alt: T.mascotAlt })}
+    ${teamAvatar({ emoji: preview && preview.emoji, size: 'hero', pose: dim ? 'resting' : 'warming', dim, alt: T.mascotAlt })}
     ${kicker ? `<p class="tm-kicker">${escapeHtml(kicker)}</p>` : ''}
     ${heading ? `<h1 class="tm-hero-title">${escapeHtml(heading)}</h1>` : ''}
     ${extra}

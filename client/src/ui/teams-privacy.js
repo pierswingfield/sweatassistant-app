@@ -8,7 +8,7 @@ import { showToast } from '../main.js';
 import { getGymShortName } from '../gym-context.js';
 import { shareChips } from './teams-model.js';
 import {
-  T, fmt, mascotHtml, teamTitleText, memberCountLabel, ICONS, errorText, pauseWhenShort, openTeamsPage, setFooter, confirmPage, renderSharingSheet, leaveBodyText,
+  T, fmt, teamAvatar, teamTitleText, memberCountLabel, ICONS, errorText, pauseWhenShort, openTeamsPage, setFooter, confirmPage, renderSharingSheet, leaveBodyText,
 } from './teams-ui.js';
 
 const CHIP_LABEL = { upcoming: 'chipUpcoming', waitlists: 'chipWaitlists', activity: 'chipActivity', recent: 'chipRecent', spots: 'chipSpots', autoBookQueue: 'chipAutoBookQueue' };
@@ -51,7 +51,7 @@ export async function renderPrivacyPane() {
       const when = t.paused ? pauseWhenShort(t.pausedUntil) : null;
       const members = memberCountLabel(t.memberCount);
       return `<section class="tm-card tm-priv-team" data-team="${escapeHtml(t.id)}">
-        <div class="tm-row">${mascotHtml({ size: 44, dim: t.paused })}
+        <div class="tm-row">${teamAvatar({ emoji: t.emoji, size: 'sm', dim: t.paused })}
           <div class="tm-grow tm-min0"><div class="tm-card-sub tm-ellip">${escapeHtml(teamTitleText(t))}</div><div class="tm-muted tm-sm">${escapeHtml(roleOf.get(t.id) === 'captain' ? fmt(T.privacyMembersCaptain, { members }) : members)}</div></div>
           ${t.paused ? `<span class="tm-pill tm-pill-warn">${escapeHtml(when ? fmt(T.hiddenPill, { when }) : T.hiddenPillIndefinite)}</span>` : `<span class="tm-pill tm-pill-success">${escapeHtml(T.visible)}</span>`}
         </div>

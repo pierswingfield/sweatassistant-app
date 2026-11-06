@@ -344,7 +344,11 @@ function getTeamToday(userId, teamId, { zone } = {}) {
   const { team, me } = requireMember(userId, teamId);
   const p = projectionsFor(userId, [team.id], { zone: viewerZone(userId, zone), includeDetail: true }).get(team.id);
   const { soonestAt, teamId: _t, ...rest } = p;
-  return { team: teamSummary(team), myRole: me.is_captain === 1 ? 'captain' : 'member', ...myState(me), ...rest };
+  const out = { team: teamSummary(team), myRole: me.is_captain === 1 ? 'captain' : 'member', ...myState(me), ...rest };
+  // T-3: Captains see the waiting-request count on the dashboard's Manage button (the
+  // requests themselves stay in Manage, §5.7). Members never receive the key.
+  if (me.is_captain === 1) out.pendingRequestCount = pendingCount(team.id);
+  return out;
 }
 
 /**

@@ -255,6 +255,18 @@ function projectTeam(input) {
       }
     }
 
+    // T-3 gym chips (§5.3 Members): the gyms this member shares with the Team that the
+    // viewer has also linked. A shared gym the viewer has NOT linked is never named; it
+    // only sets `otherGym` (the "Other gym" pill, the §4 accepted residual). Nothing
+    // when paused or when the member shares no category a gym could describe.
+    let gyms = [];
+    let otherGym = false;
+    if (!paused && (share.upcoming || share.waitlists || share.activity || share.recent || share.autoBookQueue)) {
+      const sharedGyms = [...enabledGyms].filter((g) => sharesGym(share, g)).sort();
+      gyms = sharedGyms.filter((g) => visible(g));
+      otherGym = sharedGyms.some((g) => !visible(g));
+    }
+
     outMembers.push({
       memberRef: m.memberRef,
       name: m.name,
@@ -264,6 +276,8 @@ function projectTeam(input) {
       counts,
       updatedAt,
       stale,
+      gyms,
+      otherGym,
     });
   }
 

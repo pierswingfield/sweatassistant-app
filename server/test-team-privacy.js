@@ -391,6 +391,51 @@ check('a started server row missing from the next sync is hidden from Teams unti
   const own = db.getBookingCacheAllGyms(Y).map((r) => r.class_name).sort();
   assert.deepStrictEqual(own, ['MARK-retained-unconfirmed', 'POS-retained-confirmed']);
 });
+// ---- T-3 dashboard fields ----------------------------------------------------------
+
+const memberIn = (payload, name) => payload.members.find((m) => m.name.startsWith(name));
+check('T-3 member gym chips: only gyms the viewer has linked; an unlinked one is a bare flag', () => {
+  assert.deepStrictEqual(memberIn(today, 'Alice').gyms, [JAB, PSY].sort());
+  assert.strictEqual(memberIn(today, 'Alice').otherGym, false);
+  const a2 = memberIn(today2, 'Alice');
+  assert.deepStrictEqual(a2.gyms, [PSY], 'V2 has not linked JAB');
+  assert.strictEqual(a2.otherGym, true);
+  assert.ok(!P.v2Today.includes(JAB), 'the unlinked gym id leaked to V2 via member chips');
+});
+check('T-3 member gym chips follow share.gyms, the member\'s link state, pause and an all-off share', () => {
+  assert.deepStrictEqual(memberIn(today, 'Gymsub').gyms, [PSY], 'JAB is not in share.gyms');
+  assert.strictEqual(memberIn(today, 'Gymsub').otherGym, false);
+  assert.deepStrictEqual(memberIn(today, 'Linkoff').gyms, [PSY], 'the JAB link is disabled');
+  const p = memberIn(today, 'Pausey');
+  assert.deepStrictEqual([p.gyms, p.otherGym], [[], false], 'a paused member shows no gyms');
+  const allOff = { upcoming: false, waitlists: false, activity: false, recent: false, spots: false, autoBookQueue: false };
+  teams.updateMe(U1, TEAM, { share: allOff });
+  try {
+    for (const viewer of [V, V2]) {
+      const n = memberIn(teams.getTeamToday(viewer, TEAM, { zone: 'Europe/London' }), 'Upoff');
+      assert.deepStrictEqual([n.gyms, n.otherGym], [[], false], 'sharing nothing shows no gyms');
+    }
+  } finally {
+    teams.updateMe(U1, TEAM, { share: shareWith({ upcoming: false }) });
+  }
+});
+check('T-3 pending request count reaches Captains only, never members', () => {
+  assert.strictEqual(today.pendingRequestCount, 1, 'Pendingname waits; Blockedname was decided');
+  const asMember = teams.getTeamToday(A, TEAM, { zone: 'Europe/London' });
+  assert.ok(!('pendingRequestCount' in asMember));
+  assert.ok(!('pendingRequestCount' in today2), 'V2 is a member, not a Captain');
+  assert.ok(!JSON.stringify(asMember).includes('Pendingname'));
+});
+check('T-3 every class attendee is a current member by memberRef; no attendee carries a name or id', () => {
+  const refs = new Set(today.members.map((m) => m.memberRef));
+  for (const c of [...today.classes, ...today.recent]) {
+    for (const a of c.attendees) {
+      assert.ok(refs.has(a.memberRef), `unknown attendee ${a.memberRef}`);
+      assert.deepStrictEqual(Object.keys(a).filter((k) => !['memberRef', 'kind', 'spot'].includes(k)), []);
+    }
+  }
+});
+
 check('GET /api/teams resolves each member\'s name once per request, across all Teams', () => {
   const { team: t2, inviteToken: tok2 } = teams.createTeam(V, { name: 'Second Crew' });
   for (const uid of [A, B, V2]) {

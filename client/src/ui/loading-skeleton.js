@@ -1,12 +1,10 @@
 import { COPY } from '../copy.js';
+import { escapeHtml as escapeAttribute } from '../escape-html.js';
 
 function skeletonLine(width, extraClass = '') {
   return `<span class="app-skeleton-line ${extraClass}" style="--skeleton-width:${width}" aria-hidden="true"></span>`;
 }
 
-function escapeAttribute(value) {
-  return String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
-}
 
 export function renderCardSkeletons(count = 2, label = COPY.accessibility.loadingCards) {
   const cards = Array.from({ length: count }, (_, index) => `

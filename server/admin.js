@@ -31,16 +31,10 @@ function audit(req, action, targetUserId, detail) {
   db.recordAdminAudit({ action, targetUserId: targetUserId ?? null, ip: req.ip || null, detail });
 }
 
-// Admin auth uses the same JWT_SECRET as user auth but requires { admin: true } in the payload.
+// Admin sessions are signed with a secret DERIVED from the user JWT secret (secrets.js),
+// so a user token can never pass as an admin token. Requires { admin: true } in the payload.
 // ADMIN_PASSWORD must be set in the environment; if absent all admin routes return 503.
-const JWT_SECRET = (() => {
-  let s = process.env.JWT_SECRET;
-  if (!s) {
-    s = db.getKV('jwt_secret');
-    if (!s) { s = require('crypto').randomBytes(32).toString('hex'); db.setKV('jwt_secret', s); }
-  }
-  return s;
-})();
+const JWT_SECRET = require('./secrets').adminJwtSecret();
 
 function adminUnavailable(res) {
   return res.status(503).json({ message: 'Admin access is not configured (ADMIN_PASSWORD not set).' });

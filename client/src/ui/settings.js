@@ -11,7 +11,7 @@ import { clearApiCache, invalidateApiCache, accountScopedKey } from '../cache.js
 import { renderGymSettingsSection as renderGymSettingsSectionView } from './gym-settings-section.js';
 import { renderCalendarSection } from './calendar-section.js';
 import { getLinkedGyms, getAllLinkedGyms, getGymShortName } from '../gym-context.js';
-import { icon, gymSquareChip, gymBrand, gymLogoBanner } from './cards.js';
+import { icon, gymSquareChip, gymBrand, gymLogoBanner, escapeHtml } from './cards.js';
 import { createRenderGuard, reconcileKeyed, lastAuthLabel, connectionHealth } from './gym-connections.js';
 import { COPY, formatCopyText } from '../copy.js';
 import { renderCardSkeletons, renderFloorPlanSkeleton, renderPanelSkeleton } from './loading-skeleton.js';
@@ -98,12 +98,12 @@ function isScalar(val) {
 function formatVal(val) {
   if (val === null || val === undefined) return '<span class="set-null-text">null</span>';
   if (typeof val === 'object') {
-    return `<pre class="set-json-box">${JSON.stringify(val, null, 2)}</pre>`;
+    return `<pre class="set-json-box">${escapeHtml(JSON.stringify(val, null, 2))}</pre>`;
   }
   if (typeof val === 'boolean') {
     return val ? '<span class="set-bool-true">true</span>' : '<span class="set-bool-false">false</span>';
   }
-  return `<span class="set-value-text">${String(val)}</span>`;
+  return `<span class="set-value-text">${escapeHtml(String(val))}</span>`;
 }
 
 // ─── Special Section Renderers ──────────────────────────────────────────────
@@ -113,10 +113,10 @@ function renderCreditsHtml(credits) {
   return credits.map(c => `
     <div class="set-credit-row">
       <div class="set-credit-stack">
-        <strong class="set-credit-name">${c.credit_type?.name || COPY.profileExplorer.unknown}</strong>
+        <strong class="set-credit-name">${escapeHtml(c.credit_type?.name || COPY.profileExplorer.unknown)}</strong>
         <span class="set-credit-handle">${formatCopyText(COPY.profileExplorer.creditHandle, { handle: escapeHtml(c.credit_type?.handle || '—') })}</span>
       </div>
-      <span class="set-credit-badge">${formatCopyText(COPY.profileExplorer.creditsLeft, { count: c.count })}</span>
+      <span class="set-credit-badge">${formatCopyText(COPY.profileExplorer.creditsLeft, { count: escapeHtml(c.count) })}</span>
     </div>
   `).join('');
 }
@@ -133,10 +133,10 @@ function renderSubsHtml(subs, statuses) {
     return `
       <div class="set-studio-row">
         <div class="set-studio-stack">
-          <span class="set-studio-name">${s.name || '—'}</span>
+          <span class="set-studio-name">${escapeHtml(s.name || '—')}</span>
           <span class="set-credit-handle">${formatCopyText(COPY.profileExplorer.planHandle, { handle: escapeHtml(s.handle || '—') })}</span>
         </div>
-        <span style="background:${statusBg};border:1px solid ${statusBorder};color:${statusColor};border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">${status}</span>
+        <span style="background:${statusBg};border:1px solid ${statusBorder};color:${statusColor};border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">${escapeHtml(status)}</span>
       </div>
     `;
   }).join('');
@@ -423,21 +423,21 @@ function renderSectionAccordion(section, idx, isSpecial) {
         const isBool = typeof field.value === 'boolean';
         let inputHtml;
         if (isBool) {
-          inputHtml = `<input type="checkbox" class="app-profile-edit-input set-field-checkbox" data-path="${field.path}" ${field.value ? 'checked' : ''}>`;
+          inputHtml = `<input type="checkbox" class="app-profile-edit-input set-field-checkbox" data-path="${escapeHtml(field.path)}" ${field.value ? 'checked' : ''}>`;
         } else {
           const val = field.value !== null && field.value !== undefined ? String(field.value) : '';
-          inputHtml = `<input type="text" class="app-profile-edit-input set-field-input" data-path="${field.path}" value="${val.replace(/"/g, '&quot;')}" placeholder="${field.value === null ? 'null' : ''}">`;
+          inputHtml = `<input type="text" class="app-profile-edit-input set-field-input" data-path="${escapeHtml(field.path)}" value="${escapeHtml(val)}" placeholder="${field.value === null ? 'null' : ''}">`;
         }
         contentHtml += `
-          <div class="app-profile-field-row set-field-row" data-path="${field.path}">
-            <span class="set-field-label">${label}</span>
+          <div class="app-profile-field-row set-field-row" data-path="${escapeHtml(field.path)}">
+            <span class="set-field-label">${escapeHtml(label)}</span>
             ${inputHtml}
           </div>
         `;
       } else {
         contentHtml += `
           <div class="set-field-group">
-            <span class="set-field-sublabel">${label}</span>
+            <span class="set-field-sublabel">${escapeHtml(label)}</span>
             <div class="set-field-value">${formatVal(field.value)}</div>
           </div>
         `;
@@ -513,8 +513,8 @@ function renderLogEntriesHtml() {
     const color = e.status === 'verified' ? 'var(--success)' : e.status === 'sent' ? 'var(--warning)' : e.status === 'failed' ? 'var(--danger)' : 'var(--text-secondary)';
     return `<div class="set-change-row">
       <span class="set-change-time">${ts}</span>
-      <span class="set-change-path">${e.fieldPath}</span>
-      <span class="set-change-desc">${oldS} → <span class="set-change-new">${newS}</span></span>
+      <span class="set-change-path">${escapeHtml(e.fieldPath)}</span>
+      <span class="set-change-desc">${escapeHtml(oldS)} → <span class="set-change-new">${escapeHtml(newS)}</span></span>
       <span style="color:${color};">${icon}</span>
     </div>`;
   }).join('');
@@ -602,7 +602,7 @@ async function saveProfileChanges(body, originalProfile) {
         }
 
         // Update the input element in-place to reflect verified/reverted value
-        const input = body.querySelector(`.app-profile-edit-input[data-path="${entry.fieldPath}"]`);
+        const input = body.querySelector(`.app-profile-edit-input[data-path="${CSS.escape(String(entry.fieldPath))}"]`);
         if (input) {
           if (input.type === 'checkbox') {
             input.checked = verifiedVal === true;
@@ -886,7 +886,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
     const chevron = document.createElement('span');
     chevron.textContent = '▼';
     chevron.style.cssText = 'transition:transform 0.2s;';
-    locHeader.innerHTML = `<span>${locName}</span>`;
+    locHeader.innerHTML = `<span>${escapeHtml(locName)}</span>`;
     locHeader.appendChild(chevron);
 
     const studioList = document.createElement('div');
@@ -1041,7 +1041,7 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
   const header = document.createElement('div');
   header.className = 'app-ovl-header';
   header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;';
-  header.innerHTML = `<div data-nav-title><div class="set-editor-title">${COPY.spotMaps.spotMap}</div><div class="set-editor-subtitle">${studioName}</div></div><button class="set-modal-close" data-nav-close id="spot-editor-close" aria-label="${COPY.credits.closeModal}">×</button>`;
+  header.innerHTML = `<div data-nav-title><div class="set-editor-title">${COPY.spotMaps.spotMap}</div><div class="set-editor-subtitle">${escapeHtml(studioName)}</div></div><button class="set-modal-close" data-nav-close id="spot-editor-close" aria-label="${COPY.credits.closeModal}">×</button>`;
 
   const body = document.createElement('div');
   body.className = 'app-ovl-body';
@@ -1284,14 +1284,6 @@ function setupSettingsNavigation() {
 // email/status/provider strings rendered below can originate from a provider
 // response, and AGENTS.md flags unescaped innerHTML as a known weak spot. Cheap
 // to be correct here rather than add to the pile.
-function escapeHtml(str) {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 // ═══════════════════════════════════════════════════════════════════════
 //  YOUR GYMS — link/unlink and per-gym settings. NO SWITCHER.
@@ -1363,7 +1355,7 @@ function ensureConnTable(list) {
   return list.querySelector('.app-gym-conn-table');
 }
 
-function connRowCreate(g) {
+export function connRowCreate(g) {
   const row = document.createElement('div');
   row.className = 'app-gym-conn-row';
   row.setAttribute('role', 'row');
@@ -1379,7 +1371,7 @@ function connRowCreate(g) {
   return row;
 }
 
-function connRowUpdate(row, g) {
+export function connRowUpdate(row, g) {
   const health = connectionHealth(g);
   // Full logo; rebuilt when the resolved brand changes (a chip built before the catalogue loads is the neutral placeholder).
   const logo = row.querySelector('.app-gym-conn-logo');
@@ -2053,9 +2045,9 @@ function renderPerGymToggles(key, parentPref) {
         const locked = key === 'bookingWindow' && !gymHasPeriodicWindow(g);
         return `
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:4px 0;${locked ? 'opacity:0.45;' : ''}">
-          <span class="set-credit-handle">${getGymShortName(gymId) || gymId}${locked ? `<br><small class="set-gym-note">${COPY.settings.bookingWindowRollingNote}</small>` : ''}</span>
+          <span class="set-credit-handle">${escapeHtml(getGymShortName(gymId) || gymId)}${locked ? `<br><small class="set-gym-note">${COPY.settings.bookingWindowRollingNote}</small>` : ''}</span>
           <label class="app-switch set-gym-switch">
-            <input type="checkbox" class="notif-pergym-toggle" data-key="${key}" data-gym-id="${gymId}" ${locked ? 'disabled' : ''} ${perGymPrefOn(parentPref, g) ? 'checked' : ''}>
+            <input type="checkbox" class="notif-pergym-toggle" data-key="${escapeHtml(key)}" data-gym-id="${escapeHtml(gymId)}" ${locked ? 'disabled' : ''} ${perGymPrefOn(parentPref, g) ? 'checked' : ''}>
             <span class="app-slider"></span>
           </label>
         </div>`;

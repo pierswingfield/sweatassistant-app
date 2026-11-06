@@ -1,7 +1,8 @@
 import { api, isLoggedIn } from '../api';
 import { noSept } from '../lib';
 import { getLinkedGyms } from '../gym-context.js';
-import { gymChip } from './cards.js';
+import { gymChip, escapeHtml } from './cards.js';
+import { safeHttpsUrl } from './safe-url.js';
 import { isBenefitUnknown } from './benefit-state.js';
 import { showToast, cache } from '../main';
 import { COPY, formatCopyText } from '../copy.js';
@@ -193,7 +194,7 @@ function summaryCardHtml(gym, membership, credits) {
     facts.push(COPY.credits.membershipRequired);
   }
 
-  const websiteUrl = membership?.manageUrl || gym.websiteUrl;
+  const websiteUrl = safeHttpsUrl(membership?.manageUrl) || safeHttpsUrl(gym.websiteUrl);
   const unknown = isBenefitUnknown(gym, membership, credits);
   const action = unknown ? '' : canPurchase
     ? `<button class="app-btn app-btn-mini primary" data-open-credit-gym="${escapeHtml(gymId)}">${COPY.credits.buyCredits}</button>`
@@ -295,14 +296,6 @@ async function openGymCreditDetail(gymId) {
   }
 }
 
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
 
 function formatMembershipDate(value) {
   if (!value) return null;
@@ -326,7 +319,7 @@ function renderMembershipSections(linked, memberships) {
     const gymId = gym.gym_id || gym.id;
     const membership = memberships[gymId];
     if (membership === undefined) return ''; // unknown: render nothing, not "no membership"
-    const websiteUrl = membership?.manageUrl || gym.websiteUrl;
+    const websiteUrl = safeHttpsUrl(membership?.manageUrl) || safeHttpsUrl(gym.websiteUrl);
     const expiry = formatMembershipDate(membership?.expiresAt);
     const renewal = formatMembershipDate(membership?.renewsAt);
     const guestText = membership?.guestPassesRemaining != null
@@ -609,8 +602,8 @@ function createBundleCard(b, isFavSection) {
   card.innerHTML = `
     <div class="fav-card-header">
       <div>
-        <div class="fav-card-title">${b.name}</div>
-        <div class="fav-card-handle cr-bundle-handle">${b.handle} ${formatCopyText(COPY.credits.bundleId, { id: b.id })}</div>
+        <div class="fav-card-title">${escapeHtml(b.name)}</div>
+        <div class="fav-card-handle cr-bundle-handle">${escapeHtml(b.handle)} ${escapeHtml(formatCopyText(COPY.credits.bundleId, { id: b.id }))}</div>
       </div>
       <button class="fav-card-star-btn ${isFav ? 'active' : ''}" title="${isFav ? COPY.credits.unpinBundle : COPY.credits.pinBundle}">
         ${isFav ? '★' : '☆'}
@@ -693,7 +686,7 @@ export function openPurchaseModal(b) {
     body.innerHTML = `
       <div class="cr-item-row">
         <div class="cr-item-info">
-          <div class="cr-item-name">${b.name}</div>
+          <div class="cr-item-name">${escapeHtml(b.name)}</div>
           <div class="cr-item-breakdown">${formatCopyText(COPY.credits.creditBreakdown, { count: b.total_credits, plural: b.total_credits !== 1 ? 's' : '', price: unitLabel })}</div>
         </div>
         <div class="cr-item-controls">
@@ -748,10 +741,10 @@ export function openPurchaseModal(b) {
 
     const cardOptions = methods.map(m => `
       <label class="app-pm-row cr-payment-row">
-        <input type="radio" name="app-pm" value="${m.id}" ${m.id === defaultPm.id ? 'checked' : ''}>
-        <span class="cr-payment-brand">${m.brand}</span>
-        <span class="cr-payment-digits">•••• ${m.last4}</span>
-        <span class="cr-payment-expiry">${String(m.exp_month).padStart(2,'0')}/${m.exp_year}</span>
+        <input type="radio" name="app-pm" value="${escapeHtml(m.id)}" ${m.id === defaultPm.id ? 'checked' : ''}>
+        <span class="cr-payment-brand">${escapeHtml(m.brand)}</span>
+        <span class="cr-payment-digits">•••• ${escapeHtml(m.last4)}</span>
+        <span class="cr-payment-expiry">${escapeHtml(String(m.exp_month).padStart(2,'0'))}/${escapeHtml(m.exp_year)}</span>
       </label>
     `).join('');
 
@@ -759,7 +752,7 @@ export function openPurchaseModal(b) {
       <div class="cr-payment-title">${COPY.credits.payWith}</div>
       ${cardOptions}
       <div class="cr-summary-row">
-        <span class="cr-total-label">${qty > 1 ? `${qty}× ${b.name}` : b.name}</span>
+        <span class="cr-total-label">${escapeHtml(qty > 1 ? `${qty}× ${b.name}` : b.name)}</span>
         <span class="cr-summary-total">${totalLabel}</span>
       </div>
       <button class="app-btn-primary app-pay-btn cr-checkout-submit">${formatCopyText(COPY.credits.payTotal, { total: totalLabel })}</button>
@@ -819,13 +812,13 @@ function renderPurchaseError(body, b, message, hint, secureTips) {
       • ${COPY.credits.websitePurchaseTip.replace('{gymName}', escapeHtml(creditGymName))}<br>
       • ${COPY.credits.amexTip}
     </div>
-  ` : (hint ? `<div class="cr-secure-hint">${hint}</div>` : '');
+  ` : (hint ? `<div class="cr-secure-hint">${escapeHtml(hint)}</div>` : '');
 
   body.innerHTML = `
     <div class="cr-error-container">
       <div class="cr-error-emoji">⚠️</div>
       <div class="cr-summary-total">${COPY.credits.paymentNotCompleted}</div>
-      <div class="cr-success-desc">${message}</div>
+      <div class="cr-success-desc">${escapeHtml(message)}</div>
       ${tips}
       <button class="app-btn-primary app-website-btn cr-error-website">${COPY.credits.finishOnWebsite}</button>
     </div>

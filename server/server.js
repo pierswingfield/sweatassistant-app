@@ -34,6 +34,7 @@ const instructorPhotoRouter = require('./instructor-photo-routes');
 const teamsRoutes = require('./teams-routes');
 const teams = require('./teams');
 const config = require('./config');
+const { securityHeaders } = require('./security-headers');
 const competing = require('./competing-bookings');
 const { getGymConfig } = require('./gyms.config');
 
@@ -48,6 +49,10 @@ const PORT = process.env.PORT || 3000;
 // Behind the Cloudflare Tunnel every socket peer is cloudflared; without this every
 // per-IP limiter shares one bucket. Hop count, never `true` (see config.js).
 app.set('trust proxy', config.trustProxy);
+// Security audit part 1: nosniff, Referrer-Policy, frame-ancestors/XFO, Permissions-Policy,
+// COOP, CSP (per-response inline-script hashes) and production-only HSTS. Mounted first so
+// every response, including errors and static files, carries them.
+app.use(securityHeaders({ hsts: config.hsts, cspReportOnly: config.cspReportOnly }));
 
 // CORS allowlist. The PWA is served same-origin in production, so only the
 // configured public host (and localhost in dev) are permitted. Requests with no
@@ -430,6 +435,14 @@ app.post('/api/auth/signup', authLoginLimiter, async (req, res) => {
 
 app.get('/api/auth/status', authenticateToken, (req, res) => {
   res.json({ userId: req.userId, email: req.email });
+});
+
+// Single-use, 60 s ticket for the auto-book EventSource (replaces the session JWT in the URL).
+app.post('/api/auth/sse-ticket', authenticateToken, (req, res) => {
+  const minted = auth.mintSseTicket(req);
+  if (!minted) return res.status(503).json({ message: 'Too many open stream tickets, try again shortly.' });
+  res.set('Cache-Control', 'no-store');
+  res.json(minted);
 });
 
 app.delete('/api/auth/me', authenticateToken, (req, res) => {

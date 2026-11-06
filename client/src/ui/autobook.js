@@ -64,20 +64,35 @@ export async function refreshAutoBookTab() {
   await Promise.all([renderAutoBookTab(), refreshUserData()]);
 }
 
-function connectToAutoBookStream() {
+let sseReconnectTimer = null;
+let sseBackoffMs = 2000;
+
+async function connectToAutoBookStream() {
   // Disconnect old stream if exists
   if (sseEventSource) {
     sseEventSource.close();
+    sseEventSource = null;
   }
+  if (sseReconnectTimer) { clearTimeout(sseReconnectTimer); sseReconnectTimer = null; }
 
-  // Connect to SSE stream for real-time auto-book status updates
-  // EventSource doesn't support custom headers, so pass token in URL query param
-  const token = localStorage.getItem('appLocalToken');
-  const url = token ? `/api/auto-book/stream?token=${encodeURIComponent(token)}` : '/api/auto-book/stream';
+  // EventSource can't send an Authorization header, so it authenticates with a
+  // short-lived single-use ticket (POST /api/auth/sse-ticket) in the URL instead
+  // of the long-lived session token, which must never sit in a URL / access log.
+  let url;
+  try {
+    const ticket = await api.getSseTicket();
+    url = `/api/auto-book/stream?ticket=${encodeURIComponent(ticket)}`;
+  } catch (err) {
+    // Offline or signed out: retry quietly; a real logout stops being retried below.
+    scheduleSseReconnect();
+    return;
+  }
   sseEventSource = new EventSource(url);
+  const thisSource = sseEventSource;
 
   sseEventSource.onopen = () => {
     debugConsole('[AutoBook] SSE stream connected');
+    sseBackoffMs = 2000;
     // Sync any missed state by fetching the latest auto-book data.
     // This fires on initial connection AND on reconnect after a network interruption.
     api.getAutoBookings().then(data => {
@@ -107,10 +122,22 @@ function connectToAutoBookStream() {
   };
 
   sseEventSource.onerror = (err) => {
-    console.warn('[AutoBook] SSE stream error — browser will auto-reconnect:', err);
-    // Do NOT close — EventSource reconnects automatically with native exponential backoff.
-    // Closing and manually reconnecting loses the retry timer and adds downtime.
+    console.warn('[AutoBook] SSE stream error:', err);
+    // A ticket is single-use, so the browser's own retry (same URL) is rejected and
+    // the source ends up CLOSED. Mint a fresh ticket and reconnect with backoff.
+    if (thisSource.readyState === 2 /* CLOSED */ && sseEventSource === thisSource) {
+      scheduleSseReconnect();
+    }
   };
+}
+
+function scheduleSseReconnect() {
+  if (sseReconnectTimer || !localStorage.getItem('appLocalToken')) return;
+  sseReconnectTimer = setTimeout(() => {
+    sseReconnectTimer = null;
+    connectToAutoBookStream();
+  }, sseBackoffMs);
+  sseBackoffMs = Math.min(sseBackoffMs * 2, 30000);
 }
 
 function updateQueueDisplayForEvent(eventId, update) {
@@ -118,7 +145,7 @@ function updateQueueDisplayForEvent(eventId, update) {
   if (!queueContainer) return;
 
   // Find the card for this event
-  const card = queueContainer.querySelector(`[data-event-id="${eventId}"]`);
+  const card = queueContainer.querySelector(`[data-event-id="${CSS.escape(String(eventId))}"]`);
   if (!card) return;
 
   // Update or create a status line. It is a polite live region (U2-3): screen
@@ -319,7 +346,7 @@ function renderQueue(queue) {
     const hasInsufficientCredits = getTotalCredits(q.gym_id) < creditsNeeded;
 
     const creditWarning = ineligibleReason
-      ? `<div class="ab-credit-warning">${icon('warning', 13)}<span>${ineligibleReason}</span></div>`
+      ? `<div class="ab-credit-warning">${icon('warning', 13)}<span>${escapeHtml(ineligibleReason)}</span></div>`
       : hasInsufficientCredits
         ? `<div class="ab-credit-warning">${icon('warning', 13)}<span>${COPY.autoBook.insufficientCredits}</span></div>`
         : '';
@@ -341,16 +368,16 @@ function renderQueue(queue) {
             </div>
             <div class="ab-card-line2">
               <span class="ab-card-titlegroup">${disciplineTag(q.group_name || q.class_name)}
-              <span class="ab-card-class">${className}</span></span>
+              <span class="ab-card-class">${escapeHtml(className)}</span></span>
               ${instructorInlineHtml(instructorName)}
-              ${locationLine ? `<span class="ab-meta-dot">·</span><span class="ab-card-location">${locationLine}</span>` : ''}
+              ${locationLine ? `<span class="ab-meta-dot">·</span><span class="ab-card-location">${escapeHtml(locationLine)}</span>` : ''}
             </div>
           </div>
           ${(instructorAvatar(instructorName, q.gym_id, instructorPhotoUrl) || instructorName)
           ? `<div class="ab-card-figure ${instructorNameLengthClass(instructorName)}">${instructorAvatar(instructorName, q.gym_id, instructorPhotoUrl) || ''}${instructorName ? `<span class="ab-card-instructor ${instructorNameLengthClass(instructorName)}">${escapeHtml(instructorName)}</span>` : ''}</div>` : ''}
         </div>
         <div class="ab-card-footer">
-          <span class="ab-countdown state-pending" data-start-at="${q.start_at}" data-gym-id="${q.gym_id || ''}" ${(() => { const r = getClassReleaseTime(q, userSettings); return r ? `data-release-at="${r.toISO()}"` : ''; })()}>
+          <span class="ab-countdown state-pending" data-start-at="${escapeHtml(q.start_at)}" data-gym-id="${escapeHtml(q.gym_id || '')}" ${(() => { const r = getClassReleaseTime(q, userSettings); return r ? `data-release-at="${escapeHtml(r.toISO())}"` : ''; })()}>
             ${icon('clock', 13)}<span class="ab-countdown-val">…</span>
           </span>
           <div class="ab-chip-group"><span class="ab-spots-pill">${creditsNeeded} ${seatNoun(q.group_name)[0].toUpperCase() + seatNoun(q.group_name).slice(1)}${creditsNeeded !== 1 ? 's' : ''}</span></div>
@@ -581,11 +608,11 @@ function renderHistoryPage() {
         <div class="ab-hist-name">
           ${disciplineTag(h.group_name || h.class_name)}
           ${gymChip(h.gym_id || getDefaultGymId())}
-          <span class="ab-card-class">${className}</span>
+          <span class="ab-card-class">${escapeHtml(className)}</span>
         </div>
         <span class="ab-history-status state-${state}">${icon(statusGlyph, 12)} ${statusText}</span>
       </div>
-      <div class="ab-hist-row2">${details}</div>
+      <div class="ab-hist-row2">${escapeHtml(details)}</div>
     `;
     list.appendChild(card);
   });

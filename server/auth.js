@@ -8,18 +8,19 @@ const { log } = require('./logger');
 
 const { findDevMockGym } = require('./gyms.config');
 
-const JWT_SECRET = getJWTSecret();
+const JWT_SECRET = require('./secrets').userJwtSecret();
 
-function getJWTSecret() {
-  let secret = process.env.JWT_SECRET;
-  if (!secret) {
-    secret = db.getKV('jwt_secret');
-    if (!secret) {
-      secret = crypto.randomBytes(32).toString('hex');
-      db.setKV('jwt_secret', secret);
-    }
-  }
-  return secret;
+// Every session token embeds the account's current token_version (`tv`). A password
+// change, admin reset or account deletion bumps/removes it, which revokes all older
+// tokens. A token with NO `tv` claim (issued before this shipped) counts as version 0,
+// so it stays valid until its natural expiry unless the version has since been bumped.
+function signUserToken(userId, email) {
+  return jwt.sign({ userId, email, tv: db.getTokenVersion(userId) || 0 }, JWT_SECRET, { expiresIn: '30d' });
+}
+function tokenStillValid(decoded) {
+  if (!decoded || decoded.userId == null) return false;
+  const current = db.getTokenVersion(decoded.userId); // null = account deleted
+  return current !== null && (decoded.tv ?? 0) === current;
 }
 
 // Log in to a specific gym through its provider adapter, which owns the URL,
@@ -101,11 +102,7 @@ async function handleLogin(email, password) {
       console.warn('[Dev] Gym seeding skipped:', err.message);
     }
 
-    const localToken = jwt.sign(
-      { userId, email },
-      JWT_SECRET,
-      { expiresIn: '30d' }
-    );
+    const localToken = signUserToken(userId, email);
 
     return {
       token: localToken,
@@ -133,10 +130,14 @@ async function handleLogin(email, password) {
   // attached afterwards with POST /api/my-gyms/link. A failed password never falls
   // back to gym auth, or an old gym password would bypass a changed app password.
   const existing = db.getUserByEmail(email);
-  if (!existing || !db.hasAccountPassword(existing.id) || !db.verifyAccountPassword(existing.id, password)) {
+  if (!existing || !db.hasAccountPassword(existing.id)) {
+    // Same scrypt cost as a real check, so response time does not reveal whether the
+    // address has an account (login enumeration).
+    db.burnPasswordCheck(password);
     throw new Error('Invalid email or password');
   }
-  const localToken = jwt.sign({ userId: existing.id, email }, JWT_SECRET, { expiresIn: '30d' });
+  if (!db.verifyAccountPassword(existing.id, password)) throw new Error('Invalid email or password');
+  const localToken = signUserToken(existing.id, email);
   // getUserById (not the bare getUserByEmail row) — profile_json/display_name live
   // in user_gyms since WP-D3, and this merges the active gym's link in.
   const merged = db.getUserById(existing.id) || existing;
@@ -195,7 +196,7 @@ function authenticateToken(req, res, next) {
   }
 
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
-    if (err) {
+    if (err || !tokenStillValid(decoded)) {
       return res.status(403).json({ message: 'Invalid or expired session token' });
     }
     req.userId = decoded.userId;
@@ -208,19 +209,60 @@ function authenticateToken(req, res, next) {
   });
 }
 
-// SSE-compatible auth middleware (accepts token in Authorization header or URL query param)
-function authenticateTokenSSE(req, res, next) {
-  let token = null;
+// --- SSE tickets -------------------------------------------------------------
+// EventSource cannot send an Authorization header, so the stream used to take the
+// 30-day session JWT in the query string (access logs, history, Referer). Instead an
+// authenticated POST /api/auth/sse-ticket mints a random single-use ticket valid for
+// 60 s, held in memory (one process), consumed on first use. The legacy `?token=`
+// path still works for ONE release so already-open tabs on an old bundle keep their
+// live status line across the deploy; remove it next release.
+const SSE_TICKET_TTL_MS = 60 * 1000;
+const SSE_TICKET_MAX = 5000;
+const SSE_TICKET_PER_USER = 10; // a user cannot exhaust the global cap and starve everyone else
+const sseTickets = new Map(); // ticket -> { userId, email, gymId, expiresAt }
 
-  // Try Authorization header first
+function mintSseTicket(req) {
+  const now = Date.now();
+  for (const [t, v] of sseTickets) if (v.expiresAt <= now) sseTickets.delete(t);
+  if (sseTickets.size >= SSE_TICKET_MAX) return null;
+  let mine = 0;
+  for (const v of sseTickets.values()) if (v.userId === req.userId) mine++;
+  if (mine >= SSE_TICKET_PER_USER) return null;
+  const ticket = crypto.randomBytes(32).toString('base64url');
+  sseTickets.set(ticket, { userId: req.userId, email: req.email, gymId: req.headers['x-gym-id'] || null, tv: db.getTokenVersion(req.userId), expiresAt: now + SSE_TICKET_TTL_MS });
+  return { ticket, expiresInSec: SSE_TICKET_TTL_MS / 1000 };
+}
+
+function redeemSseTicket(ticket) {
+  const entry = sseTickets.get(String(ticket));
+  if (!entry) return null;
+  sseTickets.delete(String(ticket)); // single use, valid or not
+  if (entry.expiresAt <= Date.now()) return null;
+  const current = db.getTokenVersion(entry.userId);
+  if (current === null || current !== entry.tv) return null; // account deleted, or password changed/reset since minting
+  return entry;
+}
+
+// SSE-compatible auth middleware: Authorization header, a single-use ?ticket=, or
+// (legacy, one more release) the session JWT as ?token=.
+function authenticateTokenSSE(req, res, next) {
+  const ticket = req.query.ticket;
+  if (ticket) {
+    const entry = redeemSseTicket(ticket);
+    if (!entry) return res.status(403).json({ message: 'Invalid or expired stream ticket' });
+    req.userId = entry.userId;
+    req.email = entry.email;
+    if (entry.gymId && !req.headers['x-gym-id']) req.headers['x-gym-id'] = entry.gymId;
+    return withGymContext(req, res, next);
+  }
+
+  let token = null;
   const authHeader = req.headers['authorization'];
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.slice(7);
   }
-
-  // Fall back to query parameter for EventSource compatibility
   if (!token && req.query.token) {
-    token = req.query.token;
+    token = req.query.token; // LEGACY: remove next release
   }
 
   if (!token) {
@@ -228,7 +270,7 @@ function authenticateTokenSSE(req, res, next) {
   }
 
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
-    if (err) {
+    if (err || !tokenStillValid(decoded)) {
       return res.status(403).json({ message: 'Invalid or expired session token' });
     }
     req.userId = decoded.userId;
@@ -363,7 +405,7 @@ async function handleSignup(email, password) {
   }
 
   const userId = db.createAccount(clean, password);
-  const localToken = jwt.sign({ userId, email: clean }, JWT_SECRET, { expiresIn: '30d' });
+  const localToken = signUserToken(userId, clean);
   return {
     token: localToken,
     // U4-17: the real id, not null. The client keys per-account state (onboarding step/completion) on it;
@@ -459,6 +501,9 @@ module.exports = {
   handleSignup,
   authenticateToken,
   authenticateTokenSSE,
+  mintSseTicket,
+  signUserToken,
+  _sseTicketCount: () => sseTickets.size,
   triggerAutoRelogin,
   RELOGIN_MAX_REJECTIONS,
   linkGymAccount,

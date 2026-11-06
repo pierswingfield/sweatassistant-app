@@ -1,6 +1,7 @@
 import { noSept } from '../lib';
 import { COPY, formatCopyText } from '../copy.js';
-import { gymLogoBanner } from './cards.js';
+import { gymLogoBanner, escapeHtml } from './cards.js';
+import { safeHttpsUrl } from './safe-url.js';
 import { isBenefitUnknown } from './benefit-state.js';
 // Reusable per-gym Settings section (Settings restructure Phase 2).
 //
@@ -8,14 +9,6 @@ import { isBenefitUnknown } from './benefit-state.js';
 // data and actions, which keeps the component usable inline today and inside the
 // Phase 3 multi-gym drawer without teaching it about global app state.
 
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 function capability(gym, name) {
   // An omitted capability stays on. This is the same forward-compatible rule
@@ -54,12 +47,12 @@ export function membershipHtml(gym, membership, credits) {
       ? formatCopyText(Number(membership.guestPassesRemaining) === 1 ? COPY.gymSettings.guestPassesOne : COPY.gymSettings.guestPassesMany, { count: Number(membership.guestPassesRemaining) })
       : null;
     if (passes) dates.push(passes);
-    const manageUrl = membership.manageUrl || gym.websiteUrl;
+    const manageUrl = safeHttpsUrl(membership.manageUrl) || safeHttpsUrl(gym.websiteUrl);
     return `
       <div class="app-gym-setting-summary">
         <div>
           <strong>${escapeHtml(membership.name || COPY.gymSettings.membershipName)}</strong>
-          <div class="app-card-desc">${escapeHtml(membership.status || (membership.isActive ? COPY.gymSettings.membershipActive : COPY.credits.notActive))}${dates.length ? ` · ${dates.join(' · ')}` : ''}</div>
+          <div class="app-card-desc">${escapeHtml(membership.status || (membership.isActive ? COPY.gymSettings.membershipActive : COPY.credits.notActive))}${dates.length ? ` · ${escapeHtml(dates.join(' · '))}` : ''}</div>
         </div>
         ${manageUrl ? `<a class="app-btn app-btn-mini" href="${escapeHtml(manageUrl)}" target="_blank" rel="noopener noreferrer">${COPY.gymSettings.openGymSite} ↗</a>` : ''}
       </div>`;

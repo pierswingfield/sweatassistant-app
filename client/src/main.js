@@ -375,7 +375,7 @@ export function debugLog(message, type = 'info') {
   
   const line = document.createElement('div');
   line.style.cssText = `margin: 2px 0; line-height: 1.4; word-break: break-all;`;
-  line.innerHTML = `<span style="color: var(--text-tertiary);">${timestamp}</span> <span style="color: ${color};">${prefix}</span> <span style="color: ${color};">${message}</span>`;
+  line.innerHTML = `<span style="color: var(--text-tertiary);">${timestamp}</span> <span style="color: ${color};">${prefix}</span> <span style="color: ${color};">${escapeHtml(message)}</span>`;
   logEl.appendChild(line);
   
   // Keep max 200 entries
@@ -963,7 +963,7 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
   badge.className = 'app-header-gym-badge';
   badge.setAttribute('data-gym', gymId);
   if (isMetered) {
-    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="app-hgb-pill">${total}<span class="app-hgb-unit"> ${COPY.shell.creditUnit}</span></span>`;
+    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="app-hgb-pill">${escapeHtml(total)}<span class="app-hgb-unit"> ${COPY.shell.creditUnit}</span></span>`;
     badge.title = formatCopyText(COPY.shell.creditBadgeTitle, { gymName: shortName, total, plural: total !== 1 ? 's' : '' });
   } else if (canBookAtAll(gymId)) {
     // "Active" alone reads as "this is the currently-selected gym" rather than
@@ -974,7 +974,7 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
     // eligibility hasn't loaded yet (same unknown-defaults-ON rule as
     // capabilities), but never shown once the server has confirmed this
     // account has no active membership at this gym.
-    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="app-hgb-pill member">${unmeteredBadgeLabel(gymId)}</span>`;
+    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="app-hgb-pill member">${escapeHtml(unmeteredBadgeLabel(gymId))}</span>`;
     badge.title = formatCopyText(COPY.shell.membershipBadgeTitle, { gymName: shortName });
   } else {
     // C3-3: an unmetered gym with no active membership (and no usable

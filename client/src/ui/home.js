@@ -18,6 +18,7 @@ import { groupBookingsByEvent, selectUpcoming } from './upcoming.js';
 import { mountBookingCard } from './bookings.js';
 import { formatInZone, formatOpensIn, getClassReleaseTime, zoneFor } from '../lib.js';
 import { instructorAvatar } from './tooltips.js';
+import { safeImageUrl } from './safe-url.js';
 import { indexFavourites, isFavouriteIn } from '../favourites.js';
 
 const goTo = (tabId) => (window.switchTab ? window.switchTab(tabId) : null);
@@ -375,7 +376,7 @@ function upcomingChip(group) {
   const e = group.event;
   const zone = zoneFor(e, group.gymId);
   const when = formatInZone(e.startAt || e.start_at, zone).timeLabel;
-  const photo = e.instructors?.[0]?.thumbUrl || e.instructors?.[0]?.imageUrl || '';
+  const photo = safeImageUrl(e.instructors?.[0]?.thumbUrl || e.instructors?.[0]?.imageUrl || '');
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'home-up-chip';

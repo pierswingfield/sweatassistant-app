@@ -49,6 +49,16 @@ function parseTrustProxy(raw) {
 }
 const trustProxy = parseTrustProxy(process.env.TRUST_PROXY);
 
+// HSTS (security audit): production only, modest max-age, no includeSubDomains
+// and no preload (Cloudflare may also set it at the edge). HSTS_MAX_AGE=0 turns
+// it off. CSP_REPORT_ONLY=1 downgrades the Content-Security-Policy to
+// Report-Only, an escape hatch if a deploy hits an unforeseen violation.
+const hstsMaxAge = process.env.HSTS_MAX_AGE !== undefined && /^\d+$/.test(String(process.env.HSTS_MAX_AGE).trim())
+  ? Number(String(process.env.HSTS_MAX_AGE).trim())
+  : 15552000; // 180 days
+const hsts = isProduction && hstsMaxAge > 0 ? `max-age=${hstsMaxAge}` : null;
+const cspReportOnly = /^(1|true|yes)$/i.test(String(process.env.CSP_REPORT_ONLY || '').trim());
+
 // Where /_a/go sends the landing-page CTA. Fixed here, never taken from request input.
 const landingCtaTarget = 'https://sweat.wingfield.tech';
 
@@ -59,4 +69,6 @@ module.exports = {
   vapidEmail,
   corsOrigins,
   trustProxy,
+  hsts,
+  cspReportOnly,
 };

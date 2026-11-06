@@ -467,6 +467,7 @@ db.exec(`
     name TEXT NOT NULL,
     emoji TEXT,
     competition_enabled INTEGER NOT NULL DEFAULT 0 CHECK (competition_enabled IN (0, 1)),
+    weekly_goal INTEGER CHECK (weekly_goal IS NULL OR (weekly_goal BETWEEN 1 AND 224)),  -- D13 Team goal (Captain); NULL = none. 224 = 16 members x 14
     created_by INTEGER,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -512,6 +513,8 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_team_requests_team ON team_join_requests(team_id, status);
   CREATE INDEX IF NOT EXISTS idx_team_requests_user ON team_join_requests(user_id, created_at);
+  -- teams.js expireStale(): WHERE status = 'pending' AND created_at < ? on every Teams read.
+  CREATE INDEX IF NOT EXISTS idx_team_requests_status_created ON team_join_requests(status, created_at);
 `);
 
 // Existing account links predate the per-account gym visibility switch.
@@ -525,6 +528,10 @@ if (!db.prepare('PRAGMA table_info(user_gyms)').all().some((col) => col.name ===
 // T-5b (PLAN-teams.md §5.3 "opt-in per Team"): a DB created before the column existed.
 if (!db.prepare('PRAGMA table_info(team_members)').all().some((col) => col.name === 'alerts_enabled')) {
   db.exec('ALTER TABLE team_members ADD COLUMN alerts_enabled INTEGER NOT NULL DEFAULT 0 CHECK (alerts_enabled IN (0, 1))');
+}
+// D13 Team goal (PLAN-teams.md §8.1 option B, owner 2026-11-06): a DB created before the column.
+if (!db.prepare('PRAGMA table_info(teams)').all().some((col) => col.name === 'weekly_goal')) {
+  db.exec('ALTER TABLE teams ADD COLUMN weekly_goal INTEGER CHECK (weekly_goal IS NULL OR (weekly_goal BETWEEN 1 AND 224))');
 }
 // T-2: booking_cache row origin. Rows written before this column existed are marked
 // 'client' (never shown to a Team) until the next server sync rewrites them.

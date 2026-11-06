@@ -3,7 +3,10 @@
 //             Alerts (T-5b: this Team's pushes, §5.3 opt-in per Team, off by default),
 //             Pin to top (only in more than 3 Teams), Leave.
 //   Captains: Join requests, Members (Make/Remove Captain, Remove [+ block]), Team settings
-//             (name, emoji, competition, Reset link, Joining by link, Delete with typed name).
+//             (name, emoji, weekly Team goal, Reset link, Joining by link, Delete with typed name).
+//   D13 (owner 2026-11-06): the Team goal (§8.1 option B) replaced the Friendly competition
+//   switch here; leaderboards (option C) are not approved, so the reserved competition
+//   columns stay in the schema and API, unused and unshown.
 // Members see the sharing sections inline (mock 04); Captains reach them through rows that
 // open a stacked page (mock 04b). Every change saves immediately and re-renders from the server.
 
@@ -19,6 +22,7 @@ import {
 } from './teams-ui.js';
 import { goTeams } from './teams.js';
 import { getGymShortName } from '../gym-context.js';
+import { validateWeeklyGoal, GOAL_MAX } from './teams-stats-model.js';
 
 const PAUSE_LABEL = { '24h': 'pause24h', '7d': 'pause7d', indefinite: 'pauseIndefinite' };
 
@@ -100,7 +104,7 @@ function renderMemberSections(host, ctx, refresh) {
 
   renderSharingSheet(host.querySelector('.tm-sheet'), {
     share: detail.myShare,
-    competitionTeamName: team.competitionEnabled ? name : null,
+    competitionTeamName: null, // D13: leaderboards (§8.1 option C) not approved; the opt-in stays unshown
     onChange: async (share) => {
       await teamsApi.updateMe(team.id, { share });
       showToast(T.shareSaved, 'success');
@@ -277,7 +281,7 @@ function renderTeamSettings(host, ctx, refresh, onChange, managePage) {
     <div class="tm-list">
       <button type="button" class="tm-li tm-li-link" data-edit="name"><span class="tm-grow tm-min0"><span class="tm-li-sub">${escapeHtml(T.name)}</span><span class="tm-li-title tm-ellip">${escapeHtml(team.name)}</span></span>${ICONS.chevron}</button>
       <button type="button" class="tm-li tm-li-link" data-edit="emoji"><span class="tm-grow"><span class="tm-li-sub">${escapeHtml(T.emoji)}</span><span class="tm-li-title">${escapeHtml(team.emoji || T.emojiNone)}</span></span>${ICONS.chevron}</button>
-      <div class="tm-sw-row"><div class="tm-grow"><div class="tm-t">${escapeHtml(T.competition)}</div><div class="tm-d">${escapeHtml(T.competitionTeamDesc)}</div></div>${switchHtml('competitionEnabled', team.competitionEnabled, T.competition, 'data-competition')}</div>
+      <button type="button" class="tm-li tm-li-link" data-edit="goal"><span class="tm-grow"><span class="tm-li-sub">${escapeHtml(T.goalRow)}</span><span class="tm-li-title">${escapeHtml(team.weeklyGoal ? fmt(T.goalRowValue, { n: team.weeklyGoal }) : T.goalRowNone)}</span></span>${ICONS.chevron}</button>
       <button type="button" class="tm-li tm-li-link" data-reset><span class="tm-grow"><span class="tm-li-title">${escapeHtml(T.resetLink)}</span><span class="tm-li-sub">${escapeHtml(T.resetLinkDesc)}</span></span>${ICONS.chevron}</button>
       <div class="tm-sw-row"><div class="tm-grow"><div class="tm-t">${escapeHtml(T.joiningByLink)}</div><div class="tm-d">${escapeHtml(T.joiningByLinkDesc)}</div></div>${switchHtml('inviteEnabled', inviteEnabled, T.joiningByLink, 'data-joining')}</div>
     </div>`;
@@ -292,10 +296,7 @@ function renderTeamSettings(host, ctx, refresh, onChange, managePage) {
     validate: (v) => { const r = validateEmoji(v); return r.ok ? r : { ok: false, message: T.emojiInvalid }; },
     save: async (emoji) => { await teamsApi.update(team.id, { emoji }); refresh(); onChange?.(); },
   }));
-  host.querySelector('[data-competition]').addEventListener('change', async (e) => {
-    try { await teamsApi.update(team.id, { competitionEnabled: e.target.checked }); } catch (err) { showToast(errorText(err), 'error'); }
-    refresh();
-  });
+  host.querySelector('[data-edit="goal"]').addEventListener('click', () => openGoalPage(team, { onSaved: () => { refresh(); onChange?.(); } }));
   host.querySelector('[data-joining]').addEventListener('change', async (e) => {
     try { await teamsApi.setInviteEnabled(team.id, e.target.checked); } catch (err) { showToast(errorText(err), 'error'); }
     refresh();
@@ -313,6 +314,44 @@ function renderTeamSettings(host, ctx, refresh, onChange, managePage) {
     }
   });
   void managePage;
+}
+
+/**
+ * D13 Team goal page (Captains): a whole number of classes a week for the whole Team, or
+ * Remove goal. A modal-nav page (full screen on mobile) like every Teams page.
+ */
+export function openGoalPage(team, { onSaved = null } = {}) {
+  const page = openTeamsPage({ id: 'teams-goal', title: T.goalTitle });
+  page.body.innerHTML = `<label class="tm-field"><span class="tm-field-label"></span>
+      <input type="text" inputmode="numeric" pattern="[0-9]*" class="tm-input tm-input-goal" autocomplete="off" maxlength="3">
+      <span class="tm-field-help"></span></label><p class="tm-field-error" role="alert" hidden></p>`;
+  page.body.querySelector('.tm-field-label').textContent = T.goalLabel;
+  page.body.querySelector('.tm-field-help').textContent = fmt(T.goalHelp, { max: GOAL_MAX });
+  const input = page.body.querySelector('input');
+  const errEl = page.body.querySelector('.tm-field-error');
+  input.value = team.weeklyGoal ? String(team.weeklyGoal) : '';
+  const fail = (msg, btn) => { if (btn) btn.disabled = false; errEl.textContent = msg; errEl.hidden = false; };
+  const save = async (btn, weeklyGoal) => {
+    if (btn) btn.disabled = true;
+    try {
+      await teamsApi.update(team.id, { weeklyGoal });
+      showToast(weeklyGoal == null ? T.goalCleared : T.saved, 'success');
+      page.close();
+      onSaved?.();
+    } catch (err) { fail(errorText(err), btn); }
+  };
+  const submit = (btn) => {
+    const v = validateWeeklyGoal(input.value);
+    if (!v.ok) return fail(v.error === 'range' ? fmt(T.goalRange, { max: GOAL_MAX }) : v.error === 'whole' ? T.goalWhole : T.goalRequired, null);
+    return save(btn, v.value);
+  };
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(null); } });
+  const buttons = [];
+  if (team.weeklyGoal) buttons.push({ label: T.goalClear, kind: 'ghost', onClick: (btn) => save(btn, null) });
+  buttons.push({ label: T.save, kind: 'primary', onClick: submit });
+  setFooter(page, buttons);
+  setTimeout(() => input.focus({ preventScroll: true }), 60);
+  return page;
 }
 
 async function deleteFlow(ctx, page, onChange) {

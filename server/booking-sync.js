@@ -46,6 +46,13 @@ const BOOT_STAGGER_MS = 60 * 1000;        // first cycle after boot: each lane s
 // the mascot's ring) still needs it. Server rows that started within this window survive
 // a re-sync; the cycle prunes anything older.
 const RETAIN_STARTED_MS = 24 * HOUR;
+// Forced syncs (calendar refresh after a book/cancel, an explicit refresh) skip the
+// cadence, so they get their own budget per (user, gym): at most FORCED_MAX in any
+// FORCED_WINDOW_MS. Past it a forced call is skipped ('forceLimited'); the stored rows stay
+// and the regular cadence catches up. One gym hit by one account cannot be driven harder
+// than this however often its client asks.
+const FORCED_WINDOW_MS = 10 * 60 * 1000;
+const FORCED_MAX = 6;
 
 // ── Priority set (pluggable) ─────────────────────────────────────────────────
 // Returns the user ids that get the 2 h cadence. Teams do not exist yet, so the
@@ -74,7 +81,7 @@ function cadenceFor(userId, priority = prioritySet()) {
 // ── Counters (aggregate only: /api/health and /metrics) ─────────────────────
 const stats = {
   cycles: 0, ticksSkipped: 0, usersSynced: 0, gymsSynced: 0, gymsFailed: 0, gymsSkipped: 0,
-  skipped: { disabled: 0, throttled: 0, needsRelogin: 0 },
+  skipped: { disabled: 0, throttled: 0, needsRelogin: 0, forceLimited: 0 },
   lastCycleAt: null, lastCycleMs: null,
 };
 // ── New-booking listener (T-5) ───────────────────────────────────────────────
@@ -271,11 +278,29 @@ const sleep = (ms) => (ms > 0 ? new Promise((r) => setTimeout(r, ms)) : null);
 // Per-gym pacing, unchanged from before lanes: 2-8 s between two calls to one gym.
 const pause = (jitter) => sleep(jitter ? 2000 + Math.floor(Math.random() * 6000) : 0);
 
+// (user, gym) -> start times of recent forced fetches (process-local; a restart forgets,
+// which only ever allows a little more, never blocks the background cycle).
+const forcedLog = new Map();
+let clock = () => Date.now();
+/** Take one forced-sync slot for (user, gym); false when the budget is spent. */
+function takeForcedSlot(userId, gymId, now = clock()) {
+  const key = flightKey(userId, gymId);
+  const recent = (forcedLog.get(key) || []).filter((t) => now - t < FORCED_WINDOW_MS);
+  if (recent.length >= FORCED_MAX) { forcedLog.set(key, recent); return false; }
+  recent.push(now);
+  forcedLog.set(key, recent);
+  if (forcedLog.size > 5000) { // bound the map: drop keys with nothing in the window
+    for (const [k, ts] of forcedLog) if (!ts.some((t) => now - t < FORCED_WINDOW_MS)) forcedLog.delete(k);
+  }
+  return true;
+}
+
 /** Fetch one (user, gym) unless skipped; true when anything was stored. */
 async function syncLink(userId, link, { force = false } = {}) {
   const gymId = link.gym_id;
   const reason = skipReason(userId, gymId, link);
   if (reason) { stats.gymsSkipped++; stats.skipped[reason]++; return false; }
+  if (force && !takeForcedSlot(userId, gymId)) { stats.gymsSkipped++; stats.skipped.forceLimited++; return false; }
   try {
     const r = await syncUserGym(userId, gymId, { force });
     return !!(r.ok || r.bookings || r.waitlists);
@@ -449,4 +474,9 @@ module.exports = {
   CLIENT_PUSH_GRACE_MS,
   MAX_LANES,
   RETAIN_STARTED_MS,
+  FORCED_WINDOW_MS,
+  FORCED_MAX,
+  _takeForcedSlot: takeForcedSlot,
+  _setClock: (fn) => { clock = typeof fn === 'function' ? fn : () => Date.now(); },
+  _resetForcedLog: () => forcedLog.clear(),
 };

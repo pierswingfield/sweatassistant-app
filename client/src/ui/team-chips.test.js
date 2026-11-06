@@ -44,13 +44,25 @@ describe('timetable Team chips (T-5, §5.3)', () => {
     expect(namesText(['Ana', 'Sam', 'Tom', 'Lee'])).toBe('Ana, Sam and 2 more');
   });
 
-  it('escapes every Team and member string; never renders a spot', () => {
-    const html = teamChipHtml([{ teamId: 't', name: '<img src=x onerror=1>', members: [{ name: '"><script>x</script>', colourIndex: 0, spot: 'Bike 14' }] }]);
+  it('escapes every Team and member string, spots included', () => {
+    const html = teamChipHtml([{ teamId: 't', name: '<img src=x onerror=1>', members: [{ name: '"><script>x</script>', colourIndex: 0, spot: '<b>14' }] }]);
     expect(html).not.toContain('<img');
     expect(html).not.toContain('<script');
+    expect(html).not.toContain('<b>14');
     expect(html).toContain('&lt;img');
-    expect(html).not.toContain('Bike 14');
     expect(teamChipHtml(null)).toBe('');
+  });
+
+  it('D13 (ii): a spot the server attached shows in the expanded detail only, never on the chip face', () => {
+    const idx = buildChipIndex({ classes: [{ key: 'g:1', teams: [{ teamId: 't', name: 'Riders', members: [
+      { memberRef: 'a', name: 'Ana', colourIndex: 1, spot: 'Bike 14' }, { memberRef: 'b', name: 'Sam', colourIndex: 2 }, { memberRef: 'c', name: 'Tom', colourIndex: 3, spot: 7 }] }] }] });
+    const m = chipModel(idx.get('g:1'));
+    expect(m.detail[0].names).toBe('Ana · Bike 14, Sam and Tom'); // a non-string spot is dropped
+    expect(m.aria).not.toContain('Bike 14');
+    const html = teamChipHtml(idx.get('g:1'));
+    const face = html.split('tt-team-detail')[0];
+    expect(face).not.toContain('Bike 14');
+    expect(html).toContain('Ana · Bike 14');
   });
 
   describe('per-load index', () => {

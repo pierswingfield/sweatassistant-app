@@ -182,7 +182,7 @@ const presentFor = (json, marker, label) => assert.ok(json.includes(marker), `${
 
 check('positive controls are present (the absence checks below can fail)', () => {
   for (const m of ['POS-hot-class', 'POS-coll-psy', 'POS-coll-jab', 'POS-spots-on', 'POS-gym-shared', 'POS-link-on',
-    'POS-wl-on', 'POS-queue-on', 'POS-recent-on', 'POS-a-done-today', 'MARK-jab-a', 'SPOT-ON-12', 'POS-activity-off-class']) {
+    'POS-wl-on', 'POS-queue-on', 'POS-recent-on', 'POS-a-done-today', 'MARK-jab-a', 'POS-activity-off-class']) {
     presentFor(P.vToday, m, 'V today');
   }
   presentFor(P.vList, 'POS-hot-class', 'V list (hottest line)');
@@ -196,6 +196,12 @@ check('spots off (the default): spot labels are absent; spots on shows only that
   absentEverywhere('SPOT-B-55');
   const hot = today.classes.find((c) => c.key === `${PSY}:101`);
   assert.ok(hot.attendees.every((a) => !('spot' in a)));
+});
+check('D13 (ii): spots on, but the viewer is not in that class: the spot is absent everywhere', () => {
+  // SP1 shares spots; neither V nor V2 is booked, waitlisted or queued for event 401.
+  // The full same-class matrix is test-team-spots.js.
+  absentEverywhere('SPOT-ON-12');
+  presentFor(P.vToday, 'POS-spots-on', 'V today (the class itself still shows)');
 });
 check('activity off: no counts, and the class is not in the Team\'s day totals', () => {
   const ac = today.members.find((m) => m.name.startsWith('Actoff'));
@@ -314,9 +320,10 @@ check('pause takes effect at once: unpausing restores, pausing removes, with no 
   assert.ok(JSON.stringify(teams.getTeamToday(V, TEAM, { zone: 'Europe/London' })).includes('MARK-jab-a'));
 });
 check('share toggled off later removes at once', () => {
-  teams.updateMe(SP1, TEAM, { share: { spots: false } });
-  assert.ok(!JSON.stringify(teams.getTeamToday(V, TEAM, { zone: 'Europe/London' })).includes('SPOT-ON-12'));
-  teams.updateMe(SP1, TEAM, { share: { spots: true } });
+  teams.updateMe(A, TEAM, { share: { waitlists: false } });
+  assert.ok(!JSON.stringify(teams.getTeamToday(V, TEAM, { zone: 'Europe/London' })).includes('POS-wl-on'));
+  teams.updateMe(A, TEAM, { share: { waitlists: true } });
+  // spots toggled off with the viewer in the same class: test-team-spots.js.
 });
 check('unlinking a gym removes its items on the next request', () => {
   const C = mkUser('Unlinker', [PSY, JAB]);

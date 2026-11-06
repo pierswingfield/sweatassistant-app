@@ -373,7 +373,12 @@ async function renderTeamPage(el, teamId, { stale }) {
   guard(el.querySelector('[data-w-week]'), () => dash.renderThisWeek(el.querySelector('[data-w-week]'), data, now));
   guard(togetherEl, () => dash.renderClassesTogether(togetherEl, data, now, { stale }));
   guard(el.querySelector('[data-members]'), () => dash.renderMembers(el.querySelector('[data-members]'), data, now));
-  guard(el.querySelector('[data-w-stats]'), () => dash.renderTeamStats(el.querySelector('[data-w-stats]'), data, now));
+  // D13 Team goal: Captains set or edit it from the stats card (also from Manage).
+  const onEditGoal = isCaptain ? async () => {
+    const { openGoalPage } = await import('./teams-manage.js');
+    openGoalPage(team, { onSaved: () => initTeams() });
+  } : null;
+  guard(el.querySelector('[data-w-stats]'), () => dash.renderTeamStats(el.querySelector('[data-w-stats]'), data, now, { onEditGoal }));
 
   // Keep "in class" rings honest on a page left open, and repaint the CTAs once the
   // timetable (the booking flow's own state) loads or changes after a booking.

@@ -454,6 +454,39 @@ check('cycle counters are exposed (aggregate only)', async () => {
   assert.ok(s.cycles >= 1 && s.gymsSynced >= 1 && s.gymsFailed >= 1 && s.gymsSkipped >= 1);
 });
 
+
+check('forced syncs are budgeted per (user, gym): FORCED_MAX per window, then skipped as forceLimited', async () => {
+  const uid = twoGymUser();
+  const other = twoGymUser();
+  let t = Date.now();
+  bookingSync._setClock(() => t);
+  bookingSync._resetForcedLog();
+  resetCalls();
+  try {
+    const before = bookingSync.getStats().skipped.forceLimited;
+    for (let i = 0; i < bookingSync.FORCED_MAX + 2; i++) await bookingSync.syncUser(uid, { force: true, gymIds: [PSYCLE] });
+    assert.strictEqual(calls[PSYCLE].listBookings, bookingSync.FORCED_MAX, 'only FORCED_MAX forced fetches reach the gym');
+    assert.strictEqual(bookingSync.getStats().skipped.forceLimited - before, 2);
+    assert.ok(bookingRows(uid, PSYCLE).length > 0, 'a skipped forced sync keeps the stored rows');
+    // Another gym of the same account, and another account, have their own budgets.
+    await bookingSync.syncUser(uid, { force: true, gymIds: [JAB] });
+    assert.strictEqual(calls[JAB].listBookings, 1);
+    await bookingSync.syncUser(other, { force: true, gymIds: [PSYCLE] });
+    assert.strictEqual(calls[PSYCLE].listBookings, bookingSync.FORCED_MAX + 1);
+    // The regular (cadence) path is never limited by it.
+    db.setBookingSyncState(uid, PSYCLE, { lastSyncedAt: new Date(0).toISOString(), lastAttemptAt: new Date(0).toISOString(), lastError: null });
+    await bookingSync.syncUser(uid, { gymIds: [PSYCLE], now: Date.now() });
+    assert.strictEqual(calls[PSYCLE].listBookings, bookingSync.FORCED_MAX + 2, 'a due non-forced sync still runs');
+    // Once the window has passed, forced syncs are allowed again.
+    t += bookingSync.FORCED_WINDOW_MS + 1;
+    await bookingSync.syncUser(uid, { force: true, gymIds: [PSYCLE] });
+    assert.strictEqual(calls[PSYCLE].listBookings, bookingSync.FORCED_MAX + 3);
+  } finally {
+    bookingSync._setClock(null);
+    bookingSync._resetForcedLog();
+  }
+});
+
 (async () => {
   let failed = 0;
   console.log('\n🧪 Universal background booking sync (T-B)\n');

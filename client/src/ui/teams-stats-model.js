@@ -115,3 +115,29 @@ export function gymMixView(mix, brandOf = () => ({})) {
     }),
   };
 }
+
+// D13 Team goal (PLAN-teams.md §8.1 option B): cooperative, no ranking and no names. The
+// server sends { target, count }, count being the Classes this week total; null = no goal
+// (the block is hidden).
+export const GOAL_MIN = 1;
+export const GOAL_MAX = 224; // 16 members x 14 (server teams.js LIMITS.GOAL_MAX)
+
+/** Pure: the goal payload -> what the block shows, or null when there is no goal. */
+export function goalView(goal) {
+  if (!goal || typeof goal !== 'object') return null;
+  const target = num(goal.target);
+  if (!Number.isInteger(target) || target < GOAL_MIN) return null;
+  const count = Math.max(0, Math.floor(num(goal.count)));
+  const reached = count >= target;
+  return { count, target, reached, remaining: reached ? 0 : target - count, percent: Math.min(100, Math.round((count / target) * 100)) };
+}
+
+/** Pure: the Captain's input -> { ok, value } (a whole number GOAL_MIN..GOAL_MAX) or { ok: false, error }. */
+export function validateWeeklyGoal(raw) {
+  const v = String(raw ?? '').trim();
+  if (!v) return { ok: false, error: 'required' };
+  if (!/^\d+$/.test(v)) return { ok: false, error: 'whole' };
+  const n = Number(v);
+  if (n < GOAL_MIN || n > GOAL_MAX) return { ok: false, error: 'range' };
+  return { ok: true, value: n };
+}

@@ -25,7 +25,7 @@ import {
   todaysWorkouts, weekDays, initialDayIndex, visibleWeekRows, classesTogether, memberActivity,
   activityScore, heroState, namesList, ctaKind, memberProfile, statusAt,
 } from './teams-dashboard-model.js';
-import { weekChange, streakView, busiestDaysView, busiestTimesView, gymMixView } from './teams-stats-model.js';
+import { weekChange, streakView, busiestDaysView, busiestTimesView, gymMixView, goalView } from './teams-stats-model.js';
 
 const SORT_LABEL = { name: 'sortName', activity: 'sortActivity', shuffle: 'sortShuffle' };
 
@@ -412,7 +412,25 @@ function busiestTimesHtml(charts) {
 }
 
 /** @returns {boolean} false when the payload has no stats block (the widget hides). */
-export function renderTeamStats(section, data, now) {
+/**
+ * D13 Team goal (§8.1 option B): "14 of 20 classes this week" and a bar. Cooperative: no
+ * names, no ranking. Hidden when no goal is set; a Captain then gets a quiet "Set a Team
+ * goal" link instead (`canEdit`), and an Edit link once one is set.
+ */
+export function teamGoalHtml(goal, { canEdit = false } = {}) {
+  const g = goalView(goal);
+  if (!g) return canEdit ? `<button type="button" class="tm-goal-set" data-goal-edit>${escapeHtml(T.goalSet)}</button>` : '';
+  const state = g.reached ? T.goalReached : g.remaining === 1 ? T.goalToGoOne : fmt(T.goalToGo, { n: g.remaining });
+  return `<div class="tm-goal${g.reached ? ' is-reached' : ''}" role="group" aria-label="${escapeHtml(fmt(T.goalAria, { count: g.count, target: g.target }))}">
+      <div class="tm-goal-head"><span class="tm-stat-label">${escapeHtml(T.goalName)}</span><span class="tm-grow"></span>
+        ${canEdit ? `<button type="button" class="tm-goal-edit" data-goal-edit aria-label="${escapeHtml(T.goalEditAria)}">${escapeHtml(T.goalEdit)}</button>` : ''}</div>
+      <div class="tm-goal-num"><span class="tm-stat-big">${g.count}</span><span class="tm-goal-of">${escapeHtml(fmt(T.goalOf, { target: g.target }))}</span></div>
+      <div class="tm-goal-track" aria-hidden="true"><i style="width:${g.percent}%"></i></div>
+      <span class="tm-stat-delta${g.reached ? ' is-up' : ''}">${escapeHtml(state)}</span>
+    </div>`;
+}
+
+export function renderTeamStats(section, data, now, { onEditGoal = null } = {}) {
   const stats = data && data.stats;
   if (!stats) { section.hidden = true; section.innerHTML = ''; return false; }
   section.hidden = false;
@@ -422,6 +440,7 @@ export function renderTeamStats(section, data, now) {
   const charts = stats.charts || {};
   const slides = [busiestDaysHtml(charts), gymMixHtml(charts), busiestTimesHtml(charts)];
   section.innerHTML = `<div class="tm-card-head"><h3 class="tm-card-title">${escapeHtml(T.teamStats)}</h3><span class="tm-grow"></span><span class="tm-card-meta">${escapeHtml(T.statsWeekMeta)}</span></div>
+    ${teamGoalHtml(data.goal, { canEdit: !!onEditGoal && data.myRole === 'captain' })}
     <div class="tm-stat-tiles">
       <div class="tm-stat-tile"><span class="tm-stat-big">${wk.thisWeek}</span><span class="tm-stat-label">${escapeHtml(wk.thisWeek === 1 ? T.statsClassWeek : T.statsClassesWeek)}</span>
         <span class="tm-stat-delta is-${wk.tone}">${escapeHtml(deltaText)}</span></div>
@@ -430,6 +449,7 @@ export function renderTeamStats(section, data, now) {
     </div>
     <div class="tm-stats-carousel" tabindex="0" aria-label="${escapeHtml(T.statsChartsAria)}">${slides.map((h, i) => `<div class="tm-stats-slide" aria-label="${escapeHtml(fmt(T.statsChartsPage, { n: i + 1, total: slides.length }))}">${h}</div>`).join('')}</div>
     <div class="tm-dots tm-stats-dots" aria-hidden="true">${slides.map((_, i) => `<i class="${i === 0 ? 'is-on' : ''}"></i>`).join('')}</div>`;
+  section.querySelectorAll('[data-goal-edit]').forEach((b) => b.addEventListener('click', () => onEditGoal && onEditGoal()));
   const car = section.querySelector('.tm-stats-carousel');
   const dots = section.querySelectorAll('.tm-stats-dots i');
   car.addEventListener('scroll', () => {

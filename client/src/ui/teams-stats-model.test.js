@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  weekChange, streakView, busiestDaysView, busiestTimesView, gymMixView, viewerDayKey,
+  weekChange, streakView, busiestDaysView, busiestTimesView, gymMixView, viewerDayKey, goalView, validateWeeklyGoal, GOAL_MAX,
 } from './teams-stats-model.js';
 
 // 2026-11-09 is a Monday. 23:30 UTC that day is still Monday in London but already
@@ -85,3 +85,24 @@ describe('gymMixView', () => {
     expect(gymMixView([{ gymId: 'a', count: 0 }]).total).toBe(0);
   });
 });
+
+describe('D13 Team goal models', () => {
+  it('goalView: count of target, remaining, capped percent; null without a valid target', () => {
+    expect(goalView({ target: 20, count: 14 })).toEqual({ count: 14, target: 20, reached: false, remaining: 6, percent: 70 });
+    expect(goalView({ target: 10, count: 14 })).toEqual({ count: 14, target: 10, reached: true, remaining: 0, percent: 100 });
+    expect(goalView({ target: 3, count: -2 }).count).toBe(0);
+    expect(goalView(null)).toBe(null);
+    expect(goalView({ target: 0, count: 1 })).toBe(null);
+    expect(goalView({ target: 2.5, count: 1 })).toBe(null);
+  });
+  it('validateWeeklyGoal: whole numbers 1..224 only (server LIMITS.GOAL_MAX)', () => {
+    expect(GOAL_MAX).toBe(16 * 14);
+    expect(validateWeeklyGoal(' 20 ')).toEqual({ ok: true, value: 20 });
+    expect(validateWeeklyGoal('224')).toEqual({ ok: true, value: 224 });
+    expect(validateWeeklyGoal('1')).toEqual({ ok: true, value: 1 });
+    expect(validateWeeklyGoal('')).toEqual({ ok: false, error: 'required' });
+    for (const bad of ['1.5', '-3', 'ten', '2e1']) expect(validateWeeklyGoal(bad).error).toBe('whole');
+    for (const bad of ['0', '225', '999']) expect(validateWeeklyGoal(bad).error).toBe('range');
+  });
+});
+

@@ -3,8 +3,9 @@
 import { api } from '../api.js';
 import { appConfig } from '../config.js';
 import { COPY, formatCountLabel, formatCopyText } from '../copy.js';
-import { registerWidget, registry, mountWidget, isNoGymError } from './widget-registry.js';
+import { registerWidget, registry, mountWidget, isNoGymError, orderIds } from './widget-registry.js';
 import { renderCardSkeletons } from './loading-skeleton.js';
+import { homeTeamsOrderFor, HOME_TEAMS_ORDER, HOME_ORDER_LAST } from './home-order.js';
 import { greetingText } from './name-capture.js';
 import { getTotalCredits, isMetered } from './credit-allowance.js';
 import { canForGym, getGymShortName, getLinkedGyms, getAllLinkedGyms } from '../gym-context.js';
@@ -593,8 +594,28 @@ async function teamsWidgetDeps() {
 }
 const openTeam = (teamId) => (window.switchTab ? window.switchTab('teams', { teams: teamId ? { view: 'team', teamId } : { view: 'list' } }) : null);
 
+// Teams widget placement (owner, 2026-11-06): in a Team it keeps order 30 (after Upcoming);
+// in no Team its "Create a Team" card goes BELOW every other widget (homeTeamsOrder). The
+// last answer is remembered so a no-Team member's skeleton does not appear at 30 first.
+let teamsEmptyHint = null;
+const TEAMS_EMPTY_HINT_KEY = 'appHomeTeamsEmpty';
+function readTeamsEmptyHint() {
+  if (teamsEmptyHint !== null) return teamsEmptyHint;
+  try { teamsEmptyHint = localStorage.getItem(`${TEAMS_EMPTY_HINT_KEY}:${localStorage.getItem('appUserId') || ''}`) === '1'; } catch (_) { teamsEmptyHint = false; }
+  return teamsEmptyHint;
+}
+function writeTeamsEmptyHint(empty) {
+  teamsEmptyHint = !!empty;
+  try { localStorage.setItem(`${TEAMS_EMPTY_HINT_KEY}:${localStorage.getItem('appUserId') || ''}`, empty ? '1' : '0'); } catch (_) { /* per-device convenience only */ }
+}
+
 registerWidget({
-  id: 'teams', order: 30,
+  id: 'teams', order: HOME_TEAMS_ORDER,
+  orderFor: (outcome) => {
+    if (outcome === 'empty') writeTeamsEmptyHint(true);
+    else if (outcome === 'ready') writeTeamsEmptyHint(false);
+    return homeTeamsOrderFor(outcome, readTeamsEmptyHint());
+  },
   title: () => COPY.teams.homeTitle,
   async load() {
     const deps = await teamsWidgetDeps();
@@ -921,9 +942,38 @@ registerWidget({
 let host = null;
 let renderRun = 0;
 
-const HOME_MOBILE_ORDER = ['upcoming', 'teams', 'book', 'favourites', 'credits', 'stats', 'top-instructors'];
+// Mobile reading order comes from the widget registry: each section's data-widget-order,
+// which mountWidget sets from the widget's order or orderFor(outcome). Desktop keeps its two
+// columns in their own fixed order, except that a widget the registry has placed LAST
+// (order >= HOME_ORDER_LAST, e.g. the no-Team "Create a Team" card) drops to the end of
+// its column.
 const HOME_LEFT_COLUMN_ORDER = ['upcoming', 'teams', 'book', 'stats'];
 const HOME_RIGHT_COLUMN_ORDER = ['credits', 'favourites', 'top-instructors'];
+
+/** Pure: [{ id, order }] (effective registry orders) -> { mobile, left, right } id lists. */
+export function homeLayout(entries) {
+  const list = (entries || []).filter((e) => e && e.id);
+  const mobile = orderIds(list);
+  const orderOf = new Map(list.map((e) => [e.id, e.order]));
+  const present = new Set(mobile);
+  const column = (ids) => {
+    const inCol = ids.filter((id) => present.has(id));
+    const last = (id) => (orderOf.get(id) >= HOME_ORDER_LAST ? 1 : 0);
+    return inCol.map((id, i) => ({ id, i })).sort((a, b) => (last(a.id) - last(b.id)) || (a.i - b.i)).map((x) => x.id);
+  };
+  const known = new Set([...HOME_LEFT_COLUMN_ORDER, ...HOME_RIGHT_COLUMN_ORDER]);
+  return {
+    mobile,
+    left: column(HOME_LEFT_COLUMN_ORDER),
+    right: column([...HOME_RIGHT_COLUMN_ORDER, ...mobile.filter((id) => !known.has(id))]),
+  };
+}
+const sectionEntries = (widgets) => widgets.map((w) => {
+  const id = w.dataset.widgetId;
+  const own = Number(w.dataset.widgetOrder);
+  const def = registry.get(id);
+  return { id, order: Number.isFinite(own) && w.dataset.widgetOrder !== '' && w.dataset.widgetOrder != null ? own : (def ? def.order : 100) };
+});
 
 /**
  * Keep the registry's reading order on mobile while giving desktop its two
@@ -948,9 +998,10 @@ export function syncHomeDesktopFlow(root) {
   const activeMedia = root._homeDesktopMedia;
 
   const widgets = [...root.querySelectorAll('.home-widget')];
+  const layout = homeLayout(sectionEntries(widgets));
   if (!activeMedia.matches) {
     const byId = new Map(widgets.map((widget) => [widget.dataset.widgetId, widget]));
-    HOME_MOBILE_ORDER.forEach((id) => {
+    layout.mobile.forEach((id) => {
       const widget = byId.get(id);
       if (widget) root.appendChild(widget);
     });
@@ -968,10 +1019,8 @@ export function syncHomeDesktopFlow(root) {
     root.append(left, right);
   }
   const byId = new Map(widgets.map((widget) => [widget.dataset.widgetId, widget]));
-  [...HOME_LEFT_COLUMN_ORDER, ...HOME_RIGHT_COLUMN_ORDER].forEach((id) => {
-    const widget = byId.get(id);
-    if (widget) (HOME_LEFT_COLUMN_ORDER.includes(id) ? left : right).appendChild(widget);
-  });
+  layout.left.forEach((id) => { const widget = byId.get(id); if (widget) left.appendChild(widget); });
+  layout.right.forEach((id) => { const widget = byId.get(id); if (widget) right.appendChild(widget); });
 }
 
 function widgetCopy() {
@@ -1013,6 +1062,10 @@ export async function renderHome() {
   // syncHomeDesktopFlow nests sections inside columns; include those mounted
   // sections so a refresh moves/reuses them instead of appending duplicates.
   const existing = new Map([...host.querySelectorAll('.home-widget')].map((el) => [el.dataset.widgetId, el]));
+  // A widget whose outcome moves it (orderFor, e.g. the Teams empty card) re-flows the page
+  // once every section is in place; before that the final syncHomeDesktopFlow below does it.
+  let placed = false;
+  const onPlaced = () => { if (placed && run === renderRun) syncHomeDesktopFlow(host); };
   for (const w of widgets) {
     const el = existing.get(w.id) || document.createElement('section');
     el.classList.add('home-widget');
@@ -1023,6 +1076,7 @@ export async function renderHome() {
       skeleton,
       copy: widgetCopy(),
       contextKey,
+      onPlaced,
       hasCachedData: async (widget) => {
         const keys = typeof widget.cacheKeys === 'function' ? widget.cacheKeys(ctx) : [];
         if (!keys.length) return false;
@@ -1032,6 +1086,7 @@ export async function renderHome() {
     }); // independent; never awaited together
   }
   existing.forEach((el) => el.remove());
+  placed = true;
   syncHomeDesktopFlow(host);
 }
 

@@ -531,6 +531,17 @@ check('module boundary: only teams.js touches the three tables', () => {
   assert.deepStrictEqual(offenders, []);
 });
 
+check('expireStale\'s pending-expiry scan uses idx_team_requests_status_created(status, created_at)', () => {
+  const { db } = boot();
+  const idx = db.db.prepare("PRAGMA index_info('idx_team_requests_status_created')").all().map((c) => c.name);
+  assert.deepStrictEqual(idx, ['status', 'created_at']);
+  const plan = db.db.prepare("EXPLAIN QUERY PLAN UPDATE team_join_requests SET status = 'expired', decided_at = ? WHERE status = 'pending' AND created_at < ?")
+    .all('x', 'y').map((r) => r.detail).join(' | ');
+  assert.match(plan, /idx_team_requests_status_created/, plan);
+  // The query in teams.js is the one planned here.
+  assert.ok(fs.readFileSync(path.join(__dirname, 'teams.js'), 'utf8').includes("WHERE status = 'pending' AND created_at < ?"));
+});
+
 // --- 3. HTTP contract (dev server) ---------------------------------------------------
 
 function bootServer(port, env, dbPath) {

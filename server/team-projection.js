@@ -18,6 +18,17 @@
 //   Details (gym, time, class, place, spot) are shown only if V has that gym linked
 //   (enabled, or paused-but-linked, §4); otherwise it only adds to "+N at other gyms".
 //
+// Spot numbers (D13, owner 2026-11-06, §8.1 option ii): M's shared spot (`share.spots`) is
+// attached to an attendee row ONLY when V attends the same gym-qualified class
+// (`gymId:eventId`) themselves: booked, waitlisted or queued to auto-book. That is the
+// only case where "pick the bike next to Ana" is actionable. V's own attendance counts
+// only rows V cannot forge from the client (viewerAttendance below): a server-synced
+// booking (never a client-pushed-only row), not penalised or cancelled, not an
+// unconfirmed `missing_since` row, at a gym V's link is switched on for; a waitlist row
+// (written only by the server's sync) or a pending auto-book entry for a class that has
+// not started. Every surface (dashboard, member cards, timetable chips, Home, pushes)
+// reads spots from this projection, so none can show one outside that rule.
+//
 // Categories (team-sharing.js): upcoming (booking_cache), waitlists (waitlist_cache),
 // autoBookQueue (pending auto_bookings), spots (slot labels on bookings), activity
 // (week/month counts and the mascot's day), recent (class_history, last 30 days).
@@ -51,6 +62,44 @@ function toInstant(iso, zone) {
   if (!iso) return null;
   const dt = DateTime.fromISO(String(iso), { zone: zone || 'UTC' });
   return dt.isValid ? dt : null;
+}
+
+/**
+ * D13 (ii): the gym-qualified class keys the viewer attends, from the viewer's OWN member
+ * row. Strict on purpose: a row that a client push alone could create (booking_cache
+ * origin 'client') does not count, so a viewer cannot unlock a teammate's spot by
+ * pushing a made-up booking. Independent of the viewer's own share settings and pause
+ * (those govern what others see of the viewer, not what the viewer is booked into).
+ * @param {object} m  the viewer's member input (links, bookings, waitlists, queue, history)
+ * @param {number} now epoch ms
+ * @param {(gymId: string) => string} zoneFor
+ * @returns {Set<string>}
+ */
+function viewerAttendance(m, now, zoneFor = () => 'UTC') {
+  const out = new Set();
+  if (!m) return out;
+  const enabled = new Set((m.links || []).filter((l) => l && (l.account_enabled === 1 || l.account_enabled === true)).map((l) => l.gym_id));
+  const excluded = new Set();
+  const confirmed = new Set();
+  for (const h of m.history || []) {
+    if (!h || !h.gym_id) continue;
+    (COUNTED.has(h.status) ? confirmed : excluded).add(classKey(h.gym_id, h.booking_id));
+  }
+  const upcoming = (row) => { const dt = toInstant(row.start_at, zoneFor(row.gym_id)); return !!dt && dt.toMillis() > now; };
+  for (const b of m.bookings || []) {
+    if (!b || b.origin !== 'server' || !enabled.has(b.gym_id) || b.event_id == null) continue;
+    const bk = classKey(b.gym_id, b.booking_id);
+    if (excluded.has(bk)) continue;
+    if (b.missing_since && !confirmed.has(bk)) continue;
+    out.add(classKey(b.gym_id, b.event_id));
+  }
+  for (const w of m.waitlists || []) {
+    if (w && enabled.has(w.gym_id) && w.event_id != null && upcoming(w)) out.add(classKey(w.gym_id, w.event_id));
+  }
+  for (const q of m.queue || []) {
+    if (q && q.status === 'pending' && !q.executed_at && enabled.has(q.gym_id) && q.event_id != null && upcoming(q)) out.add(classKey(q.gym_id, q.event_id));
+  }
+  return out;
 }
 
 /**
@@ -90,6 +139,8 @@ function projectTeam(input) {
   const outMembers = [];
   const nameOf = new Map();
   const statEntries = []; // T-4: completed classes, tagged with what their sharer allowed (team-stats.js)
+  // D13 (ii): the classes the viewer attends; a teammate's spot is attached only there.
+  const attending = viewerAttendance(members.find((m) => m.userId === viewer.userId), now, zoneFor);
 
   const describe = (gymId, eventId, row, dt, durationMin) => {
     const startMs = dt.toMillis();
@@ -192,7 +243,7 @@ function projectTeam(input) {
       if (cls._endMs <= now) countIfActivity(b.gym_id, b.booking_id, cls._startMs);
       if (!share.upcoming) continue;
       if (!visible(b.gym_id)) { if (cls._endMs > now) other.upcoming.add(cls.key); continue; }
-      const spot = share.spots ? str(b.slot_label).trim() : '';
+      const spot = share.spots && attending.has(cls.key) ? str(b.slot_label).trim() : '';
       addAttendee(classes, cls, m.memberRef, 'booked', spot || null);
     }
 
@@ -370,4 +421,4 @@ function projectTeam(input) {
   return out;
 }
 
-module.exports = { projectTeam, classKey, COUNTED_STATUSES: [...COUNTED] };
+module.exports = { projectTeam, viewerAttendance, classKey, COUNTED_STATUSES: [...COUNTED] };

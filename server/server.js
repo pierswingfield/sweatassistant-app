@@ -117,7 +117,8 @@ const bookingMutationLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => req.userId ? String(req.userId) : ipKeyGenerator(req.ip),
   message: { message: 'Too many booking requests — please wait before retrying.' },
-  skip: (req) => process.env.NODE_ENV !== 'production',
+  // RATE_LIMIT_TEST_FORCE=1 turns it on in tests (as routes-normalized.js does).
+  skip: (req) => process.env.NODE_ENV !== 'production' && process.env.RATE_LIMIT_TEST_FORCE !== '1',
 });
 
 // Public calendar feed is keyed by IP (no userId — it's token-by-URL). Generous
@@ -279,7 +280,8 @@ app.get('/metrics', (req, res) => {
       [{ result: 'gym_synced' }, bs.gymsSynced || 0], [{ result: 'gym_failed' }, bs.gymsFailed || 0],
       [{ result: 'skipped_disabled' }, (bs.skipped && bs.skipped.disabled) || 0],
       [{ result: 'skipped_throttled' }, (bs.skipped && bs.skipped.throttled) || 0],
-      [{ result: 'skipped_needs_relogin' }, (bs.skipped && bs.skipped.needsRelogin) || 0]], 'counter'),
+      [{ result: 'skipped_needs_relogin' }, (bs.skipped && bs.skipped.needsRelogin) || 0],
+      [{ result: 'skipped_force_limited' }, (bs.skipped && bs.skipped.forceLimited) || 0]], 'counter'),
     gauge('scheduler_pending_bookings', 'Pending auto-book queue entries (all users, all gyms).', [[{}, pending]]),
     gauge('scheduler_next_release_timestamp_seconds', 'Armed next auto-book release (unix seconds; 0 when idle).', [[{}, Number.isFinite(next) ? Math.round(next / 1000) : 0]]),
     gauge('service_heartbeat_age_seconds', 'Seconds since a background service last wrote its heartbeat (-1 = never).', beats),
@@ -487,7 +489,9 @@ app.post('/api/push/test/:type', authenticateToken, async (req, res) => {
 
 // Client-reported booking success → fan out a "Spot Booked" notification to all
 // devices (honours the user's scope preference: all bookings vs auto-book only).
-app.post('/api/notify/booking-success', authenticateToken, async (req, res) => {
+// bookingMutationLimiter: each call fans out a push to every device and schedules a
+// calendar refresh, so it shares the booking-write budget (Teams security review, low).
+app.post('/api/notify/booking-success', authenticateToken, bookingMutationLimiter, async (req, res) => {
   try {
     const { eventId, className, groupName, instructorName, startAt, slots, source, gymId: bodyGymId } = req.body;
     // C3-19: the booking's OWN gym names the push. A gym the account is not

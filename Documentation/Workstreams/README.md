@@ -22,7 +22,7 @@ Requested 2026-10-24; these plans do not mark implementation as started or verif
 | Plan | First milestone | Relationship to existing work |
 |---|---|---|
 | [App restyling, typography, CSS and motion](PLAN-app-restyling.md) | Real-browser baseline audit, then visual rules and reference screens | Coordinates the existing CSS/type cleanup and glass-polish backlog; preserves member-experience bug ownership |
-| [Teams: shared classes for small groups](PLAN-teams.md) | T-0, the mock-ups, and T-B, universal background booking sync; then T-1, the membership core | Expands F-3, social class sharing; reads H-0 class history and the booking cache; 2026-11-04 |
+| [Teams: shared classes for small groups](PLAN-teams.md) | T-0 to T-5 built on branch `teams` (not merged or deployed), plus the owner's 2026-11-06 decisions: same-class spot numbers and the weekly Team goal. T-6 (photos, Book next to, Moments, nicknames) is in [BACKLOG.md](BACKLOG.md) | Expands F-3, social class sharing; reads H-0 class history and the booking cache; 2026-11-04 |
 | [User-facing MCP server](PLAN-mcp-server.md) | Client/auth compatibility spike and threat model, then a read-only pilot | Expands F-4, the MCP integration; includes [current security research](mcp-security-research.md) |
 
 The two plans can progress independently. The MCP connection/consent UI should reuse the app's shared design components. The restyling audit requires real-browser access before implementation, as described in the agent protocol.

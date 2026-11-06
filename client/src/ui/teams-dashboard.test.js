@@ -159,3 +159,44 @@ describe('T-4 Team stats widget', () => {
     expect(el.querySelectorAll('.tm-chart-empty').length).toBe(3);
   });
 });
+
+describe('D13 Team goal (cooperative, §8.1 option B)', () => {
+  const stats = { week: { thisWeek: 14, lastWeek: 11, delta: 3 }, streak: { days: 0, since: null }, charts: { total: 0, busiestDays: [], busiestTimes: [], gymMix: [] } };
+  it('shows "14 of 20 classes this week", a bar and "6 to go", above the tiles, with no names', () => {
+    const el = document.createElement('section');
+    dash.renderTeamStats(el, { ...data, myRole: 'member', stats, goal: { target: 20, count: 14 } }, NOW);
+    const goal = el.querySelector('.tm-goal');
+    expect(goal).not.toBe(null);
+    expect(goal.textContent).toContain('14');
+    expect(goal.textContent).toContain('of 20 classes this week');
+    expect(goal.textContent).toContain('6 to go');
+    expect(goal.querySelector('.tm-goal-track i').getAttribute('style')).toContain('70%');
+    expect(goal.textContent).not.toContain('Ana');
+    expect(el.firstElementChild.nextElementSibling).toBe(goal); // right after the card head
+    expect(el.querySelector('[data-goal-edit]')).toBe(null); // members cannot edit
+  });
+  it('reached: "Goal reached" and a full bar; a count over the target caps at 100%', () => {
+    const el = document.createElement('section');
+    dash.renderTeamStats(el, { ...data, stats, goal: { target: 10, count: 14 } }, NOW);
+    expect(el.querySelector('.tm-goal').classList.contains('is-reached')).toBe(true);
+    expect(el.textContent).toContain('Goal reached');
+    expect(el.querySelector('.tm-goal-track i').getAttribute('style')).toContain('100%');
+  });
+  it('no goal: nothing for members; a Captain gets "Set a weekly Team goal", which calls back', () => {
+    const el = document.createElement('section');
+    dash.renderTeamStats(el, { ...data, myRole: 'member', stats, goal: null }, NOW, { onEditGoal: null });
+    expect(el.querySelector('.tm-goal, [data-goal-edit]')).toBe(null);
+    const onEditGoal = vi.fn();
+    dash.renderTeamStats(el, { ...data, myRole: 'captain', stats, goal: null }, NOW, { onEditGoal });
+    expect(el.querySelector('.tm-goal')).toBe(null);
+    el.querySelector('[data-goal-edit]').click();
+    expect(onEditGoal).toHaveBeenCalledTimes(1);
+    dash.renderTeamStats(el, { ...data, myRole: 'captain', stats, goal: { target: 5, count: 1 } }, NOW, { onEditGoal });
+    expect(el.querySelector('.tm-goal [data-goal-edit]').textContent).toBe('Edit');
+  });
+  it('a malformed goal renders nothing and the payload is never interpreted as markup', () => {
+    expect(dash.teamGoalHtml({ target: '<b>', count: 1 })).toBe('');
+    expect(dash.teamGoalHtml({ target: 0, count: 1 })).toBe('');
+    expect(dash.teamGoalHtml({ target: 3, count: '<img src=x>' })).not.toContain('<img');
+  });
+});

@@ -12048,6 +12048,22 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container .tm-stat-sub { color: var(--text-secondary); font-size: var(--text-xs, 12px); margin-top: 4px; }
 #app-helper-container .tm-stat-delta { font-size: var(--text-sm); font-weight: 600; margin-top: 4px; color: var(--text-secondary); }
 #app-helper-container .tm-stat-delta.is-up { color: var(--success); }
+/* D13 Team goal (§8.1 option B): a tile above the stats tiles, same surface and type scale. */
+#app-helper-container .tm-goal {
+  background: color-mix(in srgb, var(--text) 4%, var(--surface)); border-radius: 16px; padding: 14px; margin-bottom: 10px;
+  display: flex; flex-direction: column; gap: 4px; min-width: 0;
+}
+#app-helper-container .tm-goal-head { display: flex; align-items: center; gap: 8px; min-height: 24px; }
+#app-helper-container .tm-goal-num { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+#app-helper-container .tm-goal-of { color: var(--text-secondary); font-size: var(--text-sm); }
+#app-helper-container .tm-goal-track { height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--text) 8%, var(--surface)); overflow: hidden; margin-top: 6px; }
+#app-helper-container .tm-goal-track i { display: block; height: 100%; border-radius: 999px; background: var(--accent); min-width: 0; transition: width .3s ease; }
+#app-helper-container .tm-goal.is-reached .tm-goal-track i { background: var(--success); }
+#app-helper-container .tm-goal-edit, #app-helper-container .tm-goal-set {
+  background: none; border: 0; padding: 4px 2px; font: inherit; font-size: var(--text-sm); font-weight: 600; color: var(--accent); cursor: pointer; min-height: 32px;
+}
+#app-helper-container .tm-goal-set { display: block; margin: 0 0 10px; }
+#app-helper-container .tm-input-goal { max-width: 140px; font-variant-numeric: tabular-nums; }
 #app-helper-container .tm-stats-carousel {
   display: flex; gap: 10px; margin-top: 10px; overflow-x: auto; scroll-snap-type: x mandatory;
   scrollbar-width: none; overscroll-behavior-x: contain;

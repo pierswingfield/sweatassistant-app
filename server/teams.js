@@ -38,6 +38,10 @@ const LIMITS = Object.freeze({
   MAX_TEAMS_PER_ACCOUNT: 20,
   MAX_PENDING_PER_TEAM: 50,
   MAX_REQUESTS_PER_HOUR: 10,  // per account, counted from stored request rows
+  // D13 Team goal (§8.1 option B): a weekly target a Captain sets. At most two classes a
+  // day for every member of a full Team (16 x 14); the CHECK in db.js says the same.
+  GOAL_MIN: 1,
+  GOAL_MAX: 224,
 });
 const DECLINE_COOLDOWN_MS = 7 * DAY_MS;
 const REQUEST_TTL_MS = 14 * DAY_MS;
@@ -134,6 +138,15 @@ function cleanName(name) {
   return v;
 }
 const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+/** D13 Team goal: null clears it; otherwise a whole number of classes in [GOAL_MIN, GOAL_MAX]. */
+function cleanGoal(goal) {
+  if (goal === null) return null;
+  if (typeof goal !== 'number' || !Number.isInteger(goal) || goal < LIMITS.GOAL_MIN || goal > LIMITS.GOAL_MAX) {
+    throw invalid(`weeklyGoal must be a whole number from ${LIMITS.GOAL_MIN} to ${LIMITS.GOAL_MAX}, or null to clear it.`);
+  }
+  return goal;
+}
+
 function cleanEmoji(emoji) {
   if (emoji == null || emoji === '') return null;
   if (typeof emoji !== 'string') throw invalid('Emoji must be text.');
@@ -253,6 +266,7 @@ function teamSummary(team) {
     name: team.name,
     emoji: team.emoji || null,
     competitionEnabled: team.competition_enabled === 1,
+    weeklyGoal: Number.isInteger(team.weekly_goal) ? team.weekly_goal : null,
     inviteEnabled: team.invite_enabled === 1,
     memberCount: memberCount(team.id),
   };
@@ -372,6 +386,11 @@ function getTeamToday(userId, teamId, { zone } = {}) {
   // T-3: Captains see the waiting-request count on the dashboard's Manage button (the
   // requests themselves stay in Manage, §5.7). Members never receive the key.
   if (me.is_captain === 1) out.pendingRequestCount = pendingCount(team.id);
+  // D13 Team goal (§8.1 option B): cooperative, no ranking and no names. The count is the
+  // SAME total as "classes this week" (stats.week.thisWeek: activity sharers, every shared
+  // gym, team-stats.js), so it needs no new consent and can never say more than that tile.
+  const target = out.team.weeklyGoal;
+  out.goal = target && out.stats ? { target, count: out.stats.week.thisWeek } : null;
   return out;
 }
 
@@ -405,7 +424,9 @@ function priorityMemberIds() {
 //   - only classes that have not started;
 //   - only gyms the viewer has linked (the projection already hides others' details;
 //     re-checked here so the chip can never name an unlinked gym);
-//   - no spot numbers (owner, T-5: the §8.1 spot-number decision is pending).
+//   - a teammate's spot only as the projection attached it: D13 (ii), when the viewer is
+//     booked into, waitlisted for or queued for this same class and the teammate shares
+//     spots (team-projection.js viewerAttendance). Never decided here.
 function timetableChips(userId) {
   expireStale();
   const rows = db.prepare(`SELECT t.id, t.name, t.emoji, m.pinned FROM team_members m JOIN teams t ON t.id = m.team_id
@@ -423,7 +444,12 @@ function timetableChips(userId) {
       if (c.status !== 'upcoming' || !linked.has(c.gymId)) continue;
       const mates = c.attendees
         .filter((a) => a.kind === 'booked' && a.memberRef !== meRef && byRef.has(a.memberRef))
-        .map((a) => { const m = byRef.get(a.memberRef); return { memberRef: m.memberRef, name: m.name, colourIndex: m.colourIndex }; });
+        .map((a) => {
+          const m = byRef.get(a.memberRef);
+          const mate = { memberRef: m.memberRef, name: m.name, colourIndex: m.colourIndex };
+          if (a.spot) mate.spot = a.spot;
+          return mate;
+        });
       if (!mates.length) continue;
       if (!byKey.has(c.key)) byKey.set(c.key, { key: c.key, gymId: c.gymId, eventId: c.eventId, teams: [] });
       byKey.get(c.key).teams.push({ teamId: t.id, name: t.name, emoji: t.emoji || null, pinned: t.pinned === 1, members: mates });
@@ -572,6 +598,7 @@ function updateTeam(userId, teamId, patch = {}) {
   const sets = {};
   if (patch.name !== undefined) sets.name = cleanName(patch.name);
   if (patch.emoji !== undefined) sets.emoji = cleanEmoji(patch.emoji);
+  if (patch.weeklyGoal !== undefined) sets.weekly_goal = cleanGoal(patch.weeklyGoal);
   if (patch.competitionEnabled !== undefined) {
     if (typeof patch.competitionEnabled !== 'boolean') throw invalid('competitionEnabled must be true or false.');
     sets.competition_enabled = patch.competitionEnabled ? 1 : 0;

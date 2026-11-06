@@ -21,6 +21,7 @@ let primaryActionForEvent;
 let actionGlyph;
 let formatInZone;
 let syncHomeDesktopFlow;
+let homeLayout;
 let homeRegistry;
 let mountWidget;
 let cache;
@@ -38,7 +39,7 @@ beforeAll(async () => {
   }
   ({ cache } = await import('../main.js'));
   ({ formatInZone } = await import('../lib.js'));
-  ({ countPendingAutoBooks, getHomeCreditRows, getHomeBookLinks, groupHomeGymLinks, getHomeTopInstructorRows, getHomeFavouriteRows, getHomeStats, getHomeActivityMeta, isDisabledLinkedGym, homeStatsWantsAttendance, getHomeFavouriteStatus, renderHomeFavouriteCard, syncHomeDesktopFlow } = await import('./home.js'));
+  ({ countPendingAutoBooks, getHomeCreditRows, getHomeBookLinks, groupHomeGymLinks, getHomeTopInstructorRows, getHomeFavouriteRows, getHomeStats, getHomeActivityMeta, isDisabledLinkedGym, homeStatsWantsAttendance, getHomeFavouriteStatus, renderHomeFavouriteCard, syncHomeDesktopFlow, homeLayout } = await import('./home.js'));
   ({ primaryActionForEvent, actionGlyph } = await import('./timetable.js'));
   ({ registry: homeRegistry, mountWidget } = await import('./widget-registry.js'));
 });
@@ -138,6 +139,56 @@ describe('Home desktop flow', () => {
     } finally {
       window.matchMedia = originalMatchMedia;
     }
+  });
+});
+
+describe('Home ordering: the Teams widget (owner, 2026-11-06)', () => {
+  it('homeTeamsOrderFor: last when in no Team, its place when in Teams, the remembered answer while loading', async () => {
+    const { homeTeamsOrderFor, HOME_ORDER_LAST, HOME_TEAMS_ORDER } = await import('./home-order.js');
+    expect(homeTeamsOrderFor('empty')).toBe(HOME_ORDER_LAST);
+    expect(homeTeamsOrderFor('ready')).toBe(HOME_TEAMS_ORDER);
+    expect(homeTeamsOrderFor('ready', true)).toBe(HOME_TEAMS_ORDER);
+    expect(homeTeamsOrderFor('loading')).toBe(HOME_TEAMS_ORDER);
+    expect(homeTeamsOrderFor('loading', true)).toBe(HOME_ORDER_LAST);
+    expect(homeTeamsOrderFor('error', true)).toBe(HOME_ORDER_LAST);
+    const top = Math.max(...homeRegistry.list({}).filter((x) => x.id !== 'teams').map((x) => x.order));
+    expect(HOME_ORDER_LAST).toBeGreaterThan(top);
+  });
+  it('the registered Teams widget uses that rule', () => {
+    const def = homeRegistry.get('teams');
+    expect(def.order).toBe(30);
+    expect(def.orderFor('ready')).toBe(30);
+    expect(def.orderFor('empty')).toBe(1000);
+    expect(def.orderFor('loading')).toBe(1000); // remembered: this device last saw no Team
+    expect(def.orderFor('ready')).toBe(30);
+    expect(def.orderFor('loading')).toBe(30);
+  });
+  it('homeLayout: in a Team, Teams sits after Upcoming; in no Team, below everything (mobile) and at its column end (desktop)', () => {
+    const base = [['upcoming', 20], ['book', 40], ['favourites', 50], ['credits', 60], ['stats', 70], ['top-instructors', 80]];
+    const inTeam = homeLayout([...base, ['teams', 30]].map(([id, order]) => ({ id, order })));
+    expect(inTeam.mobile).toEqual(['upcoming', 'teams', 'book', 'favourites', 'credits', 'stats', 'top-instructors']);
+    expect(inTeam.left).toEqual(['upcoming', 'teams', 'book', 'stats']);
+    expect(inTeam.right).toEqual(['credits', 'favourites', 'top-instructors']);
+    const noTeam = homeLayout([...base, ['teams', 1000]].map(([id, order]) => ({ id, order })));
+    expect(noTeam.mobile).toEqual(['upcoming', 'book', 'favourites', 'credits', 'stats', 'top-instructors', 'teams']);
+    expect(noTeam.left).toEqual(['upcoming', 'book', 'stats', 'teams']);
+    expect(noTeam.right).toEqual(['credits', 'favourites', 'top-instructors']);
+  });
+  it('syncHomeDesktopFlow reads the sections\' registry order on mobile', () => {
+    const root = document.createElement('div');
+    [['teams', 1000], ['upcoming', 20], ['book', 40]].forEach(([id, order]) => {
+      const el = document.createElement('section');
+      el.className = 'home-widget';
+      el.dataset.widgetId = id;
+      el.dataset.widgetOrder = String(order);
+      root.appendChild(el);
+    });
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = () => ({ matches: false, addEventListener() {}, addListener() {} });
+    try {
+      syncHomeDesktopFlow(root);
+      expect([...root.children].map((n) => n.dataset.widgetId)).toEqual(['upcoming', 'book', 'teams']);
+    } finally { window.matchMedia = originalMatchMedia; }
   });
 });
 

@@ -4,7 +4,8 @@
 // teammates as an overlapping avatar stack (the filter rail's gym-logo stack: 26 px
 // circles at an 8 px pitch, leftmost on top, no masking ring) then the Team name, and
 // "+1" when more Teams have someone there. Tapping the chip expands the row's detail:
-// one line per Team with the teammates' names. No spot numbers (§8.1 is pending).
+// one line per Team with the teammates' names, and a teammate's spot ("Ana · Bike 14") only
+// when the server attached it: D13 (ii), the viewer is in that same class (team-projection.js).
 //
 // The server decides everything (GET /api/teams/timetable runs the Team projection once
 // for all the viewer's Teams); nothing here filters what it sent. The index is keyed
@@ -36,7 +37,9 @@ export function buildChipIndex(payload) {
         name: t.name,
         emoji: isStr(t.emoji) ? t.emoji : null,
         pinned: t.pinned === true,
-        members: t.members.filter((m) => m && isStr(m.name)).map((m) => ({ name: m.name, colourIndex: m.colourIndex })),
+        members: t.members.filter((m) => m && isStr(m.name)).map((m) => ({
+          name: m.name, colourIndex: m.colourIndex, ...(isStr(m.spot) ? { spot: m.spot } : {}),
+        })),
       }))
       .filter((t) => t.members.length);
     if (teams.length) out.set(c.key, teams);
@@ -65,7 +68,7 @@ export function chipModel(teams) {
   const first = teams[0];
   const more = teams.length - 1;
   const avatars = first.members.slice(0, CHIP_STACK_MAX).map((m) => ({ initials: initials(m.name, 2), colour: avatarColourIndex(m.colourIndex) }));
-  const detail = teams.map((t) => ({ team: teamLabel(t), names: namesText(t.members.map((m) => m.name), 8) }));
+  const detail = teams.map((t) => ({ team: teamLabel(t), names: namesText(t.members.map((m) => (m.spot ? `${m.name}${T.spotSep}${m.spot}` : m.name)), 8) }));
   const firstNames = namesText(first.members.map((m) => m.name));
   const aria = more > 0
     ? fmt(T.ttChipAriaMore, { team: teamLabel(first), names: firstNames, count: more })

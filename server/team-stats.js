@@ -8,7 +8,12 @@
 //   week   (classes this week, "+3 on last week")  -> `activity`; every shared gym,
 //          including gyms the viewer hasn't linked (D2: counted in totals, never named)
 //   streak (Team streak)                            -> `activity` AND `recent` (it is
-//          day-level history, which only "Recent classes" consents to); every shared gym (D2)
+//          day-level history, which only "Recent classes" consents to) AND a gym the VIEWER
+//          has linked. Not every shared gym: in a small Team the viewer can subtract their
+//          own days and the itemised Recent list from the run, and an unlinked-gym day would
+//          then show that one named member trained at that gym on that date, which D2's
+//          consent copy ("still see that you trained, not the details") does not cover and
+//          §8.1 reserves for an explicit opt-in (T-4 review).
 //   busiestDays, busiestTimes, gymMix (the charts)  -> `recent` AND a gym the VIEWER has
 //          linked, inside the recent window. The charts therefore never reveal more than
 //          the itemised "Recent classes" list already shows this viewer, so no small-Team
@@ -38,7 +43,8 @@ function teamStats({ entries = [], now, zone = 'UTC' }) {
   const todayKey = local.toISODate();
   const weekStartKey = local.startOf('week').toISODate();
   const lastWeekStartKey = local.startOf('week').minus({ weeks: 1 }).toISODate();
-  const sameMomentLastWeek = now - 7 * DAY_MS;
+  // Calendar arithmetic, not 7 x 24 h: across a DST change the two differ by an hour.
+  const sameMomentLastWeek = local.minus({ weeks: 1 }).toMillis();
 
   const done = entries
     .filter((e) => e && Number.isFinite(e.startMs) && e.startMs <= now)
@@ -56,7 +62,7 @@ function teamStats({ entries = [], now, zone = 'UTC' }) {
 
   // Team streak: consecutive days with at least one completed class. Today without a
   // class yet does not break it (the day isn't over): the run then counts from yesterday.
-  const streakDays = new Set(done.filter((e) => e.activity && e.recent && e.startMs >= now - STREAK_DAYS * DAY_MS).map((e) => e.dayKey));
+  const streakDays = new Set(done.filter((e) => e.activity && e.recent && e.viewerLinked && e.startMs >= now - STREAK_DAYS * DAY_MS).map((e) => e.dayKey));
   let cursor = local.startOf('day');
   if (!streakDays.has(todayKey)) cursor = cursor.minus({ days: 1 });
   let days = 0;

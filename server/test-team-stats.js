@@ -66,6 +66,23 @@ check('streak: today without a class yet does not break it; a gap does', () => {
   assert.deepStrictEqual(teamStats({ now: MON_10, zone: LON, entries: [] }).streak, { days: 0, since: null, capped: false });
 });
 
+check('week: "same moment last week" is calendar time across a DST change, not 7 x 24 h', () => {
+  // Wed 28 Oct 2026 10:00 GMT; the same moment last week is Wed 21 Oct 10:00 BST (09:00 UTC).
+  // 10:30 BST on the 21st is AFTER it, though it is before now minus 168 hours (11:00 BST).
+  const now = DateTime.fromISO('2026-10-28T10:00', { zone: LON }).toMillis();
+  const s = teamStats({ now, zone: LON, entries: [e('2026-10-21T10:30'), e('2026-10-21T09:30')] });
+  assert.strictEqual(s.week.lastWeek, 1);
+});
+
+check('streak: an unlinked-gym day never extends the run (T-4 review: no per-day inference)', () => {
+  const s = teamStats({ now: MON_10, zone: LON, entries: [
+    e('2026-11-08T08:00'),
+    e('2026-11-07T08:00', LON, { viewerLinked: false, gymId: 'x' }),
+    e('2026-11-06T08:00'),
+  ] });
+  assert.deepStrictEqual(s.streak, { days: 1, since: '2026-11-08', capped: false });
+});
+
 check('streak: each class counts on its own zone\'s day', () => {
   // 23:30 Sunday in New York is Monday 04:30 London; it fills SUNDAY, so with Saturday the run is 2.
   const s = teamStats({ now: MON_10, zone: LON, entries: [e('2026-11-07T09:00'), e('2026-11-08T23:30', NY)] });

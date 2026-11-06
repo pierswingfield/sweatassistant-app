@@ -505,12 +505,13 @@ check('T-4 classes this week: activity sharers, every shared gym; client-only, u
   // A leak of 5102 (client), 5103 (missing_since), s1x (late cancel), S3 Mon (activity off) or S4 (paused) changes 3 or 2.
   assert.deepStrictEqual(statsFor(V).stats.week, { thisWeek: 3, lastWeek: 2, delta: 1 });
 });
-check('T-4 Team streak: activity AND recent sharers only; unlinked-gym days count (D2), the same for every viewer', () => {
+check('T-4 Team streak: activity AND recent sharers at gyms the viewer has linked only', () => {
   // S1: Sun 8 (JAB), Mon 9, Tue 10 = 3 days. Saturday 7 Nov is offered only by S2 (recent off),
   // S3 (activity off), S4 (paused) and S1's cancelled row: any leak makes it 4.
   const expected = { days: 3, since: '2026-11-08', capped: false };
   assert.deepStrictEqual(statsFor(V).stats.streak, expected);
-  assert.deepStrictEqual(statsFor(V2).stats.streak, expected, 'V2 lacks JAB, but the JAB day still holds the streak');
+  // V2 lacks JAB: the JAB Sunday must not hold the run (it would date S1's JAB visit).
+  assert.deepStrictEqual(statsFor(V2).stats.streak, { days: 2, since: '2026-11-09', capped: false });
 });
 check('T-4 charts: recent sharers at gyms the viewer has linked only', () => {
   const c = statsFor(V).stats.charts;
@@ -559,6 +560,20 @@ check('T-4 small Team: a member who hides history cannot be recovered by subtrac
   teams.updateMe(DM, duo.id, { share: { activity: false } });
   const q = teams.getTeamToday(DV, duo.id, { zone: 'Europe/London' });
   assert.strictEqual(q.stats.week.thisWeek, 1);
+});
+check('T-4 small Team: the streak cannot date a teammate\'s classes at a gym the viewer has not linked', () => {
+  const DV = mkUser('Trioviewer', [PSY]);
+  const DM = mkUser('Triojab', [PSY, JAB]);
+  const { team: duo, inviteToken: duoTok } = teams.createTeam(DV, { name: 'Duo JAB', share: shareWith() });
+  teams.decideRequest(DV, duo.id, teams.requestJoin(DM, duoTok, shareWith()).requestId, 'approve');
+  hist(DV, PSY, [{ bookingId: 'tv1', eventId: 1, status: 'attended', startAt: at(8, 0, -1), name: 'TV Mon' }]);
+  hist(DM, JAB, [
+    { bookingId: 'tj1', eventId: 2, status: 'attended', startAt: at(18, 0, -2), name: 'TJ Sun' },
+    { bookingId: 'tj2', eventId: 3, status: 'attended', startAt: at(18, 0, -3), name: 'TJ Sat' },
+  ]);
+  const p = teams.getTeamToday(DV, duo.id, { zone: 'Europe/London' });
+  assert.deepStrictEqual(p.stats.streak, { days: 1, since: '2026-11-09', capped: false }, 'DM\'s JAB weekend extended the streak');
+  assert.strictEqual(p.stats.charts.total, 1);
 });
 check('T-4 a non-member gets NOT_FOUND for the stats-bearing payload', () => {
   for (const uid of [OUT, PD1]) assert.throws(() => teams.getTeamToday(uid, statsTeam.id), (e) => e.code === 'NOT_FOUND');

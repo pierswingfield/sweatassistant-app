@@ -2,6 +2,7 @@
 // product branding; appConfig.appName supplies it at runtime. HTML bindings
 // escape the value before insertion.
 import { appConfig } from './config.js';
+import { escapeHtml } from './escape-html.js';
 // Keep product wording here when it appears in more than one place or is part
 // of a flow that is rendered from both the SPA shell and JavaScript.
 export const COPY = Object.freeze({
@@ -1068,9 +1069,6 @@ export function appCopy(template, values = {}) {
   return formatCopyText(template, { appName: escapeHtml(appConfig.appName), ...values });
 }
 
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
-}
 
 export function applyStaticCopy(root = document, { appName = appConfig.appName } = {}) {
   root.querySelectorAll('[data-copy-text]').forEach((element) => {

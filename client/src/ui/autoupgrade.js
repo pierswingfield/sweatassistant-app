@@ -127,17 +127,17 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
         </div>
         <div class="ab-card-meta">
           ${disciplineTag(groupName)}
-          <span class="ab-card-class">${classLabel}</span>
+          <span class="ab-card-class">${escapeHtml(classLabel)}</span>
           <span class="ab-meta-dot">·</span>
           <span class="ab-card-instructor ${instructorNameLengthClass(job.instructor_name)}">${instructorAvatar(job.instructor_name, job.gym_id)}${escapeHtml(job.instructor_name)}</span>
         </div>
         <div class="ab-card-footer">
-          <span class="ab-spots-pill">${seatCap} ${currentSpotLabel}</span>
+          <span class="ab-spots-pill">${seatCap} ${escapeHtml(currentSpotLabel)}</span>
         </div>
       </div>
       <div class="ab-card-rail">
-        <button class="ab-rail-btn edit-upgrade-modal-btn" data-id="${job.id}" aria-label="${COPY.accessibility.configureAutoUpgrade}">${icon('edit', 17)}<span>${COPY.autoUpgrade.configure}</span></button>
-        <button class="ab-rail-btn danger delete-upgrade-btn" data-id="${job.id}" aria-label="${COPY.accessibility.stopAutoUpgrade}">${icon('close', 17)}<span>${COPY.autoUpgrade.stop}</span></button>
+        <button class="ab-rail-btn edit-upgrade-modal-btn" data-id="${escapeHtml(job.id)}" aria-label="${COPY.accessibility.configureAutoUpgrade}">${icon('edit', 17)}<span>${COPY.autoUpgrade.configure}</span></button>
+        <button class="ab-rail-btn danger delete-upgrade-btn" data-id="${escapeHtml(job.id)}" aria-label="${COPY.accessibility.stopAutoUpgrade}">${icon('close', 17)}<span>${COPY.autoUpgrade.stop}</span></button>
       </div>
     `;
 

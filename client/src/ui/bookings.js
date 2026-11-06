@@ -66,7 +66,7 @@ export function repaintBookingsFromCache() {
 
 function focusBookingsDay(day) {
   if (!day) return;
-  const target = document.querySelector(`#app-bookings-list .ab-card[data-booking-day="${day}"]`);
+  const target = document.querySelector(`#app-bookings-list .ab-card[data-booking-day="${CSS.escape(String(day))}"]`);
   if (!target) return; // A stale day is a quiet no-op.
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
   let sc = target.parentElement;
@@ -495,18 +495,18 @@ function buildBookingCard(group, upgrades) {
     // attendee/pass lifecycle. Keep the same compact chip language, but make
     // the ownership explicit and secondary to the readable spot label.
     if (b.isGuest) {
-      return `<span class="ab-spot-upgrade-chip is-guest" data-booking-id="${bookingIdOf(b)}" data-slot-id="${slotId}" title="${COPY.bookings.guestMapGuest}">
+      return `<span class="ab-spot-upgrade-chip is-guest" data-booking-id="${escapeHtml(bookingIdOf(b))}" data-slot-id="${escapeHtml(slotId)}" title="${COPY.bookings.guestMapGuest}">
                 <small class="ab-spot-owner">${COPY.bookings.guestSpotChip}</small><span>${nounCap} ${escapeHtml(slotLabel)}</span>
               </span>`;
     }
 
     return `<button class="${chipClass}"
-                    data-booking-id="${bookingIdOf(b)}"
-                    data-slot-id="${slotId}"
+                    data-booking-id="${escapeHtml(bookingIdOf(b))}"
+                    data-slot-id="${escapeHtml(slotId)}"
                     data-slot-label="${escapeHtml(slotLabel)}"
-                    data-upgrade-id="${activeUpgrade?.id || ''}"
+                    data-upgrade-id="${escapeHtml(activeUpgrade?.id || '')}"
                     title="${activeUpgrade ? COPY.bookings.autoUpgradeDisabledTitle : COPY.bookings.autoUpgradeEnabledTitle}">
-              ${iconHtml}${nounCap} ${slotLabel}
+              ${iconHtml}${nounCap} ${escapeHtml(slotLabel)}
             </button>`;
   }).join('');
 
@@ -541,9 +541,9 @@ function buildBookingCard(group, upgrades) {
           </div>
           <div class="ab-card-line2">
             <span class="ab-card-titlegroup">${disciplineTag(groupName)}
-            <span class="ab-card-class">${className}</span></span>
+            <span class="ab-card-class">${escapeHtml(className)}</span></span>
             ${instructorInlineHtml(instructorName)}
-            ${locationLine ? `<span class="ab-meta-dot">·</span><span class="ab-card-location">${locationLine}</span>` : ''}
+            ${locationLine ? `<span class="ab-meta-dot">·</span><span class="ab-card-location">${escapeHtml(locationLine)}</span>` : ''}
           </div>
         </div>
         ${(instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || instructorName)
@@ -1093,9 +1093,9 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
       }
 
       const parts = [];
-      if (toAdd.length) parts.push(`<span class="bk-add-highlight">+${toAdd.map(labelFor).join(', ')}</span>`);
-      if (toRemove.length) parts.push(`<span class="bk-remove-highlight">−${toRemove.map(labelFor).join(', ')}</span>`);
-      if (guestsToCancel.size) parts.push(`<span class="bk-guest-highlight">− ${COPY.bookings.guestSpotChip} ${[...guestsToCancel].map(labelFor).join(', ')}</span>`);
+      if (toAdd.length) parts.push(`<span class="bk-add-highlight">+${escapeHtml(toAdd.map(labelFor).join(', '))}</span>`);
+      if (toRemove.length) parts.push(`<span class="bk-remove-highlight">−${escapeHtml(toRemove.map(labelFor).join(', '))}</span>`);
+      if (guestsToCancel.size) parts.push(`<span class="bk-guest-highlight">− ${COPY.bookings.guestSpotChip} ${escapeHtml([...guestsToCancel].map(labelFor).join(', '))}</span>`);
       summaryEl.innerHTML = parts.length
         ? `<span class="bk-changes-label">${COPY.bookings.changes}</span>${parts.join('&nbsp;&nbsp;')}`
         : `<span class="bk-selected-label">${formatCopyText(COPY.bookings.selectedSpots, { count: desired.length, noun: escapeHtml(noun), plural: desired.length !== 1 ? 's' : '' })}</span>`;
@@ -1329,9 +1329,9 @@ function buildWaitlistCard(w) {
           </div>
           <div class="ab-card-line2">
             <span class="ab-card-titlegroup">${disciplineTag(groupName)}
-            <span class="ab-card-class">${className}</span></span>
+            <span class="ab-card-class">${escapeHtml(className)}</span></span>
             ${instructorInlineHtml(instructorName)}
-            ${locationLine ? `<span class="ab-meta-dot">·</span><span class="ab-card-location">${locationLine}</span>` : ''}
+            ${locationLine ? `<span class="ab-meta-dot">·</span><span class="ab-card-location">${escapeHtml(locationLine)}</span>` : ''}
           </div>
         </div>
         ${(instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || instructorName)
@@ -1504,7 +1504,7 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
     const isFcfs = event.layoutFormat === 'first-come-first-serve';
     if (isFcfs || layoutSlots.length === 0) {
       const why = isFcfs
-        ? formatCopyText(COPY.bookingEditor.noAssignedUpgradeSpots, { noun })
+        ? formatCopyText(COPY.bookingEditor.noAssignedUpgradeSpots, { noun: escapeHtml(noun) })
         : COPY.bookingEditor.noMapForUpgrade;
       body.innerHTML = `<div class="bk-help-box">${why}</div>`;
       return;
@@ -1533,7 +1533,7 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
     const upgradeCreditsNeeded = 1; // Auto-upgrade needs 1 credit for the additional spot
     const hasEnoughCredits = !ineligibleReason && availableCredits >= upgradeCreditsNeeded;
     const creditWarningHtml = !hasEnoughCredits
-      ? `<div class="bk-upgrade-error">${ineligibleReason || formatCopyText(COPY.bookingEditor.upgradeNeedsCredits, { needed: upgradeCreditsNeeded - availableCredits, gym: escapeHtml(gym.name || gym.shortName || COPY.static.yourGymFallback) })}</div>`
+      ? `<div class="bk-upgrade-error">${ineligibleReason ? escapeHtml(ineligibleReason) : formatCopyText(COPY.bookingEditor.upgradeNeedsCredits, { needed: upgradeCreditsNeeded - availableCredits, gym: escapeHtml(gym.name || gym.shortName || COPY.static.yourGymFallback) })}</div>`
       : '';
 
     const contextInfo = { className, instructorName: instructorName || '', startAt, gymId, timeZone: event.timeZone };

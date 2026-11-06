@@ -564,8 +564,8 @@ function stepGyms() {
                   <div class="onb-gym-info">
                     <span class="onb-gym-check">✓</span>
                     <div>
-                      <div class="onb-gym-name">${gName}</div>
-                      ${gEmail ? `<div class="onb-gym-email">${gEmail}</div>` : ''}
+                      <div class="onb-gym-name">${escapeHtml(gName)}</div>
+                      ${gEmail ? `<div class="onb-gym-email">${escapeHtml(gEmail)}</div>` : ''}
                     </div>
                   </div>
                   <span class="app-badge onb-gym-badge">${COPY.gyms.connected}</span>
@@ -591,7 +591,7 @@ function stepGyms() {
             <div>
               <label class="onb-select-label">${COPY.onboarding.selectGym}</label>
               <select id="app-onb-gym-select" class="app-select onb-gym-select">
-                ${unlinkedGyms.map(g => `<option value="${g.id}">${g.name}</option>`).join('')}
+                ${unlinkedGyms.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join('')}
               </select>
             </div>
             <div>
@@ -840,8 +840,8 @@ async function stepCalendar() {
         body: `
           <p class="app-onb-lead">${COPY.onboarding.addLiveFeed}</p>
           <div class="app-onb-cal-links">
-            ${webcalUrl ? `<a href="${webcalUrl}" class="app-btn-primary onb-webcal-button"><span>${ios ? COPY.onboarding.appleCalendarButton : COPY.onboarding.webcalButton}</span></a>` : ''}
-            ${gcalUrl && !ios ? `<a href="${gcalUrl}" target="_blank" rel="noopener noreferrer" class="app-btn-secondary onb-webcal-button"><span>${COPY.onboarding.googleCalendarButton}</span></a>` : ''}
+            ${webcalUrl ? `<a href="${escapeHtml(webcalUrl)}" class="app-btn-primary onb-webcal-button"><span>${ios ? COPY.onboarding.appleCalendarButton : COPY.onboarding.webcalButton}</span></a>` : ''}
+            ${gcalUrl && !ios ? `<a href="${escapeHtml(gcalUrl)}" target="_blank" rel="noopener noreferrer" class="app-btn-secondary onb-webcal-button"><span>${COPY.onboarding.googleCalendarButton}</span></a>` : ''}
             ${icsUrl ? `<button class="app-btn-mini app-onb-copy-ics onb-gym-select" type="button">${COPY.onboarding.copyFeedUrl}</button>` : ''}
           </div>`,
         footer: `<button class="app-btn-primary app-onb-continue" type="button"><span>${COPY.onboarding.done}</span></button>`,

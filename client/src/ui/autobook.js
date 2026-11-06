@@ -118,7 +118,7 @@ function updateQueueDisplayForEvent(eventId, update) {
   if (!queueContainer) return;
 
   // Find the card for this event
-  const card = queueContainer.querySelector(`[data-event-id="${eventId}"]`);
+  const card = queueContainer.querySelector(`[data-event-id="${CSS.escape(String(eventId))}"]`);
   if (!card) return;
 
   // Update or create a status line. It is a polite live region (U2-3): screen
@@ -319,7 +319,7 @@ function renderQueue(queue) {
     const hasInsufficientCredits = getTotalCredits(q.gym_id) < creditsNeeded;
 
     const creditWarning = ineligibleReason
-      ? `<div class="ab-credit-warning">${icon('warning', 13)}<span>${ineligibleReason}</span></div>`
+      ? `<div class="ab-credit-warning">${icon('warning', 13)}<span>${escapeHtml(ineligibleReason)}</span></div>`
       : hasInsufficientCredits
         ? `<div class="ab-credit-warning">${icon('warning', 13)}<span>${COPY.autoBook.insufficientCredits}</span></div>`
         : '';
@@ -341,16 +341,16 @@ function renderQueue(queue) {
             </div>
             <div class="ab-card-line2">
               <span class="ab-card-titlegroup">${disciplineTag(q.group_name || q.class_name)}
-              <span class="ab-card-class">${className}</span></span>
+              <span class="ab-card-class">${escapeHtml(className)}</span></span>
               ${instructorInlineHtml(instructorName)}
-              ${locationLine ? `<span class="ab-meta-dot">·</span><span class="ab-card-location">${locationLine}</span>` : ''}
+              ${locationLine ? `<span class="ab-meta-dot">·</span><span class="ab-card-location">${escapeHtml(locationLine)}</span>` : ''}
             </div>
           </div>
           ${(instructorAvatar(instructorName, q.gym_id, instructorPhotoUrl) || instructorName)
           ? `<div class="ab-card-figure ${instructorNameLengthClass(instructorName)}">${instructorAvatar(instructorName, q.gym_id, instructorPhotoUrl) || ''}${instructorName ? `<span class="ab-card-instructor ${instructorNameLengthClass(instructorName)}">${escapeHtml(instructorName)}</span>` : ''}</div>` : ''}
         </div>
         <div class="ab-card-footer">
-          <span class="ab-countdown state-pending" data-start-at="${q.start_at}" data-gym-id="${q.gym_id || ''}" ${(() => { const r = getClassReleaseTime(q, userSettings); return r ? `data-release-at="${r.toISO()}"` : ''; })()}>
+          <span class="ab-countdown state-pending" data-start-at="${escapeHtml(q.start_at)}" data-gym-id="${escapeHtml(q.gym_id || '')}" ${(() => { const r = getClassReleaseTime(q, userSettings); return r ? `data-release-at="${escapeHtml(r.toISO())}"` : ''; })()}>
             ${icon('clock', 13)}<span class="ab-countdown-val">…</span>
           </span>
           <div class="ab-chip-group"><span class="ab-spots-pill">${creditsNeeded} ${seatNoun(q.group_name)[0].toUpperCase() + seatNoun(q.group_name).slice(1)}${creditsNeeded !== 1 ? 's' : ''}</span></div>
@@ -581,11 +581,11 @@ function renderHistoryPage() {
         <div class="ab-hist-name">
           ${disciplineTag(h.group_name || h.class_name)}
           ${gymChip(h.gym_id || getDefaultGymId())}
-          <span class="ab-card-class">${className}</span>
+          <span class="ab-card-class">${escapeHtml(className)}</span>
         </div>
         <span class="ab-history-status state-${state}">${icon(statusGlyph, 12)} ${statusText}</span>
       </div>
-      <div class="ab-hist-row2">${details}</div>
+      <div class="ab-hist-row2">${escapeHtml(details)}</div>
     `;
     list.appendChild(card);
   });

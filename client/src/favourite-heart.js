@@ -2,7 +2,7 @@
 // Pure (no DOM, no network) so the state contract is unit-tested.
 const HEART_PATH = 'M8 13.5S2.5 10 2.5 6.2A2.7 2.7 0 0 1 8 5a2.7 2.7 0 0 1 5.5 1.2C13.5 10 8 13.5 8 13.5Z';
 
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+import { escapeHtml as esc } from './escape-html.js';
 
 export function heartButtonHtml({ isFavourite, eventId, label, pressedLabel, extraClass = '' }) {
   const text = esc(isFavourite ? pressedLabel : label);

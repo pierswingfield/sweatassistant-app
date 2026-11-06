@@ -548,7 +548,7 @@
       const { users } = await res.json();
       renderUsers(users);
     } catch (e) {
-      if (adminToken) tbody.innerHTML = `<tr><td colspan="7" class="loading" style="color:var(--red)">${e.message}</td></tr>`;
+      if (adminToken) tbody.innerHTML = `<tr><td colspan="7" class="loading" style="color:var(--red)">${escHtml(e.message)}</td></tr>`;
     }
   }
 
@@ -1070,7 +1070,7 @@
   }
 
   function escHtml(str) {
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
   // ── Event wiring ──────────────────────────────────────────────────────────

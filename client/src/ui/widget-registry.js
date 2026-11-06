@@ -35,7 +35,7 @@ export function isNoGymError(err) {
   return !!err && (err.code === 'NO_GYM_LINKED' || err.status === 409);
 }
 
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+import { escapeHtml as esc } from '../escape-html.js';
 
 // Home refreshes on foregrounding and on successful stale-cache writes. Keep a
 // widget's already-mounted controls when those refreshes resolve to the same

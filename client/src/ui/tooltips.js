@@ -3,6 +3,8 @@ import { metadata, mobileRotationForStudio, frontForStudio } from './timetable';
 import { makeDisplayRotator, makeUniformFit, effectiveRotation, displayFrontSide, makeFrontBar, FRONT_BAR_PX } from './spot-rotation.js';
 import { COPY, formatCopyText } from '../copy.js';
 import { renderFloorPlanSkeleton } from './loading-skeleton.js';
+import { escapeHtml } from './cards.js';
+import { safeHttpsUrl, safeImageUrl, INSTAGRAM_HOSTS, SPOTIFY_HOSTS } from './safe-url.js';
 
 let occupancyHoverTimeout = null;
 let occupancyHideTimeout = null;
@@ -126,6 +128,7 @@ export function instructorAvatar(name, gymId = null, directUrl = null, { size = 
     );
     url = match && (match.thumbUrl || match.imageUrl);
   }
+  url = safeImageUrl(url);
   if (!url) return '';
   // No `loading="lazy"`: these cards can repaint several times in quick
   // succession as data (bookings, then metadata) arrives, and a lazy image
@@ -133,10 +136,10 @@ export function instructorAvatar(name, gymId = null, directUrl = null, { size = 
   // check never starts loading at all — indistinguishable from "missing".
   // `lazy` is opt-in for long stable lists (the timetable); the default stays eager for the reason above.
   const warm = loadedAvatarUrls.has(url);
-  return `<img class="${cls}" src="${url}" alt="" aria-hidden="true" data-instructor-initial="${initialFor(name)}" decoding="${warm ? 'sync' : 'async'}"${lazy && !warm ? ' loading="lazy"' : ''} width="${size}" height="${size}">`;
+  return `<img class="${escapeHtml(cls)}" src="${escapeHtml(url)}" alt="" aria-hidden="true" data-instructor-initial="${initialFor(name)}" decoding="${warm ? 'sync' : 'async'}"${lazy && !warm ? ' loading="lazy"' : ''} width="${size}" height="${size}">`;
 }
 
-const attrEsc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+const attrEsc = escapeHtml;
 
 /**
  * data-* attributes for a `.app-instructor-hover` element, taken from the event's OWN
@@ -170,42 +173,43 @@ export function instructorTooltipHTML(instructorIdRaw, gymId = null, fallback = 
   }
   if (!instructor) return null;
 
-  const photoUrl = instructor.imageUrl || instructor.photo || instructor.image_1 || '';
+  const photoUrl = safeImageUrl(instructor.imageUrl || instructor.photo || instructor.image_1 || '');
   const name = instructor.name || instructor.full_name || 'Instructor';
   const avatarHtml = photoUrl
-    ? `<img src="${photoUrl}" class="app-tooltip-avatar" alt="${name}" data-instructor-initial="${initialFor(name)}">`
-    : `<div class="app-tooltip-avatar tip-avatar-box">${(name || '?')[0]}</div>`;
+    ? `<img src="${escapeHtml(photoUrl)}" class="app-tooltip-avatar" alt="${escapeHtml(name)}" data-instructor-initial="${initialFor(name)}">`
+    : `<div class="app-tooltip-avatar tip-avatar-box">${escapeHtml((name || '?')[0])}</div>`;
 
   const keywords = instructor.metafields?.keywords ? instructor.metafields.keywords.replace(/\|/g, ' • ') : '';
   const description = instructor.bio || instructor.metafields?.description || '';
 
   let instagramHtml = '';
   const igRaw = instructor.instagramHandle || instructor.metafields?.instagram_handle || instructor.instagram_handle;
-  const igUrl = instructor.instagramUrl;
+  const igUrl = safeHttpsUrl(instructor.instagramUrl, INSTAGRAM_HOSTS);
   const igHandle = parseInstagramHandle(igRaw);
-  if (igUrl || igHandle) {
-    const href = igUrl || `https://instagram.com/${igHandle}`;
+  const igHref = igUrl || (igHandle ? safeHttpsUrl(`https://instagram.com/${encodeURIComponent(igHandle)}`, INSTAGRAM_HOSTS) : '');
+  if (igHref) {
     const label = igHandle || COPY.tooltips.instagram;
-    instagramHtml = `<a class="app-tooltip-social-link" href="${href}" target="_blank" rel="noopener noreferrer">${INSTAGRAM_ICON}<span class="app-tooltip-social-text app-tooltip-social-wrap">${label}</span></a>`;
+    instagramHtml = `<a class="app-tooltip-social-link" href="${escapeHtml(igHref)}" target="_blank" rel="noopener noreferrer">${INSTAGRAM_ICON}<span class="app-tooltip-social-text app-tooltip-social-wrap">${escapeHtml(label)}</span></a>`;
   }
   let spotifyHtml = '';
   const spRaw = instructor.spotifyUrl || instructor.metafields?.spotify_handle || instructor.spotify_handle;
   const spId = parseSpotifyUserId(spRaw);
-  if (spId || instructor.spotifyUrl) {
-    const href = instructor.spotifyUrl || `https://open.spotify.com/user/${spId}`;
+  const spHref = safeHttpsUrl(instructor.spotifyUrl, SPOTIFY_HOSTS)
+    || (spId ? safeHttpsUrl(`https://open.spotify.com/user/${encodeURIComponent(spId)}`, SPOTIFY_HOSTS) : '');
+  if (spHref) {
     const label = spId || COPY.tooltips.spotify;
-    spotifyHtml = `<a class="app-tooltip-social-link" href="${href}" target="_blank" rel="noopener noreferrer">🎵 <span class="app-tooltip-social-text">${label}</span></a>`;
+    spotifyHtml = `<a class="app-tooltip-social-link" href="${escapeHtml(spHref)}" target="_blank" rel="noopener noreferrer">🎵 <span class="app-tooltip-social-text">${escapeHtml(label)}</span></a>`;
   }
 
   return `
     <div class="app-tooltip-header">
       ${avatarHtml}
       <div class="tip-content-box">
-        <h4 class="app-tooltip-name">${name}</h4>
-        ${keywords ? `<div class="app-tooltip-keywords">${keywords}</div>` : ''}
+        <h4 class="app-tooltip-name">${escapeHtml(name)}</h4>
+        ${keywords ? `<div class="app-tooltip-keywords">${escapeHtml(keywords)}</div>` : ''}
       </div>
     </div>
-    ${description ? `<p class="tip-description-text">${description}</p>` : ''}
+    ${description ? `<p class="tip-description-text">${escapeHtml(description)}</p>` : ''}
     ${(instagramHtml || spotifyHtml) ? `<div class="app-tooltip-socials tip-socials-container">${instagramHtml}${spotifyHtml}</div>` : ''}
   `;
 }
@@ -554,7 +558,7 @@ export function renderMinimap(payload, occupancyTooltip) {
     const label = slot.label || slot.id;
 
     dotsHtml += `
-      <div class="app-minimap-dot ${isAvailable ? 'available' : 'occupied'}" title="${label}" style="left: ${left}%; top: ${top}%;"></div>
+      <div class="app-minimap-dot ${isAvailable ? 'available' : 'occupied'}" title="${escapeHtml(label)}" style="left: ${left}%; top: ${top}%;"></div>
     `;
   });
 

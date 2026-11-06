@@ -2,6 +2,7 @@
 // Used by the Auto-Book tab (autobook.js) and My Bookings (bookings.js) so the
 // card visual language (glyphs, discipline pills) stays identical everywhere.
 
+import { escapeHtml } from '../escape-html.js';
 import { cleanClassNameWith } from '../class-name.js';
 import { spriteRefFor } from '../gym-logo-sprite.js';
 import { getGymPresentation, getGymShortName, getDisplayAlias } from '../gym-context.js';
@@ -137,7 +138,7 @@ export function passesDisciplineFilter(selected, groupLabel) {
 // Render a discipline tag chip (coloured pastel pill with glyph).
 export function disciplineTag(name) {
   const d = getDiscipline(name);
-  return `<span class="ab-disc-tag" data-disc="${d.key}">${icon(d.icon, 11)}${d.label}</span>`;
+  return `<span class="ab-disc-tag" data-disc="${escapeHtml(d.key)}">${icon(d.icon, 11)}${escapeHtml(d.label)}</span>`;
 }
 
 // Make every `.ab-disc-tag` within `container` the same width — the widest
@@ -277,7 +278,7 @@ export function pulseIcon(size = 14) {
 export function wordmarkElement(cls, src, styleAttr = '') {
   const ref = spriteRefFor(src);
   if (ref) return `<svg class="${cls} gym-logo-inline" viewBox="${ref.viewBox}" aria-hidden="true" focusable="false"${styleAttr}><use href="#${ref.id}"></use></svg>`;
-  return `<img class="${cls}" src="${src}" alt="" aria-hidden="true" decoding="sync"${styleAttr}>`;
+  return `<img class="${escapeHtml(cls)}" src="${escapeHtml(src)}" alt="" aria-hidden="true" decoding="sync"${styleAttr}>`;
 }
 
 /** Logo form factors, the ONLY size choice a caller makes:
@@ -362,9 +363,9 @@ export function gymChip(gymId, { width = null, responsive = true } = {}) {
   const both = responsive && full.hasHalf;
   const logoWidth = width || full.logoWidth;
   const wStyle = logoWidth ? `;--logo-w:${logoWidth}px` : '';
-  return `<span class="app-gym-chip app-gym-chip-${full.id}${logoWidth ? ' has-logo-w' : ''}${both ? ' is-responsive' : ''}" title="${full.name}" style="background:${full.brandBg};border:1px solid ${full.brandBg}${wStyle}">`
+  return `<span class="app-gym-chip app-gym-chip-${full.id}${logoWidth ? ' has-logo-w' : ''}${both ? ' is-responsive' : ''}" title="${escapeHtml(full.name)}" style="background:${full.brandBg};border:1px solid ${full.brandBg}${wStyle}">`
     + `<span class="app-gym-chip-logo">${full.logo}${both ? gymBrand(gymId, 'half').logo : ''}</span>`
-    + `<span class="u-visually-hidden">${full.name}</span>`
+    + `<span class="u-visually-hidden">${escapeHtml(full.name)}</span>`
     + `</span>`;
 }
 
@@ -390,27 +391,17 @@ export function gymDot(gymId, cls = '') {
 export function renderGymRail(gymId) {
   const brand = gymBrand(gymId, 'half');
   return `
-    <div class="ab-card-gym-rail" data-gym="${brand.id}" title="${brand.name}" style="background:${brand.brandBg};border-right-color:${brand.brandBg}">
+    <div class="ab-card-gym-rail" data-gym="${escapeHtml(brand.id)}" title="${escapeHtml(brand.name)}" style="background:${brand.brandBg};border-right-color:${brand.brandBg}">
       <div class="ab-gym-logo">${brand.logo}</div>
-      <span class="u-visually-hidden">${brand.name}</span>
+      <span class="u-visually-hidden">${escapeHtml(brand.name)}</span>
     </div>
   `;
 }
 
 
-/**
- * Shared HTML escaper. Four modules each had a private copy of this
- * (timetable, settings, credits, gym-settings-section); new call sites should
- * import this one rather than adding a fifth.
- */
-export function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+// The shared HTML escaper lives in ../escape-html.js; re-exported here because
+// most UI modules already import from cards.js.
+export { escapeHtml };
 
 /** Choose the instructor label layout from the name's visible Unicode characters. */
 export function instructorNameLengthClass(value) {
@@ -461,7 +452,7 @@ export function cleanClassName(name = '', discipline = '') {
  * card that shares the line1/line2/figure markup.
  */
 export function instructorInlineHtml(name) {
-  return name ? `<span class="ab-meta-dot ab-dot-instr">·</span><span class="ab-card-instructor-inline">${name}</span>` : '';
+  return name ? `<span class="ab-meta-dot ab-dot-instr">·</span><span class="ab-card-instructor-inline">${escapeHtml(name)}</span>` : '';
 }
 
 // Hide the "·" separator when the location wraps onto its own line. Wrapping

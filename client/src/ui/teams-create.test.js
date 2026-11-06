@@ -149,4 +149,24 @@ describe('create flow walk-through (T10)', () => {
     expect(step()).toBe('sharing');
     expect(primary().disabled).toBe(false);
   });
+
+  it('blocks Continue on an invalid typed emoji until it is fixed', () => {
+    flow.openCreateTeamFlow();
+    const input = document.querySelector('.tm-cf-name');
+    input.value = 'Run Club';
+    input.dispatchEvent(new Event('input'));
+    primary().click();
+    expect(step()).toBe('emoji');
+    byEmoji('🚴').click();
+    const other = document.querySelector('.tm-cf-other-input');
+    other.value = 'abc';
+    other.dispatchEvent(new Event('input'));
+    primary().click();
+    expect(step()).toBe('emoji');
+    expect(document.querySelector('.tm-cf-error').hidden).toBe(false);
+    other.value = '🏃';
+    other.dispatchEvent(new Event('input'));
+    primary().click();
+    expect(step()).toBe('sharing');
+  });
 });

@@ -151,6 +151,7 @@ export function openCreateTeamFlow({ onCreated = () => {}, onGoToTeam = () => {}
     const other = page.body.querySelector('.tm-cf-other-input');
     const errEl = page.body.querySelector('.tm-cf-error');
     other.value = typed;
+    let typedInvalid = false;
     const select = (emoji, { fromInput = false } = {}) => {
       draft.emoji = emoji;
       preview.innerHTML = avatarFor('lg', { emptyBadge: true });
@@ -160,16 +161,19 @@ export function openCreateTeamFlow({ onCreated = () => {}, onGoToTeam = () => {}
         b.setAttribute('aria-checked', String(on));
       });
       other.classList.toggle('is-on', fromInput && !!emoji);
-      if (!fromInput) other.value = '';
+      if (!fromInput) { other.value = ''; typedInvalid = false; }
       errEl.hidden = true;
     };
     page.body.querySelectorAll('[data-emoji]').forEach((b) => b.addEventListener('click', () => select(b.getAttribute('data-emoji'))));
     other.addEventListener('input', () => {
       const r = checkStep('emoji', { emoji: other.value });
+      typedInvalid = false;
       if (!other.value.trim()) { select('', { fromInput: true }); return; }
       if (r.ok) select(r.value, { fromInput: true });
+      else { typedInvalid = true; errEl.textContent = T.emojiInvalid; errEl.hidden = false; }
     });
     const next = () => {
+      if (typedInvalid) { errEl.textContent = T.emojiInvalid; errEl.hidden = false; return; }
       const r = checkStep('emoji', { emoji: draft.emoji });
       if (!r.ok) { errEl.textContent = T.emojiInvalid; errEl.hidden = false; return; }
       draft.emoji = r.value || '';

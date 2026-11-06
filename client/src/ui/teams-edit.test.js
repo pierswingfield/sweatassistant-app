@@ -53,4 +53,22 @@ describe('Team name and emoji edit page (T12)', () => {
     expect(update).not.toHaveBeenCalled();
     expect(document.querySelector('[data-name-error]').hidden).toBe(false);
   });
+
+  it('blocks Save on an invalid typed emoji, and double Enter sends one PATCH', async () => {
+    edit.openEditTeamPage(team);
+    const other = document.querySelector('.tm-cf-other-input');
+    other.value = 'abc';
+    other.dispatchEvent(new Event('input'));
+    const err = document.querySelector('.tm-cf-error:not([data-name-error])');
+    expect(err.hidden).toBe(false);
+    document.querySelector('.tm-ovl-footer button').click();
+    expect(update).not.toHaveBeenCalled();
+    other.value = '🌙';
+    other.dispatchEvent(new Event('input'));
+    const input = document.querySelector('.tm-cf-name');
+    const enter = () => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    enter(); enter();
+    await vi.waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    expect(update).toHaveBeenCalledWith('t1', { emoji: '🌙' });
+  });
 });

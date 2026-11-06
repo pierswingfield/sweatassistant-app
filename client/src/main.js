@@ -23,7 +23,7 @@ import { COPY, formatCopyText } from './copy.js';
 import { resetWindowScroll, installStaleScrollGuard } from './scroll-reset.js';
 import { syncTabScrollState } from './tab-scroll-state.js';
 import { parseTeamsPath, stashPendingInvite, consumePendingInvite, clearPendingInvite } from './ui/teams-model.js';
-import { autoBookBackAction } from './ui/autobook-nav.js';
+import { autoBookBackAction, autoBookBackTarget } from './ui/autobook-nav.js';
 
 installStaleScrollGuard();
 
@@ -479,7 +479,8 @@ function switchTab(tabId, opts = {}) {
   // Leaving the timetable ends search: its own filter scope is dropped and the normal filters return.
   if (tabId !== 'class-timetable') import('./ui/timetable-search-state.js').then(m => { if (m.inSearchScope()) import('./ui/timetable').then(t => t.exitSearch()); });
   const prevTabId = currentTabId;
-  previousTabId = prevTabId;
+  // Back may only pop history when this switch pushed an entry on top of another in-app tab.
+  previousTabId = autoBookBackTarget(historyMode, tabId, prevTabId);
   currentTabId = tabId;
   const targetPanelId = `app-panel-${tabId}`;
 

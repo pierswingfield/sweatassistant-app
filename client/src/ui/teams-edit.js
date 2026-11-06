@@ -79,6 +79,8 @@ export function openEditTeamPage(team, { onSaved = null } = {}) {
     wireSuggestions();
   });
 
+  let typedInvalid = false;
+  let saving = false;
   const select = (emoji, { fromInput = false } = {}) => {
     draft.emoji = emoji;
     paintPreview();
@@ -88,23 +90,27 @@ export function openEditTeamPage(team, { onSaved = null } = {}) {
       b.setAttribute('aria-checked', String(on));
     });
     other.classList.toggle('is-on', fromInput && !!emoji);
-    if (!fromInput) other.value = '';
+    if (!fromInput) { other.value = ''; typedInvalid = false; }
     emojiErr.hidden = true;
   };
   page.body.querySelectorAll('[data-emoji]').forEach((b) => b.addEventListener('click', () => select(b.getAttribute('data-emoji'))));
   other.addEventListener('input', () => {
     const r = checkStep('emoji', { emoji: other.value });
+    typedInvalid = false;
     if (!other.value.trim()) { select('', { fromInput: true }); return; }
     if (r.ok) select(r.value, { fromInput: true });
+    else { typedInvalid = true; emojiErr.textContent = T.emojiInvalid; emojiErr.hidden = false; }
   });
 
   const submit = async (btn) => {
+    if (saving) return;
     const n = checkStep('name', { name: input.value });
     if (!n.ok) { showNameError(n.error); input.focus(); return; }
     const e = checkStep('emoji', { emoji: draft.emoji });
-    if (!e.ok) { emojiErr.textContent = T.emojiInvalid; emojiErr.hidden = false; return; }
+    if (typedInvalid || !e.ok) { emojiErr.textContent = T.emojiInvalid; emojiErr.hidden = false; return; }
     const changes = editChanges(team, { name: n.value, emoji: e.value || '' });
     if (!Object.keys(changes).length) { page.close(); return; }
+    saving = true;
     if (btn) btn.disabled = true;
     try {
       await teamsApi.update(team.id, changes);
@@ -112,6 +118,7 @@ export function openEditTeamPage(team, { onSaved = null } = {}) {
       page.close();
       onSaved?.();
     } catch (err) {
+      saving = false;
       if (btn) btn.disabled = false;
       showToast(errorText(err), 'error');
     }

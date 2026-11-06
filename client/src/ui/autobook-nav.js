@@ -23,3 +23,8 @@ export const BOOKINGS_NAV_GROUP = 'my-bookings auto-book';
 export function bookingsNavActive(tabId) {
   return BOOKINGS_NAV_GROUP.split(' ').includes(tabId);
 }
+
+/** The tab Back may pop to: only when a 'push' switch into Auto-Book came from another in-app tab. */
+export function autoBookBackTarget(historyMode, tabId, prevTabId) {
+  return historyMode === 'push' && tabId === 'auto-book' && prevTabId && prevTabId !== 'auto-book' ? prevTabId : null;
+}

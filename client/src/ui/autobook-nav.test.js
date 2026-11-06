@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { countPendingAutoBooks, autoBookBackAction, bookingsNavActive } from './autobook-nav.js';
+import { countPendingAutoBooks, autoBookBackAction, autoBookBackTarget, bookingsNavActive } from './autobook-nav.js';
 import { parseLocation } from '../url-state.js';
 import { pathFor } from '../router.js';
 import { resolve } from 'node:path';
@@ -36,5 +36,15 @@ describe('T8 Auto-Book mobile routing', () => {
     expect(html.slice(0, start)).toContain('class="app-nav-btn" data-tab="auto-book"');
     expect(html).toContain('id="app-bookings-autobook-bar"');
     expect(html).toContain('id="app-autobook-back-btn"');
+  });
+});
+
+describe('autoBookBackTarget', () => {
+  it('records the previous tab only for a push into Auto-Book from another tab', () => {
+    expect(autoBookBackTarget('push', 'auto-book', 'home')).toBe('home');
+    for (const m of ['none', 'replace']) expect(autoBookBackTarget(m, 'auto-book', 'home')).toBeNull();
+    expect(autoBookBackTarget('push', 'my-bookings', 'home')).toBeNull();
+    expect(autoBookBackTarget('push', 'auto-book', null)).toBeNull();
+    expect(autoBookBackTarget('push', 'auto-book', 'auto-book')).toBeNull();
   });
 });

@@ -1987,11 +1987,10 @@ const NOTIF_DEFAULTS = {
   creditWarning: { enabled: true },
   cancellationReminder: { enabled: true, timing: '24h' },
   bookingWindow: { enabled: true },
-  // T-5 Teams (server notifications.js DEFAULT_PREFS): requests and approvals on,
-  // "a teammate booked a class you're in" opt-in.
-  teamRequest: { enabled: true },
+  // T-5 Teams (server notifications.js DEFAULT_PREFS): only "request approved" is an
+  // account switch (the requester has no Team page yet). Join requests and "a teammate
+  // booked a class you're in" are per Team, on each Team's Manage page (T-5b).
   teamApproved: { enabled: true },
-  teamBooked: { enabled: false },
 };
 
 function getNotifPrefs() {
@@ -2014,10 +2013,8 @@ const NOTIF_ROWS = [
   // warn about, so each gym carries its own default (gyms.config.js) and the
   // member can override either way.
   { key: 'bookingWindow', title: COPY.settings.notificationBookingWindow, desc: COPY.settings.notificationBookingWindowHelp, perGym: true },
-  // T-5 Teams pushes (PLAN-teams.md §5.3)
-  { key: 'teamRequest', title: COPY.settings.notificationTeamRequest, desc: COPY.settings.notificationTeamRequestHelp },
+  // T-5 Teams (PLAN-teams.md §5.3): the rest are per Team (pointer line below the rows).
   { key: 'teamApproved', title: COPY.settings.notificationTeamApproved, desc: COPY.settings.notificationTeamApprovedHelp },
-  { key: 'teamBooked', title: COPY.settings.notificationTeamBooked, desc: COPY.settings.notificationTeamBookedHelp },
 ];
 
 /**
@@ -2098,6 +2095,7 @@ function renderNotifPrefs() {
           ${row.perGym ? renderPerGymToggles(row.key, p) : ''}
         </div>`;
     }).join('')}
+    <p class="set-push-desc">${escapeHtml(COPY.settings.notificationTeamsPointer)}</p>
   `;
 
   body.querySelectorAll('.notif-toggle').forEach(el => {

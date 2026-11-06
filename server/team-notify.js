@@ -3,14 +3,24 @@
 //   teamRequest   a join request, to the Team's Captains (not paused in that Team)
 //   teamApproved  "You're in", to the requester once a Captain approves
 //   teamBooked    "Ana booked 08:30 Train, a class you're in", to teammates booked into
-//                 the same class who may see the booker there (opt-in, default off)
+//                 the same class who may see the booker there
+//
+// Preferences (T-5b, §5.3 "Pushes, opt-in per Team and conservative by default"):
+//   - teamRequest and teamBooked follow the recipient's per-Team switch
+//     (`team_members.alerts_enabled`, set on that Team's Manage page, default OFF). The
+//     switch of the Team the event belongs to decides; for teamBooked only Teams where the
+//     recipient opted in may carry the alert (teams.teammateBookingAlerts), and the chosen
+//     Team's switch is re-checked here.
+//   - teamApproved goes to someone who is not yet a member, so it has no Team page to set
+//     it on: it stays the account-level switch in Customise Notifications (default ON,
+//     §5.6 "approved means a push").
 //
 // Never "Ana booked a class" in general (§5.3: spam in a ten-person Team).
 //
 // Who may learn what is decided by teams.js through the projection (teammateBookingAlerts
 // asks the recipient's own projection whether the booker is a visible booked attendee of
-// that class). This module only adds the per-type preference (notifications.js), the
-// dedupe ledger (sent_notifications) and the rate limits:
+// that class). This module adds the preference checks above, the dedupe ledger
+// (sent_notifications) and the rate limits:
 //
 //   - teamBooked: once per (recipient, booker, class), ever; at most one per (recipient,
 //     class) per BOOKED_CLASS_COOLDOWN_MS, so 15 teammates piling into one class make one
@@ -40,6 +50,9 @@ const now = () => teams.__now();
 const prefsOn = (userId, type) => {
   try { return !!notifications.getPrefs(userId)[type].enabled; } catch (_) { return false; }
 };
+const teamAlertsOn = (userId, teamId) => {
+  try { return teams.alertsEnabledFor(userId, teamId); } catch (_) { return false; }
+};
 const sentSince = (userId, prefix, windowMs) => db.countNotificationsSince(userId, prefix, sqlTime(now() - windowMs));
 const overDailyCap = (userId) => sentSince(userId, `${SENT}teamRequest:`, DAILY_WINDOW_MS)
   + sentSince(userId, `${SENT}teamBooked:`, DAILY_WINDOW_MS) >= TEAM_DAILY_CAP;
@@ -55,8 +68,8 @@ async function joinRequested(teamId) {
   const target = teams.joinRequestTargets(teamId);
   if (!target) return [];
   const results = [];
-  for (const userId of target.captainIds) {
-    if (!prefsOn(userId, 'teamRequest')) { results.push('off'); continue; }
+  for (const { userId, alertsEnabled } of target.captains) {
+    if (!alertsEnabled) { results.push('off'); continue; }
     if (sentSince(userId, `${SENT}teamRequest:${target.teamId}:`, REQUEST_COOLDOWN_MS) > 0) { results.push('cooldown'); continue; }
     if (overDailyCap(userId)) { results.push('capped'); continue; }
     recordSend(userId, 'teamRequest', target.teamId);
@@ -97,7 +110,7 @@ async function newServerBookings(bookerId, gymId, rows) {
 
 async function teammateBooked(bookerId, alert) {
   const userId = alert.recipientId;
-  if (!prefsOn(userId, 'teamBooked')) return 'off';
+  if (!teamAlertsOn(userId, alert.teamId)) return 'off';
   const key = `team:booked:${alert.cls.key}:u${bookerId}`;
   if (db.wasNotificationSent(userId, key)) return 'duplicate';
   // Marked even when the push is then held back: a later sync must not replay it.

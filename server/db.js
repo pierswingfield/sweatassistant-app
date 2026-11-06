@@ -484,6 +484,7 @@ db.exec(`
     share_json TEXT NOT NULL,      -- validated by server/team-sharing.js; missing key = private
     paused_until TEXT,             -- ISO instant; NULL or past = not paused
     pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),  -- per-member pin (max 2; teams.js enforces)
+    alerts_enabled INTEGER NOT NULL DEFAULT 0 CHECK (alerts_enabled IN (0, 1)),  -- T-5b per-Team pushes (§5.3: opt-in, off)
     joined_at TEXT NOT NULL,
     FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -520,6 +521,10 @@ if (!db.prepare('PRAGMA table_info(user_gyms)').all().some((col) => col.name ===
 }
 if (!db.prepare('PRAGMA table_info(user_gyms)').all().some((col) => col.name === 'account_enabled_at')) {
   db.exec('ALTER TABLE user_gyms ADD COLUMN account_enabled_at TEXT');
+}
+// T-5b (PLAN-teams.md §5.3 "opt-in per Team"): a DB created before the column existed.
+if (!db.prepare('PRAGMA table_info(team_members)').all().some((col) => col.name === 'alerts_enabled')) {
+  db.exec('ALTER TABLE team_members ADD COLUMN alerts_enabled INTEGER NOT NULL DEFAULT 0 CHECK (alerts_enabled IN (0, 1))');
 }
 // T-2: booking_cache row origin. Rows written before this column existed are marked
 // 'client' (never shown to a Team) until the next server sync rewrites them.

@@ -259,7 +259,13 @@ function teamSummary(team) {
 }
 
 function myState(me) {
-  return { myShare: sharing.resolveShare(me.share_json), pausedUntil: isPaused(me) ? me.paused_until : null, paused: isPaused(me) };
+  return {
+    myShare: sharing.resolveShare(me.share_json),
+    pausedUntil: isPaused(me) ? me.paused_until : null,
+    paused: isPaused(me),
+    // T-5b: this member's pushes from this Team (§5.3 "opt-in per Team", off by default).
+    alertsEnabled: me.alerts_enabled === 1,
+  };
 }
 
 // --- Teams ----------------------------------------------------------------------------
@@ -431,14 +437,25 @@ function timetableChips(userId) {
 
 // --- T-5: push targets (team-notify.js decides prefs, dedupe and rate limits) ------------
 
-/** Captains to tell about a new join request: not paused in that Team. No requester data. */
+/**
+ * Captains to tell about a new join request: not paused in that Team. No requester data.
+ * Each carries `alertsEnabled`, that Captain's per-Team push opt-in (T-5b), which
+ * team-notify.js checks.
+ */
 function joinRequestTargets(teamId) {
   const team = teamRow(teamId);
   if (!team) return null;
   const now = nowIso();
-  const captains = db.prepare('SELECT user_id, paused_until FROM team_members WHERE team_id = ? AND is_captain = 1').all(team.id)
-    .filter((r) => !(r.paused_until && r.paused_until > now)).map((r) => r.user_id);
-  return { teamId: team.id, teamName: team.name, emoji: team.emoji || null, pending: pendingCount(team.id), captainIds: captains };
+  const captains = db.prepare('SELECT user_id, paused_until, alerts_enabled FROM team_members WHERE team_id = ? AND is_captain = 1').all(team.id)
+    .filter((r) => !(r.paused_until && r.paused_until > now))
+    .map((r) => ({ userId: r.user_id, alertsEnabled: r.alerts_enabled === 1 }));
+  return { teamId: team.id, teamName: team.name, emoji: team.emoji || null, pending: pendingCount(team.id), captains };
+}
+
+/** T-5b: is this member's push opt-in on for this Team? false for a non-member. */
+function alertsEnabledFor(userId, teamId) {
+  const me = memberRow(teamId, userId);
+  return !!(me && me.alerts_enabled === 1);
 }
 
 /** The requester's approval: only while they are still a member. */
@@ -455,6 +472,11 @@ function approvalTarget(teamId, userId) {
  * projection of each shared Team must list the booker as a BOOKED attendee of that class
  * key), so a push can never say more than the recipient's Team page already shows.
  * Recipients paused in a Team get nothing from that Team.
+ *
+ * T-5b (§5.3 "opt-in per Team"): only Teams in which the RECIPIENT has turned Team alerts on
+ * are considered, both for whether to alert and for which Team the alert names. A booking
+ * the recipient could see only through a Team they have opted out of is never pushed; with
+ * several qualifying Teams the alert is still one per (recipient, class).
  * @returns {{recipientId, teamId, teamName, bookerName, others, cls}[]}
  */
 function teammateBookingAlerts(bookerId, gymId, eventIds) {
@@ -466,7 +488,7 @@ function teammateBookingAlerts(bookerId, gymId, eventIds) {
   const teamIds = [...refInTeam.keys()];
   const now = nowIso();
   const mateRows = db.prepare(`SELECT m.team_id, m.user_id, m.pinned, m.paused_until, t.name FROM team_members m JOIN teams t ON t.id = m.team_id
-    WHERE m.team_id IN (${teamIds.map(() => '?').join(', ')}) AND m.user_id != ?`).all(...teamIds, bookerId)
+    WHERE m.team_id IN (${teamIds.map(() => '?').join(', ')}) AND m.user_id != ? AND m.alerts_enabled = 1`).all(...teamIds, bookerId)
     .filter((r) => !(r.paused_until && r.paused_until > now));
   if (!mateRows.length) return [];
   const mateIds = [...new Set(mateRows.map((r) => r.user_id))];
@@ -719,7 +741,7 @@ function decideRequest(userId, teamId, requestId, decision) {
 
 // --- my membership ----------------------------------------------------------------------
 
-function updateMe(userId, teamId, { share, pause } = {}) {
+function updateMe(userId, teamId, { share, pause, alertsEnabled } = {}) {
   const { team, me } = requireMember(userId, teamId);
   const sets = {};
   if (share !== undefined) {
@@ -733,6 +755,10 @@ function updateMe(userId, teamId, { share, pause } = {}) {
     else if (pause === '7d') sets.paused_until = new Date(nowFn() + 7 * DAY_MS).toISOString();
     else if (pause === 'indefinite') sets.paused_until = PAUSE_FOREVER;
     else throw invalid('pause must be "24h", "7d", "indefinite" or null.');
+  }
+  if (alertsEnabled !== undefined) {
+    if (typeof alertsEnabled !== 'boolean') throw invalid('alertsEnabled must be true or false.');
+    sets.alerts_enabled = alertsEnabled ? 1 : 0;
   }
   const keys = Object.keys(sets);
   if (keys.length) {
@@ -885,7 +911,7 @@ module.exports = {
   previewInvite, requestJoin, withdrawRequest, listRequests, decideRequest,
   updateMe, setPinned, leaveTeam, setCaptain, removeMember,
   privacyOverview, beforeAccountDelete, teamCountsByUser, exportMyShares, importMyShares,
-  timetableChips, joinRequestTargets, approvalTarget, teammateBookingAlerts, setEventListener,
+  timetableChips, joinRequestTargets, approvalTarget, teammateBookingAlerts, alertsEnabledFor, setEventListener,
   __now: () => nowFn(),
   __setNow(fn) { nowFn = typeof fn === 'function' ? fn : () => Date.now(); },
 };

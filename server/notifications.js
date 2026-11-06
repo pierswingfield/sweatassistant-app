@@ -21,12 +21,11 @@ const DEFAULT_PREFS = {
   // for that gym. Minimal by design — no scope/timing sub-options, since
   // there's exactly one situation it fires for and no useful variant of it.
   providerThrottled: { enabled: true },
-  // T-5 Teams (PLAN-teams.md §5.3 "Pushes", conservative by default): a join request goes
-  // to Captains and an approval to the requester, both about the recipient's own role or
-  // request, so on. "A teammate booked a class you're in" is opt-in (off).
-  teamRequest: { enabled: true },
+  // T-5 Teams: "request approved" reaches someone who is not yet a member, so it has no
+  // Team page to be set on and stays an account switch (on: §5.6 "approved means a push").
+  // Join requests and "a teammate booked a class you're in" are per Team (T-5b,
+  // team_members.alerts_enabled, off by default, §5.3), checked by team-notify.js.
   teamApproved: { enabled: true },
-  teamBooked: { enabled: false },
 };
 
 /**
@@ -286,7 +285,7 @@ async function notify(userId, type, ctx = {}) {
       built = buildProviderThrottled(ctx);
       break;
     case 'teamRequest':
-      if (!prefs.teamRequest.enabled) return;
+      // Per-Team opt-in, checked by team-notify.js (the only caller).
       built = buildTeamRequest(ctx);
       break;
     case 'teamApproved':
@@ -294,7 +293,7 @@ async function notify(userId, type, ctx = {}) {
       built = buildTeamApproved(ctx);
       break;
     case 'teamBooked':
-      if (!prefs.teamBooked.enabled) return;
+      // Per-Team opt-in, checked by team-notify.js (the only caller).
       built = buildTeamBooked(ctx);
       break;
     default:

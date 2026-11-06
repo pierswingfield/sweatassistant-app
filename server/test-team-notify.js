@@ -1,5 +1,7 @@
 // T-5 Teams pushes: preferences, dedupe through sent_notifications, rate limits and the
-// booking-sync hook (PLAN-teams.md §5.3 "Pushes"). Privacy of each push BODY lives in
+// booking-sync hook (PLAN-teams.md §5.3 "Pushes, opt-in per Team and conservative by
+// default"). T-5b: join requests and teammate-booked follow a per-Team switch
+// (team_members.alerts_enabled, off by default); "request approved" stays an account switch. Privacy of each push BODY lives in
 // test-team-privacy.js; this suite is about how often and to whom.
 
 process.env.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'a'.repeat(64);
@@ -33,7 +35,11 @@ function mkUser(first) {
   db.upsertUserGym(id, PSY, {});
   return id;
 }
-const optIn = (uid) => db.setUserSettings(uid, { notifications: { teamBooked: { enabled: true } } });
+// Opt a member in to Team alerts in one Team, or in every Team they are in.
+const optIn = (uid, teamId) => {
+  const ids = teamId ? [teamId] : teams.listTeams(uid).map((t) => t.id);
+  for (const id of ids) teams.updateMe(uid, id, { alertsEnabled: true });
+};
 function serverBook(uid, rows) {
   db.replaceBookingCache(uid, rows.map((r) => ({ gymId: PSY, className: 'Ride 45', durationMin: 45, ...r })), [PSY], { origin: 'server' });
 }
@@ -43,13 +49,85 @@ function team(name, captain, members) {
   return { id: t.id, inviteToken };
 }
 
-check('defaults: requests and approvals on, teammate-booked off (opt-in)', () => {
-  assert.deepStrictEqual(
-    { r: notifications.DEFAULT_PREFS.teamRequest, a: notifications.DEFAULT_PREFS.teamApproved, b: notifications.DEFAULT_PREFS.teamBooked },
-    { r: { enabled: true }, a: { enabled: true }, b: { enabled: false } },
-  );
-  const fresh = mkUser('Fresh');
-  assert.strictEqual(notifications.getPrefs(fresh).teamBooked.enabled, false);
+check('defaults: per-Team alerts OFF for creator and joiner; only "approved" is an account switch (ON)', () => {
+  assert.deepStrictEqual(notifications.DEFAULT_PREFS.teamApproved, { enabled: true });
+  assert.ok(!('teamRequest' in notifications.DEFAULT_PREFS) && !('teamBooked' in notifications.DEFAULT_PREFS),
+    'join requests and teammate-booked are per Team, not account switches');
+  const C = mkUser('Fresh'); const J = mkUser('Joined');
+  const t = team('Fresh Crew', C, [J]);
+  assert.strictEqual(teams.getTeam(C, t.id).alertsEnabled, false);
+  assert.strictEqual(teams.getTeam(J, t.id).alertsEnabled, false);
+  assert.strictEqual(teams.alertsEnabledFor(C, t.id), false);
+  // An old account-level opt-in stored before T-5b does not switch a Team on.
+  db.setUserSettings(J, { notifications: { teamBooked: { enabled: true }, teamRequest: { enabled: true } } });
+  assert.strictEqual(teams.alertsEnabledFor(J, t.id), false);
+});
+
+check('per-Team switch: saved per membership, validated, and returned in my state', () => {
+  const C = mkUser('Switcher'); const M = mkUser('Other');
+  const t1 = team('Switch One', C, [M]); const t2 = team('Switch Two', C, [M]);
+  assert.strictEqual(teams.updateMe(C, t1.id, { alertsEnabled: true }).alertsEnabled, true);
+  assert.strictEqual(teams.alertsEnabledFor(C, t1.id), true);
+  assert.strictEqual(teams.alertsEnabledFor(C, t2.id), false, 'another Team is untouched');
+  assert.strictEqual(teams.alertsEnabledFor(M, t1.id), false, 'another member is untouched');
+  assert.throws(() => teams.updateMe(C, t1.id, { alertsEnabled: 'yes' }), (e) => e.status === 400);
+  assert.strictEqual(teams.updateMe(C, t1.id, { alertsEnabled: false }).alertsEnabled, false);
+});
+
+check('per-Team switch: 404 for a non-member, and gone when the member leaves or is removed', () => {
+  const C = mkUser('Owner'); const L = mkUser('Leaver'); const R = mkUser('Removed'); const X = mkUser('Outsider');
+  const t = team('Prefs Crew', C, [L, R]);
+  optIn(L, t.id); optIn(R, t.id);
+  assert.throws(() => teams.updateMe(X, t.id, { alertsEnabled: true }), (e) => e.status === 404);
+  assert.throws(() => teams.getTeam(X, t.id), (e) => e.status === 404);
+  assert.strictEqual(teams.alertsEnabledFor(X, t.id), false);
+  teams.leaveTeam(L, t.id);
+  const ref = teams.getTeam(C, t.id).members.find((m) => m.name.startsWith('Removed')).memberRef;
+  teams.removeMember(C, t.id, ref);
+  for (const uid of [L, R]) {
+    assert.strictEqual(db.db.prepare('SELECT COUNT(*) c FROM team_members WHERE team_id = ? AND user_id = ?').get(t.id, uid).c, 0);
+    assert.strictEqual(teams.alertsEnabledFor(uid, t.id), false);
+    assert.throws(() => teams.updateMe(uid, t.id, { alertsEnabled: true }), (e) => e.status === 404);
+  }
+});
+
+check('per-Team gating: a booking alert follows the Team switch, and opted out means no push', async () => {
+  sent.length = 0;
+  const V = mkUser('Gated'); const A = mkUser('Gater');
+  const t = team('Gate Crew', V, [A]);
+  serverBook(V, [{ bookingId: 1, eventId: 1700, startAt: at(9) }, { bookingId: 2, eventId: 1701, startAt: at(11) }]);
+  serverBook(A, [{ bookingId: 3, eventId: 1700, startAt: at(9) }, { bookingId: 4, eventId: 1701, startAt: at(11) }]);
+  assert.deepStrictEqual(await teamNotify.newServerBookings(A, PSY, [{ bookingId: 3, eventId: 1700, startAt: at(9) }]), []);
+  assert.ok(!db.wasNotificationSent(V, `team:booked:${PSY}:1700:u${A}`), 'an opted-out push is not even recorded');
+  optIn(V, t.id);
+  const r = await teamNotify.newServerBookings(A, PSY, [{ bookingId: 4, eventId: 1701, startAt: at(11) }]);
+  assert.deepStrictEqual(r.map((x) => [x.recipientId, x.outcome]), [[V, 'sent']]);
+  assert.strictEqual(sent.length, 1);
+  assert.strictEqual(sent[0].title, 'Gate Crew');
+});
+
+check('multi-Team booked: one push, named after an opted-in Team; never via an opted-out Team only', async () => {
+  sent.length = 0;
+  const V = mkUser('Multi'); const A = mkUser('Mover');
+  const muted = team('Aaa Muted Crew', V, [A]); // sorts first by name
+  const loud = team('Zzz Loud Crew', V, [A]);
+  optIn(V, loud.id);
+  serverBook(V, [{ bookingId: 1, eventId: 1800, startAt: at(9) }, { bookingId: 2, eventId: 1801, startAt: at(11) }]);
+  serverBook(A, [{ bookingId: 3, eventId: 1800, startAt: at(9) }]);
+  const r = await teamNotify.newServerBookings(A, PSY, [{ bookingId: 3, eventId: 1800, startAt: at(9) }]);
+  assert.deepStrictEqual(r.map((x) => [x.recipientId, x.outcome]), [[V, 'sent']], 'one push, not one per Team');
+  assert.strictEqual(sent.length, 1);
+  assert.strictEqual(sent[0].title, 'Zzz Loud Crew', 'the opted-in Team, even though the muted one sorts first');
+  assert.strictEqual(sent[0].data.url, `/teams/${loud.id}`);
+  assert.ok(!JSON.stringify(sent).includes(muted.id));
+  // Now A hides upcoming classes from the opted-in Team: the booking is visible to V only
+  // through the muted Team, so nothing is sent.
+  sent.length = 0;
+  teams.updateMe(A, loud.id, { share: { upcoming: false } });
+  serverBook(A, [{ bookingId: 3, eventId: 1800, startAt: at(9) }, { bookingId: 5, eventId: 1801, startAt: at(11) }]);
+  assert.deepStrictEqual(await teamNotify.newServerBookings(A, PSY, [{ bookingId: 5, eventId: 1801, startAt: at(11) }]), []);
+  assert.strictEqual(sent.length, 0);
+  assert.ok(teams.timetableChips(V).classes.some((c) => c.key === `${PSY}:1801`), 'V can still see it on the muted Team');
 });
 
 check('teammate booked: deduped per (recipient, booker, class) across repeated syncs', async () => {
@@ -131,7 +209,7 @@ check('teammate booked: a started class, or a recipient who opted out, gets noth
   serverBook(A, [{ bookingId: 2, eventId: 900, startAt: past }, { bookingId: 4, eventId: 901, startAt: at(9) }]);
   assert.deepStrictEqual(await teamNotify.newServerBookings(A, PSY, [{ bookingId: 2, eventId: 900, startAt: past }]), []);
   const r = await teamNotify.newServerBookings(A, PSY, [{ bookingId: 4, eventId: 901, startAt: at(9) }]);
-  assert.deepStrictEqual(r.map((x) => x.outcome), ['off']);
+  assert.deepStrictEqual(r, [], 'not opted in to this Team: not a candidate at all');
   assert.ok(!db.wasNotificationSent(V, `team:booked:${PSY}:901:u${A}`), 'an opted-out push is not even recorded');
   assert.strictEqual(sent.length, 0);
 });
@@ -157,6 +235,7 @@ check('join request: one push per Captain per Team per hour; the next one says h
   sent.length = 0;
   const C = mkUser('Captain');
   const { id, inviteToken } = team('Request Crew', C, []);
+  optIn(C, id);
   const r1 = mkUser('ReqOne'); const r2 = mkUser('ReqTwo'); const r3 = mkUser('ReqThree');
   teams.requestJoin(r1, inviteToken, sharing.defaultShare());
   assert.deepStrictEqual(await teamNotify.joinRequested(id), ['sent']);
@@ -168,8 +247,8 @@ check('join request: one push per Captain per Team per hour; the next one says h
   assert.strictEqual(sent.length, 2);
   assert.strictEqual(sent[0].body, 'Someone asked to join. Open the Team to approve or decline.');
   assert.strictEqual(sent[1].body, '3 people are waiting to join. Open the Team to approve or decline.');
-  // Turned off: nothing, and nothing recorded.
-  db.setUserSettings(C, { notifications: { teamRequest: { enabled: false } } });
+  // Turned off on this Team: nothing, and nothing recorded.
+  teams.updateMe(C, id, { alertsEnabled: false });
   NOW += teamNotify.REQUEST_COOLDOWN_MS + 1000;
   assert.deepStrictEqual(await teamNotify.joinRequested(id), ['off']);
 });

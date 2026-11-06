@@ -1,5 +1,6 @@
 // T-1 Manage page (PLAN-teams.md §5.7): one modal-nav page, sections by role.
 //   Everyone: My sharing (§3 sheet + competition opt-in when the Team has it on), Pause,
+//             Alerts (T-5b: this Team's pushes, §5.3 opt-in per Team, off by default),
 //             Pin to top (only in more than 3 Teams), Leave.
 //   Captains: Join requests, Members (Make/Remove Captain, Remove [+ block]), Team settings
 //             (name, emoji, competition, Reset link, Joining by link, Delete with typed name).
@@ -83,6 +84,13 @@ function renderMemberSections(host, ctx, refresh) {
     </div>
     <p class="tm-group-help tm-mt-s">${escapeHtml(T.pauseHelp)}</p>
 
+    <h2 class="tm-group-title">${escapeHtml(T.alerts)}</h2>
+    <div class="tm-list">
+      <div class="tm-sw-row"><div class="tm-grow"><div class="tm-t">${escapeHtml(fmt(T.alertsSwitch, { name }))}</div><div class="tm-d">${escapeHtml(detail.myRole === 'captain' ? T.alertsDescCaptain : T.alertsDescMember)}</div></div>
+      ${switchHtml('alerts', !!detail.alertsEnabled, fmt(T.alertsSwitch, { name }), 'data-alerts-switch')}</div>
+    </div>
+    <p class="tm-group-help tm-mt-s">${escapeHtml(T.alertsHelp)}</p>
+
     ${offerPin ? `<h2 class="tm-group-title">${escapeHtml(T.pin)}</h2>
     <div class="tm-list">
       <div class="tm-sw-row"><div class="tm-grow"><div class="tm-t">${escapeHtml(fmt(T.pinTeam, { name }))}</div><div class="tm-d">${escapeHtml(fmt(T.pinHelpUsed, { used: pinsUsed(teams) }))}</div></div>
@@ -109,6 +117,15 @@ function renderMemberSections(host, ctx, refresh) {
   };
   host.querySelector('[data-pause-switch]').addEventListener('change', (e) => setPause(e.target.checked ? '24h' : null));
   host.querySelectorAll('[data-pause]').forEach((b) => b.addEventListener('click', () => setPause(b.getAttribute('data-pause'))));
+  host.querySelector('[data-alerts-switch]').addEventListener('change', async (e) => {
+    try {
+      await teamsApi.updateMe(team.id, { alertsEnabled: e.target.checked });
+      showToast(T.alertsSaved, 'success');
+    } catch (err) {
+      showToast(errorText(err), 'error');
+    }
+    refresh();
+  });
   host.querySelector('[data-pin-switch]')?.addEventListener('change', async (e) => {
     try {
       await teamsApi.setPinned(team.id, e.target.checked);
@@ -355,6 +372,7 @@ export function openManage(teamId, { onChange = null } = {}) {
         <div class="tm-list">
           <button type="button" class="tm-li tm-li-link" data-my-sharing><span class="tm-grow tm-min0"><span class="tm-li-title">${escapeHtml(fmt(T.whatTeamSees, { name }))}</span><span class="tm-li-sub">${escapeHtml(shareSummary(detail.myShare))}</span></span>${ICONS.chevron}</button>
           <button type="button" class="tm-li tm-li-link" data-my-sharing><span class="tm-grow"><span class="tm-li-title">${escapeHtml(T.pause)}</span><span class="tm-li-sub${detail.paused ? ' tm-warn' : ''}">${escapeHtml(pauseStatus(detail))}</span></span>${ICONS.chevron}</button>
+          <button type="button" class="tm-li tm-li-link" data-my-sharing><span class="tm-grow"><span class="tm-li-title">${escapeHtml(T.alerts)}</span><span class="tm-li-sub">${escapeHtml(detail.alertsEnabled ? T.alertsOn : T.alertsOff)}</span></span>${ICONS.chevron}</button>
           ${canOfferPin(ctx.teams.length) ? `<button type="button" class="tm-li tm-li-link" data-my-sharing><span class="tm-grow"><span class="tm-li-title">${escapeHtml(T.pin)}</span><span class="tm-li-sub">${escapeHtml(ctx.mine.pinned ? T.pinned : T.notPinned)}</span></span>${ICONS.chevron}</button>` : ''}
         </div>
         <h2 class="tm-group-title">${escapeHtml(T.leaveOrDelete)}</h2>
@@ -376,7 +394,7 @@ export function openManage(teamId, { onChange = null } = {}) {
   return page;
 }
 
-/** Captains: My sharing / Pause / Pin on a stacked page (mock 04b rows). */
+/** Captains: My sharing / Pause / Alerts / Pin on a stacked page (mock 04b rows). */
 function openMySharingPage(ctx, refreshManage) {
   const page = openTeamsPage({ id: 'teams-my-sharing', title: T.mySharing, onClose: () => refreshManage() });
   setFooter(page, [{ label: T.done, kind: 'primary', onClick: () => page.close() }]);

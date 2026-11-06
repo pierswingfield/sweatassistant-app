@@ -525,9 +525,8 @@ export const COPY = Object.freeze({
     spotMapSaved: 'Saved spot map for {studio}', done: 'Done', changePasswordButton: 'Change password',
     checking: 'Checking…', changePasswordSaving: 'Saving…',
     notificationSpotBooked: 'Spot Booked', notificationSpotBookedHelp: 'When a class is successfully booked.',
-    notificationTeamRequest: 'Team join requests', notificationTeamRequestHelp: 'When someone asks to join a Team you captain.',
     notificationTeamApproved: 'Team request approved', notificationTeamApprovedHelp: 'When a Captain lets you into a Team.',
-    notificationTeamBooked: 'Teammate joins your class', notificationTeamBookedHelp: 'When a teammate books a class you are booked into. At most one per class every few hours.',
+    notificationTeamsPointer: "Other Team alerts are set on each Team's own page: open the Team, then Manage.",
     notificationSpotUpgraded: 'Spot Upgraded', notificationSpotUpgradedHelp: 'When auto-upgrade moves you to a better spot.',
     notificationCreditWarning: 'Credit Warning', notificationCreditWarningHelp: "When you set something up but don't have enough credits.",
     notificationCancellationReminder: 'Cancellation Reminder', notificationCancellationHelp: 'Reminder to cancel before the free-cancel window closes.',
@@ -1014,6 +1013,12 @@ export const COPY = Object.freeze({
     pause: 'Pause', hideMe: 'Hide me from this Team', pause24h: '24 hours', pause7d: '7 days', pauseIndefinite: 'Until I unhide',
     pauseHelp: "While hidden, the Team sees nothing about you, not even that you're hidden. You still see the Team.",
     visibleToTeam: 'Visible to the Team', hiddenUntilLong: 'Hidden until {when}', hiddenUntilUndone: 'Hidden until you unhide',
+    // Team alerts (T-5b, §5.3 "Pushes, opt-in per Team and conservative by default")
+    alerts: 'Alerts', alertsSwitch: 'Push alerts from {name}', alertsOn: 'On', alertsOff: 'Off',
+    alertsDescMember: "When a teammate books a class you're in.",
+    alertsDescCaptain: "Join requests, and when a teammate books a class you're in.",
+    alertsHelp: 'Off until you turn it on. At most one alert per class every few hours, and none while you are hidden.',
+    alertsSaved: 'Alerts updated',
     // Manage (§5.7)
     mySharing: 'My sharing', whatTeamSees: 'What {name} sees about you', leave: 'Leave', leaveTeam: 'Leave {name}', leaveOrDelete: 'Leave or delete',
     leaveBody: "Leaving stops sharing your classes, waitlists and activity with {name} at once. You'd need the Team's link to ask to rejoin.",

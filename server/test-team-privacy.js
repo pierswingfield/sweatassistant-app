@@ -655,7 +655,8 @@ const pushService = require('./push');
 const teamNotify = require('./team-notify');
 const sent = [];
 pushService.sendNotification = async (userId, title, body, data) => { sent.push({ userId, title, body, data }); };
-const allowBooked = (uid) => db.setUserSettings(uid, { notifications: { teamBooked: { enabled: true } } });
+// T-5b: Team pushes are opt-in per Team (team_members.alerts_enabled, off by default).
+const allowAlerts = (uid, teamId) => teams.updateMe(uid, teamId, { alertsEnabled: true });
 const pushJson = () => JSON.stringify(sent);
 const assertCleanPush = (p) => {
   assert.deepStrictEqual(Object.keys(p.data).sort(), ['type', 'url']);
@@ -679,7 +680,7 @@ check('T-5 push "teammate booked": only a visible, sharing, unpaused, server-syn
   add(PA, shareWith()); add(PU, shareWith({ upcoming: false })); add(PP, shareWith());
   add(PG, shareWith({ gyms: [JAB] })); add(PL, shareWith()); add(PC, shareWith());
   teams.updateMe(PP, pt.id, { pause: '24h' });
-  allowBooked(PV);
+  allowAlerts(PV, pt.id);
   const ev = 7001;
   const start = at(9, 0, 2);
   book(PV, PSY, { id: 77000, event: ev, start, name: 'Push class', slot: 'SPOT-PV-1' });
@@ -720,7 +721,7 @@ check('T-5 push "teammate booked": off by default, and a viewer without the gym 
   const QN = mkUser('Quietnojab', [PSY]);
   const { team: qt, inviteToken: qtok } = teams.createTeam(QV, { name: 'Quiet Crew', share: shareWith() });
   for (const uid of [QJ, QN]) teams.decideRequest(QV, qt.id, teams.requestJoin(uid, qtok, shareWith()).requestId, 'approve');
-  allowBooked(QN);
+  allowAlerts(QN, qt.id);
   const start = at(9, 0, 3);
   book(QV, JAB, { id: 78001, event: 7101, start, name: 'Quiet jab' });
   book(QJ, JAB, { id: 78002, event: 7101, start, name: 'Quiet jab' });
@@ -728,7 +729,8 @@ check('T-5 push "teammate booked": off by default, and a viewer without the gym 
   book(QN, PSY, { id: 78003, event: 7101, start, name: 'Psy same id' });
   flush();
   const r = await teamNotify.newServerBookings(QJ, JAB, [{ bookingId: 78002, eventId: 7101, startAt: start }]);
-  assert.deepStrictEqual(r.map((x) => [x.recipientId, x.outcome]), [[QV, 'off']], 'QV has the default (off); QN is at the other gym');
+  // QV keeps the per-Team default (off), so is not even a candidate; QN is at the other gym.
+  assert.deepStrictEqual(r, []);
   assert.strictEqual(sent.length, 0);
 });
 check('T-5 push "join request": to unpaused Captains only, with no requester name', async () => {
@@ -744,6 +746,7 @@ check('T-5 push "join request": to unpaused Captains only, with no requester nam
   teams.setCaptain(C1, ct.id, ref('Captwo'), true);
   teams.setCaptain(C1, ct.id, ref('Capthree'), true);
   teams.updateMe(C3, ct.id, { pause: 'indefinite' });
+  for (const uid of [C1, C2, C3, M1]) allowAlerts(uid, ct.id); // opted in: the paused Captain and the member still get nothing
   teams.requestJoin(RQ, ctok, shareWith());
   await teamNotify.joinRequested(ct.id);
   assert.deepStrictEqual(sent.map((p) => p.userId).sort((a, b) => a - b), [C1, C2].sort((a, b) => a - b));

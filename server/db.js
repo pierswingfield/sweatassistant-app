@@ -37,7 +37,10 @@ db.exec(`
     -- JWT revocation (security audit part 2): bumped on password change, admin reset
     -- and account deletion. A token whose tv claim differs is rejected. 0 = never
     -- bumped, in which case pre-existing tokens with no tv claim stay valid.
-    token_version INTEGER NOT NULL DEFAULT 0
+    token_version INTEGER NOT NULL DEFAULT 0,
+    -- Demo fixture account (server/scripts/seed-team-fixtures.js): looks like a member
+    -- but the server never contacts a gym for it and nobody can log in as it.
+    is_fixture INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS auto_bookings (
@@ -525,6 +528,9 @@ db.exec(`
 // token_version arrived after prod's first DB: add it in place (PRAGMA-guarded, safe to re-run).
 if (!db.prepare('PRAGMA table_info(users)').all().some((col) => col.name === 'token_version')) {
   db.exec('ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0');
+}
+if (!db.prepare('PRAGMA table_info(users)').all().some((col) => col.name === 'is_fixture')) {
+  db.exec('ALTER TABLE users ADD COLUMN is_fixture INTEGER NOT NULL DEFAULT 0');
 }
 
 // --- user_gyms.session_json encryption at rest (security audit part 2) -------
@@ -2517,14 +2523,21 @@ module.exports = {
     return this.getTokenVersion(userId);
   },
 
+  /** True for a demo fixture account (users.is_fixture). Never contacts a gym; cannot log in. */
+  isFixtureUser(userId) {
+    if (userId == null) return false;
+    const row = db.prepare('SELECT is_fixture FROM users WHERE id = ?').get(userId);
+    return !!(row && row.is_fixture);
+  },
+
   hasAccountPassword(userId) {
-    const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(userId);
-    return !!(row && row.password_hash);
+    const row = db.prepare('SELECT password_hash, is_fixture FROM users WHERE id = ?').get(userId);
+    return !!(row && row.password_hash && !row.is_fixture);
   },
 
   verifyAccountPassword(userId, password) {
-    const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(userId);
-    if (!row || !row.password_hash || !password) return false;
+    const row = db.prepare('SELECT password_hash, is_fixture FROM users WHERE id = ?').get(userId);
+    if (!row || !row.password_hash || row.is_fixture || !password) return false;
     return verifyPassword(password, row.password_hash);
   },
 

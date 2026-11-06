@@ -198,6 +198,7 @@ class MarianaTekProvider extends GymProvider {
   }
 
   async request(path, { token, method = 'GET', body, timeoutMs = MT_REQUEST_TIMEOUT_MS } = {}) {
+    require('../gym-outbound').assertNotFixtureToken(token, this.gym.id);
     require('../gym-mutation-gate').beforeRequest(this.gym.id, method);
     if (token === MOCK_TOKEN) {
       const { handleMockRequest } = require('../mock-marianatek');

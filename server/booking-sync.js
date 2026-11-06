@@ -386,6 +386,7 @@ function runCycle(opts = {}) {
     const priority = prioritySet();
     const byUser = new Map();
     for (const l of db.getEnabledGymLinks()) {
+      if (gymOutbound.isFixtureUser(l.user_id)) continue; // demo fixture: planned out quietly, never fetched
       if (!byUser.has(l.user_id)) byUser.set(l.user_id, []);
       byUser.get(l.user_id).push({ ...l, account_enabled: 1 });
     }

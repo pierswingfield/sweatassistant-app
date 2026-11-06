@@ -590,7 +590,7 @@ async function teamsWidgetDeps() {
     import('./teams-ui.js'), import('./home-teams.js'), import('../teams-api.js'), import('./cards.js'),
   ]);
   return {
-    ui: { T: ui.T, fmt: ui.fmt, mascotHtml: ui.mascotHtml, teamTitleText: ui.teamTitleText, segmentsHtml: ui.segmentsHtml, whenOf: ui.whenOf, escapeHtml: cards.escapeHtml },
+    ui: { T: ui.T, fmt: ui.fmt, mascotHtml: ui.mascotHtml, avatarStackHtml: ui.avatarStackHtml, memberCountLabel: ui.memberCountLabel, teamTitleText: ui.teamTitleText, segmentsHtml: ui.segmentsHtml, whenOf: ui.whenOf, escapeHtml: cards.escapeHtml },
     model, teamsApi: api_.teamsApi,
   };
 }
@@ -622,7 +622,7 @@ registerWidget({
   async load() {
     const deps = await teamsWidgetDeps();
     const res = await deps.teamsApi.list();
-    const rows = deps.model.homeTeamsModel(res && res.teams, { when: deps.ui.whenOf, copy: deps.ui.T });
+    const rows = deps.model.homeTeamsModel(res && res.teams, { when: deps.ui.whenOf, copy: deps.ui.T, gymName: getGymShortName, memberCountLabel: deps.ui.memberCountLabel });
     return { rows, deps };
   },
   dataSignature: (d) => (d ? d.rows : null),

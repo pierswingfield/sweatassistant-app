@@ -5,43 +5,26 @@
 // every line, and teams-today.js only words it. Text is escaped by segmentsHtml.
 
 import { orderTeams } from './teams-model.js';
-import { todayLineSegments, segmentsText } from './teams-today.js';
+import { teamCardModel, teamCardHtml } from './teams-card.js';
 
 export const HOME_TEAMS_MAX = 2;
 
 /**
- * Pure: the list payload -> the rows the widget shows (pinned first, then the server's
- * order: soonest shared class). `when` is teams-ui.whenOf, injected for tests.
+ * Pure: the list payload -> the cards the widget shows (pinned first, then the server's
+ * order: soonest shared class). Same model as the Teams list card (T9), so the two never
+ * disagree. `when` is teams-ui.whenOf, injected for tests.
  */
-export function homeTeamsModel(list, { when, copy, max = HOME_TEAMS_MAX } = {}) {
+export function homeTeamsModel(list, { when, copy, gymName, memberCountLabel, max = HOME_TEAMS_MAX } = {}) {
   const teams = orderTeams(Array.isArray(list) ? list : []).filter((t) => t && typeof t.id === 'string');
-  return teams.slice(0, max).map((t) => {
-    const segments = t.paused ? [{ text: copy.hiddenFromTeam, muted: true }] : todayLineSegments(t.today, when, copy);
-    return {
-      id: t.id,
-      name: t.name,
-      emoji: t.emoji || null,
-      paused: !!t.paused,
-      mascot: t.mascot || null,
-      segments,
-      text: segmentsText(segments),
-    };
-  });
+  return teams.slice(0, max).map((t) => teamCardModel(t, { when, copy, gymName, memberCountLabel }));
 }
 
-/** DOM: rows (or nothing). `ui` carries the teams-ui helpers so this module stays light. */
+/** DOM: cards (or nothing). `ui` carries the teams-ui helpers so this module stays light. */
 export function renderHomeTeams(el, rows, { ui, onOpen }) {
-  const { T, fmt, mascotHtml, teamTitleText, segmentsHtml, escapeHtml } = ui;
+  const { T, fmt, mascotHtml, avatarStackHtml, segmentsHtml, escapeHtml } = ui;
   const list = document.createElement('div');
   list.className = 'home-teams-list';
-  list.innerHTML = rows.map((r) => `<a class="home-team-row" href="/teams/${encodeURIComponent(r.id)}" data-home-team="${escapeHtml(r.id)}"
-      aria-label="${escapeHtml(`${fmt(T.homeOpenAria, { name: teamTitleText(r) })}. ${r.text}`)}">
-      ${mascotHtml({ size: 44, dim: r.paused, mascot: r.mascot })}
-      <span class="home-team-text">
-        <span class="home-team-name">${escapeHtml(teamTitleText(r))}</span>
-        <span class="home-team-line">${segmentsHtml(r.segments)}</span>
-      </span>
-    </a>`).join('');
+  list.innerHTML = rows.map((r) => teamCardHtml(r, { escapeHtml, mascotHtml, avatarStackHtml, segmentsHtml, copy: T, fmt }, { size: 64, compact: true, attr: 'data-home-team' })).join('');
   list.querySelectorAll('[data-home-team]').forEach((a) => a.addEventListener('click', (e) => {
     e.preventDefault();
     onOpen(a.getAttribute('data-home-team'));

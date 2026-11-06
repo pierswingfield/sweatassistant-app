@@ -121,6 +121,18 @@ check('today line inputs: total, done, first upcoming time; hottest needs two pe
   assert.strictEqual(p.mascot.state, 'cooling');
 });
 
+check('T9 upNext: soonest not-started class, any day, with no names or counts', () => {
+  const now = Date.parse('2026-11-10T10:00:00Z');
+  const p = run([
+    member(1, 'John', { bookings: [bk('g1', 1, 10, '2026-11-10T08:30:00Z', 'Early'), bk('g1', 2, 12, '2026-11-12T08:30:00Z', 'Later'), bk('g1', 3, 11, '2026-11-10T18:30:00Z', 'Train')] }),
+    member(2, 'Kim'),
+  ], now);
+  assert.strictEqual(p.today.upNext.className, 'Train');
+  assert.strictEqual(p.today.upNext.gymId, 'g1');
+  assert.deepStrictEqual(Object.keys(p.today.upNext).sort(), ['className', 'gymId', 'key', 'locationName', 'startAt', 'timeZone']);
+  assert.strictEqual(run([member(1, 'John', { bookings: [bk('g1', 1, 10, '2026-11-10T08:30:00Z', 'Early')] })], now).today.upNext, null);
+});
+
 check('solo line when one person is doing the next class; next-class hint when today is over', () => {
   const now = Date.parse('2026-11-10T10:00:00Z');
   const p = run([member(1, 'John', { bookings: [bk('g1', 1, 10, '2026-11-10T08:30:00Z', 'Early'), bk('g1', 2, 11, '2026-11-10T18:30:00Z', 'Train')] }), member(2, 'Kim')], now);

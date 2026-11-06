@@ -937,7 +937,7 @@ export const COPY = Object.freeze({
   }),
   // T-1 Teams (PLAN-teams.md §5). Exact spec copy is marked "spec".
   teams: Object.freeze({
-    title: 'Teams', navLabel: 'Teams', createTeam: 'Create Team', createATeam: 'Create a Team',
+    title: 'Teams', myTeamsTitle: 'My Teams', navLabel: 'Teams', createTeam: 'Create Team', createATeam: 'Create a Team',
     // spec §5.2
     emptyBody: 'A Team is a private group (like friends, or a group chat) that can share their workout schedule and book in together. You can choose what your team sees, and what is private.',
     pinnedSection: 'Pinned', allSection: 'All Teams', pinned: 'Pinned', captain: 'Captain', you: 'You',
@@ -948,7 +948,7 @@ export const COPY = Object.freeze({
     loadFailed: "Couldn't load your Teams.", retry: 'Retry', loading: 'Loading',
     back: 'Teams', backAria: 'Back to Teams', share: 'Share link', shareAria: 'Share invite link', manage: 'Manage', manageAria: 'Manage Team',
     // T-2 list card lines (§5.2) and mascot states (§5.4)
-    restDay: 'Rest day', allDone: 'All done for today 🏆', classesTodayOne: '1 class today', classesTodayMany: '{count} classes today',
+    restDay: 'Rest day', allDone: 'All done for today', classesTodayOne: '1 class today', classesTodayMany: '{count} classes today',
     inClassNow: '{count} in class now', nDone: '{count} done', firstAt: 'first at {time}', nDoing: '{count} doing', nameDoing: '{name} doing',
     tomorrow: 'Tomorrow', next: 'Next', otherGyms: '+{count} at other gyms',
     mascotStates: Object.freeze({ sleeping: 'sleeping', resting: 'resting', warming: 'warming up', exercising: 'exercising', cooling: 'cooling down', champion: 'champion' }),
@@ -1077,6 +1077,15 @@ export const COPY = Object.freeze({
     ttChipMore: '+{count}', ttChipAria: '{team}: {names}', ttChipAriaMore: '{team}: {names}, and {count} more Teams. Show who', ttChipShow: 'Show teammates in this class',
     ttAnd: 'and', ttMore: '{count} more',
     homeTitle: 'Your Teams today', homeEmpty: 'Train with friends: a Team shares who is doing which class, so you can book in together.',
+    // T9 Team card + marketing empty state
+    cardNextClass: 'Next class', cardActivity: 'Today', cardOpenAria: 'Open {name}', cardCaptainAria: 'You are a Captain',
+    pitchHeadline: 'Train better, together.',
+    pitchPromise: 'A Team is a private group for you and your people, so a solo session becomes a shared habit.',
+    pitchSeeTitle: "See who's training", pitchSeeBody: "Know when your teammates are in class, so you're never left guessing.",
+    pitchBookTitle: 'Book the same class', pitchBookBody: 'Spot a class two of you are in and join them in a tap.',
+    pitchGoalTitle: 'Chase a weekly goal', pitchGoalBody: 'Set a target for the Team and watch it fill up, class by class.',
+    pitchPrivacy: 'You choose what to share, and only people in your Team can see it.',
+    pitchJoinHint: 'Been sent an invite link? Open it to join that Team.',
     homeCreate: 'Create a Team', homeSeeAll: 'All Teams', homeOpenAria: 'Open {name}',
   }),
   home: Object.freeze({

@@ -391,6 +391,10 @@ function projectTeam(input) {
       if (n === 1) { next.memberRef = booked(after)[0].memberRef; next.name = nameOf.get(next.memberRef); }
     }
   }
+  // T9: the soonest class not yet started that a visible member is booked into, any day, with
+  // no names and no counts: the list card's "Next class" line says what, when and where only.
+  const upNextClass = notEnded.find((c) => c._startMs > now && booked(c).length);
+  const upNext = upNextClass ? brief(upNextClass) : null;
   const firstUpcoming = todayVisible.find((c) => c._startMs > now);
   const activeRefs = new Set();
   for (const c of todayVisible) for (const a of booked(c)) activeRefs.add(a.memberRef);
@@ -399,7 +403,7 @@ function projectTeam(input) {
     total, done, inProgress, remaining,
     otherGyms: other.today.size,
     firstAt: firstUpcoming ? { startAt: firstUpcoming.startAt, timeZone: firstUpcoming.timeZone } : null,
-    hottest, solo, next,
+    hottest, solo, next, upNext,
     activeToday: outMembers.filter((m) => activeRefs.has(m.memberRef)).map((m) => m.memberRef),
   };
 

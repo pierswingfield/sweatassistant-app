@@ -12,16 +12,17 @@ describe('Home "Your Teams today" (T-5)', () => {
     expect(rows.map((r) => r.id)).toEqual(['c', 'a']);
     expect(HOME_TEAMS_MAX).toBe(2);
   });
-  it('uses the Teams list today line, including the "John doing" hint', () => {
+  it('uses the Teams card today line, WITHOUT naming a teammate', () => {
     const [r] = homeTeamsModel([team('a', { today: { total: 0, done: 0, inProgress: 0, remaining: 0,
       next: { when: 'tomorrow', name: 'John', count: 1, startAt: '2026-11-11T08:30:00Z', className: 'Train' } } })], { when, copy });
-    expect(r.text).toBe('Rest day · Tomorrow: John doing 08:30 Train');
+    expect(r.activityText).toBe('Rest day');
+    expect(JSON.stringify(r)).not.toContain('John');
     const [s] = homeTeamsModel([team('b', { today: { total: 3, done: 1, inProgress: 0, remaining: 2 } })], { when, copy });
-    expect(s.text).toBe('3 classes today · 1 done');
+    expect(s.activityText).toBe('3 classes today · 1 done');
   });
   it('a paused Team says so instead of showing activity', () => {
     const [r] = homeTeamsModel([team('a', { paused: true, today: { total: 3, done: 1, inProgress: 0, remaining: 2 } })], { when, copy });
-    expect(r.text).toBe(copy.hiddenFromTeam);
+    expect(r.activityText).toBe(copy.hiddenFromTeam);
   });
   it('no Teams or a bad payload is empty', () => {
     expect(homeTeamsModel(undefined, { when, copy })).toEqual([]);

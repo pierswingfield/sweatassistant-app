@@ -25,7 +25,7 @@ describe('Teams list today line (§5.2)', () => {
     expect(line({ total: 0, next: { when: 'later', count: 3, startAt: '2026-11-13T07:30:00Z', className: 'Ride 45' } }))
       .toBe('Rest day · Next: 3 doing Fri 07:30 Ride 45');
     expect(line({ total: 2, done: 2, inProgress: 0, remaining: 0, next: { when: 'tomorrow', count: 1, name: 'Lily', startAt: '2026-11-11T08:30:00Z', className: 'Train' } }))
-      .toBe('All done for today 🏆 · Tomorrow: Lily doing 08:30 Train');
+      .toBe('All done for today · Tomorrow: Lily doing 08:30 Train');
     expect(line({ total: 0 })).toBe('Rest day');
   });
   it('other gyms are a count only', () => {

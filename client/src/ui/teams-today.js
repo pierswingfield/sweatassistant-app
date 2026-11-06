@@ -19,9 +19,10 @@ function doingText(item, when, copy, { withDay = false } = {}) {
 
 /**
  * The today line: the main state, then one detail, then "+N at other gyms".
+ * `withWho: false` (the T9 Team card) drops the two details that name a teammate.
  * @returns {{ text: string, strong?: boolean, muted?: boolean }[]}
  */
-export function todayLineSegments(today, when, copy) {
+export function todayLineSegments(today, when, copy, { withWho = true } = {}) {
   const t = today || {};
   const total = Number(t.total) || 0;
   const done = Number(t.done) || 0;
@@ -29,7 +30,7 @@ export function todayLineSegments(today, when, copy) {
   const remaining = Number(t.remaining) || 0;
   const segs = [];
   const hint = () => {
-    if (!t.next) return;
+    if (!withWho || !t.next) return; // T9: the card variant never says who is in a class
     const label = t.next.when === 'tomorrow' ? copy.tomorrow : copy.next;
     segs.push({ text: `${label}: ${doingText(t.next, when, copy, { withDay: t.next.when !== 'tomorrow' })}`, muted: true });
   };
@@ -43,7 +44,7 @@ export function todayLineSegments(today, when, copy) {
     segs.push({ text: total === 1 ? copy.classesTodayOne : fill(copy.classesTodayMany, { count: total }), strong: true });
     if (inProgress > 0) segs.push({ text: fill(copy.inClassNow, { count: inProgress }) });
     else if (done > 0) segs.push({ text: fill(copy.nDone, { count: done }) });
-    else if (t.solo) segs.push({ text: doingText({ ...t.solo, count: 1 }, when, copy) });
+    else if (withWho && t.solo) segs.push({ text: doingText({ ...t.solo, count: 1 }, when, copy) });
     else if (t.firstAt) segs.push({ text: fill(copy.firstAt, { time: when(t.firstAt.startAt, t.firstAt.timeZone).time }) });
   }
   if (Number(t.otherGyms) > 0) segs.push({ text: fill(copy.otherGyms, { count: t.otherGyms }), muted: true });

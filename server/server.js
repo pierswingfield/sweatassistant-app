@@ -26,6 +26,7 @@ const adminRouter = require('./admin');
 const normalizedRouter = require('./routes-normalized');
 const instructorPhotoRouter = require('./instructor-photo-routes');
 const config = require('./config');
+const { securityHeaders } = require('./security-headers');
 const competing = require('./competing-bookings');
 const { getGymConfig } = require('./gyms.config');
 
@@ -40,6 +41,10 @@ const PORT = process.env.PORT || 3000;
 // Behind the Cloudflare Tunnel every socket peer is cloudflared; without this every
 // per-IP limiter shares one bucket. Hop count, never `true` (see config.js).
 app.set('trust proxy', config.trustProxy);
+// Security audit part 1: nosniff, Referrer-Policy, frame-ancestors/XFO, Permissions-Policy,
+// COOP, CSP (per-response inline-script hashes) and production-only HSTS. Mounted first so
+// every response, including errors and static files, carries them.
+app.use(securityHeaders({ hsts: config.hsts, cspReportOnly: config.cspReportOnly }));
 
 // CORS allowlist. The PWA is served same-origin in production, so only the
 // configured public host (and localhost in dev) are permitted. Requests with no

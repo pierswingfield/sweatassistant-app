@@ -64,20 +64,35 @@ export async function refreshAutoBookTab() {
   await Promise.all([renderAutoBookTab(), refreshUserData()]);
 }
 
-function connectToAutoBookStream() {
+let sseReconnectTimer = null;
+let sseBackoffMs = 2000;
+
+async function connectToAutoBookStream() {
   // Disconnect old stream if exists
   if (sseEventSource) {
     sseEventSource.close();
+    sseEventSource = null;
   }
+  if (sseReconnectTimer) { clearTimeout(sseReconnectTimer); sseReconnectTimer = null; }
 
-  // Connect to SSE stream for real-time auto-book status updates
-  // EventSource doesn't support custom headers, so pass token in URL query param
-  const token = localStorage.getItem('appLocalToken');
-  const url = token ? `/api/auto-book/stream?token=${encodeURIComponent(token)}` : '/api/auto-book/stream';
+  // EventSource can't send an Authorization header, so it authenticates with a
+  // short-lived single-use ticket (POST /api/auth/sse-ticket) in the URL instead
+  // of the long-lived session token, which must never sit in a URL / access log.
+  let url;
+  try {
+    const ticket = await api.getSseTicket();
+    url = `/api/auto-book/stream?ticket=${encodeURIComponent(ticket)}`;
+  } catch (err) {
+    // Offline or signed out: retry quietly; a real logout stops being retried below.
+    scheduleSseReconnect();
+    return;
+  }
   sseEventSource = new EventSource(url);
+  const thisSource = sseEventSource;
 
   sseEventSource.onopen = () => {
     debugConsole('[AutoBook] SSE stream connected');
+    sseBackoffMs = 2000;
     // Sync any missed state by fetching the latest auto-book data.
     // This fires on initial connection AND on reconnect after a network interruption.
     api.getAutoBookings().then(data => {
@@ -107,10 +122,22 @@ function connectToAutoBookStream() {
   };
 
   sseEventSource.onerror = (err) => {
-    console.warn('[AutoBook] SSE stream error — browser will auto-reconnect:', err);
-    // Do NOT close — EventSource reconnects automatically with native exponential backoff.
-    // Closing and manually reconnecting loses the retry timer and adds downtime.
+    console.warn('[AutoBook] SSE stream error:', err);
+    // A ticket is single-use, so the browser's own retry (same URL) is rejected and
+    // the source ends up CLOSED. Mint a fresh ticket and reconnect with backoff.
+    if (thisSource.readyState === 2 /* CLOSED */ && sseEventSource === thisSource) {
+      scheduleSseReconnect();
+    }
   };
+}
+
+function scheduleSseReconnect() {
+  if (sseReconnectTimer || !localStorage.getItem('appLocalToken')) return;
+  sseReconnectTimer = setTimeout(() => {
+    sseReconnectTimer = null;
+    connectToAutoBookStream();
+  }, sseBackoffMs);
+  sseBackoffMs = Math.min(sseBackoffMs * 2, 30000);
 }
 
 function updateQueueDisplayForEvent(eventId, update) {

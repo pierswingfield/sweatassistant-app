@@ -14,6 +14,27 @@
 # deletes the copy, alerts, and exits non-zero. NEVER copies .env / ENCRYPTION_KEY: the DB
 # holds encrypted gym credentials, and key + ciphertext must not travel together.
 #
+# ENCRYPTION (security audit part 2). The DB holds gym session tokens and (unless JWT_SECRET is
+# set in the environment) server_kv.jwt_secret, and the backup goes OFF-HOST to Google Drive. So
+# each backup can be encrypted with `age` to a PUBLIC key; only the offline private key can read it.
+# Configure with ONE of (env, or a root-only file /etc/sweatassistant-backup.env sourced below):
+#   BACKUP_AGE_RECIPIENT="age1..."            # the public key itself
+#   BACKUP_AGE_RECIPIENT_FILE=/root/.config/sweatassistant-backup/recipients.txt   # age recipients file
+# Output is then sweatassistant-<ts>.db.gz.age (gzip, then age). With neither set the old behaviour
+# is kept (plain .db.gz) and a LOUD warning is logged and sent to ntfy on every run.
+#
+# ONE-TIME OWNER STEPS ON ORACLE (this script does none of them):
+#   1. sudo apt-get install -y age                     (or download the release binary for linux-arm64)
+#   2. On a trusted machine (NOT oracle): age-keygen -o dibs-backup.key   -> prints "Public key: age1..."
+#      Store dibs-backup.key OFFLINE (password manager / encrypted USB). Without it backups are unreadable.
+#   3. On oracle: echo 'BACKUP_AGE_RECIPIENT=age1...' | sudo tee /etc/sweatassistant-backup.env
+#      && sudo chmod 600 /etc/sweatassistant-backup.env   (public key only; no secret lives on oracle)
+#   4. Re-install this script (see Install above), run it once by hand, confirm a *.db.gz.age lands in Drive.
+#   5. Test a restore from a copy: age -d -i dibs-backup.key x.db.gz.age | gunzip > restored.db
+#   6. Remove the old unencrypted *.db.gz from Drive (they hold the old secrets) and set JWT_SECRET in the
+#      prod .env (openssl rand -hex 32) so the signing secret is not in the DB at all (changing it logs everyone out once).
+# Restore of an encrypted backup: age -d -i <private key> FILE.db.gz.age | gunzip > app.db
+#
 # Destination: gdrive_pierswingfield:/Backups/sweatassistant-sqlite/{prod,dev}/  (rclone COPY, not
 # sync — deletes never propagate; remote pruned by age). Restore: see the header of
 # Documentation/Workstreams/C1-critical-fixes.md (C1-5) or `--help`.
@@ -36,7 +57,7 @@ notify() {
 }
 log() { echo "$(date -Is) $*"; }
 
-if [ "${1:-}" = "--help" ]; then sed -n 2,20p "$0"; exit 0; fi
+if [ "${1:-}" = "--help" ]; then sed -n 2,50p "$0"; exit 0; fi
 
 mkdir -p "$ROOT"; chmod 700 "$ROOT"
 
@@ -51,6 +72,21 @@ fi
 
 log "=== sweatassistant sqlite backup start ==="
 umask 077
+[ -f /etc/sweatassistant-backup.env ] && . /etc/sweatassistant-backup.env
+AGE_ARGS=()
+if [ -n "${BACKUP_AGE_RECIPIENT:-}" ]; then AGE_ARGS=(-r "$BACKUP_AGE_RECIPIENT")
+elif [ -n "${BACKUP_AGE_RECIPIENT_FILE:-}" ]; then AGE_ARGS=(-R "$BACKUP_AGE_RECIPIENT_FILE"); fi
+ENCRYPT=0
+if [ ${#AGE_ARGS[@]} -gt 0 ]; then
+  if command -v age >/dev/null 2>&1; then ENCRYPT=1
+  else
+    log "!! WARNING: a backup recipient is configured but 'age' is not installed - backups will be UNENCRYPTED"
+    notify "UNENCRYPTED" "age is not installed; backup recipient configured but ignored"
+  fi
+else
+  log "!! WARNING: no BACKUP_AGE_RECIPIENT(_FILE) set - this backup is UNENCRYPTED and is being copied off-host to Google Drive"
+  notify "UNENCRYPTED" "No age recipient configured: SQLite backups go to Drive unencrypted (see script header)"
+fi
 DAY="$(date +%F)"; TS="$(date +%Y%m%d-%H%M%S)"
 FAILED=()
 fail() { FAILED+=("$1"); log "!! FAILED: $1"; }
@@ -68,8 +104,14 @@ for env in prod dev; do
   if ! gzip -9 -c "$tmp" > "$out"; then fail "$env: gzip"; rm -f "$tmp" "$out"; continue; fi
   rm -f "$tmp"
   gzip -t "$out" || { fail "$env: gzip -t"; rm -f "$out"; continue; }
-  log "$env: wrote $out ($(du -h "$out" | cut -f1))"
-  find "$dir" -name 'sweatassistant-*.db.gz' -mtime +$((KEEP_LOCAL_DAYS - 1)) -print -delete | sed "s/^/$env: pruned local /"
+  if [ "$ENCRYPT" = 1 ]; then
+    # The plaintext gzip never leaves this host: encrypt, verify the .age parses, then delete it.
+    if ! age "${AGE_ARGS[@]}" -o "$out.age" "$out"; then fail "$env: age encrypt"; rm -f "$out" "$out.age"; continue; fi
+    rm -f "$out"; out="$out.age"
+    [ -s "$out" ] || { fail "$env: encrypted file empty"; rm -f "$out"; continue; }
+  fi
+  log "$env: wrote $out ($(du -h "$out" | cut -f1))$([ "$ENCRYPT" = 1 ] && echo ' [age-encrypted]' || echo ' [UNENCRYPTED]')"
+  find "$dir" \( -name 'sweatassistant-*.db.gz' -o -name 'sweatassistant-*.db.gz.age' \) -mtime +$((KEEP_LOCAL_DAYS - 1)) -print -delete | sed "s/^/$env: pruned local /"
   if rclone copy "$out" "$REMOTE_BASE/$env/" --stats-one-line 2>&1; then
     log "$env: uploaded to $REMOTE_BASE/$env/"
     rclone delete "$REMOTE_BASE/$env/" --min-age "${KEEP_REMOTE_DAYS}d" -v 2>&1 | sed "s/^/$env: remote prune: /"

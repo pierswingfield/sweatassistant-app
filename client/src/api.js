@@ -513,7 +513,17 @@ export const api = {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Could not change password');
+    // The server revoked every older token and sent a fresh one for THIS session.
+    if (data.token) setToken(data.token);
     return true;
+  },
+
+  // Short-lived, single-use ticket for the auto-book EventSource (which cannot send
+  // an Authorization header). Replaces putting the long-lived JWT in the URL.
+  async getSseTicket() {
+    const res = await apiFetch('/api/auth/sse-ticket', { method: 'POST', quiet: true });
+    if (!res.ok) throw new Error('Could not open live status');
+    return (await res.json()).ticket;
   },
 
   // `ttlMs` opts into the same IndexedDB stale-while-revalidate cache

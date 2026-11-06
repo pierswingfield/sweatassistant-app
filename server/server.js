@@ -414,6 +414,14 @@ app.get('/api/auth/status', authenticateToken, (req, res) => {
   res.json({ userId: req.userId, email: req.email });
 });
 
+// Single-use, 60 s ticket for the auto-book EventSource (replaces the session JWT in the URL).
+app.post('/api/auth/sse-ticket', authenticateToken, (req, res) => {
+  const minted = auth.mintSseTicket(req);
+  if (!minted) return res.status(503).json({ message: 'Too many open stream tickets, try again shortly.' });
+  res.set('Cache-Control', 'no-store');
+  res.json(minted);
+});
+
 app.delete('/api/auth/me', authenticateToken, (req, res) => {
   try {
     db.deleteAllUserData(req.userId);

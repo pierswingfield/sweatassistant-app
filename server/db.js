@@ -1,6 +1,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
+const { encryptV2, decryptV2, isV2 } = require('./crypto');
 
 const dbPath = process.env.DB_PATH || path.join(__dirname, 'sqlite.db');
 
@@ -32,7 +33,11 @@ db.exec(`
     profile_json TEXT,
     profile_synced_at TEXT,
     last_seen_at TEXT,
-    calendar_token TEXT
+    calendar_token TEXT,
+    -- JWT revocation (security audit part 2): bumped on password change, admin reset
+    -- and account deletion. A token whose tv claim differs is rejected. 0 = never
+    -- bumped, in which case pre-existing tokens with no tv claim stay valid.
+    token_version INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS auto_bookings (
@@ -434,6 +439,45 @@ db.exec(`
   );
 `);
 
+// token_version arrived after prod's first DB: add it in place (PRAGMA-guarded, safe to re-run).
+if (!db.prepare('PRAGMA table_info(users)').all().some((col) => col.name === 'token_version')) {
+  db.exec('ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0');
+}
+
+// --- user_gyms.session_json encryption at rest (security audit part 2) -------
+// The column holds live gym access/refresh tokens. New writes are `s2:`-prefixed
+// AES-256-GCM ciphertext (crypto.js encryptV2, AAD-bound to this column); a legacy
+// plaintext value is JSON and starts with `{`, so the two are told apart by the
+// prefix and BOTH read fine. Every writer goes through upsertUserGym -> sealSession
+// and every reader through openSession, so nothing else needs to know the format.
+const SESSION_AAD = 'dibs:user_gyms.session_json:v2';
+function sealSession(value) {
+  if (value == null || value === '') return null;
+  return isV2(value) ? value : encryptV2(value, SESSION_AAD);
+}
+/** Plaintext JSON string for a stored value (legacy plaintext passes through); null if unreadable. */
+function openSession(stored) {
+  if (!stored) return null;
+  if (!isV2(stored)) return stored;
+  try { return decryptV2(stored, SESSION_AAD); } catch (_) { return null; }
+}
+function withOpenSession(row) {
+  return row ? { ...row, session_json: openSession(row.session_json) } : row;
+}
+/** Idempotent: seals every plaintext session_json row; clears the vestigial plaintext users.jwt copy. */
+function migrateSessionEncryption() {
+  const rows = db.prepare("SELECT id, session_json FROM user_gyms WHERE session_json IS NOT NULL AND session_json != '' AND session_json NOT LIKE 's2:%'").all();
+  const upd = db.prepare('UPDATE user_gyms SET session_json = ? WHERE id = ?');
+  const tx = db.transaction(() => {
+    for (const r of rows) upd.run(sealSession(r.session_json), r.id);
+    // users.jwt was a dual-written plaintext copy of the active gym token; nothing reads it.
+    db.prepare('UPDATE users SET jwt = NULL WHERE jwt IS NOT NULL').run();
+  });
+  tx();
+  return rows.length;
+}
+migrateSessionEncryption();
+
 // Existing account links predate the per-account gym visibility switch.
 // Preserve their existing behavior when upgrading an established database.
 if (!db.prepare('PRAGMA table_info(user_gyms)').all().some((col) => col.name === 'account_enabled')) {
@@ -505,6 +549,8 @@ applyPresentationOverrides();
 // the hash string so they can be raised later without invalidating existing rows.
 const nodeCrypto = require('crypto');
 const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 64 };
+
+const DUMMY_SALT = nodeCrypto.randomBytes(16);
 
 function hashPassword(password) {
   const salt = nodeCrypto.randomBytes(16);
@@ -912,7 +958,7 @@ function mergeUserWithGym(user, gymId) {
   if (!user) return null;
   const ug = db.prepare('SELECT * FROM user_gyms WHERE user_id = ? AND gym_id = ?').get(user.id, gymId);
   let session = null;
-  if (ug && ug.session_json) { try { session = JSON.parse(ug.session_json); } catch (_) {} }
+  if (ug && ug.session_json) { try { session = JSON.parse(openSession(ug.session_json)); } catch (_) {} }
   return {
     ...user,
     // `|| null` so the vestigial empty-string placeholder a gym-less account
@@ -964,6 +1010,8 @@ module.exports = {
   listAdminAudit,
   // Direct access if needed
   db,
+  migrateSessionEncryption, // boot migration, exported for its test
+  SESSION_AAD,
   migrateAutoUpgradeSettingsScope,
   migrateCalendarSettingsToAccountScope,
 
@@ -1006,7 +1054,7 @@ module.exports = {
     // properly is on the backlog.
     const result = db.prepare("INSERT INTO users (email, encrypted_password, priority) VALUES (?, '', 200)").run(email);
     const userId = result.lastInsertRowid;
-    this.setAccountPassword(userId, password);
+    this.setAccountPassword(userId, password, { revokeTokens: false }); // brand new: nothing to revoke
     return userId;
   },
 
@@ -1041,8 +1089,9 @@ module.exports = {
   // explicitly avoids a second, independent resolution landing on a different
   // gym than the one the login actually used.
   updateUserCredentials(userId, encryptedPassword, jwt, jwtExpiresAt, gymId = null) {
-    db.prepare('UPDATE users SET encrypted_password = ?, jwt = ?, jwt_expires_at = ? WHERE id = ?')
-      .run(encryptedPassword, jwt, jwtExpiresAt, userId);
+    // users.jwt is no longer written: it duplicated the gym token in plaintext (see migrateSessionEncryption).
+    db.prepare('UPDATE users SET encrypted_password = ?, jwt = NULL, jwt_expires_at = ? WHERE id = ?')
+      .run(encryptedPassword, jwtExpiresAt, userId);
     this.upsertUserGym(userId, gymId || resolveActiveGymId(userId), {
       encrypted_password: encryptedPassword,
       session_json: jwt ? JSON.stringify({ accessToken: jwt, expiresAt: jwtExpiresAt || null }) : null,
@@ -1052,8 +1101,8 @@ module.exports = {
     });
   },
   updateUserJWT(userId, jwt, jwtExpiresAt, gymId = null) {
-    db.prepare('UPDATE users SET jwt = ?, jwt_expires_at = ? WHERE id = ?')
-      .run(jwt, jwtExpiresAt, userId);
+    db.prepare('UPDATE users SET jwt = NULL, jwt_expires_at = ? WHERE id = ?')
+      .run(jwtExpiresAt, userId);
     this.upsertUserGym(userId, gymId || resolveActiveGymId(userId), {
       session_json: jwt ? JSON.stringify({ accessToken: jwt, expiresAt: jwtExpiresAt || null }) : null,
       ...(jwt ? { last_authenticated_at: new Date().toISOString() } : {}), // U1-9, as above
@@ -1078,8 +1127,8 @@ module.exports = {
     // Dual-write the vestigial users.* columns only when this IS the active gym,
     // so renewing a background gym can't overwrite the active one's token.
     if (gymId === resolveActiveGymId(userId)) {
-      db.prepare('UPDATE users SET jwt = ?, jwt_expires_at = ? WHERE id = ?')
-        .run(session ? session.accessToken : null, session ? (session.expiresAt || null) : null, userId);
+      db.prepare('UPDATE users SET jwt = NULL, jwt_expires_at = ? WHERE id = ?')
+        .run(session ? (session.expiresAt || null) : null, userId);
     }
   },
   getUserSession(userId, gymId) {
@@ -1087,7 +1136,7 @@ module.exports = {
     const link = this.getUserGym(userId, resolvedGym);
     if (link && link.session_json) {
       try {
-        const s = JSON.parse(link.session_json);
+        const s = JSON.parse(openSession(link.session_json));
         if (s && s.accessToken) return s;
       } catch (_) {}
     }
@@ -1819,7 +1868,7 @@ module.exports = {
         'SELECT display_name, priority, profile_synced_at, session_json FROM user_gyms WHERE user_id = ? AND gym_id = ?'
       ).get(r.id, gymId);
       let jwtExpiresAt = null;
-      if (ug && ug.session_json) { try { jwtExpiresAt = JSON.parse(ug.session_json).expiresAt || null; } catch (_) {} }
+      if (ug && ug.session_json) { try { jwtExpiresAt = JSON.parse(openSession(ug.session_json)).expiresAt || null; } catch (_) {} }
       return {
         id: r.id,
         email: r.email,
@@ -1856,7 +1905,7 @@ module.exports = {
     if (!base) return null;
     const ug = db.prepare('SELECT * FROM user_gyms WHERE user_id = ? AND gym_id = ?').get(userId, gymId);
     let jwtExpiresAt = null;
-    if (ug && ug.session_json) { try { jwtExpiresAt = JSON.parse(ug.session_json).expiresAt || null; } catch (_) {} }
+    if (ug && ug.session_json) { try { jwtExpiresAt = JSON.parse(openSession(ug.session_json)).expiresAt || null; } catch (_) {} }
     const user = {
       ...base,
       display_name: ug ? ug.display_name : null,
@@ -1975,7 +2024,7 @@ module.exports = {
     const user = db.prepare('SELECT * FROM users WHERE calendar_token = ?').get(token);
     if (user) return mergeUserWithGym(user, resolveActiveGymId(user.id));
     // Migration fallback: a token issued before the feed became account-level.
-    const ug = db.prepare('SELECT * FROM user_gyms WHERE calendar_token = ?').get(token);
+    const ug = withOpenSession(db.prepare('SELECT * FROM user_gyms WHERE calendar_token = ?').get(token));
     if (!ug) return null;
     const legacy = db.prepare('SELECT * FROM users WHERE id = ?').get(ug.user_id);
     return mergeUserWithGym(legacy, ug.gym_id);
@@ -2129,7 +2178,7 @@ module.exports = {
     return db.prepare('SELECT * FROM gyms WHERE id = ?').get(gymId);
   },
   getUserGyms(userId) {
-    return db.prepare('SELECT * FROM user_gyms WHERE user_id = ? ORDER BY gym_id ASC').all(userId);
+    return db.prepare('SELECT * FROM user_gyms WHERE user_id = ? ORDER BY gym_id ASC').all(userId).map(withOpenSession);
   },
   // Gym links with secrets stripped (no encrypted_password/session_json) and gym
   // metadata joined in — safe to serialize in an API response. Used by the admin
@@ -2150,7 +2199,7 @@ module.exports = {
     `).all(userId);
   },
   getUserGym(userId, gymId) {
-    return db.prepare('SELECT * FROM user_gyms WHERE user_id = ? AND gym_id = ?').get(userId, gymId);
+    return withOpenSession(db.prepare('SELECT * FROM user_gyms WHERE user_id = ? AND gym_id = ?').get(userId, gymId));
   },
   setUserGymEnabled(userId, gymId, enabled, disabledAt = null) {
     return db.transaction(() => {
@@ -2231,7 +2280,7 @@ module.exports = {
         profile_synced_at = excluded.profile_synced_at, calendar_token = excluded.calendar_token,
         priority = excluded.priority, status = excluded.status,
         last_authenticated_at = excluded.last_authenticated_at, updated_at = CURRENT_TIMESTAMP
-    `).run(userId, gymId, merged.gym_email, merged.encrypted_password, merged.session_json, merged.display_name,
+    `).run(userId, gymId, merged.gym_email, merged.encrypted_password, sealSession(merged.session_json), merged.display_name,
       merged.profile_json, merged.profile_synced_at, merged.calendar_token, merged.priority, merged.status,
       merged.last_authenticated_at);
   },
@@ -2252,11 +2301,28 @@ module.exports = {
   // scrypt with a per-user random salt. Stored as `scrypt$N$r$p$salt$hash`, all
   // hex, so the work factor travels with the hash and can be raised later without
   // invalidating existing ones. Verification is constant-time.
-  setAccountPassword(userId, password) {
+  setAccountPassword(userId, password, { revokeTokens = true } = {}) {
     if (!password || String(password).length < 8) {
       throw new Error('Password must be at least 8 characters.');
     }
-    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), userId);
+    db.prepare('UPDATE users SET password_hash = ?, token_version = token_version + ? WHERE id = ?').run(hashPassword(password), revokeTokens ? 1 : 0, userId);
+    // ^ every password change (self-service, admin reset) revokes all previously issued JWTs.
+  },
+
+  /** Dummy scrypt with the live parameters: keeps unknown-email logins as slow as real ones. */
+  burnPasswordCheck(password) {
+    nodeCrypto.scryptSync(String(password || ''), DUMMY_SALT, SCRYPT.keylen, { N: SCRYPT.N, r: SCRYPT.r, p: SCRYPT.p });
+  },
+  // --- JWT revocation (security audit part 2) ---
+  /** Current token_version, or null when the user no longer exists (deleted account). */
+  getTokenVersion(userId) {
+    const row = db.prepare('SELECT token_version FROM users WHERE id = ?').get(userId);
+    return row ? row.token_version : null;
+  },
+  /** Invalidate every JWT issued for this user so far; returns the new version. */
+  bumpTokenVersion(userId) {
+    db.prepare('UPDATE users SET token_version = token_version + 1 WHERE id = ?').run(userId);
+    return this.getTokenVersion(userId);
   },
 
   hasAccountPassword(userId) {

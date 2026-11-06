@@ -19,9 +19,13 @@ const BASE_DIRECTIVES = {
   'script-src': ["'self'"],
   'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
   'font-src': ["'self'", 'https://fonts.gstatic.com', 'data:'],
-  // Instructor photos are proxied same-origin (/api/instructor-photo, F-15);
-  // gym logos are /gyms/*. data:/blob: cover inline SVG data URIs and canvases.
-  'img-src': ["'self'", 'data:', 'blob:'],
+  // Instructor photos are proxied same-origin (/api/instructor-photo, F-15) and
+  // gym logos are /gyms/*, but a few paths can still carry a provider's own
+  // https image URL (MarianaTek photos live on mtproduction-files.s3.amazonaws.com;
+  // normalize.js keeps the direct URL when no gym context exists). `https:` is
+  // allowed for IMAGES ONLY so a missed proxy path cannot blank photos in prod;
+  // script/connect/frame stay locked. data:/blob: cover inline SVG and canvases.
+  'img-src': ["'self'", 'data:', 'blob:', 'https:'],
   'connect-src': ["'self'"],
   'media-src': ["'self'"],
   'worker-src': ["'self'"],

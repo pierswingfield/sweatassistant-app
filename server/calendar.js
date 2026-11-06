@@ -344,7 +344,7 @@ function buildRecord(live, upgradeMap, existingByEvent) {
 function pad(n) { return String(n).padStart(2, '0'); }
 function fmtLocal(dt) { return `${dt.year}${pad(dt.month)}${pad(dt.day)}T${pad(dt.hour)}${pad(dt.minute)}${pad(dt.second)}`; }
 function fmtUTC(dt) { const u = dt.toUTC(); return `${u.year}${pad(u.month)}${pad(u.day)}T${pad(u.hour)}${pad(u.minute)}${pad(u.second)}Z`; }
-function esc(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n'); }
+function esc(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r\n|\r|\n/g, '\\n'); }
 function titleCase(s) { return String(s || '').toLowerCase().replace(/\b\w/g, c => c.toUpperCase()); }
 
 // Fold a content line to 75 octets per RFC 5545 (continuation lines start with a space).
@@ -733,4 +733,5 @@ module.exports = {
   listWithRelogin,
   fetchUserBookings,
   fetchUserWaitlists,
+  escapeIcsText: esc, // exposed for test-security-part2.js
 };

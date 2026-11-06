@@ -14,6 +14,7 @@ const landing = require('./landing-events');
 const adminRouter = require('./admin');
 
 const app = express();
+app.set('trust proxy', 1); // as in production: req.ip = last X-Forwarded-For entry
 app.use('/_a', landing.router);
 app.use('/api/admin', adminRouter);
 
@@ -36,7 +37,7 @@ const rows = () => db.db.prepare('SELECT * FROM landing_events ORDER BY id').all
   try {
     // --- pageview ---
     const pv = await get(port, '/_a/pv?p=/&utm_campaign=autumn', {
-      'user-agent': UA_M, referer: 'https://www.google.com/search?q=secret', 'cf-ipcountry': 'GB', 'x-real-ip': '203.0.113.9' });
+      'user-agent': UA_M, referer: 'https://www.google.com/search?q=secret', 'cf-ipcountry': 'GB', 'x-forwarded-for': '203.0.113.9' });
     assert.strictEqual(pv.status, 200);
     assert.strictEqual(pv.headers['content-type'], 'image/gif');
     assert.ok(/no-store/.test(pv.headers['cache-control']));
@@ -94,7 +95,7 @@ const rows = () => db.db.prepare('SELECT * FROM landing_events ORDER BY id').all
     assert.strictEqual((await get(port, '/api/admin/landing-stats')).status, 401);
     assert.strictEqual((await get(port, '/api/admin/landing-stats', { authorization: 'Bearer junk' })).status, 403);
     const jwt = require('jsonwebtoken');
-    const auth = { authorization: `Bearer ${jwt.sign({ admin: true }, process.env.JWT_SECRET)}` };
+    const auth = { authorization: `Bearer ${jwt.sign({ admin: true }, require('./secrets').adminJwtSecret())}` };
     const s = await get(port, '/api/admin/landing-stats?days=7', auth);
     assert.strictEqual(s.status, 200);
     const j = JSON.parse(s.body);
@@ -110,11 +111,13 @@ const rows = () => db.db.prepare('SELECT * FROM landing_events ORDER BY id').all
     // --- rate limit ---
     let limited = 0;
     for (let i = 0; i < 130; i++) {
-      const g = await get(port, '/_a/pv', { 'user-agent': UA_D, 'x-real-ip': '198.51.100.7' });
+      const g = await get(port, '/_a/pv', { 'user-agent': UA_D, 'x-forwarded-for': '198.51.100.7' });
       if (g.status === 429) limited++;
     }
     assert.ok(limited > 0, 'rate limiter engaged');
-    assert.strictEqual((await get(port, '/_a/pv', { 'x-real-ip': '198.51.100.8' })).status, 200, 'other IPs unaffected');
+    assert.strictEqual((await get(port, '/_a/pv', { 'x-forwarded-for': '198.51.100.8' })).status, 200, 'other IPs unaffected');
+    // Security audit part 2: a client-forged leading entry / cf-connecting-ip must NOT mint a fresh bucket.
+    assert.strictEqual((await get(port, '/_a/pv', { 'user-agent': UA_D, 'x-forwarded-for': '203.0.113.99, 198.51.100.7', 'cf-connecting-ip': '203.0.113.98' })).status, 429, 'spoofed headers do not dodge the limiter');
 
     console.log('landing-events: all assertions passed');
   } finally {

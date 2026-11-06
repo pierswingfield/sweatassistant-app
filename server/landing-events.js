@@ -22,10 +22,12 @@ function secret() {
   return s;
 }
 
+// `trust proxy` is configured in server.js (one hop in production: Cloudflare appends
+// the real client to X-Forwarded-For), so req.ip is already the client. Reading
+// cf-connecting-ip / x-forwarded-for here ourselves let any caller pick its own
+// "visitor" and dodge the limiter.
 function clientIp(req) {
-  const h = req.headers;
-  const fwd = (h['cf-connecting-ip'] || h['x-real-ip'] || String(h['x-forwarded-for'] || '').split(',')[0] || '').trim();
-  return fwd || req.ip || '';
+  return req.ip || '';
 }
 
 function dayOf(date) { return new Date(date).toISOString().slice(0, 10); }

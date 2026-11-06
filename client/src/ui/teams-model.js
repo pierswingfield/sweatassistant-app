@@ -25,12 +25,22 @@ export function avatarColourIndex(index) {
   return ((n % size) + size) % size;
 }
 
-/** "Sam" -> "S", "Sam B." -> "SB", "Sam Bland Smith" -> "SS" (first + last). Unicode-safe; never empty. */
-export function initials(name, max = 2) {
+/**
+ * "Sam" -> "S", "Sam B." -> "SB", "Sam Bland Smith" -> "SS" (first + last). Unicode-safe; never empty.
+ * `lastInitial` is the server's single surname letter (owner decision 2026-11-06); when present it
+ * wins over parsing the display name, so "Ana" + "S" -> "AS" even without a clash label. Absent
+ * or empty -> the old behaviour (one letter for a bare first name).
+ */
+export function initials(name, max = 2, lastInitial = null) {
   const words = String(name ?? '').trim().split(/\s+/).filter((w) => /^\p{L}/u.test(w));
+  const up = (w) => Array.from(w)[0].toLocaleUpperCase();
+  const li = typeof lastInitial === 'string' ? lastInitial.trim() : '';
+  if (li && /^\p{L}/u.test(li) && words.length) {
+    return max >= 2 ? up(words[0]) + up(li) : up(words[0]);
+  }
   // First and last name (a middle name never wins a slot); one word falls back to one letter.
   const picked = max >= 2 && words.length > 1 ? [words[0], words[words.length - 1]] : words.slice(0, 1);
-  const letters = picked.map((w) => Array.from(w)[0].toLocaleUpperCase());
+  const letters = picked.map(up);
   return letters.join('') || '?';
 }
 

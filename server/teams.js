@@ -173,6 +173,11 @@ function shareFromInput(share) {
 // Last initial (shown only on a clash, §5.5): the account `lastName` setting (§5.8).
 // When that was never captured (not a string), fall back to the linked gym profile's
 // last word; an explicitly EMPTY lastName means the member chose none, so no initial.
+// One letter only: the first grapheme, upper-cased, cut back to one grapheme ("ß" -> "SS" -> "S").
+function initialOf(word) {
+  const g = (t) => { const it = GRAPHEMES.segment(t)[Symbol.iterator]().next(); return it.done ? '' : it.value.segment; };
+  return g(g(word).toLocaleUpperCase());
+}
 function nameParts(userId) {
   // Stored text is re-validated at read time: whatever predates the validator (or came in by
   // a path that skipped it) must not reach teammates. Invalid values fall to the next source.
@@ -196,8 +201,8 @@ function nameParts(userId) {
   const words = full ? full.split(' ') : [];
   if (!first) first = words[0] || 'Member';
   let initial = '';
-  if (last !== null) initial = last ? [...last][0].toLocaleUpperCase() : '';
-  else if (words.length > 1) initial = [...words[words.length - 1]][0].toLocaleUpperCase();
+  if (last !== null) initial = last ? initialOf(last) : '';
+  else if (words.length > 1) initial = initialOf(words[words.length - 1]);
   return { first, initial };
 }
 
@@ -228,6 +233,13 @@ function resolveNames(userIds, partsOf = nameParts) {
     });
   }
   return out;
+}
+
+// The ONLY surname-derived value that leaves the server (owner decision 2026-11-06): one
+// uppercase letter, or null when no surname is known. nameParts().initial is already that.
+function lastInitialOf(partsOf, userId) {
+  const i = partsOf(userId).initial;
+  return i ? i : null;
 }
 
 function namePartsMemo() {
@@ -335,7 +347,7 @@ function projectionsFor(userId, teamIds, { zone, includeDetail, preload = null }
       viewer: { userId, linkedGymIds: linked },
       team: { id: teamId },
       members: rows.map((r) => ({
-        userId: r.user_id, memberRef: r.member_ref, name: names.get(r.user_id), colourIndex: r.colour_index,
+        userId: r.user_id, memberRef: r.member_ref, name: names.get(r.user_id), lastInitial: lastInitialOf(partsOf, r.user_id), colourIndex: r.colour_index,
         isCaptain: r.is_captain === 1, share: r.share_json, pausedUntil: r.paused_until,
         ...data.get(r.user_id),
       })),
@@ -349,12 +361,12 @@ function projectionsFor(userId, teamIds, { zone, includeDetail, preload = null }
 // mascot, and the avatars of members active today. No class lists.
 function listCard(p) {
   const byRef = new Map(p.members.map((m) => [m.memberRef, m]));
-  const avatar = (ref) => { const m = byRef.get(ref); return m ? { memberRef: m.memberRef, name: m.name, colourIndex: m.colourIndex } : null; };
+  const avatar = (ref) => { const m = byRef.get(ref); return m ? { memberRef: m.memberRef, name: m.name, lastInitial: m.lastInitial, colourIndex: m.colourIndex } : null; };
   return {
     today: p.today,
     mascot: p.mascot,
     activeToday: p.today.activeToday.map(avatar).filter(Boolean),
-    members: p.members.map((m) => ({ memberRef: m.memberRef, name: m.name, colourIndex: m.colourIndex })),
+    members: p.members.map((m) => ({ memberRef: m.memberRef, name: m.name, lastInitial: m.lastInitial, colourIndex: m.colourIndex })),
   };
 }
 
@@ -446,7 +458,7 @@ function timetableChips(userId) {
         .filter((a) => a.kind === 'booked' && a.memberRef !== meRef && byRef.has(a.memberRef))
         .map((a) => {
           const m = byRef.get(a.memberRef);
-          const mate = { memberRef: m.memberRef, name: m.name, colourIndex: m.colourIndex };
+          const mate = { memberRef: m.memberRef, name: m.name, lastInitial: m.lastInitial, colourIndex: m.colourIndex };
           if (a.spot) mate.spot = a.spot;
           return mate;
         });
@@ -573,7 +585,8 @@ function getTeam(userId, teamId) {
   expireStale();
   const { team, me } = requireMember(userId, teamId);
   const rows = memberRows(team.id);
-  const names = resolveNames(rows.map((r) => r.user_id));
+  const partsOf = namePartsMemo();
+  const names = resolveNames(rows.map((r) => r.user_id), partsOf);
   const approver = me.is_captain === 1;
   const out = {
     team: teamSummary(team),
@@ -583,6 +596,7 @@ function getTeam(userId, teamId) {
     members: rows.map((r) => ({
       memberRef: r.member_ref,
       name: names.get(r.user_id),
+      lastInitial: lastInitialOf(partsOf, r.user_id),
       colourIndex: r.colour_index,
       isCaptain: r.is_captain === 1,
       isMe: r.user_id === me.user_id,
@@ -735,6 +749,7 @@ function listRequests(userId, teamId) {
   return rows.map((r) => ({
     id: r.id,
     name: resolveNames([r.user_id], partsOf).get(r.user_id),
+    lastInitial: lastInitialOf(partsOf, r.user_id),
     colourIndex: requestColour(r.id),
     requestedAt: r.created_at,
   }));

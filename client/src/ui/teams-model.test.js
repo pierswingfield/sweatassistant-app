@@ -49,6 +49,15 @@ describe('avatar palette and initials (§5.5)', () => {
     expect(initials('Sam Bland Smith')).toBe('SS'); // first + last, never the middle name
     expect(initials('Ana')).toBe('A'); // one name falls back to one letter
     expect(initials('')).toBe('?');
+    // server lastInitial (owner decision 2026-11-06): two letters even without a clash label
+    expect(initials('Ana', 2, 'S')).toBe('AS');
+    expect(initials('Ana', 2, 's')).toBe('AS');
+    expect(initials('Ana S.', 2, 'S')).toBe('AS');
+    expect(initials('éli', 2, 'é')).toBe('ÉÉ');
+    expect(initials('Ana', 1, 'S')).toBe('A');
+    expect(initials('Ana', 2, null)).toBe('A'); // no surname known: one letter
+    expect(initials('Ana', 2, '')).toBe('A');
+    expect(initials('Ana', 2, '<')).toBe('A'); // non-letter ignored
     expect(initials('<b>')).toBe('?');
   });
 });

@@ -341,6 +341,7 @@ function projectTeam(input) {
     outMembers.push({
       memberRef: m.memberRef,
       name: m.name,
+      lastInitial: m.lastInitial || null,
       colourIndex: m.colourIndex,
       isCaptain: !!m.isCaptain,
       isMe,

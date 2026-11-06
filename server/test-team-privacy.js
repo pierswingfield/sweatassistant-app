@@ -637,7 +637,7 @@ check('T-5 chips: members are teammates only (never the viewer), with no spot, i
     for (const t of c.teams) {
       assert.deepStrictEqual(Object.keys(t).sort(), ['emoji', 'members', 'name', 'pinned', 'teamId']);
       for (const m of t.members) {
-        assert.deepStrictEqual(Object.keys(m).sort(), ['colourIndex', 'memberRef', 'name']);
+        assert.deepStrictEqual(Object.keys(m).sort(), ['colourIndex', 'lastInitial', 'memberRef', 'name']);
         assert.ok(!m.name.startsWith('Viewer'), 'the viewer is never their own teammate');
       }
     }

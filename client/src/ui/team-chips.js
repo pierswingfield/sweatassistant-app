@@ -67,7 +67,7 @@ export function chipModel(teams) {
   if (!Array.isArray(teams) || !teams.length) return null;
   const first = teams[0];
   const more = teams.length - 1;
-  const avatars = first.members.slice(0, CHIP_STACK_MAX).map((m) => ({ initials: initials(m.name, 2), colour: avatarColourIndex(m.colourIndex) }));
+  const avatars = first.members.slice(0, CHIP_STACK_MAX).map((m) => ({ initials: initials(m.name, 2, m.lastInitial), colour: avatarColourIndex(m.colourIndex) }));
   const detail = teams.map((t) => ({ team: teamLabel(t), names: namesText(t.members.map((m) => (m.spot ? `${m.name}${T.spotSep}${m.spot}` : m.name)), 8) }));
   const firstNames = namesText(first.members.map((m) => m.name));
   const aria = more > 0

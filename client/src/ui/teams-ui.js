@@ -26,7 +26,7 @@ export function avatarHtml(member, { size = 'md', letters = 2, label = true } = 
   const name = String(member?.name ?? '');
   const c = avatarColourIndex(member?.colourIndex);
   const aria = label ? ` role="img" aria-label="${escapeHtml(name)}"` : ' aria-hidden="true"';
-  return `<span class="tm-av tm-av-${size} tm-av-c${c}"${aria}>${escapeHtml(initials(name, letters))}</span>`;
+  return `<span class="tm-av tm-av-${size} tm-av-c${c}"${aria}>${escapeHtml(initials(name, letters, member && member.lastInitial))}</span>`;
 }
 
 export function avatarStackHtml(members, { max = 5 } = {}) {

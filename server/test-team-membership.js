@@ -148,7 +148,7 @@ check('request is idempotent, carries its share, can be withdrawn; approval appl
   teams.requestJoin(b, inviteToken, { upcoming: true, spots: true });
   const reqs = teams.listRequests(a, team.id);
   assert.strictEqual(reqs.length, 1);
-  assert.deepStrictEqual(Object.keys(reqs[0]).sort(), ['colourIndex', 'id', 'name', 'requestedAt']);
+  assert.deepStrictEqual(Object.keys(reqs[0]).sort(), ['colourIndex', 'id', 'lastInitial', 'name', 'requestedAt']);
   assert.strictEqual(reqs[0].name, 'Ben');
   teams.decideRequest(a, team.id, reqs[0].id, 'approve');
   const vb = teams.getTeam(b, team.id);
@@ -626,7 +626,7 @@ check('HTTP: full flow, 404-not-403, no user ids / emails in any payload, tokens
   assert.strictEqual(r.body.myRole, 'member');
   assert.deepStrictEqual(r.body.members.map((m) => m.name).sort(), ['Ana', 'Ben']);
   for (const m of r.body.members) {
-    assert.deepStrictEqual(Object.keys(m).sort(), ['colourIndex', 'isCaptain', 'isMe', 'joinedAt', 'memberRef', 'name']);
+    assert.deepStrictEqual(Object.keys(m).sort(), ['colourIndex', 'isCaptain', 'isMe', 'joinedAt', 'lastInitial', 'memberRef', 'name']);
   }
   const anaRef = r.body.members.find((m) => m.name === 'Ana').memberRef;
   const benRef = r.body.members.find((m) => m.name === 'Ben').memberRef;

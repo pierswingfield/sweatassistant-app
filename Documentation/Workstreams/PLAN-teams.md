@@ -161,7 +161,7 @@ The state is derived from the shared classes today (in each class's own zone), a
 
 ### 5.5 Identity and avatars
 
-- **Name:** the account first name, shown alone unless two members of the Team share it, then first name plus the last initial from the account’s real last name (§5.8 captures it). This is resolved per Team, so "Sam" is unique within it. An optional per-Team nickname is a later nicety.
+- **Name (revised 2026-11-06, owner decision):** teammates see the account first name plus a **surname initial** (one uppercase letter, never the full surname). Every Teams member object carries `lastInitial` (null when no surname is known) beside `name`; identity circles show two initials ("Ana S." -> "AS"), falling back to one letter when there is no initial. The text label `name` is still the first name alone unless two members of the Team share it, then first name plus last initial (resolved per Team, so "Sam" is unique within it). The full surname never leaves the server; `server/teams.js lastInitialOf` is the only derivation and the projection passes it through. An optional per-Team nickname is a later nicety.
 - **Avatar:** initials on a colour circle, the colour chosen deterministically from a fixed accessible palette (contrast-checked in light and dark). The colour is assigned per Team so no two members in one Team clash, and stored on the membership so it is stable.
 - **Photo upload is later (T6),** because it brings storage, size limits, EXIF and GPS stripping (metadata in a photo is itself a location leak), server-side re-encoding, and moderation for a reported image.
 
@@ -385,6 +385,6 @@ The privacy step from (i) to (ii) is real: a spot pins a person to a seat at a k
 | D9 | Joining (2026-11-04) | Strictly via URL. The Teams list's "Join with a link" paste field is removed (that was the "invite link widget"); the empty state offers Create only. Pending requests are visible only on the invite link page itself. Captains keep link management: Share in the dashboard header, Reset link and Turn off joining in Team settings. |
 | D10 | Dashboard (2026-11-04) | Today's workouts first, then This week. Stats are a carousel on mobile. Team streak defined in §5.3. |
 | D11 | Mascot poses (2026-11-04) | The exercising pose rotates daily from a registry in one module (§5.4). |
-| D12 | Names (2026-11-04) | Collect first and last name; Teams show first name plus last initial on a clash (§5.5, §5.8). |
+| D12 | Names (2026-11-04, amended 2026-11-06) | Collect first and last name. Teams expose first name plus a one-letter surname initial (`lastInitial`) to teammates; circles show two initials; the text label adds the initial only on a first-name clash (§5.5, §5.8). Full surname is never exposed. |
 | D13 | Friendly competition and spot numbers (settled 2026-11-06) | **Spot numbers:** a teammate's shared spot is shown only to a viewer booked into, waitlisted for or queued for the same class (`gymId:eventId`), enforced in the projection (§8.1 option ii). Book next to (T-6) follows the same rule. **Competition:** the cooperative Team goal (§8.1 option B). No leaderboard (option C); the reserved switches stay unused. |
 | — | Background sync | Every account's classes are refreshed in the background regardless of app use (§7.2, T-B) |

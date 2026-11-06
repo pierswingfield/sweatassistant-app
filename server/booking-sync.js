@@ -92,6 +92,8 @@ function newServerBookings(prevRows, incoming, gymId) {
   return (incoming || []).filter((b) => b && b.bookingId != null && !had.has(`${gymId}:${b.bookingId}`));
 }
 
+const seenBookingKey = (gymId, bookingId) => `team:seen:${gymId}:${bookingId}`;
+
 function getStats() { return { ...stats, skipped: { ...stats.skipped } }; }
 
 // ── Fetch + enrich ───────────────────────────────────────────────────────────
@@ -211,13 +213,23 @@ async function fetchAndStore(userId, gymId) {
   let waitlists = null;
   try {
     bookings = await bookingRowsFor(userId, gymId);
-    const prevState = db.getBookingSyncState(userId, gymId);
-    const prevRows = newBookingsListener && prevState && prevState.last_synced_at
+    const listening = !!newBookingsListener;
+    const prevState = listening ? db.getBookingSyncState(userId, gymId) : null;
+    const firstSync = !(prevState && prevState.last_synced_at);
+    const prevRows = listening && !firstSync
       ? db.db.prepare('SELECT booking_id, origin FROM booking_cache WHERE user_id = ? AND gym_id = ?').all(userId, gymId)
       : null;
     db.replaceBookingCache(userId, bookings, [gymId], { origin: 'server', retainStartedMs: RETAIN_STARTED_MS });
-    if (prevRows) {
-      const fresh = newServerBookings(prevRows, bookings, gymId);
+    if (listening) {
+      // T-5 review: absent from booking_cache is not the same as never seen. A client push
+      // can drop a server row (a stale client list) and the next sync re-imports it; that
+      // re-import is not a new booking. Every booking a server sync lists is recorded in the
+      // booker's ledger (gym-qualified), and only ids never seen before count as new.
+      const candidates = prevRows ? newServerBookings(prevRows, bookings, gymId) : [];
+      const fresh = candidates.filter((b) => !db.wasNotificationSent(userId, seenBookingKey(gymId, b.bookingId)));
+      db.db.transaction(() => {
+        for (const b of bookings) if (b && b.bookingId != null) db.markNotificationSent(userId, seenBookingKey(gymId, b.bookingId));
+      })();
       if (fresh.length) {
         Promise.resolve().then(() => newBookingsListener(userId, gymId, fresh))
           .catch((err) => console.error(`[BookingSync] new-booking listener failed for user ${userId}:`, err && err.message));

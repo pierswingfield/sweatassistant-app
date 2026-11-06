@@ -423,6 +423,29 @@ check('T-5 new-booking listener: never on a link\'s first sync; afterwards only 
   } finally { bookingSync.setNewBookingsListener(null); }
 });
 
+check('T-5 review: a re-import of a booking a client push dropped is not a new booking', async () => {
+  const seen = [];
+  bookingSync.setNewBookingsListener((uid, gymId, rows) => { seen.push(rows.map((r) => String(r.bookingId))); });
+  const fixed = [{ bookingId: 'keep-1', eventId: `${PSYCLE}-e1`, slotLabel: '7', event: ev(PSYCLE, `${PSYCLE}-e1`, 3) }];
+  override[PSYCLE] = async () => fixed;
+  try {
+    const uid = twoGymUser();
+    await bookingSync.syncUserGym(uid, PSYCLE, { force: true }); // first sync: silent, but the id is now known
+    // A stale client list (or a gym answering a short list once) drops the server row...
+    db.replaceBookingCache(uid, [], [PSYCLE]);
+    assert.strictEqual(bookingRows(uid, PSYCLE).length, 0);
+    // ...and the next server sync puts it back. Same booking, so no "booked" push.
+    await bookingSync.syncUserGym(uid, PSYCLE, { force: true });
+    await new Promise((r) => setImmediate(r));
+    assert.deepStrictEqual(seen, []);
+    // A genuinely new id still counts.
+    fixed.push({ bookingId: 'new-2', eventId: `${PSYCLE}-e2`, slotLabel: '8', event: ev(PSYCLE, `${PSYCLE}-e2`, 4) });
+    await bookingSync.syncUserGym(uid, PSYCLE, { force: true });
+    await new Promise((r) => setImmediate(r));
+    assert.deepStrictEqual(seen, [['new-2']]);
+  } finally { bookingSync.setNewBookingsListener(null); delete override[PSYCLE]; }
+});
+
 check('cycle counters are exposed (aggregate only)', async () => {
   const s = bookingSync.getStats();
   for (const k of ['cycles', 'usersSynced', 'gymsSynced', 'gymsFailed', 'gymsSkipped']) {

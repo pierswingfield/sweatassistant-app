@@ -70,5 +70,20 @@ describe('timetable Team chips (T-5, §5.3)', () => {
       expect(await loadTeamChips(async () => { throw new Error('x'); }, { force: true })).toBe(false);
       expect(chipsFor({ gymId: 'psycle-london', id: 101 })).toBeTruthy();
     });
+    it('a fetch started before a reset never lands after it (T-5 review)', async () => {
+      let release;
+      const slow = loadTeamChips(() => new Promise((r) => { release = r; }));
+      await Promise.resolve();
+      resetTeamChips(); // gym-set change or sign-out while the old request is in flight
+      release(payload);
+      expect(await slow).toBe(false);
+      expect(chipsFor({ gymId: 'psycle-london', id: '101' })).toBeNull();
+    });
+    it('a sign-out clears the index (the next account must not see these teammates)', async () => {
+      await loadTeamChips(async () => payload);
+      expect(chipsFor({ gymId: 'psycle-london', id: '101' })).toBeTruthy();
+      window.dispatchEvent(new CustomEvent('app-logout-triggered'));
+      expect(chipsFor({ gymId: 'psycle-london', id: '101' })).toBeNull();
+    });
   });
 });

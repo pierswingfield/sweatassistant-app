@@ -136,6 +136,23 @@ check('teammate booked: a started class, or a recipient who opted out, gets noth
   assert.strictEqual(sent.length, 0);
 });
 
+check('teammate booked: stored rows load ONCE for all recipients, not once per recipient (no N+1)', async () => {
+  const teamData = require('./team-data');
+  const B = mkUser('Booker');
+  const mates = Array.from({ length: 6 }, (_, i) => mkUser(`Recip${String.fromCharCode(65 + i)}`));
+  team('Load Crew', B, mates);
+  for (const [i, uid] of mates.entries()) { optIn(uid); serverBook(uid, [{ bookingId: 3000 + i, eventId: 1500, startAt: at(9) }]); }
+  serverBook(B, [{ bookingId: 3100, eventId: 1500, startAt: at(9) }]);
+  const orig = teamData.rowsForUsers;
+  let calls = 0;
+  teamData.rowsForUsers = function () { calls++; return orig.apply(this, arguments); };
+  let alerts;
+  try { alerts = teams.teammateBookingAlerts(B, PSY, ['1500']); } finally { teamData.rowsForUsers = orig; }
+  assert.strictEqual(alerts.length, mates.length);
+  assert.strictEqual(calls, 1, `rowsForUsers ran ${calls} times for ${mates.length} recipients`);
+  assert.ok(alerts.every((a) => a.bookerName === 'Booker' && a.others === mates.length - 1));
+});
+
 check('join request: one push per Captain per Team per hour; the next one says how many wait', async () => {
   sent.length = 0;
   const C = mkUser('Captain');

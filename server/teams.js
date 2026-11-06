@@ -295,13 +295,19 @@ function viewerZone(userId, requested) {
   return gyms.length ? zoneOfGym(gyms[0]) : 'UTC';
 }
 
-function projectionsFor(userId, teamIds, { zone, includeDetail }) {
+// `preload` (T-5 review) lets a caller projecting the SAME Teams for several viewers
+// (teammateBookingAlerts) load member rows, stored rows and names once for all of them
+// instead of once per viewer: { members: Map(teamId -> team_members rows), data:
+// rowsForUsers() result covering every member, partsOf: namePartsMemo() }.
+function projectionsFor(userId, teamIds, { zone, includeDetail, preload = null }) {
   const now = nowFn();
-  const byTeam = new Map(teamIds.map((id) => [id, memberRows(id)]));
+  const byTeam = new Map(teamIds.map((id) => [id, (preload && preload.members.get(id)) || memberRows(id)]));
   const allIds = [...new Set([...byTeam.values()].flat().map((r) => r.user_id))];
-  const data = teamData.rowsForUsers(allIds, { now });
-  const linked = teamData.linkedGymIds(userId);
-  const partsOf = namePartsMemo(); // one name lookup per unique user across every Team
+  const data = preload && allIds.every((id) => preload.data.has(id)) ? preload.data : teamData.rowsForUsers(allIds, { now });
+  const linked = preload && preload.data.has(userId)
+    ? preload.data.get(userId).links.map((l) => l.gym_id)
+    : teamData.linkedGymIds(userId);
+  const partsOf = (preload && preload.partsOf) || namePartsMemo(); // one name lookup per unique user across every Team
   const out = new Map();
   for (const [teamId, rows] of byTeam) {
     const names = resolveNames(rows.map((r) => r.user_id), partsOf);
@@ -464,6 +470,15 @@ function teammateBookingAlerts(bookerId, gymId, eventIds) {
     .filter((r) => !(r.paused_until && r.paused_until > now));
   if (!mateRows.length) return [];
   const mateIds = [...new Set(mateRows.map((r) => r.user_id))];
+  // T-5 review: every recipient's projection covers a subset of the booker's Teams, so the
+  // member rows, stored rows and names are loaded ONCE here, not once per recipient (N+1).
+  const preloadMembers = new Map(teamIds.map((id) => [id, memberRows(id)]));
+  const allMemberIds = [...new Set([...preloadMembers.values()].flat().map((r) => r.user_id))];
+  const preload = { members: preloadMembers, data: teamData.rowsForUsers(allMemberIds, { now: nowFn() }), partsOf: namePartsMemo() };
+  const zoneOfViewer = (uid) => {
+    const links = (preload.data.get(uid) || { links: [] }).links;
+    return links.length ? zoneOfGym(links[0].gym_id) : 'UTC';
+  };
   // Who is in the class themselves (their own rows, any origin: it is their own booking),
   // in one query for every candidate.
   const own = db.prepare(`SELECT user_id, event_id FROM booking_cache WHERE gym_id = ? AND missing_since IS NULL
@@ -479,7 +494,7 @@ function teammateBookingAlerts(bookerId, gymId, eventIds) {
   for (const [recipientId, evs] of inClass) {
     const theirTeams = mateRows.filter((r) => r.user_id === recipientId)
       .sort((a, b) => (b.pinned - a.pinned) || a.name.localeCompare(b.name) || a.team_id.localeCompare(b.team_id));
-    const projections = projectionsFor(recipientId, theirTeams.map((r) => r.team_id), { zone: viewerZone(recipientId), includeDetail: true });
+    const projections = projectionsFor(recipientId, theirTeams.map((r) => r.team_id), { zone: zoneOfViewer(recipientId), includeDetail: true, preload });
     for (const eventId of evs) {
       const key = `${gymId}:${eventId}`;
       for (const tr of theirTeams) {

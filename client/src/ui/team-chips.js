@@ -107,9 +107,19 @@ let index = new Map();
 let loadedAt = 0;
 let inflight = null;
 let signature = '';
+// T-5 review: a reset (gym-set change, sign-out) bumps the generation, so a request
+// started before it can never land afterwards and repaint the old account's or old gym
+// set's teammates.
+let generation = 0;
 
 export function chipsFor(event) { return index.get(chipKey(event)) || null; }
-export function resetTeamChips() { index = new Map(); loadedAt = 0; signature = ''; inflight = null; }
+export function resetTeamChips() { generation++; index = new Map(); loadedAt = 0; signature = ''; inflight = null; }
+
+// A 401 sign-out shows the login screen without a reload; the next account on this page
+// must not see the previous account's teammates for the rest of the TTL.
+if (typeof window !== 'undefined' && window.addEventListener) {
+  window.addEventListener('app-logout-triggered', () => resetTeamChips());
+}
 
 /**
  * Fetch the index unless it is fresh. Resolves true when its content changed (the caller
@@ -118,9 +128,11 @@ export function resetTeamChips() { index = new Map(); loadedAt = 0; signature = 
 export function loadTeamChips(fetchChips, { force = false, now = Date.now() } = {}) {
   if (!force && loadedAt && now - loadedAt < CHIP_TTL_MS) return Promise.resolve(false);
   if (inflight) return inflight;
-  inflight = Promise.resolve()
+  const gen = generation;
+  const p = Promise.resolve()
     .then(() => fetchChips())
     .then((payload) => {
+      if (gen !== generation) return false; // reset while in flight: drop the stale answer
       const next = buildChipIndex(payload);
       const sig = JSON.stringify([...next.entries()]);
       const changed = sig !== signature;
@@ -130,6 +142,7 @@ export function loadTeamChips(fetchChips, { force = false, now = Date.now() } = 
       return changed;
     })
     .catch(() => false)
-    .finally(() => { inflight = null; });
-  return inflight;
+    .finally(() => { if (inflight === p) inflight = null; });
+  inflight = p;
+  return p;
 }

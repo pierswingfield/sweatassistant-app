@@ -33,6 +33,8 @@ const deviceTz = () => { try { return Intl.DateTimeFormat().resolvedOptions().ti
 export const teamsApi = {
   // T-2: the device zone decides "today" for the list's summaries.
   list: () => call(`/api/teams?tz=${id(deviceTz())}`),
+  // T-5: every Team's teammates per timetable class, one call per timetable load.
+  timetable: () => call('/api/teams/timetable'),
   today: (teamId) => call(`/api/teams/${id(teamId)}/today?tz=${id(deviceTz())}`),
   create: ({ name, emoji, share }) => call('/api/teams', { method: 'POST', body: { name, emoji: emoji || null, share } }),
   get: (teamId) => call(`/api/teams/${id(teamId)}`),

@@ -17,6 +17,9 @@ self.addEventListener('push', (event) => {
       badge: notification.badge || '/icons/icon-192.png',
       data: notification.data || {}
     };
+    // T-5: Team pushes collapse per Team on the lock screen (one notification each).
+    const teamPath = teamPathOf(options.data);
+    if (teamPath) { options.tag = teamPath; options.renotify = true; }
 
     event.waitUntil(
       titlePromise.then((title) => self.registration.showNotification(title, options)).then(() => {
@@ -73,8 +76,16 @@ async function configuredAppName() {
   }
 }
 
+// T-5: a Team push deep-links to its Team page (/teams/<id>, a members-only route).
+// Anything else, or a malformed path, keeps the old destination, My Bookings.
+function teamPathOf(data) {
+  const url = data && typeof data.url === 'string' ? data.url : '';
+  return /^\/teams\/[A-Za-z0-9_-]{8,64}$/.test(url) ? url : null;
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const target = teamPathOf(event.notification.data) || '/bookings';
 
   // Handle clicking on the notification - focus or open PWA window
   event.waitUntil(
@@ -85,13 +96,13 @@ self.addEventListener('notificationclick', (event) => {
       for (const client of clientList) {
         if (new URL(client.url).origin === self.location.origin && 'focus' in client) {
           return client.focus().then(c => {
-            (c || client).postMessage({ type: 'NAVIGATE', path: '/bookings' });
+            (c || client).postMessage({ type: 'NAVIGATE', path: target });
           });
         }
       }
       // Otherwise, open a new window
       if (clients.openWindow) {
-        return clients.openWindow('/bookings');
+        return clients.openWindow(target);
       }
     })
   );

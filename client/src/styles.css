@@ -12324,3 +12324,45 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container .tm-sort-btn { border-color: var(--border-strong); }
 #app-helper-container .tm-plain { list-style: none; margin: 0; padding: 0; }
 #app-helper-container .tm-profile-head { margin-bottom: 4px; }
+
+/* T-5 timetable Team chip (PLAN-teams §5.3, mock-up 08): teammates' initials as the filter
+   rail's gym-logo stack (26px circles at an 8px pitch, leftmost on top, no masking ring),
+   then the Team name and "+1". Tapping it expands one line per Team. No spot numbers. */
+#app-helper-container .tt-team-line { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 6px; min-width: 0; max-width: 100%; }
+#app-helper-container .tt-team-badge {
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; height: 30px; padding: 0 10px 0 2px;
+  border: 0; border-radius: 999px; cursor: pointer; white-space: nowrap;
+  font: 700 12px/1 var(--font-sans); letter-spacing: .02em;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+#app-helper-container .tt-team-badge:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#app-helper-container .tt-team-name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#app-helper-container .tt-team-more { font-weight: 700; color: var(--text-secondary); margin-left: 2px; flex: 0 0 auto; }
+#app-helper-container .tt-stack { display: inline-flex; align-items: center; position: relative; isolation: isolate; flex: 0 0 auto; }
+#app-helper-container .tt-av {
+  position: relative; width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  color: #fff; font: 700 10px/1 var(--font-sans); box-shadow: none; flex: 0 0 auto;
+}
+#app-helper-container .tt-stack .tt-av + .tt-av { margin-left: -18px; color: transparent; }
+#app-helper-container .tt-team-detail {
+  padding: 8px 10px; border-radius: 12px; font-size: 12px; line-height: 1.5; color: var(--text-secondary);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface-2)); white-space: normal; max-width: 100%;
+}
+#app-helper-container .tt-team-detail strong { color: var(--text); font-weight: 700; }
+#app-helper-container .col-class .tt-team-line { margin-top: 4px; }
+
+/* T-5 Home "Your Teams today" widget: the top two Teams' today lines */
+#app-helper-container .home-teams-list { display: flex; flex-direction: column; gap: 8px; }
+#app-helper-container .home-team-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; padding: 8px 10px; border: 0; border-radius: 14px;
+  background: color-mix(in srgb, var(--text) 4%, transparent); color: inherit; font: inherit; text-align: left; cursor: pointer; text-decoration: none;
+}
+#app-helper-container .home-team-row:hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
+#app-helper-container .home-team-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#app-helper-container .home-team-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+#app-helper-container .home-team-name { font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#app-helper-container .home-team-line { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.35; }
+#app-helper-container .home-team-line b { color: var(--text); font-weight: 600; }
+#app-helper-container .home-team-line .tm-muted { color: var(--text-secondary); }
+#app-helper-container .home-teams-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+#app-helper-container .home-teams-empty p { margin: 0; color: var(--text-secondary); font-size: var(--text-sm); }

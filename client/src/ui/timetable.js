@@ -68,6 +68,8 @@ import { bookGuestAfterPrimary as bookGuestAfterPrimaryStep } from './quickbook-
 import { orderCompanionSlots, orderTogetherSlots } from './companion-slots.js';
 import { guestFieldsHtml, wireGuestFields } from './guest-fields.js';
 import { renderStudioFloorPlan } from './spotmap.js';
+import { chipsFor, teamChipHtml, wireTeamChip, loadTeamChips, resetTeamChips } from './team-chips.js';
+import { teamsApi } from '../teams-api.js';
 import { currentRoute, commitFilterChange, commitNow, replaceCurrent, pathFor } from '../router.js';
 import { stateToUrlTimetable, urlToState, savedToState, sameFilters, overlayLabels, guardedSaveDefaults, emptyFilterState } from './timetable-url-sync.js';
 
@@ -801,6 +803,7 @@ export async function initTimetable() {
   const r = currentRoute();
   pendingUrlTimetable = r.tab === 'class-timetable' ? r.timetable : null;
   setupDropdownFilters();
+  refreshTeamChips();
   await prefetchTimetableData();
   recordTimetableTiming('initialise-total', initStartedAt);
   // Pull-to-refresh is registered centrally on this mobile class list; other
@@ -905,6 +908,8 @@ async function cacheDel(key) {
 export async function resetTimetableForGymChange({ refetch = true } = {}) {
   prefetchGeneration++;
   timetableEvents = [];
+  resetTeamChips(); // T-5: chips name linked gyms only; a changed gym set refetches them
+  if (refetch) refreshTeamChips({ force: true });
   await Promise.all([
     cacheDel(accountScopedKey(CACHE_KEY_EVENTS)),
     cacheDel(accountScopedKey(CACHE_KEY_META)),
@@ -919,6 +924,14 @@ const PROGRESSIVE_GRACE_MS = 0;
 // Re-render the grid but keep the reader where they were: a late gym's rows are
 // merged into a list someone may already be scrolled down, so anchor on the
 // first row in view (by event id) rather than a raw scrollTop that shifts.
+// T-5: the Team chips index is ONE request per timetable load (never per row), and a
+// row renders without it until it lands; a change repaints only while the tab is open.
+function refreshTeamChips({ force = false } = {}) {
+  loadTeamChips(() => teamsApi.timetable(), { force }).then((changed) => {
+    if (changed && timetableTabVisible() && timetableEvents.length) renderPreservingScroll('team-chips');
+  }).catch(() => {});
+}
+
 function renderPreservingScroll(reason) {
   const grid = document.getElementById('app-timetable-grid');
   // The list is the scroller on mobile AND on landscape phones (styles.css makes it overflow:auto there);
@@ -2396,11 +2409,14 @@ function buildEventRow(event, autoBookedIds) {
     bookingId, isPenalty, slotsBookedCount, waitlistId, graceDeadline,
   });
 
+  // T-5: teammates booked into this class (escaped markup; '' when none).
+  const teamChip = teamChipHtml(chipsFor(event));
+
   // === MOBILE TIMETABLE — PWA MOBILE LAYOUT (added Jun 2026; delete this block to revert) ===
   if (window.matchMedia('(max-width: 768px)').matches) {
     return buildMobileClassRow(event, {
       timeStr, hasTimezone, groupName, strippedClassName, instrName, locName,
-      isBookmarked, heartChar, heartClass, rowClass
+      isBookmarked, heartChar, heartClass, rowClass, teamChip
     }, actionModel); // skip desktop rendering for this row
   }
   // === END MOBILE TIMETABLE BLOCK ===
@@ -2425,6 +2441,7 @@ function buildEventRow(event, autoBookedIds) {
         ${disciplineTag(groupName)}
         <span class="app-tt-class-name">${strippedClassName}</span>
       </div>
+      ${teamChip}
     </td>
     <td class="col-instructor">${instrName ? `<span class="app-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}</td>
     ${/* MID-WIDTH COLUMN: instructor + top-level location only ("SW1",
@@ -2446,6 +2463,7 @@ function buildEventRow(event, autoBookedIds) {
   `;
 
   row.querySelector('.col-actions').appendChild(buildDesktopActions(actionModel, event, userSettings.debugMode, isBookmarked));
+  wireTeamChip(row);
 
   // Heart click listener (kept null-safe: an unconditional querySelector that threw
   // once emptied the whole timetable).
@@ -3325,7 +3343,7 @@ function injectMobileFilterHamburger() {
 function buildMobileClassRow(event, ctx, model) {
   const {
     timeStr, hasTimezone, groupName, strippedClassName, instrName, locName,
-    isBookmarked, heartChar, heartClass, rowClass
+    isBookmarked, heartChar, heartClass, rowClass, teamChip = ''
   } = ctx;
 
   const tr = document.createElement('tr');
@@ -3373,6 +3391,7 @@ function buildMobileClassRow(event, ctx, model) {
         <div class="app-mobile-bottom-line">
           <span class="app-mobile-location">${displayLoc}</span>
         </div>
+        ${teamChip}
       </div>
     </div>
     <div class="app-mobile-rail"></div>
@@ -3396,6 +3415,7 @@ function buildMobileClassRow(event, ctx, model) {
   }
 
   const rail = card.querySelector('.app-mobile-rail');
+  wireTeamChip(card);
 
   const mobileHeart = card.querySelector('.app-timetable-heart');
   if (mobileHeart) {

@@ -7,7 +7,6 @@ import { currentRoute } from '../router.js';
 import { teamsApi } from '../teams-api.js';
 import { escapeHtml } from './cards.js';
 import { showToast } from '../main.js';
-import { formatInZone, dayKeyInZone, deviceZone } from '../lib.js';
 import { todayLineSegments, hottestSegments, segmentsText } from './teams-today.js';
 import {
   orderTeams, canOfferPin, canTogglePin, pinsUsed,
@@ -15,7 +14,7 @@ import {
 } from './teams-model.js';
 import {
   T, fmt, avatarStackHtml, mascotHtml, teamTitleHtml, teamTitleText, memberCountLabel, ICONS,
-  errorText, pauseWhen, openTeamsPage, setFooter, shareInvite, renderSharingSheet,
+  errorText, pauseWhen, openTeamsPage, setFooter, shareInvite, renderSharingSheet, whenOf, segmentsHtml,
 } from './teams-ui.js';
 
 let renderSeq = 0;
@@ -166,23 +165,6 @@ async function renderList(el, { stale }) {
 
 // ---- T-2 card helpers ---------------------------------------------------------------------
 
-/** Class times in the CLASS's zone (AGENTS.md: never a bare Date), with a suffix when it differs from the device's. */
-function whenOf(startAt, timeZone) {
-  const zone = timeZone || deviceZone();
-  const f = formatInZone(startAt, zone);
-  let isToday = false;
-  try { isToday = dayKeyInZone(startAt, zone) === dayKeyInZone(new Date().toISOString(), zone); } catch (_) { isToday = false; }
-  return { time: f.timeLabel, day: (f.date || '').split(' ')[0], isToday };
-}
-
-function segmentsHtml(segs) {
-  return (segs || []).map((seg, i) => {
-    const body = seg.strong ? `<b>${escapeHtml(seg.text.trimStart())}</b>` : escapeHtml(seg.text.trimStart());
-    const wrapped = seg.muted ? `<span class="tm-muted">${body}</span>` : body;
-    if (i === 0) return wrapped;
-    return seg.text.startsWith(' ') ? ` ${wrapped}` : ` · ${wrapped}`;
-  }).join('');
-}
 
 function hotAvatars(t) {
   const refs = (t.today && t.today.hottest && t.today.hottest.attendees) || [];

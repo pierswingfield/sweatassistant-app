@@ -1987,6 +1987,11 @@ const NOTIF_DEFAULTS = {
   creditWarning: { enabled: true },
   cancellationReminder: { enabled: true, timing: '24h' },
   bookingWindow: { enabled: true },
+  // T-5 Teams (server notifications.js DEFAULT_PREFS): requests and approvals on,
+  // "a teammate booked a class you're in" opt-in.
+  teamRequest: { enabled: true },
+  teamApproved: { enabled: true },
+  teamBooked: { enabled: false },
 };
 
 function getNotifPrefs() {
@@ -2009,6 +2014,10 @@ const NOTIF_ROWS = [
   // warn about, so each gym carries its own default (gyms.config.js) and the
   // member can override either way.
   { key: 'bookingWindow', title: COPY.settings.notificationBookingWindow, desc: COPY.settings.notificationBookingWindowHelp, perGym: true },
+  // T-5 Teams pushes (PLAN-teams.md §5.3)
+  { key: 'teamRequest', title: COPY.settings.notificationTeamRequest, desc: COPY.settings.notificationTeamRequestHelp },
+  { key: 'teamApproved', title: COPY.settings.notificationTeamApproved, desc: COPY.settings.notificationTeamApprovedHelp },
+  { key: 'teamBooked', title: COPY.settings.notificationTeamBooked, desc: COPY.settings.notificationTeamBookedHelp },
 ];
 
 /**

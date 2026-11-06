@@ -579,6 +579,43 @@ registerWidget({
   },
 });
 
+// T-5 "Your Teams today" (PLAN-teams.md §5.3): the top two Teams' today lines, from the
+// same list projection as the Teams tab (GET /api/teams). Modules load lazily so Home's
+// import graph (and its tests) stay as they were. Empty = no Teams: one line + Create.
+async function teamsWidgetDeps() {
+  const [ui, model, api_, cards] = await Promise.all([
+    import('./teams-ui.js'), import('./home-teams.js'), import('../teams-api.js'), import('./cards.js'),
+  ]);
+  return {
+    ui: { T: ui.T, fmt: ui.fmt, mascotHtml: ui.mascotHtml, teamTitleText: ui.teamTitleText, segmentsHtml: ui.segmentsHtml, whenOf: ui.whenOf, escapeHtml: cards.escapeHtml },
+    model, teamsApi: api_.teamsApi,
+  };
+}
+const openTeam = (teamId) => (window.switchTab ? window.switchTab('teams', { teams: teamId ? { view: 'team', teamId } : { view: 'list' } }) : null);
+
+registerWidget({
+  id: 'teams', order: 30,
+  title: () => COPY.teams.homeTitle,
+  async load() {
+    const deps = await teamsWidgetDeps();
+    const res = await deps.teamsApi.list();
+    const rows = deps.model.homeTeamsModel(res && res.teams, { when: deps.ui.whenOf, copy: deps.ui.T });
+    return { rows, deps };
+  },
+  dataSignature: (d) => (d ? d.rows : null),
+  isEmpty: (d) => !d || !d.rows.length,
+  renderEmpty(el, d) {
+    if (!d || !d.deps) return;
+    d.deps.model.renderHomeTeamsEmpty(el, {
+      ui: d.deps.ui,
+      onCreate: () => { openTeam(null); import('./teams.js').then((m) => m.openCreateFlow()).catch(() => {}); },
+    });
+  },
+  render(el, d) {
+    d.deps.model.renderHomeTeams(el, d.rows, { ui: d.deps.ui, onOpen: openTeam });
+  },
+});
+
 /** Pending = still in the queue (not executed), across every linked gym. */
 export function countPendingAutoBooks(rows) {
   if (!Array.isArray(rows)) return null; // not loaded is not zero
@@ -884,8 +921,8 @@ registerWidget({
 let host = null;
 let renderRun = 0;
 
-const HOME_MOBILE_ORDER = ['upcoming', 'book', 'favourites', 'credits', 'stats', 'top-instructors'];
-const HOME_LEFT_COLUMN_ORDER = ['upcoming', 'book', 'stats'];
+const HOME_MOBILE_ORDER = ['upcoming', 'teams', 'book', 'favourites', 'credits', 'stats', 'top-instructors'];
+const HOME_LEFT_COLUMN_ORDER = ['upcoming', 'teams', 'book', 'stats'];
 const HOME_RIGHT_COLUMN_ORDER = ['credits', 'favourites', 'top-instructors'];
 
 /**

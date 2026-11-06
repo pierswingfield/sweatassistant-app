@@ -525,6 +525,9 @@ export const COPY = Object.freeze({
     spotMapSaved: 'Saved spot map for {studio}', done: 'Done', changePasswordButton: 'Change password',
     checking: 'Checking…', changePasswordSaving: 'Saving…',
     notificationSpotBooked: 'Spot Booked', notificationSpotBookedHelp: 'When a class is successfully booked.',
+    notificationTeamRequest: 'Team join requests', notificationTeamRequestHelp: 'When someone asks to join a Team you captain.',
+    notificationTeamApproved: 'Team request approved', notificationTeamApprovedHelp: 'When a Captain lets you into a Team.',
+    notificationTeamBooked: 'Teammate joins your class', notificationTeamBookedHelp: 'When a teammate books a class you are booked into. At most one per class every few hours.',
     notificationSpotUpgraded: 'Spot Upgraded', notificationSpotUpgradedHelp: 'When auto-upgrade moves you to a better spot.',
     notificationCreditWarning: 'Credit Warning', notificationCreditWarningHelp: "When you set something up but don't have enough credits.",
     notificationCancellationReminder: 'Cancellation Reminder', notificationCancellationHelp: 'Reminder to cancel before the free-cancel window closes.',
@@ -1055,6 +1058,11 @@ export const COPY = Object.freeze({
     chipRecent: 'Recent 30 days', chipSpots: 'Spots', chipAutoBookQueue: 'Auto-book queue', nothingShared: 'nothing', notSharedSr: 'Not shared:',
     privacyMembersCaptain: '{members} · you\'re a Captain',
     timeNow: 'just now', timeMin: '{n} min ago', timeHour: '{n} h ago', timeYesterday: 'yesterday', timeDays: '{n} days ago',
+    // T-5 timetable Team chips (§5.3) and the Home widget
+    ttChipMore: '+{count}', ttChipAria: '{team}: {names}', ttChipAriaMore: '{team}: {names}, and {count} more Teams. Show who', ttChipShow: 'Show teammates in this class',
+    ttAnd: 'and', ttMore: '{count} more',
+    homeTitle: 'Your Teams today', homeEmpty: 'Train with friends: a Team shares who is doing which class, so you can book in together.',
+    homeCreate: 'Create a Team', homeSeeAll: 'All Teams', homeOpenAria: 'Open {name}',
   }),
   home: Object.freeze({
     title: 'Home', subtitle: 'Your classes and bookings at a glance.',

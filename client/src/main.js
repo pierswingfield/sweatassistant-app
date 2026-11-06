@@ -761,7 +761,8 @@ async function registerServiceWorker() {
         const target = event.data.path || (event.data.hash ? legacyHashToPath(event.data.hash) : null);
         if (target) {
           const r = parseLocation(target.split('?')[0], '');
-          if (r.valid) switchTab(r.tab, { section: r.section });
+          // T-5: a Team push opens its Team page, so the Teams sub-route travels too.
+          if (r.valid) switchTab(r.tab, { section: r.section, ...(r.teams ? { teams: r.teams } : {}) });
         }
       } else if (event.data.type === 'PUSH_RECEIVED') {
         // If we are on the bookings tab, refresh it automatically so they see the new spot

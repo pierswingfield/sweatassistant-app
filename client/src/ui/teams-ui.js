@@ -8,6 +8,7 @@ import { openPage, closePage } from './modal-nav.js';
 import { getAllLinkedGyms, getGymShortName } from '../gym-context.js';
 import { showToast } from '../main.js';
 import { teamsApi } from '../teams-api.js';
+import { formatInZone, dayKeyInZone, deviceZone } from '../lib.js';
 import {
   avatarColourIndex, initials, SHARE_ROWS, normaliseShare, applyShareChange, inviteUrlOn, isIndefinitePause,
 } from './teams-model.js';
@@ -57,6 +58,25 @@ export function mascotHtml({ size = 60, pose = 'resting', dim = false, alt = '',
   }
   const cls = `tm-mascot${dim ? ' is-dim' : ''}${mascot && mascot.fit ? ' is-fit' : ''}${mascot ? ' has-ring' : ''}`;
   return `<span class="${cls}" style="--s:${s}px"><span class="tm-mascot-disc"></span>${ring}<img src="${src}" ${altAttr} width="${s}" height="${s}" decoding="async"></span>`;
+}
+
+/** Class times in the CLASS's zone (AGENTS.md: never a bare Date), with a suffix when it differs from the device's. */
+export function whenOf(startAt, timeZone) {
+  const zone = timeZone || deviceZone();
+  const f = formatInZone(startAt, zone);
+  let isToday = false;
+  try { isToday = dayKeyInZone(startAt, zone) === dayKeyInZone(new Date().toISOString(), zone); } catch (_) { isToday = false; }
+  return { time: f.timeLabel, day: (f.date || '').split(' ')[0], isToday };
+}
+
+/** teams-today.js segments as escaped markup. */
+export function segmentsHtml(segs) {
+  return (segs || []).map((seg, i) => {
+    const body = seg.strong ? `<b>${escapeHtml(seg.text.trimStart())}</b>` : escapeHtml(seg.text.trimStart());
+    const wrapped = seg.muted ? `<span class="tm-muted">${body}</span>` : body;
+    if (i === 0) return wrapped;
+    return seg.text.startsWith(' ') ? ` ${wrapped}` : ` · ${wrapped}`;
+  }).join('');
 }
 
 /** "🚲 Tuesday Riders" with both parts escaped. */

@@ -2043,7 +2043,7 @@ module.exports = {
   getAllUsers() {
     const rows = db.prepare(`
       SELECT
-        u.id, u.email, u.created_at, u.last_seen_at,
+        u.id, u.email, u.created_at, u.last_seen_at, u.is_fixture,
         u.display_name AS legacy_display_name,
         u.priority AS legacy_priority,
         u.profile_synced_at AS legacy_profile_synced_at,

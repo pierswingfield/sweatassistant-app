@@ -314,6 +314,56 @@ check('seed script: exits clearly when the owner\'s Team does not exist', async 
   assert.ok(/Lesbian Wednesdays/.test(res.stderr));
 });
 
+check('seed script: never adopts an existing account that has a password (rolls back; a passwordless row is adopted)', async () => {
+  const { seed } = require('./scripts/seed-team-fixtures');
+  const lw = db.db.prepare("SELECT id FROM teams WHERE name LIKE '%Lesbian Wednesdays%'").get();
+  assert.ok(lw, 'the owner\'s Team survived the previous removal');
+  const EMAIL = 'fixture-ana-okafor@fixture.invalid';
+  const HASH = 'scrypt$1$1$1$AAAA$BBBB';
+  const clash = db.db.prepare("INSERT INTO users (email, encrypted_password, password_hash, priority, is_fixture) VALUES (?, '', ?, 100, 0)").run(EMAIL, HASH).lastInsertRowid;
+  const fixturesBefore = db.db.prepare('SELECT COUNT(*) c FROM users WHERE is_fixture = 1').get().c;
+
+  assert.throws(() => seed({}), (e) => e.code === 'FIXTURE_EMAIL_IS_REAL_ACCOUNT' && /password set/.test(e.message), 'refused with a clear message');
+  const kept = db.db.prepare('SELECT is_fixture, password_hash FROM users WHERE id = ?').get(clash);
+  assert.strictEqual(kept.is_fixture, 0, 'the real account was not flagged as a fixture');
+  assert.strictEqual(kept.password_hash, HASH, 'its password is untouched');
+  assert.strictEqual(db.db.prepare('SELECT COUNT(*) c FROM users WHERE is_fixture = 1').get().c, fixturesBefore, 'the aborted run rolled back every other write');
+  await assert.rejects(() => auth.handleLogin(EMAIL, 'anything'), /Invalid email or password/, 'the real account still cannot be logged into by the seed');
+
+  // Same address, no password: this is an orphaned fixture row, so it is adopted.
+  db.db.prepare('UPDATE users SET password_hash = NULL WHERE id = ?').run(clash);
+  const r = seed({});
+  assert.ok(r.fixtures >= 6);
+  assert.strictEqual(db.db.prepare('SELECT is_fixture FROM users WHERE id = ?').get(clash).is_fixture, 1, 'a passwordless row with the fixture address is adopted');
+  seed({ remove: true });
+  assert.strictEqual(db.db.prepare('SELECT COUNT(*) c FROM users WHERE id = ?').get(clash).c, 0, 'the adopted fixture is removed with the others');
+});
+
+check('seed script: a fixture whose join request the owner declined is skipped with a printed note, not fatal', async () => {
+  const { seed, printSummary } = require('./scripts/seed-team-fixtures');
+  const lw = db.db.prepare("SELECT id FROM teams WHERE name LIKE '%Lesbian Wednesdays%'").get().id;
+  const owner = db.db.prepare('SELECT user_id FROM team_members WHERE team_id = ? AND is_captain = 1').get(lw).user_id;
+  seed({});
+  const priya = db.db.prepare("SELECT id FROM users WHERE email = 'fixture-priya-raman@fixture.invalid'").get().id;
+  const req = db.db.prepare("SELECT id FROM team_join_requests WHERE team_id = ? AND user_id = ? AND status = 'pending'").get(lw, priya);
+  assert.ok(req, 'precondition: Priya has an open request to the owner\'s Team');
+  teams.decideRequest(owner, lw, req.id, 'decline');
+
+  // Re-run: requestJoin now throws REQUEST_DECLINED for Priya. It must not abort the transaction.
+  let r;
+  assert.doesNotThrow(() => { r = seed({}); }, 'a declined fixture does not abort the run');
+  assert.ok(r.fixtures >= 6, 'the rest of the fixtures were still written');
+  assert.ok(r.notes.some((n) => /Priya/.test(n) && /declined/.test(n)), 'the skip is recorded as a note');
+  assert.strictEqual(db.db.prepare('SELECT COUNT(*) c FROM team_members WHERE team_id = ? AND user_id = ?').get(lw, priya).c, 0, 'the declined fixture is not a member');
+  assert.ok(db.db.prepare('SELECT COUNT(*) c FROM team_members tm JOIN users u ON u.id = tm.user_id WHERE tm.team_id = ? AND u.is_fixture = 1').get(lw).c >= 1, 'other fixtures still joined the owner\'s Team');
+  const printed = [];
+  const realLog = console.log;
+  console.log = (...a) => printed.push(a.join(' '));
+  try { printSummary(r); } finally { console.log = realLog; }
+  assert.ok(printed.some((l) => /Note: .*Priya.*declined/.test(l)), 'the note is printed in the run summary');
+  seed({ remove: true });
+});
+
 (async () => {
   let passed = 0;
   for (const { name, fn } of checks) {

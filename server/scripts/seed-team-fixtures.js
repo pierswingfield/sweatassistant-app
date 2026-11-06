@@ -4,11 +4,15 @@
 // server/gym-outbound.js). Idempotent and re-runnable: a re-run rewrites the fixtures'
 // rows so dates roll forward to "now".
 //
-//   node server/scripts/seed-team-fixtures.js [--dry-run] [--remove]
+//   node server/scripts/seed-team-fixtures.js [--dry-run] [--remove] [--owner-email <email>]
 //
 // Runs against DB_PATH (in the container: /data/app.db). --dry-run does the whole run
 // inside a transaction, prints the summary, then rolls everything back. --remove deletes
 // every fixture account and the Teams a fixture created (and nothing else).
+// --owner-email <email>: the owner's Team is only accepted when its Captain is that account
+// (case-insensitive). Without it, the first real Captain of a Team named "Lesbian Wednesdays".
+// Exits 3 when no matching Team is found, 1 when a fixture email collides with a real account
+// (an existing row with a password set is never flagged as a fixture).
 //
 // Event ids: real ones are taken from rows already in this DB (the owner's bookings first,
 // then other members' bookings, waitlists and queue rows for upcoming classes); only the
@@ -65,11 +69,14 @@ const fixtureUsers = () => db.prepare('SELECT id, email FROM users WHERE is_fixt
 
 // --- finding the owner ------------------------------------------------------------------
 
-function findOwnerTeam() {
+/** The owner's Team and its real Captain. With `ownerEmail`, only that account counts as the Captain. */
+function findOwnerTeam(ownerEmail = null) {
+  const want = ownerEmail ? String(ownerEmail).trim().toLowerCase() : null;
   const rows = db.prepare('SELECT id, name FROM teams').all().filter((t) => norm(t.name) === norm(OWNER_TEAM));
   for (const t of rows) {
-    const cap = db.prepare(`SELECT tm.user_id FROM team_members tm JOIN users u ON u.id = tm.user_id
-      WHERE tm.team_id = ? AND tm.is_captain = 1 AND u.is_fixture = 0 ORDER BY tm.joined_at, tm.id LIMIT 1`).get(t.id);
+    const caps = db.prepare(`SELECT tm.user_id, u.email FROM team_members tm JOIN users u ON u.id = tm.user_id
+      WHERE tm.team_id = ? AND tm.is_captain = 1 AND u.is_fixture = 0 ORDER BY tm.joined_at, tm.id`).all(t.id);
+    const cap = want ? caps.find((c) => String(c.email).toLowerCase() === want) : caps[0];
     if (cap) return { teamId: t.id, ownerId: cap.user_id, name: t.name };
   }
   return null;
@@ -151,12 +158,18 @@ function pastEvent(gymId, gymIdx, dayOff, nowMs) {
 
 function ensureFixtureUser(m, gymIds) {
   const email = emailOf(m);
-  let row = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  let row = db.prepare('SELECT id, password_hash FROM users WHERE email = ?').get(email);
   if (!row) {
     // No password_hash: nobody can log in as this account (db.verifyAccountPassword also refuses is_fixture).
     const id = db.prepare("INSERT INTO users (email, encrypted_password, priority, is_fixture) VALUES (?, '', 200, 1)").run(email).lastInsertRowid;
     row = { id };
   } else {
+    // Only an account with no password is adopted. One that has a password is a real account
+    // that happens to share the address: flagging it would silently hide a real member.
+    if (row.password_hash != null) {
+      throw Object.assign(new Error(`${email} belongs to an existing account with a password set, so it is not a fixture. `
+        + 'Rename or delete that account, or change the fixture name in seed-team-fixtures.js, then re-run.'), { code: 'FIXTURE_EMAIL_IS_REAL_ACCOUNT' });
+    }
     db.prepare('UPDATE users SET is_fixture = 1 WHERE id = ?').run(row.id);
   }
   const id = row.id;
@@ -248,9 +261,20 @@ function inviteTokenOf(captainId, teamId) {
   return url.split('/t/').pop();
 }
 
-/** Make `uid` an active member of the Team (idempotent); `pending` leaves a join request instead. */
+/**
+ * Make `uid` an active member of the Team (idempotent); `pending` leaves a join request instead.
+ * Returns 'member' | 'pending' | 'declined'. A fixture that an earlier run's Captain declined (or
+ * blocked) is refused by requestJoin with REQUEST_DECLINED; that is skipped, not fatal, because
+ * throwing would roll back the whole seed transaction.
+ */
 function joinTeam({ teamId, captainId, token, uid, shareObj, pending, pause }) {
-  const r = teams.requestJoin(uid, token, shareObj);
+  let r;
+  try {
+    r = teams.requestJoin(uid, token, shareObj);
+  } catch (err) {
+    if (err && err.code === 'REQUEST_DECLINED') return 'declined';
+    throw err;
+  }
   if (r.status === 'pending' && !pending) {
     teams.decideRequest(captainId, teamId, r.requestId, 'approve');
   } else if (r.status === 'member' && shareObj) {
@@ -276,10 +300,11 @@ function remove() {
   return { fixturesRemoved: ids.length, teamsRemoved };
 }
 
-function create({ nowMs }) {
-  const found = findOwnerTeam();
+function create({ nowMs, ownerEmail = null }) {
+  const found = findOwnerTeam(ownerEmail);
   if (!found) {
-    const e = new Error(`Could not find a Team named "${OWNER_TEAM}" with a real (non-fixture) Captain. Create it first, then re-run.`);
+    const who = ownerEmail ? ` whose Captain is ${ownerEmail}` : ' with a real (non-fixture) Captain';
+    const e = new Error(`Could not find a Team named "${OWNER_TEAM}"${who}. Create it first, then re-run.`);
     e.code = 'OWNER_NOT_FOUND';
     throw e;
   }
@@ -324,12 +349,15 @@ function create({ nowMs }) {
   // Team 1: the owner's Team.
   const token1 = inviteTokenOf(ownerId, teamId);
   const t1 = { active: [], pending: [] };
+  const skipDeclined = (k, where) => notes.push(`Skipped ${byKey[k].first} for ${where}: a join request was declined earlier (REQUEST_DECLINED). Un-decline or re-create the fixture to restore them.`);
   for (const k of TEAM1_ACTIVE) {
-    joinTeam({ teamId, captainId: ownerId, token: token1, uid: ids[k], shareObj: shareOf(byKey[k]), pending: false, pause: byKey[k].hidden ? 'indefinite' : null });
+    const st = joinTeam({ teamId, captainId: ownerId, token: token1, uid: ids[k], shareObj: shareOf(byKey[k]), pending: false, pause: byKey[k].hidden ? 'indefinite' : null });
+    if (st === 'declined') { skipDeclined(k, found.name); continue; }
     t1.active.push(`${byKey[k].first}${byKey[k].hidden ? ' (hidden)' : ''}`);
   }
   for (const k of TEAM1_PENDING) {
-    joinTeam({ teamId, captainId: ownerId, token: token1, uid: ids[k], shareObj: shareOf(byKey[k]), pending: true });
+    const st = joinTeam({ teamId, captainId: ownerId, token: token1, uid: ids[k], shareObj: shareOf(byKey[k]), pending: true });
+    if (st === 'declined') { skipDeclined(k, found.name); continue; }
     t1.pending.push(byKey[k].first);
   }
 
@@ -348,8 +376,14 @@ function create({ nowMs }) {
   known.add(team2Id);
   dbm.setKV(KV_TEAMS, [...known].join(','));
   teams.updateMe(captainId, team2Id, { share: shareOf(byKey[TEAM2_CAPTAIN]) });
-  for (const k of TEAM2_MEMBERS) joinTeam({ teamId: team2Id, captainId, token: token2, uid: ids[k], shareObj: shareOf(byKey[k]), pending: false });
-  joinTeam({ teamId: team2Id, captainId, token: token2, uid: ownerId, shareObj: undefined, pending: false });
+  for (const k of TEAM2_MEMBERS) {
+    if (joinTeam({ teamId: team2Id, captainId, token: token2, uid: ids[k], shareObj: shareOf(byKey[k]), pending: false }) === 'declined') {
+      skipDeclined(k, SECOND_TEAM.name);
+    }
+  }
+  if (joinTeam({ teamId: team2Id, captainId, token: token2, uid: ownerId, shareObj: undefined, pending: false }) === 'declined') {
+    notes.push(`Skipped the owner for ${SECOND_TEAM.name}: a join request was declined earlier (REQUEST_DECLINED).`);
+  }
 
   return {
     ownerTeam: found.name, ownerGyms: ownerLinked, hiddenGym: gymBySlot.X, fixtures: MEMBERS.length,
@@ -358,11 +392,11 @@ function create({ nowMs }) {
   };
 }
 
-function seed({ dryRun = false, remove: doRemove = false, nowMs = Date.now() } = {}) {
+function seed({ dryRun = false, remove: doRemove = false, nowMs = Date.now(), ownerEmail = null } = {}) {
   let result;
   try {
     db.transaction(() => {
-      result = doRemove ? remove() : create({ nowMs });
+      result = doRemove ? remove() : create({ nowMs, ownerEmail });
       if (dryRun) throw new DryRun();
     })();
   } catch (err) {
@@ -387,12 +421,22 @@ function printSummary(r) {
   console.log(out.join('\n'));
 }
 
+const USAGE = 'Usage: seed-team-fixtures.js [--dry-run] [--remove] [--owner-email <email>]';
+
 if (require.main === module) {
-  const args = new Set(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  let ownerEmail = null;
+  const at = argv.indexOf('--owner-email');
+  if (at !== -1) {
+    ownerEmail = argv[at + 1];
+    if (!ownerEmail || ownerEmail.startsWith('--')) { console.error(`--owner-email needs an address.\n${USAGE}`); process.exit(2); }
+    argv.splice(at, 2);
+  }
+  const args = new Set(argv);
   const bad = [...args].filter((a) => !['--dry-run', '--remove'].includes(a));
-  if (bad.length) { console.error(`Unknown option(s): ${bad.join(' ')}\nUsage: seed-team-fixtures.js [--dry-run] [--remove]`); process.exit(2); }
+  if (bad.length) { console.error(`Unknown option(s): ${bad.join(' ')}\n${USAGE}`); process.exit(2); }
   try {
-    printSummary(seed({ dryRun: args.has('--dry-run'), remove: args.has('--remove') }));
+    printSummary(seed({ dryRun: args.has('--dry-run'), remove: args.has('--remove'), ownerEmail }));
     process.exit(0);
   } catch (err) {
     console.error(`seed-team-fixtures: ${err.message}`);

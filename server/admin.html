@@ -133,6 +133,7 @@
     .badge-pending { background: var(--accent-dim); color: var(--accent); }
     .badge-upgrades { background: rgba(90,171,110,0.15); color: var(--green); }
     .badge-zero { color: var(--text-muted); }
+    .badge-fixture { background: var(--surface-2); color: var(--text-muted); margin-left: 6px; vertical-align: 1px; }
 
     /* Inline priority editor */
     .priority-cell { display: flex; align-items: center; gap: 6px; }
@@ -584,7 +585,7 @@
       const seenStale = u.last_seen_at && (Date.now() - new Date(u.last_seen_at).getTime()) > 14 * 864e5;
       return `<tr data-id="${escHtml(u.id)}">
         <td>
-          <button class="name-btn" data-detail-id="${escHtml(u.id)}">${escHtml(name)}</button>
+          <button class="name-btn" data-detail-id="${escHtml(u.id)}">${escHtml(name)}</button>${u.is_fixture ? '<span class="badge badge-fixture" title="Demo fixture account: never contacts a gym">fixture</span>' : ''}
           <div class="email">${escHtml(u.email)}</div>
           ${reloginBadges(u.relogin_issues)}
         </td>

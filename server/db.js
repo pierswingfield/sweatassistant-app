@@ -1935,8 +1935,17 @@ module.exports = {
   wasNotificationSent(userId, key) {
     return !!db.prepare('SELECT 1 FROM sent_notifications WHERE user_id = ? AND dedupe_key = ?').get(userId, key);
   },
-  markNotificationSent(userId, key) {
-    db.prepare('INSERT OR IGNORE INTO sent_notifications (user_id, dedupe_key) VALUES (?, ?)').run(userId, key);
+  markNotificationSent(userId, key, sentAt = null) {
+    // T-5: an explicit sent_at (SQLite 'YYYY-MM-DD HH:MM:SS', UTC) lets a rate limit read
+    // the ledger on an injected clock; omitted, the column default applies as before.
+    if (sentAt) db.prepare('INSERT OR IGNORE INTO sent_notifications (user_id, dedupe_key, sent_at) VALUES (?, ?, ?)').run(userId, key, sentAt);
+    else db.prepare('INSERT OR IGNORE INTO sent_notifications (user_id, dedupe_key) VALUES (?, ?)').run(userId, key);
+  },
+  // T-5: how many ledger rows with this key prefix were written at or after `sinceSql`.
+  countNotificationsSince(userId, keyPrefix, sinceSql) {
+    const like = String(keyPrefix).replace(/[\\%_]/g, (c) => `\\${c}`) + '%';
+    return db.prepare("SELECT COUNT(*) c FROM sent_notifications WHERE user_id = ? AND dedupe_key LIKE ? ESCAPE '\\' AND sent_at >= ?")
+      .get(userId, like, sinceSql).c;
   },
   pruneSentNotifications(beforeISO) {
     db.prepare('DELETE FROM sent_notifications WHERE sent_at < ?').run(beforeISO);

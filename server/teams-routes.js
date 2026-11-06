@@ -67,6 +67,9 @@ router.delete('/teams/requests/:requestId', authenticateToken,
 const tzOf = (req) => (typeof req.query.tz === 'string' ? req.query.tz.slice(0, 64) : undefined);
 router.get('/teams', authenticateToken, handle((req) => ({ teams: teams.listTeams(req.userId, { zone: tzOf(req) }) })));
 router.post('/teams', authenticateToken, handle((req) => teams.createTeam(req.userId, body(req)), 201));
+// T-5: the timetable's Team chips, for every Team the viewer is in, in one call. Registered
+// before '/teams/:id' so 'timetable' is never read as a Team id.
+router.get('/teams/timetable', authenticateToken, handle((req) => teams.timetableChips(req.userId)));
 router.get('/teams/:id', authenticateToken, handle((req) => teams.getTeam(req.userId, req.params.id)));
 router.get('/teams/:id/today', authenticateToken, handle((req) => teams.getTeamToday(req.userId, req.params.id, { zone: tzOf(req) })));
 router.patch('/teams/:id', authenticateToken, handle((req) => teams.updateTeam(req.userId, req.params.id, body(req))));

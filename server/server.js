@@ -22,6 +22,9 @@ const poller = require('./poller');
 const { resolveSyncScope } = require('./booking-sync-scope');
 // T-2: members a Team can see the upcoming classes of are synced on the 2 h cadence (T-B).
 require('./booking-sync').setPriorityPredicate(() => require('./teams').priorityMemberIds());
+// T-5: Team pushes (join request, approval, a teammate booked a class you're in).
+require('./booking-sync').setNewBookingsListener((userId, gymId, rows) => require('./team-notify').newServerBookings(userId, gymId, rows));
+require('./teams').setEventListener((evt) => require('./team-notify').onTeamEvent(evt));
 const calendar = require('./calendar');
 const { normalizeCalendarPrefs, applyCalendarPatch } = require('./calendar-prefs');
 const { isRollingWeekly } = require('./providers/booking-window');

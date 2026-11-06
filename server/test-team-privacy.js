@@ -166,6 +166,9 @@ const payloads = () => ({
   vToday: JSON.stringify(teams.getTeamToday(V, TEAM, { zone: 'Europe/London' })),
   v2List: JSON.stringify(teams.listTeams(V2, { zone: 'Europe/London' })),
   v2Today: JSON.stringify(teams.getTeamToday(V2, TEAM, { zone: 'Europe/London' })),
+  // T-5: the timetable Team chips (GET /api/teams/timetable) go through every check below.
+  vChips: JSON.stringify(teams.timetableChips(V)),
+  v2Chips: JSON.stringify(teams.timetableChips(V2)),
 });
 const P = payloads();
 const today = JSON.parse(P.vToday);
@@ -227,6 +230,9 @@ check('member\'s gym link disabled: absent and not counted', () => {
 check('viewer lacks the gym: details absent (no gym id anywhere), count present', () => {
   for (const json of [P.v2List, P.v2Today]) {
     for (const m of ['MARK-jab-a', 'POS-coll-jab', 'MARK-recent-jab']) assert.ok(!json.includes(m), `${m} leaked to V2`);
+    assert.ok(!json.includes(JAB), 'the unlinked gym id leaked to V2');
+  }
+  for (const json of [P.v2Chips]) {
     assert.ok(!json.includes(JAB), 'the unlinked gym id leaked to V2');
   }
   assert.strictEqual(today2.otherGyms.upcoming, 2, 'A 201 today + B 5555 tomorrow at JAB');
@@ -595,6 +601,179 @@ check('GET /api/teams resolves each member\'s name once per request, across all 
   try { teams.listTeams(V, { zone: 'Europe/London' }); } finally { db.getAccountSettings = orig; }
   assert.ok(calls.size > 0, 'the name resolver was not observed');
   for (const [uid, n] of calls) assert.strictEqual(n, 1, `user ${uid} resolved ${n} times`);
+});
+
+// --- T-5: timetable chips and pushes -----------------------------------------------------
+// Chips carry no class names (only gym-qualified keys, Team names and member names), so
+// the withheld items are identified by their event ids: the chip key set must be EXACTLY
+// the classes V may see a teammate BOOKED into, upcoming, at a gym V has linked.
+
+const chipKeys = (json) => JSON.parse(json).classes.map((c) => c.key).sort();
+check('T-5 chips: exactly the upcoming classes a teammate is booked into that the viewer may see', () => {
+  const want = [`${PSY}:101`, `${JAB}:201`, `${PSY}:5555`, `${JAB}:5555`, `${PSY}:401`, `${PSY}:501`, `${PSY}:701`, `${PSY}:801`].sort();
+  assert.deepStrictEqual(chipKeys(P.vChips), want);
+  // upcoming off 301, paused 601, gym not shared 702, link off 802, removed/left/pending/
+  // blocked/outsider 901-941, no-show 104, client-only 102, done 100, waitlist 111/112 and
+  // queue 121/122 (chips are booked teammates only) are all absent by construction above.
+});
+check('T-5 chips: a viewer without the gym gets no chip there, no gym id, no count', () => {
+  assert.deepStrictEqual(chipKeys(P.v2Chips), [`${PSY}:101`, `${PSY}:5555`, `${PSY}:401`, `${PSY}:501`, `${PSY}:701`, `${PSY}:801`].sort());
+  assert.ok(!P.v2Chips.includes(JAB));
+});
+check('T-5 chips: members are teammates only (never the viewer), with no spot, id or class detail', () => {
+  const chips = JSON.parse(P.vChips);
+  const hot = chips.classes.find((c) => c.key === `${PSY}:101`);
+  assert.deepStrictEqual(hot.teams.map((t) => t.name), ['Privacy Crew']);
+  assert.deepStrictEqual(hot.teams[0].members.map((m) => m.name.split(' ')[0]).sort(), ['Alice', 'Bruno']);
+  for (const c of chips.classes) {
+    assert.deepStrictEqual(Object.keys(c).sort(), ['eventId', 'gymId', 'key', 'teams']);
+    for (const t of c.teams) {
+      assert.deepStrictEqual(Object.keys(t).sort(), ['emoji', 'members', 'name', 'pinned', 'teamId']);
+      for (const m of t.members) {
+        assert.deepStrictEqual(Object.keys(m).sort(), ['colourIndex', 'memberRef', 'name']);
+        assert.ok(!m.name.startsWith('Viewer'), 'the viewer is never their own teammate');
+      }
+    }
+  }
+  assert.ok(!/SPOT-/.test(P.vChips), 'spot labels never reach a chip (spots-on member included)');
+});
+check('T-5 chips: an outsider, a pending requester and a removed member get no chips', () => {
+  for (const uid of [OUT, PD1, RM1, LF1, BL1]) assert.deepStrictEqual(teams.timetableChips(uid), { classes: [] });
+});
+check('T-5 chips: one batched row load per request, not one per class or Team', () => {
+  const teamData = require('./team-data');
+  const orig = teamData.rowsForUsers;
+  let calls = 0;
+  teamData.rowsForUsers = function () { calls++; return orig.apply(this, arguments); };
+  try { teams.timetableChips(V); } finally { teamData.rowsForUsers = orig; }
+  assert.strictEqual(calls, 1);
+});
+
+// Pushes: captured at the push service, never sent. Each body is checked for what it must
+// never carry (another member's data beyond their share, emails, ids, places, spots).
+const pushService = require('./push');
+const teamNotify = require('./team-notify');
+const sent = [];
+pushService.sendNotification = async (userId, title, body, data) => { sent.push({ userId, title, body, data }); };
+const allowBooked = (uid) => db.setUserSettings(uid, { notifications: { teamBooked: { enabled: true } } });
+const pushJson = () => JSON.stringify(sent);
+const assertCleanPush = (p) => {
+  assert.deepStrictEqual(Object.keys(p.data).sort(), ['type', 'url']);
+  assert.match(p.data.url, /^\/teams\/[A-Za-z0-9_-]+$/);
+  const text = `${p.title} ${p.body}`;
+  assert.ok(!/@|gymlogin|Studio|SPOT-|memberRef|userId/.test(text), `push text leaks: ${text}`);
+  for (const e of emails) assert.ok(!text.includes(e));
+};
+
+check('T-5 push "teammate booked": only a visible, sharing, unpaused, server-synced booker reaches a teammate in the class', async () => {
+  sent.length = 0;
+  const PV = mkUser('Pushview', [PSY]);
+  const PA = mkUser('Pushann', [PSY]);
+  const PU = mkUser('Pushupoff', [PSY]);
+  const PP = mkUser('Pushpaused', [PSY]);
+  const PG = mkUser('Pushgymjab', [PSY, JAB]);
+  const PL = mkUser('Pushlinkoff', [PSY]);
+  const PC = mkUser('Pushclient', [PSY]);
+  const { team: pt, inviteToken: ptok } = teams.createTeam(PV, { name: 'Push Crew', share: shareWith() });
+  const add = (uid, share) => teams.decideRequest(PV, pt.id, teams.requestJoin(uid, ptok, share).requestId, 'approve');
+  add(PA, shareWith()); add(PU, shareWith({ upcoming: false })); add(PP, shareWith());
+  add(PG, shareWith({ gyms: [JAB] })); add(PL, shareWith()); add(PC, shareWith());
+  teams.updateMe(PP, pt.id, { pause: '24h' });
+  allowBooked(PV);
+  const ev = 7001;
+  const start = at(9, 0, 2);
+  book(PV, PSY, { id: 77000, event: ev, start, name: 'Push class', slot: 'SPOT-PV-1' });
+  for (const [uid, id] of [[PA, 77001], [PU, 77002], [PP, 77003], [PG, 77004], [PL, 77005]]) {
+    book(uid, PSY, { id, event: ev, start, name: 'Push class', slot: `SPOT-X-${id}` });
+  }
+  flush();
+  db.setUserGymEnabled(PL, PSY, false);
+  bookingSync.acceptClientBookings(PC, [{ bookingId: 77006, gymId: PSY, eventId: ev, startAt: start, className: 'Push class' }], [PSY], NOW + 3600e3);
+  const rows = [{ bookingId: 1, eventId: ev, startAt: start }];
+  for (const uid of [PU, PP, PG, PL, PC]) {
+    const r = await teamNotify.newServerBookings(uid, PSY, rows);
+    assert.deepStrictEqual(r, [], `user ${uid} should not notify anyone`);
+  }
+  assert.strictEqual(sent.length, 0, pushJson());
+  const r = await teamNotify.newServerBookings(PA, PSY, rows);
+  // PV opted in; the other teammates in the class keep the default (off); PP is paused.
+  assert.deepStrictEqual(r.filter((x) => x.outcome === 'sent').map((x) => x.recipientId), [PV]);
+  assert.ok(!r.some((x) => x.recipientId === PP), 'a paused member gets no Team pushes');
+  assert.strictEqual(sent.length, 1);
+  const p = sent[0];
+  assert.strictEqual(p.userId, PV, 'only the teammate who is in the class');
+  assert.strictEqual(p.title, 'Push Crew');
+  assert.match(p.body, /^Pushann booked .* a class you're in\.$/);
+  assert.strictEqual(p.data.url, `/teams/${pt.id}`);
+  assertCleanPush(p);
+  // The same class on PV's timetable: a chip with Pushann only, never PV, no spot.
+  const chip = teams.timetableChips(PV).classes.find((c) => c.key === `${PSY}:${ev}`);
+  assert.deepStrictEqual(chip.teams.map((t) => t.members.map((m) => m.name.split(' ')[0])), [['Pushann']]);
+  assert.ok(!JSON.stringify(chip).includes('SPOT-'));
+  // The others' names never ride along (PU, PP, PG, PL, PC are all in the class).
+  for (const n of ['Pushupoff', 'Pushpaused', 'Pushgymjab', 'Pushlinkoff', 'Pushclient']) assert.ok(!pushJson().includes(n), n);
+});
+check('T-5 push "teammate booked": off by default, and a viewer without the gym is never told', async () => {
+  sent.length = 0;
+  const QV = mkUser('Quietview', [PSY, JAB]);
+  const QJ = mkUser('Quietjab', [PSY, JAB]);
+  const QN = mkUser('Quietnojab', [PSY]);
+  const { team: qt, inviteToken: qtok } = teams.createTeam(QV, { name: 'Quiet Crew', share: shareWith() });
+  for (const uid of [QJ, QN]) teams.decideRequest(QV, qt.id, teams.requestJoin(uid, qtok, shareWith()).requestId, 'approve');
+  allowBooked(QN);
+  const start = at(9, 0, 3);
+  book(QV, JAB, { id: 78001, event: 7101, start, name: 'Quiet jab' });
+  book(QJ, JAB, { id: 78002, event: 7101, start, name: 'Quiet jab' });
+  // QN holds a stray row for the same JAB event id without a JAB link (cannot see JAB).
+  book(QN, PSY, { id: 78003, event: 7101, start, name: 'Psy same id' });
+  flush();
+  const r = await teamNotify.newServerBookings(QJ, JAB, [{ bookingId: 78002, eventId: 7101, startAt: start }]);
+  assert.deepStrictEqual(r.map((x) => [x.recipientId, x.outcome]), [[QV, 'off']], 'QV has the default (off); QN is at the other gym');
+  assert.strictEqual(sent.length, 0);
+});
+check('T-5 push "join request": to unpaused Captains only, with no requester name', async () => {
+  sent.length = 0;
+  const C1 = mkUser('Capone', [PSY]);
+  const C2 = mkUser('Captwo', [PSY]);
+  const C3 = mkUser('Capthree', [PSY]);
+  const M1 = mkUser('Memberonly', [PSY]);
+  const RQ = mkUser('Requesterzed', [PSY]);
+  const { team: ct, inviteToken: ctok } = teams.createTeam(C1, { name: 'Cap Crew', share: shareWith() });
+  for (const uid of [C2, C3, M1]) teams.decideRequest(C1, ct.id, teams.requestJoin(uid, ctok, shareWith()).requestId, 'approve');
+  const ref = (n) => teams.getTeam(C1, ct.id).members.find((m) => m.name.startsWith(n)).memberRef;
+  teams.setCaptain(C1, ct.id, ref('Captwo'), true);
+  teams.setCaptain(C1, ct.id, ref('Capthree'), true);
+  teams.updateMe(C3, ct.id, { pause: 'indefinite' });
+  teams.requestJoin(RQ, ctok, shareWith());
+  await teamNotify.joinRequested(ct.id);
+  assert.deepStrictEqual(sent.map((p) => p.userId).sort((a, b) => a - b), [C1, C2].sort((a, b) => a - b));
+  for (const p of sent) {
+    assertCleanPush(p);
+    assert.strictEqual(p.title, 'Cap Crew');
+    assert.ok(!pushJson().includes('Requesterzed'), 'the requester is not named on a lock screen');
+  }
+});
+check('T-5 push "approved": to the requester only, naming only the Team', async () => {
+  sent.length = 0;
+  const C1 = mkUser('Appcap', [PSY]);
+  const RQ = mkUser('Appreq', [PSY]);
+  const { team: at_, inviteToken: atok } = teams.createTeam(C1, { name: 'Approve Crew', share: shareWith() });
+  const { requestId } = teams.requestJoin(RQ, atok, shareWith());
+  teams.decideRequest(C1, at_.id, requestId, 'approve');
+  assert.strictEqual(await teamNotify.requestApproved(at_.id, RQ, requestId), 'sent');
+  assert.strictEqual(sent.length, 1);
+  assert.strictEqual(sent[0].userId, RQ);
+  assert.strictEqual(sent[0].body, 'Your request to join Approve Crew was approved.');
+  assertCleanPush(sent[0]);
+  assert.ok(!pushJson().includes('Appcap'));
+  // Removed before the push goes out: nothing is sent.
+  sent.length = 0;
+  const RQ2 = mkUser('Appgone', [PSY]);
+  const r2 = teams.requestJoin(RQ2, atok, shareWith());
+  teams.decideRequest(C1, at_.id, r2.requestId, 'approve');
+  teams.removeMember(C1, at_.id, teams.getTeam(C1, at_.id).members.find((m) => m.name.startsWith('Appgone')).memberRef);
+  assert.strictEqual(await teamNotify.requestApproved(at_.id, RQ2, r2.requestId), 'gone');
+  assert.strictEqual(sent.length, 0);
 });
 
 (async () => {

@@ -77,6 +77,21 @@ const stats = {
   skipped: { disabled: 0, throttled: 0, needsRelogin: 0 },
   lastCycleAt: null, lastCycleMs: null,
 };
+// ── New-booking listener (T-5) ───────────────────────────────────────────────
+// Teams' "a teammate booked a class you're in" push. Called after a successful
+// server write with the rows that are NEW as server rows for that (user, gym):
+// absent before, or held only as a client push until now. Never on a link's
+// first ever sync (every row would look new). Fire-and-forget: a failing
+// listener never fails the sync.
+let newBookingsListener = null;
+function setNewBookingsListener(fn) { newBookingsListener = typeof fn === 'function' ? fn : null; }
+
+/** Pure: rows of `incoming` whose gym-qualified booking id was not a server row in `prevRows`. */
+function newServerBookings(prevRows, incoming, gymId) {
+  const had = new Set((prevRows || []).filter((r) => r && r.origin === 'server').map((r) => `${gymId}:${r.booking_id}`));
+  return (incoming || []).filter((b) => b && b.bookingId != null && !had.has(`${gymId}:${b.bookingId}`));
+}
+
 function getStats() { return { ...stats, skipped: { ...stats.skipped } }; }
 
 // ── Fetch + enrich ───────────────────────────────────────────────────────────
@@ -196,7 +211,18 @@ async function fetchAndStore(userId, gymId) {
   let waitlists = null;
   try {
     bookings = await bookingRowsFor(userId, gymId);
+    const prevState = db.getBookingSyncState(userId, gymId);
+    const prevRows = newBookingsListener && prevState && prevState.last_synced_at
+      ? db.db.prepare('SELECT booking_id, origin FROM booking_cache WHERE user_id = ? AND gym_id = ?').all(userId, gymId)
+      : null;
     db.replaceBookingCache(userId, bookings, [gymId], { origin: 'server', retainStartedMs: RETAIN_STARTED_MS });
+    if (prevRows) {
+      const fresh = newServerBookings(prevRows, bookings, gymId);
+      if (fresh.length) {
+        Promise.resolve().then(() => newBookingsListener(userId, gymId, fresh))
+          .catch((err) => console.error(`[BookingSync] new-booking listener failed for user ${userId}:`, err && err.message));
+      }
+    }
   } catch (err) { noteThrottleError(gymId, err); errors.push(`bookings: ${err.message}`); }
   // A gym that just failed (or got throttled) is not asked again in this pass;
   // its stored waitlist rows stay as they were.
@@ -401,6 +427,8 @@ module.exports = {
   skipReason,
   cadenceFor,
   setPriorityPredicate,
+  setNewBookingsListener,
+  _newServerBookings: newServerBookings,
   getStats,
   PRIORITY_CADENCE_MS,
   CALENDAR_CADENCE_MS,

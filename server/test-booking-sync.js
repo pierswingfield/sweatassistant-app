@@ -408,6 +408,21 @@ check('the boot cycle staggers each lane by a random delay', async () => {
   assert.deepStrictEqual(bookingSync._laneStartDelays({ boot: false, lanes: 2, maxMs: 1000 }), [0, 0]);
 });
 
+check('T-5 new-booking listener: never on a link\'s first sync; afterwards only rows new as server rows', async () => {
+  const seen = [];
+  bookingSync.setNewBookingsListener((uid, gymId, rows) => { seen.push({ uid, gymId, ids: rows.map((r) => String(r.bookingId)) }); });
+  try {
+    const uid = twoGymUser();
+    resetCalls();
+    await bookingSync.syncUserGym(uid, PSYCLE, { force: true }); // first ever sync: everything is "new", so silence
+    await new Promise((r) => setImmediate(r));
+    assert.deepStrictEqual(seen, []);
+    await bookingSync.syncUserGym(uid, PSYCLE, { force: true }); // the stub hands out a fresh booking id each call
+    await new Promise((r) => setImmediate(r));
+    assert.deepStrictEqual(seen, [{ uid, gymId: PSYCLE, ids: [`${PSYCLE}-b2`] }]);
+  } finally { bookingSync.setNewBookingsListener(null); }
+});
+
 check('cycle counters are exposed (aggregate only)', async () => {
   const s = bookingSync.getStats();
   for (const k of ['cycles', 'usersSynced', 'gymsSynced', 'gymsFailed', 'gymsSkipped']) {

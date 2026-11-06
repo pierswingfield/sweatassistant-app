@@ -53,6 +53,18 @@ let nowFn = () => Date.now();
 const nowIso = () => new Date(nowFn()).toISOString();
 const isoAgo = (ms) => new Date(nowFn() - ms).toISOString();
 
+// T-5: Team events for push notifications (team-notify.js installs the listener in
+// server.js). Fire-and-forget: a failing listener never fails the Team action.
+let eventListener = null;
+function setEventListener(fn) { eventListener = typeof fn === 'function' ? fn : null; }
+function emit(evt) {
+  if (!eventListener) return;
+  try {
+    const r = eventListener(evt);
+    if (r && typeof r.catch === 'function') r.catch((err) => console.error('[Teams] event listener failed:', err && err.message));
+  } catch (err) { console.error('[Teams] event listener failed:', err && err.message); }
+}
+
 class TeamError extends Error {
   constructor(code, status, message) {
     super(message || code);
@@ -371,6 +383,129 @@ function priorityMemberIds() {
   return out;
 }
 
+// --- T-5: timetable Team chips -----------------------------------------------------------
+// One call per timetable load (GET /api/teams/timetable), never one per event: every Team
+// the viewer is in is projected in ONE projectionsFor pass (one batched row load for all
+// members of all Teams). The chip data is a slice of the projection's `classes`, so every
+// §7.3 rule (share keys, paused, share.gyms, enabled links, server-origin rows, confirmed
+// missing_since rows, penalised statuses) has already been applied; this adds:
+//   - only teammates BOOKED in (not waitlisted or queued), never the viewer;
+//   - only classes that have not started;
+//   - only gyms the viewer has linked (the projection already hides others' details;
+//     re-checked here so the chip can never name an unlinked gym);
+//   - no spot numbers (owner, T-5: the §8.1 spot-number decision is pending).
+function timetableChips(userId) {
+  expireStale();
+  const rows = db.prepare(`SELECT t.id, t.name, t.emoji, m.pinned FROM team_members m JOIN teams t ON t.id = m.team_id
+    WHERE m.user_id = ?`).all(userId);
+  if (!rows.length) return { classes: [] };
+  const projections = projectionsFor(userId, rows.map((t) => t.id), { zone: viewerZone(userId), includeDetail: true });
+  const linked = new Set(teamData.linkedGymIds(userId));
+  const byKey = new Map();
+  for (const t of rows) {
+    const p = projections.get(t.id);
+    if (!p) continue;
+    const meRef = (p.members.find((m) => m.isMe) || {}).memberRef;
+    const byRef = new Map(p.members.map((m) => [m.memberRef, m]));
+    for (const c of p.classes || []) {
+      if (c.status !== 'upcoming' || !linked.has(c.gymId)) continue;
+      const mates = c.attendees
+        .filter((a) => a.kind === 'booked' && a.memberRef !== meRef && byRef.has(a.memberRef))
+        .map((a) => { const m = byRef.get(a.memberRef); return { memberRef: m.memberRef, name: m.name, colourIndex: m.colourIndex }; });
+      if (!mates.length) continue;
+      if (!byKey.has(c.key)) byKey.set(c.key, { key: c.key, gymId: c.gymId, eventId: c.eventId, teams: [] });
+      byKey.get(c.key).teams.push({ teamId: t.id, name: t.name, emoji: t.emoji || null, pinned: t.pinned === 1, members: mates });
+    }
+  }
+  // §5.3: Teams ordered by pin, then name.
+  const classes = [...byKey.values()];
+  for (const c of classes) c.teams.sort((a, b) => (b.pinned - a.pinned) || a.name.localeCompare(b.name) || a.teamId.localeCompare(b.teamId));
+  return { classes };
+}
+
+// --- T-5: push targets (team-notify.js decides prefs, dedupe and rate limits) ------------
+
+/** Captains to tell about a new join request: not paused in that Team. No requester data. */
+function joinRequestTargets(teamId) {
+  const team = teamRow(teamId);
+  if (!team) return null;
+  const now = nowIso();
+  const captains = db.prepare('SELECT user_id, paused_until FROM team_members WHERE team_id = ? AND is_captain = 1').all(team.id)
+    .filter((r) => !(r.paused_until && r.paused_until > now)).map((r) => r.user_id);
+  return { teamId: team.id, teamName: team.name, emoji: team.emoji || null, pending: pendingCount(team.id), captainIds: captains };
+}
+
+/** The requester's approval: only while they are still a member. */
+function approvalTarget(teamId, userId) {
+  const team = teamRow(teamId);
+  if (!team || !memberRow(team.id, userId)) return null;
+  return { teamId: team.id, teamName: team.name, emoji: team.emoji || null };
+}
+
+/**
+ * "Ana booked 08:30 Train, a class you're in" (§5.3). For the booker's NEW server-synced
+ * bookings at one gym, every teammate who is booked into the same class and may see the
+ * booker there. Visibility is decided by the projection itself (the recipient's own
+ * projection of each shared Team must list the booker as a BOOKED attendee of that class
+ * key), so a push can never say more than the recipient's Team page already shows.
+ * Recipients paused in a Team get nothing from that Team.
+ * @returns {{recipientId, teamId, teamName, bookerName, others, cls}[]}
+ */
+function teammateBookingAlerts(bookerId, gymId, eventIds) {
+  const events = [...new Set((eventIds || []).filter((e) => e != null).map(String))];
+  if (!events.length || !gymId) return [];
+  const bookerTeams = db.prepare('SELECT team_id, member_ref FROM team_members WHERE user_id = ?').all(bookerId);
+  if (!bookerTeams.length) return [];
+  const refInTeam = new Map(bookerTeams.map((r) => [r.team_id, r.member_ref]));
+  const teamIds = [...refInTeam.keys()];
+  const now = nowIso();
+  const mateRows = db.prepare(`SELECT m.team_id, m.user_id, m.pinned, m.paused_until, t.name FROM team_members m JOIN teams t ON t.id = m.team_id
+    WHERE m.team_id IN (${teamIds.map(() => '?').join(', ')}) AND m.user_id != ?`).all(...teamIds, bookerId)
+    .filter((r) => !(r.paused_until && r.paused_until > now));
+  if (!mateRows.length) return [];
+  const mateIds = [...new Set(mateRows.map((r) => r.user_id))];
+  // Who is in the class themselves (their own rows, any origin: it is their own booking),
+  // in one query for every candidate.
+  const own = db.prepare(`SELECT user_id, event_id FROM booking_cache WHERE gym_id = ? AND missing_since IS NULL
+    AND user_id IN (${mateIds.map(() => '?').join(', ')})`).all(gymId, ...mateIds);
+  const inClass = new Map();
+  for (const r of own) {
+    const e = String(r.event_id);
+    if (!events.includes(e)) continue;
+    if (!inClass.has(r.user_id)) inClass.set(r.user_id, new Set());
+    inClass.get(r.user_id).add(e);
+  }
+  const out = [];
+  for (const [recipientId, evs] of inClass) {
+    const theirTeams = mateRows.filter((r) => r.user_id === recipientId)
+      .sort((a, b) => (b.pinned - a.pinned) || a.name.localeCompare(b.name) || a.team_id.localeCompare(b.team_id));
+    const projections = projectionsFor(recipientId, theirTeams.map((r) => r.team_id), { zone: viewerZone(recipientId), includeDetail: true });
+    for (const eventId of evs) {
+      const key = `${gymId}:${eventId}`;
+      for (const tr of theirTeams) {
+        const p = projections.get(tr.team_id);
+        const cls = p && (p.classes || []).find((c) => c.key === key);
+        const bookerRef = refInTeam.get(tr.team_id);
+        if (!cls || cls.status !== 'upcoming') continue;
+        const booked = cls.attendees.filter((a) => a.kind === 'booked');
+        if (!booked.some((a) => a.memberRef === bookerRef)) continue;
+        const meRef = (p.members.find((m) => m.isMe) || {}).memberRef;
+        const booker = p.members.find((m) => m.memberRef === bookerRef);
+        out.push({
+          recipientId,
+          teamId: tr.team_id,
+          teamName: tr.name,
+          bookerName: booker ? booker.name : 'A teammate',
+          others: booked.filter((a) => a.memberRef !== bookerRef && a.memberRef !== meRef).length,
+          cls: { key, gymId, eventId, className: cls.className, discipline: cls.discipline, startAt: cls.startAt, timeZone: cls.timeZone },
+        });
+        break; // one Team per (recipient, class): the first by pin, then name
+      }
+    }
+  }
+  return out;
+}
+
 function getTeam(userId, teamId) {
   expireStale();
   const { team, me } = requireMember(userId, teamId);
@@ -505,6 +640,7 @@ function requestJoin(userId, token, share) {
   const requestId = randomId(9);
   db.prepare(`INSERT INTO team_join_requests (id, team_id, user_id, status, share_json, created_at)
     VALUES (?, ?, ?, 'pending', ?, ?)`).run(requestId, team.id, userId, sharing.serializeShare(consent), nowIso());
+  emit({ type: 'joinRequested', teamId: team.id });
   return { status: 'pending', requestId };
 }
 
@@ -557,6 +693,7 @@ function decideRequest(userId, teamId, requestId, decision) {
       addMember(team.id, req.user_id, { captain: false, shareJson: sharing.resolveShare(req.share_json) });
       db.prepare("UPDATE team_join_requests SET status = 'approved', decided_by = ?, decided_at = ? WHERE id = ?").run(userId, now, req.id);
     })();
+    emit({ type: 'requestApproved', teamId: team.id, userId: req.user_id, requestId: req.id });
     return { status: 'approved' };
   }
   db.prepare("UPDATE team_join_requests SET status = 'declined', blocked = ?, decided_by = ?, decided_at = ? WHERE id = ?")
@@ -733,5 +870,7 @@ module.exports = {
   previewInvite, requestJoin, withdrawRequest, listRequests, decideRequest,
   updateMe, setPinned, leaveTeam, setCaptain, removeMember,
   privacyOverview, beforeAccountDelete, teamCountsByUser, exportMyShares, importMyShares,
+  timetableChips, joinRequestTargets, approvalTarget, teammateBookingAlerts, setEventListener,
+  __now: () => nowFn(),
   __setNow(fn) { nowFn = typeof fn === 'function' ? fn : () => Date.now(); },
 };

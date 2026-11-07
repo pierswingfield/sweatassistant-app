@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This is an execution-ready QA plan for an agent using browser automation to test Sweat Assistant
+This is an execution-ready QA plan for an agent using browser automation to test Dibs
 across Psycle London and JAB Boxing Club. It covers complete user goals, cross-gym correctness,
 visual and interaction quality, live-provider confirmation, defect reporting, and cleanup.
 
@@ -12,8 +12,8 @@ outside the authorised test accounts, or project backlog statuses unless separat
 Read before running:
 
 - [Project test layers](../TESTING.md)
-- [Current multi-gym acceptance status](modular-gyms/OUTSTANDING.md)
-- [Rules for any real provider request](modular-gyms/LIVE_VERIFICATION_PLAYBOOK.md)
+- [Current multi-gym acceptance status](../Archive/2026-09-26/Backlog/modular-gyms/OUTSTANDING.md)
+- [Rules for any real provider request](../LIVE_VERIFICATION_PLAYBOOK.md)
 - [Design system](../DESIGN.md)
 
 ## 1. Acceptance model
@@ -31,7 +31,7 @@ Use these result labels. Do not turn an incomplete check into a pass.
 For any state-changing operation, report three checks separately:
 
 1. **UI accepted it**: control state/toast/modal reflects success.
-2. **Sweat Assistant persisted it**: refresh, logout/login, or a second view still shows it.
+2. **Dibs persisted it**: refresh, logout/login, or a second view still shows it.
 3. **Provider confirmed it**: the booking, waitlist, cancellation, or moved spot is visible in the
    gym's own website/app, where that confirmation is available.
 
@@ -51,7 +51,7 @@ surface without risk.
 
 ### Lane B — staging with real provider accounts
 
-- Use a fresh/disposable Sweat Assistant account wherever possible.
+- Use a fresh/disposable Dibs account wherever possible.
 - Link only gym accounts explicitly supplied for this QA run.
 - Before the first live page load or request, obtain the session-specific authorisation required by
   `LIVE_VERIFICATION_PLAYBOOK.md`.
@@ -64,10 +64,10 @@ surface without risk.
 
 | Persona | Purpose |
 |---|---|
-| `Fresh` | Newly created Sweat Assistant account with no gym linked. |
+| `Fresh` | Newly created Dibs account with no gym linked. |
 | `Psycle-only` | Single linked Psycle account; proves the single-gym regression path. |
 | `JAB-only` | Single linked JAB account; proves membership, FCFS, native waitlist, and atomic swap behaviour. |
-| `Multi-gym` | The same Sweat Assistant account linked to both gyms; proves merged views and gym isolation. |
+| `Multi-gym` | The same Dibs account linked to both gyms; proves merged views and gym isolation. |
 | `Ineligible` | Account with no applicable credits/membership, if one is available; read-only eligibility checks only. |
 | `Reconnect` | A staging-only link with a safely induced expired/invalid session, if the environment supports this. |
 
@@ -131,7 +131,7 @@ from a vague class name. If any part is ambiguous, keep the seven-day threshold 
 ### 3.4 Credential handling
 
 - Use a dedicated, non-synchronised QA browser profile on the expected HTTPS staging hostname.
-- The preferred handoff is **user entry into the visible Sweat Assistant gym-link form**. The
+- The preferred handoff is **user entry into the visible Dibs gym-link form**. The
   orchestrator navigates to the form, verifies the hostname and named gym, pauses screenshots and
   network-body capture, and asks the user to type or password-manager-autofill the credentials.
 - Do not provide a gym password in the Codex conversation, this Markdown file, `CONTROL.md`, an
@@ -146,7 +146,7 @@ from a vague class name. If any part is ambiguous, keep the seven-day threshold 
 - Crop or redact account email, name, membership identifier, tokens, and payment details from saved
   evidence.
 - Prefer dedicated gym test accounts. If a personal gym account must be linked to staging, use a
-  disposable Sweat Assistant account, unlink it or delete that disposable account after verified
+  disposable Dibs account, unlink it or delete that disposable account after verified
   cleanup, and consider rotating the gym password afterwards if staging is not trusted to the same
   standard as production.
 - Before credential entry, record one retention choice in `CONTROL.md`: `DELETE_DISPOSABLE_ACCOUNT`
@@ -155,7 +155,7 @@ from a vague class name. If any part is ambiguous, keep the seven-day threshold 
   finished.
 
 The application is designed to store gym passwords encrypted with AES-256-GCM and refuses to start
-without an external `ENCRYPTION_KEY`; Sweat Assistant account passwords are separate from gym
+without an external `ENCRYPTION_KEY`; Dibs account passwords are separate from gym
 credentials. These controls reduce exposure at rest, but they do not make a compromised browser,
 host, staging database plus key, or over-privileged agent harmless. The operational rules above are
 therefore mandatory.
@@ -285,7 +285,7 @@ Rules:
 ### Flow-subagent prompt template
 
 ```text
-You are the isolated browser-QA subagent for exactly one Sweat Assistant flow.
+You are the isolated browser-QA subagent for exactly one Dibs flow.
 
 FLOW_ID: {{FLOW_ID}}
 FLOW_TITLE: {{FLOW_TITLE}}
@@ -409,7 +409,7 @@ visible data/copy defect.
 8. Check that timetable, bookings, Auto-Book, credits/membership, and settings do not leak mock,
    previous-user, or default-Psycle data.
 
-Expected: signup creates a Sweat Assistant identity independent of any gym. Gym-scoped reads should
+Expected: signup creates a Dibs identity independent of any gym. Gym-scoped reads should
 be empty/actionable, not `401` loops.
 
 #### `AUTH-02` — first gym link and onboarding (`P0`, `Psycle-only` or `JAB-only`; depends on `AUTH-01`)
@@ -427,7 +427,7 @@ be empty/actionable, not `401` loops.
    that gym.
 8. Refresh and log out/in once to prove the link persists.
 
-Expected: linking a gym does not change the Sweat Assistant login identity. Onboarding never blocks
+Expected: linking a gym does not change the Dibs login identity. Onboarding never blocks
 the usable app if an optional permission is declined.
 
 #### `AUTH-03` — login, logout, and session separation (`P0`)
@@ -435,9 +435,9 @@ the usable app if an optional permission is declined.
 1. Log out from Settings > Account.
 2. Verify authenticated data disappears and Back/refresh cannot reveal the prior user's cached
    bookings, maps, credits, or account email.
-3. Attempt login with a wrong Sweat Assistant password; verify failure without trying gym
+3. Attempt login with a wrong Dibs password; verify failure without trying gym
    credentials as a fallback.
-4. Log in with the correct Sweat Assistant password.
+4. Log in with the correct Dibs password.
 5. Verify the same linked gyms return without re-entering gym passwords.
 6. Open all five main tabs and verify no stale state from a different persona appears.
 
@@ -454,7 +454,7 @@ Expected: account authentication is local and independent; logout clears visible
    arbitrary email has an account.
 5. Return to login and verify the normal sign-in form is restored without stale recovery state.
 
-Expected: no self-service flow silently re-couples the Sweat Assistant account to a gym credential.
+Expected: no self-service flow silently re-couples the Dibs account to a gym credential.
 Report any contradictory subtitle, dormant gym-login step, or misleading promise as a copy/security
 inconsistency.
 
@@ -514,7 +514,7 @@ Expected: one provider failure degrades one gym, not the whole account.
 3. Let confirmation expire once and verify it resets.
 4. Click twice within the confirmation window.
 5. Verify only that gym disappears from merged views and its sidebar/settings section is removed.
-6. Verify the Sweat Assistant account and the other gym remain usable.
+6. Verify the Dibs account and the other gym remain usable.
 7. If this leaves zero gyms, verify the no-gym Connect a gym state and no login loop.
 8. Relink the gym with valid credentials and verify its gym identity is correct.
 
@@ -549,7 +549,7 @@ tablet, and narrow mobile widths.
    every icon-only action has an accessible name/tooltip.
 5. Check reduced-motion mode if the automation environment supports it.
 6. Confirm Psycle identity is violet and JAB identity navy only on gym-identifying elements; the
-   shared Sweat Assistant chrome must not repaint as the selected/last-used gym.
+   shared Dibs chrome must not repaint as the selected/last-used gym.
 
 Expected: the same task remains legible and reachable in every supported layout and theme.
 
@@ -1149,7 +1149,7 @@ Clean in this order so background automation cannot recreate state while it is b
 8. Relink any gym unlinked for the authorised lifecycle test and verify connection health.
 9. Refresh every tab, log out/in, and repeat the bookings/waitlists/queues checks.
 10. Compare the final fingerprints and settings to the protected baseline.
-11. Apply the credential-retention choice from `CONTROL.md`: delete the disposable Sweat Assistant
+11. Apply the credential-retention choice from `CONTROL.md`: delete the disposable Dibs
     account through `CLEAN-02`, or obtain explicit confirmation to keep encrypted staging links.
 12. Clear the QA browser profile/password-save prompt after the final run unless it is deliberately
     retained for an authorised scheduled observation.
@@ -1159,7 +1159,7 @@ Clean in this order so background automation cannot recreate state while it is b
 #### `CLEAN-02` — disposable account deletion (`P3`, optional and separately authorised)
 
 1. Run only after `CLEAN-01` is a complete pass and after exporting any required sanitised report.
-2. Confirm the account is the disposable Sweat Assistant account, not a gym/provider account.
+2. Confirm the account is the disposable Dibs account, not a gym/provider account.
 3. Exercise the full Delete All My Data confirmation UX.
 4. Verify login no longer succeeds and no account data is visible.
 5. Do not assume provider accounts or provider-side historical records were deleted.
@@ -1184,7 +1184,7 @@ Apply this checklist during every flow rather than saving it for one final scree
   states are explicit and actionable.
 - Data from a previous account, gym, date, or cache never flashes or persists into the new state.
 - Provider failures, slow responses, and stale availability do not leave optimistic ghost state.
-- Copy says Sweat Assistant and is gym-neutral unless a specific gym is intentionally named.
+- Copy says Dibs and is gym-neutral unless a specific gym is intentionally named.
 
 ## 8. Issue report format
 
@@ -1267,7 +1267,7 @@ Copy the prompt below into the browser automation agent. Supply URLs and secrets
 approved channels; do not paste them into the prompt or repository.
 
 ```text
-You are conducting a structured browser-based QA and live-acceptance run for Sweat Assistant.
+You are conducting a structured browser-based QA and live-acceptance run for Dibs.
 
 Read, in this order:
 1. AGENTS.md at the repository root
@@ -1326,7 +1326,7 @@ only when the UI or provider explicitly confirms it is zero-credit/free and it p
 free-cancellation, protected-baseline, and approval gates. Continue read-only Psycle coverage and
 use mocks for deferred paid mutations.
 
-For each live write, separately verify: UI accepted it, Sweat Assistant persisted it, and the
+For each live write, separately verify: UI accepted it, Dibs persisted it, and the
 gym's own system confirmed it. A toast is not sufficient. Add every created provider/app ID to
 created_by_this_run before the next action.
 

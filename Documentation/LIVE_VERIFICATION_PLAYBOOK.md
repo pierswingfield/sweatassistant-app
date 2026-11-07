@@ -1,6 +1,6 @@
 # Live API Verification Playbook
 
-> **Read this before making ANY request against a real CodexFit or MarianaTek server** (not a mock, not a fixture). Covers both platforms. This is the safety gate the golden rules in [AGENT_INSTRUCTIONS.md](./AGENT_INSTRUCTIONS.md) point to for "how do I actually do a live check safely."
+> **Read this before making ANY request against a real CodexFit or MarianaTek server** (not a mock, not a fixture). Covers both platforms. This is the safety gate the golden rules in [AGENT_INSTRUCTIONS.md](../AGENTS.md) point to for "how do I actually do a live check safely."
 >
 > **Hard rule: no action in this doc executes without the user's explicit per-item go-ahead in that session.** This doc is the *plan* — reading it is not authorization to act on it. An agent picking this up should present the relevant tier's action list and wait for a "go" before making a single live request, exactly as the authoring session did.
 
@@ -83,4 +83,4 @@ This automation acts on the **user's own account(s) with their own credentials**
 
 ---
 
-_Cross-reference: [PROGRESS.md](./PROGRESS.md) Open Questions table (Q1, Q7, Q8, Q9, Q11) · [marianatek.md](../../Services/marianatek.md) §1G/§1H (existing live-research findings + the §1H stakeholder-capture data-handling precedent) · [AGENT_INSTRUCTIONS.md](./AGENT_INSTRUCTIONS.md) §1 (golden rules) and §6 (when to escalate)._
+_Cross-reference: [PROGRESS.md](Archive/2026-09-26/Backlog/modular-gyms/PROGRESS.md) Open Questions table (Q1, Q7, Q8, Q9, Q11) · [marianatek.md](Services/marianatek.md) §1G/§1H (existing live-research findings + the §1H stakeholder-capture data-handling precedent) · [AGENT_INSTRUCTIONS.md](../AGENTS.md) §1 (golden rules) and §6 (when to escalate)._

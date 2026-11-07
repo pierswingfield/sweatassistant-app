@@ -1,6 +1,6 @@
 # Work plan: Teams (shared upcoming classes for small groups)
 
-**Status:** In progress on branch `teams` (see [PROGRESS-teams.md](PROGRESS-teams.md)) (T-0 design, T-B background sync, T-1 membership core, T-2 projection/Teams list, T-3 dashboard, T-4 stats, T-5 reach and T-7 owner decisions built; T-6 backlogged; nothing pushed or deployed). Handover below. Originally proposed 2026-11-04. Expands F-3 (social class sharing: "who's going", friend graph). The decisions in §9 were settled by the user on 2026-11-04; the T-0 mock-ups (the design phase) were approved after round 3 on 2026-11-04, and every change from the owner's feedback is recorded here.
+**Status (2026-11-07):** Pushed and deployed on branch `teams`, unmerged into `master` (see [PROGRESS-teams.md](PROGRESS-teams.md)) (T-0 design, T-B background sync, T-1 membership core, T-2 projection/Teams list, T-3 dashboard, T-4 stats, T-5 reach and T-7 owner decisions built; T-6 photos and other deferred enhancements backlogged; current deployment evidence is in the [migration receipt](../QA/browser-runs/domain-migration-2026-11-07/README.md)). Handover below. Originally proposed 2026-11-04. Expands F-3 (social class sharing: "who's going", friend graph). The decisions in §9 were settled by the user on 2026-11-04; the T-0 mock-ups (the design phase) were approved after round 3 on 2026-11-04, and every change from the owner's feedback is recorded here.
 
 ## Handover (status as of 2026-11-07)
 

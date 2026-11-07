@@ -10,27 +10,27 @@ Before starting an item, follow [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md): confirm 
 |---|---|---|
 | [Reported bugs and feedback](EPIC-member-experience.md) | Active register for the bugs and UI changes reported by the user; all U6 items are open pending implementation and verification. | U6-1..U6-15; U4-19 `q` search URL wiring |
 | [Admin and operations](EPIC-admin-operations.md) | Improve durable admin data and finish user-owned production setup. | C8-1; C4-14 |
-| [Dibs landing page](M-landing-page.md) | Public glass-style marketing page with an install CTA and server-side analytics. Specified, not built. | M-D1..M-D8 |
+| [Dibs landing page](M-landing-page.md) | Live at `dibs.fit`, with install CTA to `app.dibs.fit` and server-side analytics. | M-D1..M-D8 |
 | [Gym onboarding playbook](C9-gym-onboarding.md) | Repeatable tenant onboarding, provider evidence, and activation process. | Ongoing process, used when a gym is added |
 
 Lower-priority, deferred, research-first, and user-dependent items belong in [BACKLOG.md](BACKLOG.md), not in active epic documents.
 
-## Proposed work plans
+## Work plans and release records
 
-Requested 2026-10-24; these plans do not mark implementation as started or verified.
+Each plan records its own implementation and verification status; dated design sections preserve the original proposal.
 
 | Plan | First milestone | Relationship to existing work |
 |---|---|---|
-| [Dibs public domains: dibs.fit and app.dibs.fit](PLAN-domain-dibs-fit.md) | Owner-authorized migration executing 2026-11-07; new prod/dev/experiment origins deployed, stable calendar UIDs retained | [Migration receipt](../QA/browser-runs/domain-migration-2026-11-07/README.md); old app domains receive the requested holding notice; native device acceptance and 24h settling checks remain |
+| [Dibs public domains: dibs.fit and app.dibs.fit](PLAN-domain-dibs-fit.md) | Owner-authorized migration deployed 2026-11-07; new prod/dev/experiment origins deployed, stable calendar UIDs retained | [Migration receipt](../QA/browser-runs/domain-migration-2026-11-07/README.md); old app domains receive the requested holding notice; native device acceptance and 24h settling checks remain |
 | [App restyling, typography, CSS and motion](PLAN-app-restyling.md) | Real-browser baseline audit, then visual rules and reference screens | Coordinates the existing CSS/type cleanup and glass-polish backlog; preserves member-experience bug ownership |
-| [Teams: shared classes for small groups](PLAN-teams.md) | T-0 to T-5 built on branch `teams` (not merged or deployed), plus the owner's 2026-11-06 decisions: same-class spot numbers and the weekly Team goal. T-6 (photos, Book next to, Moments, nicknames) is in [BACKLOG.md](BACKLOG.md) | Expands F-3, social class sharing; reads H-0 class history and the booking cache; 2026-11-04 |
+| [Teams: shared classes for small groups](PLAN-teams.md) | Teams design through reach built on branch `teams`, pushed and deployed to prod/dev/experiment (not merged into master), plus the owner's 2026-11-06 decisions: same-class spot numbers and the weekly Team goal. T-6 (photos, Book next to, Moments, nicknames) is in [BACKLOG.md](BACKLOG.md) | Expands F-3, social class sharing; reads H-0 class history and the booking cache; 2026-11-04 |
 | [User-facing MCP server](PLAN-mcp-server.md) | Client/auth compatibility spike and threat model, then a read-only pilot | Expands F-4, the MCP integration; includes [current security research](mcp-security-research.md) |
 
-The two plans can progress independently. The MCP connection/consent UI should reuse the app's shared design components. The restyling audit requires real-browser access before implementation, as described in the agent protocol.
+Independent plans can progress separately where their dependencies allow. The MCP connection/consent UI should reuse the app's shared design components. The restyling audit requires real-browser access before implementation, as described in the agent protocol.
 
 ## Repository context
 
-- `master` is the working branch; Home is merged at `2e93f9e`.
+- Current deployed working branch: `teams` in `App-teams`, unmerged into `master`. See [current operations](../Operations/CURRENT.md). Home was merged into master at `2e93f9e`.
 - C4 production-launch details are archived. The remaining C4-14 step is an account setup action on production; verify current production state before acting.
 - Historical acceptance and deployment evidence is preserved under [`../Archive/2026-10-08/`](../Archive/2026-10-08/).
 

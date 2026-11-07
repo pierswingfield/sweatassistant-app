@@ -1,7 +1,9 @@
 # Testing
 
+Latest release evidence (2026-11-07): 121 server suites and 959 client tests; these are recorded results, not a substitute for running the current checkout. See the [migration receipt](QA/browser-runs/domain-migration-2026-11-07/README.md).
+
 ```bash
-npm test              # everything: 93 server suites + the client suite
+npm test              # everything: all discovered server suites + the client suite
 npm run test:server   # server only
 npm run test:client   # client only (vitest)
 ```

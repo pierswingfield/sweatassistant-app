@@ -2,20 +2,18 @@
 
 **Requested:** 2026-11-07. **Status:** deployed and cut over 2026-11-07; [verification/rollback receipt](../QA/browser-runs/domain-migration-2026-11-07/README.md). Native device acceptance and 24h settling checks remain explicit follow-ups. **Priority:** establish the new public domains before onboarding users. The owner reports no active users, so require fresh login, PWA installation and push permission on the new origin; do not build browser-data migration machinery.
 
-## Recommended topology and scope
+## Current topology (deployed 2026-11-07)
 
 | Host | Purpose | Destination / policy |
 |---|---|---|
 | `dibs.fit` | Canonical marketing landing | Existing Oracle `dibs-landing:80` |
 | `app.dibs.fit` | Production PWA, API, calendar, Teams and admin | Existing Oracle `sweatassistant:3000` |
-| `www.dibs.fit` | Optional convenience hostname; recommended | HTTPS redirect to `https://dibs.fit`, retaining appropriate path/query |
-| `dibs.wingfield.tech` | Old landing | Temporary redirect during validation, permanent after acceptance |
-| `sweat.wingfield.tech` | Old production app | Short overlap / rollback, then redirect browser navigation to the matching new app path |
-| `sweat-dev.wingfield.tech`, `sweat-experiment.wingfield.tech` | Existing test twins | Keep existing domains and environment isolation in this migration |
+| `dev.dibs.fit`, `experiment.dibs.fit` | Separate existing test environments | Existing dev/experiment containers and DBs, Cloudflare Access protected |
+| `www.dibs.fit`, `dibs.wingfield.tech` | Convenience / old landing | Temporary redirect to `https://dibs.fit` |
+| Old sweat production/dev/experiment hosts | Retired app origins | No-store migration notice with Open Dibs button to production; other APIs 410; retired worker unregisters and clears its caches |
+| Old exact GET/HEAD `/api/calendar/<token>.ics` | Existing private subscriptions | Direct proxy to matching environment, preserving tokens and permanent UIDs |
 
-Reuse the existing Oracle Cloudflare Tunnel and Docker `edge` network. Add explicit, proxied CNAMEs for apex and `app` to the existing tunnel, plus `www` if selected. Add matching public-hostname ingress entries **before its final catch-all**. No new server, public host port, Nginx Proxy Manager route or paid certificate is indicated by the current topology. Cloudflare permits tunnel CNAMEs within the tunnel's account; apex CNAME flattening supports the root hostname. [Tunnel DNS](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/routing-to-tunnel/dns/), [apex flattening](https://developers.cloudflare.com/dns/cname-flattening/).
-
-The new hostnames intentionally expose the existing public product. Implementation must obtain the owner's publication authorization before changing DNS/tunnel exposure, as required by the self-hosting rules. This planning request authorizes no publication or infrastructure changes.
+Publication and test-origin expansion were subsequently authorized and executed. The [release receipt](../QA/browser-runs/domain-migration-2026-11-07/README.md) records the checks and limitations. The baseline, recommendations and staged instructions below are the **original pre-implementation plan**, retained for rationale and rollback context; they do not override this deployed topology. See [current operations](../Operations/CURRENT.md).
 
 ## Verified baseline and unresolved access
 

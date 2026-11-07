@@ -1,5 +1,7 @@
 # Node2Shell runtime remediation
 
+> Historical record: domains, host state and pending actions below describe the dated inspection/cutover. For current domains, branch and deployment workflow, use [current operations](CURRENT.md). Do not execute this old runbook as a current deployment plan.
+
 **Status:** merged to `master` as `db9605e` and deployed on 2026-10-24 to the
 experiment twin, the dev twin (`sweat-dev.wingfield.tech`) and production
 (`sweat.wingfield.tech`). Every container reports `node --version` `v22.23.4`

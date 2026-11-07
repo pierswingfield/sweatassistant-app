@@ -937,10 +937,10 @@ function stepFeatures() {
           <div class="app-onb-feature-action"></div>
         </section>
       <section class="app-onb-feature-card" data-feature="autoupgrade">
-        <div class="app-onb-feature-heading"><span class="app-onb-icon">${ICON.autoupgrade}</span><div><h3>${COPY.onboarding.autoUpgradeFeatureTitle}</h3><p>${COPY.onboarding.autoUpgradeFeatureDescription}</p>
+        <div class="app-onb-feature-heading"><span class="app-onb-icon">${ICON.autoupgrade}</span><div><h3>${COPY.onboarding.autoUpgradeFeatureTitle}</h3><p>${COPY.onboarding.autoUpgradeFeatureDescription}</p></div></div>
           <div class="app-onb-auto-upgrade-slot">${upgradeOn.length
     ? `<p class="app-onb-auto-upgrade-note" role="note"><span aria-hidden="true">${ICON.check}</span><span>${escapeHtml(formatCopyText(COPY.onboarding.autoUpgradeAlreadyOn, { gyms: upgradeOnNames }))}</span></p>`
-    : `<label class="app-onb-auto-upgrade-option"><input type="checkbox" id="app-onb-auto-upgrade-all"><span>${COPY.onboarding.autoUpgradeAllGyms}</span></label>`}</div></div></div>
+    : `<label class="app-onb-auto-upgrade-option"><input type="checkbox" id="app-onb-auto-upgrade-all"><span>${COPY.onboarding.autoUpgradeAllGyms}</span></label>`}</div>
         <div class="app-onb-feature-action"></div>
       </section>
       <section class="app-onb-feature-card" data-feature="teams">

@@ -12722,10 +12722,10 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 /* Today's workouts: logo with the tick as a small corner badge */
 #app-helper-container .tm-tw-lead { flex: 0 0 48px; }
 #app-helper-container .tm-tw-lead .tm-tw-check {
-  position: absolute; right: -4px; bottom: -3px; width: 20px; height: 20px; background: var(--success); color: #fff;
+  position: absolute; right: -4px; bottom: -3px; width: 16px; height: 16px; background: var(--success); color: #fff;
   box-shadow: 0 0 0 2px var(--surface);
 }
-#app-helper-container .tm-tw-lead .tm-tw-check svg { width: 12px; height: 12px; }
+#app-helper-container .tm-tw-lead .tm-tw-check svg { width: 10px; height: 10px; }
 
 /* This week: each class is its own tinted tile */
 #app-helper-container .tm-wrows { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
@@ -12936,7 +12936,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container .tm-tw-title { padding: 0; border: 0; background: transparent; font-family: inherit; font-size: 14px; line-height: 1.4; text-align: left; cursor: pointer; width: 100%; }
 #app-helper-container .tm-tw-who { display: flex; padding: 4px 0 0; }
 #app-helper-container .tm-tw.is-done { min-height: 44px; padding: 2px 0; box-sizing: border-box; }
-#app-helper-container .tm-tw.is-done .tm-gcirc { --g: 30px; }
+#app-helper-container .tm-tw.is-done .tm-gcirc { --g: 28px; }
 #app-helper-container .tm-tw.is-done:not(.is-expanded) .tm-workout-details { grid-template-rows: 0fr; opacity: 0; }
 #app-helper-container .tm-tw.is-expanded { padding-block: 10px; }
 #app-helper-container .tm-view-class { background: transparent; border: 0; color: var(--accent); padding: 7px 0; font: 600 12px var(--font-sans); cursor: pointer; }
@@ -12959,7 +12959,8 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container .tm-tw { display: grid; grid-template-columns: 48px 44px minmax(0, 1fr); gap: 8px; }
 #app-helper-container .tm-tw-lead { width: 48px; }
 #app-helper-container .tm-tw-time, #app-helper-container .tm-workout-time { display: flex; flex-direction: column; align-items: center; text-align: center; white-space: normal; line-height: 1.25; }
-#app-helper-container .tm-tw-time { font-size: 12px; font-weight: 600; }
+#app-helper-container .tm-tw-lead .tm-gcirc { --g: 28px; }
+#app-helper-container .tm-tw-time { font-size: 14px; font-weight: 600; }
 #app-helper-container :is(.tm-tw-time, .tm-workout-time) small { display: block; font-size: 9px; font-weight: 500; line-height: 1.4; }
 #app-helper-container .tm-workout-inst { text-align: left; justify-self: start; }
 #app-helper-container .tm-workout-time { margin-right: 3px; }

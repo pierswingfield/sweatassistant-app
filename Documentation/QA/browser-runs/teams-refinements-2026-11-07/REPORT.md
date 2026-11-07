@@ -27,3 +27,29 @@ Trends count only completed, recent-shared, enabled-gym, viewer-linked entries f
 ## Deployment
 
 Dev only, authorized from the teams branch. Pre-deploy remote `docker ps`: dev Up 3 days, tailnet bind 100.86.226.52:3005→3000. `docker diff sweatassistant-dev`: only A /data. WAL-safe backup `/data/pre-teams-dev-20261107-1794055039550.db`: integrity_check ok. Final commit/push/deployed hash and health evidence are recorded in PROGRESS-teams.md after deployment.
+
+### Dev deployment receipt — 2026-11-07 12:44 UTC
+
+Code commit `3b50506f6f112beb3d8e76f8a603826703228fe9` on `teams` was pushed as a new `origin/teams` branch (authenticated GitHub CLI HTTPS credential path; SSH transport had no loaded key). Remote ref and local code SHA matched exactly. Deployed an immutable git archive with the default `./deploy.sh` to `sweat-dev.wingfield.tech` only; bulk QA/source art and local mock fixture utilities were omitted from the artifact. No master merge or prod/experiment deploy.
+
+Actual remote output:
+
+```text
+sweatassistant-dev | Up 37 seconds | 100.86.226.52:3005->3000/tcp
+sha256:bf9f61d54b0c573dd48cf9d6806a978281c28081aaf0d86d2ace6710dcb7dcce RestartCount=0
+v22.23.4
+arm64
+docker diff: A /data
+DEPLOYED_COMMIT: 3b50506f6f112beb3d8e76f8a603826703228fe9
+public /api/health: HTTP 200, status ok
+tailnet /api/health: HTTP 200, status ok
+scheduler/poller/calendar: healthy true
+```
+
+Served asset SHA-256 matches the local verified build (tailnet and real Chrome public-origin fetches):
+
+- `index-B7gQFeH0.js`: `183499c37fdf12e772bbac8052f2a3157ce676c27c75ad59bb8f21b992b3d490` — match.
+- `index-BZ1ApP9J.css`: `4e9cc73d92fbd07014c4b17750b1f5b3cc0a5861f7a8a5ac18634af520145df5` — match.
+- `teams-dashboard-CN-jp5y_.js`: `a6eb848c3b2b8783ba50fb50e3dba7e92c15e547136a58a6ee8c74b0e5ea0b99` — match.
+
+Real Chrome after clearing SW/CacheStorage/IndexedDB and reloading the public dev Teams route loaded the new `index-B7gQFeH0.js`; all three asset fetches returned 200 and matching hashes. It displayed the login screen with no document overflow at 402px. Neither existing dev tab nor the verification tab has a signed-in app session, so authenticated dev dashboard interaction remains unverified; the full dashboard behavior is verified against isolated local mocks, with deployed byte identity proven. No credentials were minted or changed for verification. Registry and Server Management CHANGELOG updated in this turn. Large prior QA captures and source PNGs remain untracked.

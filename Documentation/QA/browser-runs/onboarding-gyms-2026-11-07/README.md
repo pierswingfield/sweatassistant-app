@@ -1,6 +1,6 @@
 # Onboarding and gym availability — 2026-11-07
 
-Status: source fixes verified; production deployment pending.
+Status: source fixes and production deployment verified. Application release `ce67ae2`; pushed to `origin/teams`, unmerged into master.
 
 ## Evidence before edits
 
@@ -32,3 +32,13 @@ User verified the destination. Cloudflare routing is enabled/ready and exact rul
 - Real Chrome: five logos/plates at 390px and desktop, full wordmarks, pause/reduced-motion and dark mode, no horizontal page overflow. Settings visible plates all 140×52px. At 320×568 the empty Teams CTA bottom is 325px and navigation begins at 498px. Existing Teams list retains its title.
 - Real Chrome partial-cache repro now shows Aarmy, JAB/SW1 and all Psycle locations independently. A held Psycle metadata request shows ready JAB plus the exact five-second note; releasing it fills Psycle and hides the note. Name screen appears with prefill, and completing the full tour lands at `/`.
 - Production preflight: database integrity ok; 2 users and 3 links, including 0 Homerun/Barry links. WAL-safe rollback database plus original `.env`/compose saved at `~/services/sweatassistant/rollback-onboarding-20261107`; rollback image tagged `sweatassistant:rollback-onboarding-20261107`. No database recreation or gym write occurred.
+
+## Production release
+
+- Deployed immutable application export `ce67ae2` to the existing `sweatassistant` service only. Landing/dev/experiment were not deployed. Export omitted `.env`, databases, local fixtures and the QA corpus; the production script excluded dev compose.
+- Exactly two production environment keys changed: `HOMERUN_ENABLED=true` and `BARRYS_UK_ENABLED=true`. Comparison with rollback `.env` confirms all other values, including secrets, unchanged.
+- `docker ps`: sweatassistant Up; restart count 0; host port bindings `{}`. Node v22.23.4. Internal health `ok`. Post-deploy database integrity `ok`, users **2**, links **3**, matching preflight.
+- Real Chrome production: public `/api/health` **200 / ok**, `/api/gyms` **200**, enabled gyms **5** (Psycle, JAB, Homerun, Barry's, Aarmy). Welcome renders the referee, no horizontal overflow at 390px. No production account setting or third-party gym write was performed. A direct Python HTTP probe was refused with 403; the real Chrome public checks above succeeded.
+- Served `index-B2fGJLOg.js` SHA-256 `c467407be2d5cb159958c6aee50730fc1c0d4e287e69e810e0a5a7a495c8e434` and `index-DQdqv8Zn.css` SHA-256 `8953fea6c21f82c1871c3b9bd830fcdaf76262edfb2f40426a0f01caf4646d4c` match the verified local build byte-for-byte.
+- Privacy alias API status ready/enabled and authoritative DNS MX/SPF checks passed. End-to-end email delivery remains untested. Legal drafts remain unpublished, with operator legal name/address and governing-law review still open. The ICO source-page refresh returned 403; no new legal conclusion was inferred from that failed fetch.
+- Gemini usage: three Flash locator calls and one grounded Cloudflare API lookup; source claims independently checked. Chrome provided the UI and public-production evidence. Physical iPhone/PWA safe-area and live Barry's/Homerun login/booking behavior were not exercised.

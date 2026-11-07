@@ -272,6 +272,22 @@ describe('Home cache context', () => {
 });
 
 describe('W2 Home book row', () => {
+  it('hides for an upcoming confirmed booking, including nested snake-case times', async () => {
+    const { api } = await import('../api.js');
+    const widget = homeRegistry.list({}).find((item) => item.id === 'book');
+    const spy = vi.spyOn(api, 'getBookings');
+    const waitlists = vi.spyOn(api, 'getWaitlists').mockResolvedValue([{ event: { startAt: '2999-01-01T12:00:00Z' } }]);
+    try {
+      spy.mockResolvedValue([{ event: { start_at: '2999-01-01T12:00:00Z' } }]);
+      expect(widget.isHidden(await widget.load({ gyms: [] }))).toBe(true);
+      spy.mockResolvedValue([{ event: { startAt: '2000-01-01T12:00:00Z' } }]);
+      expect(widget.isHidden(await widget.load({ gyms: [] }))).toBe(false);
+      spy.mockResolvedValue([]);
+      expect(widget.isHidden(await widget.load({ gyms: [] }))).toBe(false);
+      expect(waitlists).not.toHaveBeenCalled();
+    } finally { spy.mockRestore(); waitlists.mockRestore(); }
+  });
+
   it('uses timetable overlay URLs for each linked gym and an explicit merged All link', () => {
     setLinkedGyms([
       { gym_id: 'jab-boxing', shortName: 'JAB' },

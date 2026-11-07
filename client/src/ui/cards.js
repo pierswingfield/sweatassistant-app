@@ -482,12 +482,14 @@ export function observeLocationWrap(container) {
 
 // Action rail toggle (shared by My Bookings, Waitlists, Auto-Book, Auto-Upgrade).
 // The rail is collapsed by default; a "more" button at the end of the footer
-// slides it in. Open state is deliberately NOT remembered: every (re)render starts
-// collapsed (a remembered open rail showed up pre-pressed on page load / after a
-// background refresh), and any modal opening collapses them all (closeAllRails).
+// slides it in. Remember the open card across a background re-render; opening a
+// modal or signing out clears it (closeAllRails).
 let railSeq = 0;
+let openRailKey = null;
+if (typeof window !== 'undefined') window.addEventListener('app-logout-triggered', () => { openRailKey = null; });
 
 export function closeAllRails(root = typeof document !== 'undefined' ? document : null) {
+  openRailKey = null;
   if (!root) return 0;
   const open = Array.from(root.querySelectorAll('.ab-card.is-rail-open'));
   open.forEach(card => { if (card._closeRail) card._closeRail(); else card.classList.remove('is-rail-open'); });
@@ -495,6 +497,7 @@ export function closeAllRails(root = typeof document !== 'undefined' ? document 
 }
 export function wireRailToggle(container) {
   container.querySelectorAll('.ab-card').forEach(card => {
+    const railKey = `${container.id || container.closest('[id]')?.id || ''}:${card.dataset.gym || ''}:${card.dataset.eventId || ''}`;
     const rail = card.querySelector(':scope > .ab-card-rail');
     const footer = card.querySelector('.ab-card-footer');
     if (!rail || !footer || footer.querySelector('.ab-rail-toggle')) return;
@@ -505,6 +508,8 @@ export function wireRailToggle(container) {
     btn.setAttribute('aria-controls', rail.id);
     btn.innerHTML = `<svg class="ab-ico ab-rail-chevron" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="10 3 5 8 10 13"/></svg><span>${COPY.accessibility.editCard}</span>`;
     const apply = (open) => {
+      if (open) openRailKey = railKey;
+      else if (openRailKey === railKey) openRailKey = null;
       card.classList.toggle('is-rail-open', open);
       btn.setAttribute('aria-expanded', String(open));
       btn.setAttribute('aria-label', open ? COPY.accessibility.hideCardActions : COPY.accessibility.showCardActions);
@@ -523,6 +528,6 @@ export function wireRailToggle(container) {
     });
     card._closeRail = () => apply(false);
     footer.appendChild(btn);
-    apply(false);
+    apply(openRailKey === railKey);
   });
 }

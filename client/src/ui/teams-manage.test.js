@@ -128,3 +128,25 @@ describe('Team settings page (T12)', () => {
     expect(card.textContent).toContain('Notifications are not set up for this device.');
   });
 });
+
+describe('member list navigation threshold and permission boundary', () => {
+  const ctx = (count, role = 'captain') => ({ detail: { team: { id: 't1' }, myRole: role, members: Array.from({ length: count }, (_, i) => ({ memberRef: `m${i}`, name: `Member ${i}`, isMe: i === 0, isCaptain: i === 0 })) } });
+  it('counts the viewer, using five inline members and a single six-member destination', () => {
+    const host = document.createElement('div'); document.body.appendChild(host);
+    manage.renderMembers(host, ctx(5), vi.fn());
+    expect(host.querySelectorAll('[data-member]')).toHaveLength(5);
+    manage.renderMembers(host, ctx(6), vi.fn());
+    expect(host.querySelectorAll('[data-member]')).toHaveLength(0);
+    expect(host.querySelector('[data-all-members]').textContent).toContain('View all 6 members');
+    host.querySelector('[data-all-members]').click();
+    expect(document.querySelectorAll('.tm-ovl [data-member]')).toHaveLength(6);
+    expect(document.querySelector('.tm-ovl [data-captain]')).not.toBeNull();
+  });
+  it('keeps ordinary members read-only on the full page', () => {
+    const host = document.createElement('div'); document.body.appendChild(host);
+    manage.renderMembers(host, ctx(6, 'member'), vi.fn()); host.querySelector('[data-all-members]').click();
+    expect(document.querySelectorAll('.tm-ovl [data-member]')).toHaveLength(6);
+    expect(document.querySelector('.tm-ovl [data-captain], .tm-ovl [data-remove]')).toBeNull();
+    expect(document.body.textContent).not.toContain('All Captains are equal');
+  });
+});

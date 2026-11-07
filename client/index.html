@@ -202,7 +202,7 @@
         </svg><span data-copy-text="navigation.autoBook"></span></button>
       <button class="app-nav-btn" data-tab="teams" data-copy-text="navigation.teams">Teams</button>
       <button class="app-nav-btn" data-tab="buy-credits" hidden data-copy-text="navigation.credits">Credits &amp; Membership</button>
-      <button class="app-nav-btn" data-tab="settings" data-copy-text="navigation.settings">Settings</button>
+      <button class="app-nav-btn" data-tab="settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M19 5l-1.4 1.4M6.4 17.6 5 19"/><circle cx="12" cy="12" r="8"/></svg> <span data-copy-text="navigation.settings">Settings</span></button>
     </div>
 
     <!-- Main Workspace Panels (Rendered dynamically based on active tab) -->
@@ -557,55 +557,21 @@
               
               <!-- SECTION: ABOUT -->
               <div class="app-settings-section-pane" id="app-settings-pane-about">
-                <div class="app-tab-header ui-tab-header">
-                  <h3><span data-copy-text="static.about">About</span> <span data-app-name>__APP_NAME__</span></h3>
-                  <p data-copy-html="about.taglineHtml"></p>
-                </div>
-                <div class="app-settings-grid ui-settings-grid">
-                  <!-- Welcome Tour -->
-                  <div class="app-settings-card">
-                    <h4 data-copy-text="static.welcomeTour">Welcome Tour</h4>
-                    <button id="app-replay-onboarding-btn" class="app-btn ui-replay-onboarding" data-copy-text="static.replayOnboarding">Replay Onboarding</button>
-                  </div>
-                  <div class="app-settings-card">
-                    <h4 data-copy-text="static.aboutHeading">What is this?</h4>
-                    <p class="app-card-desc ui-disclaimer-text" data-copy-html="about.disclaimerHtml"></p>
-                    <p class="app-card-desc ui-security-desc" data-copy-text="static.aboutSecurity">Gym login credentials are encrypted and stored in a secure private cloud. Your __APP_NAME__ account is separate from your gym logins. You can delete stored data at any time from Settings.</p>
-                  </div>
-                  <div class="app-settings-card">
-                    <h4 data-copy-text="static.features">Features</h4>
-                    <div class="ui-settings-stack">
-                      <div class="app-about-item">
-                        <span class="app-about-icon">📅</span>
-                        <div><strong class="app-about-name" data-copy-text="navigation.autoBook">Auto-Book</strong><p class="app-card-desc app-about-desc" data-copy-text="static.aboutAutoBook">Schedules a booking to fire at the exact millisecond a class is released, giving you priority access. (Gyms differ: some release weekly, some per class — the countdown shows whichever applies.)</p></div>
-                      </div>
-                      <div class="app-about-item">
-                        <span class="app-about-icon">⬆️</span>
-                        <div><strong class="app-about-name">Auto-Upgrade</strong><p class="app-card-desc app-about-desc" data-copy-text="static.aboutAutoUpgrade">Continuously monitors your booked class and upgrades you to a better spot if one becomes available.</p></div>
-                      </div>
-                      <div class="app-about-item">
-                        <span class="app-about-icon">⚡</span>
-                        <div><strong class="app-about-name">Quick-Book</strong><p class="app-card-desc app-about-desc" data-copy-text="static.aboutQuickBook">Books your preferred spot in any class in one click, using your saved seat preferences per studio.</p></div>
-                      </div>
-                      <div class="app-about-item">
-                        <span class="app-about-icon">🗺️</span>
-                        <div><strong class="app-about-name">Preferred Spot Maps</strong><p class="app-card-desc app-about-desc" data-copy-text="static.aboutSpotMaps">Save your favourite seat positions per studio — used automatically by Quick-Book, Auto-Book, and Auto-Upgrade.</p></div>
-                      </div>
-                      <div class="app-about-item">
-                        <span class="app-about-icon">🔔</span>
-                        <div><strong class="app-about-name" data-copy-text="static.pushNotifications">Push Notifications</strong><p class="app-card-desc app-about-desc" data-copy-text="static.aboutPush">Receive instant alerts on your device when Auto-Book or Auto-Upgrade takes action.</p></div>
-                      </div>
-                      <div class="app-about-item">
-                        <span class="app-about-icon">📆</span>
-                        <div><strong class="app-about-name" data-copy-text="static.calendarSync">Calendar Sync</strong><p class="app-card-desc app-about-desc" data-copy-text="static.aboutCalendar">Add your classes to Apple or Google Calendar. They stay in sync automatically — bookings, upgrades and cancellations update on their own.</p></div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="app-settings-card">
-                    <h4 data-copy-text="static.privacyData">Privacy & Data</h4>
-                    <p class="app-card-desc ui-disclaimer-text" data-copy-text="static.privacyDescription">Gym login credentials are encrypted and stored in a secure private cloud. Your __APP_NAME__ account is separate from your gym logins. You can delete all stored data at any time from Settings.</p>
-                  </div>
-                </div>
+                <section class="app-settings-card app-about-tour">
+                  <h4>Welcome tour</h4>
+                  <p class="app-card-desc">A quick guide to getting started.</p>
+                  <button id="app-replay-onboarding-btn" class="app-btn ui-replay-onboarding">Take the welcome tour</button>
+                </section>
+                <section class="app-settings-card">
+                  <h4>About <span data-app-name>__APP_NAME__</span></h4>
+                  <p class="app-card-desc"><span data-app-name>__APP_NAME__</span> brings your connected gyms, bookings and preferred spots together. Auto-Book tries when classes open, Auto-Upgrade watches for better spots, and Teams helps you plan with friends.</p>
+                  <p class="app-card-desc">An independent companion for your gyms. Booking rules, availability and cancellation policies are set by each studio.</p>
+                </section>
+                <section class="app-settings-card app-about-privacy">
+                  <h4>Privacy &amp; data</h4>
+                  <p class="app-card-desc">Your <span data-app-name>__APP_NAME__</span> account is separate from your gym logins. Stored gym credentials are encrypted. You control what each Team can see and can delete your account and stored data from Account settings.</p>
+                  <button type="button" class="app-btn" data-about-account>Account settings</button>
+                </section>
               </div>
 
               <!-- SECTION: ACCOUNT -->
@@ -811,10 +777,9 @@
       <!-- T-1 (PLAN-teams.md §5.1): Teams replaces Credits here. Credits stays off the bottom nav even in
            debug mode (desktop nav + Home tile only), so a phone never shows seven items. -->
       <button class="app-nav-btn app-bottom-nav-btn" data-tab="teams" data-copy-aria-label="static.navTeams">
-        <svg class="app-bn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <defs><mask id="bn-teams-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24"><rect width="24" height="24" fill="#fff"/><g transform="translate(7.9 13) scale(.86)"><path d="M0-10c3.6 3.4 8.2 7 8.2 12.4a8.2 8.2 0 0 1-16.4 0C-8.2-3-3.6-6.6 0-10z" fill="#000" stroke="#000" stroke-width="3.8"/></g></mask></defs>
-          <g mask="url(#bn-teams-mask)"><g transform="translate(16.9 10.9) scale(.8)" stroke-width="2.25"><path d="M0-10c3.6 3.4 8.2 7 8.2 12.4a8.2 8.2 0 0 1-16.4 0C-8.2-3-3.6-6.6 0-10z"/><circle cx="1" cy="3.6" r=".95" fill="currentColor" stroke="none"/><circle cx="4.6" cy="3.6" r=".95" fill="currentColor" stroke="none"/></g></g>
-          <g transform="translate(7.9 13) scale(.86)" stroke-width="2.1"><path d="M0-10c3.6 3.4 8.2 7 8.2 12.4a8.2 8.2 0 0 1-16.4 0C-8.2-3-3.6-6.6 0-10z"/><path d="M-7.6 0Q0 2.6 7.6 0"/><circle cx="-2.8" cy="4.6" r="0.85" fill="currentColor" stroke="none"/><circle cx="2.8" cy="4.6" r="0.85" fill="currentColor" stroke="none"/><path d="M-1.6 7.2q1.6 1.3 3.2 0"/></g>
+        <svg class="app-bn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="9" cy="7" r="3"/><circle cx="17" cy="9" r="2.5"/>
+          <path d="M2.5 21v-3a6.5 6.5 0 0 1 11.3-4.4A5.5 5.5 0 0 1 22 18.5V21H2.5Z"/>
         </svg>
         <span data-copy-text="static.navTeams"></span>
       </button>

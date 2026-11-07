@@ -33,6 +33,16 @@ check('states: resting, warming, exercising, cooling, champion, sleeping', () =>
   assert.strictEqual(mascot.mascotFor({ teamId: 't', classes: [], now: Date.parse('2026-11-11T02:00:00Z'), zone: 'America/New_York' }).state, 'resting');
 });
 
+check('night waits for unfinished Eastern classes, including the midnight and DST boundary', () => {
+  const state = (now, classes) => mascot.mascotFor({ teamId: 't', now: Date.parse(now), zone: LON, classes }).state;
+  const eastern = cls('2026-11-10T19:30:00-05:00');
+  assert.strictEqual(state('2026-11-10T22:30:00Z', [eastern]), 'warming');
+  assert.strictEqual(state('2026-11-11T00:45:00Z', [eastern]), 'exercising');
+  assert.strictEqual(state('2026-11-11T01:15:00Z', [eastern]), 'sleeping');
+  const dst = cls('2026-11-01T01:30:00-05:00');
+  assert.strictEqual(state('2026-11-01T04:30:00Z', [dst]), 'warming');
+});
+
 check('ring = progress through ALL the day\'s classes (a class in progress counts its elapsed share); cooling down renders smaller (fit)', () => {
   const now = Date.parse('2026-11-10T12:00:00Z');
   const r = mascot.mascotFor({ teamId: 't', now, zone: LON,

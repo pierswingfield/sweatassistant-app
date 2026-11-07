@@ -124,8 +124,8 @@ const SYNTH_SLOTS = [[0, 0], [1, 7], [1, 18], [2, 12], [3, 18], [4, 7], [5, 19],
 const SYNTH_TIMES = { 0: '00:00', 7: '07:15', 12: '12:30', 18: '18:30', 19: '19:00' };
 
 /** A gym's event list: real classes first, then stable fake ones until there are at least 10. */
-function eventsFor(gymId, gymIdx, ownerId, nowMs) {
-  const list = realUpcoming(gymId, ownerId, nowMs);
+function eventsFor(gymId, gymIdx, ownerId, nowMs, eventPools = null) {
+  const list = eventPools?.[gymId] ? [...eventPools[gymId]] : realUpcoming(gymId, ownerId, nowMs);
   const have = new Set(list.map((e) => e.startMs));
   let n = 0;
   while (list.length < 10) {
@@ -203,7 +203,7 @@ function writeData(uid, m, gymBySlot, eventsByGym, gymIdxOf, nowMs, counts, book
       const e = evs[i % evs.length];
       return { bookingId: bookingSeq(), gymId, eventId: e.eventId, startAt: e.startAt, className: e.className, groupName: e.groupName,
         instructorName: e.instructorName, studioName: e.studioName, locationName: e.locationName, durationMin: e.durationMin,
-        slotLabel: m.share.spots && (i % 2 === 0) ? `Bike ${10 + ((i * 7) % 20)}` : '' };
+        slotLabel: m.share.spots && (i % 2 === 0) ? (e.demoSpot || `Bike ${10 + ((i * 7) % 20)}`) : '' };
     }));
   }
   for (const gymId of gymBySlotValues(gymBySlot, m)) {
@@ -300,7 +300,7 @@ function remove() {
   return { fixturesRemoved: ids.length, teamsRemoved };
 }
 
-function create({ nowMs, ownerEmail = null }) {
+function create({ nowMs, ownerEmail = null, eventPools = null }) {
   const found = findOwnerTeam(ownerEmail);
   if (!found) {
     const who = ownerEmail ? ` whose Captain is ${ownerEmail}` : ' with a real (non-fixture) Captain';
@@ -311,6 +311,7 @@ function create({ nowMs, ownerEmail = null }) {
   const { teamId, ownerId } = found;
   const enabled = listEnabledGyms().map((g) => g.id);
   const ownerLinked = db.prepare('SELECT gym_id FROM user_gyms WHERE user_id = ?').all(ownerId).map((r) => r.gym_id).filter((g) => enabled.includes(g));
+  if (eventPools) ownerLinked.sort((a, b) => enabled.indexOf(a) - enabled.indexOf(b));
   const notes = [];
   const A = ownerLinked.length ? ownerLinked : enabled.slice(0, 1);
   if (!A.length) throw Object.assign(new Error('No gym is enabled in gyms.config.js.'), { code: 'NO_GYMS' });
@@ -323,7 +324,7 @@ function create({ nowMs, ownerEmail = null }) {
   const usedGyms = [...new Set(Object.values(gymBySlot).filter(Boolean))];
   const gymIdxOf = (g) => usedGyms.indexOf(g);
   const eventsByGym = {};
-  usedGyms.forEach((g, i) => { eventsByGym[g] = eventsFor(g, i, ownerId, nowMs); });
+  usedGyms.forEach((g, i) => { eventsByGym[g] = eventsFor(g, i, ownerId, nowMs, eventPools); });
   const ownerOverlap = Object.values(eventsByGym).flat().filter((e) => e.mine).length;
   const realCount = Object.values(eventsByGym).flat().filter((e) => e.real).length;
   const synthCount = Object.values(eventsByGym).flat().filter((e) => !e.real).length;
@@ -392,11 +393,11 @@ function create({ nowMs, ownerEmail = null }) {
   };
 }
 
-function seed({ dryRun = false, remove: doRemove = false, nowMs = Date.now(), ownerEmail = null } = {}) {
+function seed({ dryRun = false, remove: doRemove = false, nowMs = Date.now(), ownerEmail = null, eventPools = null } = {}) {
   let result;
   try {
     db.transaction(() => {
-      result = doRemove ? remove() : create({ nowMs, ownerEmail });
+      result = doRemove ? remove() : create({ nowMs, ownerEmail, eventPools });
       if (dryRun) throw new DryRun();
     })();
   } catch (err) {
@@ -421,7 +422,42 @@ function printSummary(r) {
   console.log(out.join('\n'));
 }
 
-const USAGE = 'Usage: seed-team-fixtures.js [--dry-run] [--remove] [--owner-email <email>]';
+/** Explicit development-only lane: fixture ids come from the mock adapters, so
+ * teammate chips and shared spot numbers match the actual local timetable.
+ * Every link is checked BEFORE fetching, and an outbound fetch is forbidden. */
+async function loadMockTimetable(ownerEmail, nowMs = Date.now()) {
+  if (process.env.NODE_ENV === 'production') throw new Error('--mock-timetable is development-only.');
+  const found = findOwnerTeam(ownerEmail);
+  if (!found) throw Object.assign(new Error('Create the owner Team before seeding mock timetable data.'), { code: 'OWNER_NOT_FOUND' });
+  const { getProvider } = require('../providers');
+  const links = db.prepare('SELECT gym_id, session_json FROM user_gyms WHERE user_id = ?').all(found.ownerId);
+  const sources = links.map((link) => {
+    const provider = getProvider(link.gym_id);
+    const session = dbm.getUserSession(found.ownerId, link.gym_id);
+    if (!provider.gym.devMock || !provider.mockToken || session?.accessToken !== provider.mockToken) throw new Error('--mock-timetable requires every owner gym link to use its dev mock.');
+    return { gymId: link.gym_id, provider, session };
+  });
+  const originalFetch = global.fetch;
+  global.fetch = async () => { throw new Error('Outbound network is forbidden while seeding mock timetable data.'); };
+  try {
+    const pools = {};
+    for (const { gymId, provider, session } of sources) {
+      const day = DateTime.fromMillis(nowMs, { zone: zoneOfGym(gymId) }).startOf('day');
+      const [events, bookings] = await Promise.all([
+        provider.fetchTimetable({ startDate: day.toISODate(), endDate: day.plus({ days: 8 }).toISODate() }, session),
+        provider.listBookings(session),
+      ]);
+      const bookedIds = new Set(bookings.map((b) => String(b.eventId || b.event?.id)));
+      const selected = events.filter((e) => Date.parse(e.startAt) > nowMs).sort((a, b) => Number(bookedIds.has(String(b.id))) - Number(bookedIds.has(String(a.id))) || Date.parse(a.startAt) - Date.parse(b.startAt));
+      pools[gymId] = selected.slice(0, 10).map((e) => ({ eventId: e.id, startAt: e.startAt, startMs: Date.parse(e.startAt), className: e.name,
+        groupName: e.discipline, instructorName: e.instructors?.[0]?.name || '', studioName: e.studioName || e.studio?.name || '', locationName: e.locationName || e.studio?.location?.name || '',
+        durationMin: e.durationMin || 45, real: true, mine: bookedIds.has(String(e.id)), demoSpot: 'Bike 12' }));
+    }
+    return pools;
+  } finally { global.fetch = originalFetch; }
+}
+
+const USAGE = 'Usage: seed-team-fixtures.js [--dry-run] [--remove] [--owner-email <email>] [--mock-timetable]';
 
 if (require.main === module) {
   const argv = process.argv.slice(2);
@@ -433,15 +469,15 @@ if (require.main === module) {
     argv.splice(at, 2);
   }
   const args = new Set(argv);
-  const bad = [...args].filter((a) => !['--dry-run', '--remove'].includes(a));
+  const bad = [...args].filter((a) => !['--dry-run', '--remove', '--mock-timetable'].includes(a));
   if (bad.length) { console.error(`Unknown option(s): ${bad.join(' ')}\n${USAGE}`); process.exit(2); }
-  try {
-    printSummary(seed({ dryRun: args.has('--dry-run'), remove: args.has('--remove'), ownerEmail }));
-    process.exit(0);
-  } catch (err) {
+  (async () => {
+    const eventPools = args.has('--mock-timetable') && !args.has('--remove') ? await loadMockTimetable(ownerEmail) : null;
+    printSummary(seed({ dryRun: args.has('--dry-run'), remove: args.has('--remove'), ownerEmail, eventPools }));
+  })().then(() => process.exit(0)).catch((err) => {
     console.error(`seed-team-fixtures: ${err.message}`);
     process.exit(err.code === 'OWNER_NOT_FOUND' ? 3 : 1);
-  }
+  });
 }
 
-module.exports = { seed, printSummary, MEMBERS, OWNER_TEAM, SECOND_TEAM };
+module.exports = { seed, printSummary, loadMockTimetable, MEMBERS, OWNER_TEAM, SECOND_TEAM };

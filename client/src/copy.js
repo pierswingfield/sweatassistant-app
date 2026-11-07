@@ -971,7 +971,7 @@ export const COPY = Object.freeze({
     youreIn: "You're in ✓", turnOnGym: 'Turn on {gym}', viewInTimetable: 'Open timetable', withTeam: 'With {names}',
     countsLine: '{week} this week · {month} in {monthName}', countsPrivate: 'Activity not shared',
     inClassLine: 'In class now · {cls}', nextLine: 'Next: {when} {cls}', updatedAgo: 'Updated {ago}',
-    waitlistTag: 'waitlist', queuedTag: 'trying for it', spotSep: ' · ',
+    waitlistTag: 'Waitlist', queuedTag: 'Auto-Book', spotSep: ' · ',
     profileUpcoming: 'Upcoming', profileRecent: 'Last 30 days', profileNothing: 'Nothing shared with you right now.',
     requestsWaiting: '{count} join requests waiting', widgetError: "Couldn't show this part.",
     openMember: "Open {name}'s classes",
@@ -1024,7 +1024,7 @@ export const COPY = Object.freeze({
     gyms: 'Gyms', gymsDesc: "Which gyms' classes this Team can see. Teammates who don't use a gym still see that you trained, not the details.", allMyGyms: 'All my gyms', choose: 'Choose', gymsLater: '+ gyms you link later', noGymsLinked: 'No gyms linked yet',
     rowUpcoming: 'Upcoming classes', rowUpcomingDesc: 'Gym, class, time, studio and instructor',
     rowWaitlists: 'Waitlists', rowWaitlistsDesc: '"On the waitlist for Ride 45, Wed 07:30"',
-    rowActivity: 'Activity counts', rowActivityDesc: 'Classes this week and month. Powers the Team mascot',
+    rowActivity: 'Number of classes', rowActivityDesc: 'Classes this week and month. Powers the Team mascot',
     rowRecent: 'Recent classes', rowRecentDesc: 'Your classes from the last 30 days',
     rowSpots: 'Spot numbers', rowSpotsDesc: '"Bike 14", so friends can pick the spot next to you',
     rowAutoBookQueue: 'Auto-book queue', rowAutoBookQueueDesc: "Classes you're trying for, before they're booked",
@@ -1092,7 +1092,7 @@ export const COPY = Object.freeze({
     // T-5 timetable Team chips (§5.3) and the Home widget
     ttChipMore: '+{count}', ttChipAria: '{team}: {names}', ttChipAriaMore: '{team}: {names}, and {count} more Teams. Show who', ttChipShow: 'Show teammates in this class',
     ttAnd: 'and', ttMore: '{count} more',
-    homeTitle: 'Your Teams today', homeEmpty: 'Train with friends: a Team shares who is doing which class, so you can book in together.',
+    homeTitle: 'Your Teams', homeEmpty: 'Train with friends: a Team shares who is doing which class, so you can book in together.',
     // T9 Team card + marketing empty state
     cardNextClass: 'Next class', cardActivity: 'Today', cardOpenAria: 'Open {name}', cardCaptainAria: 'You are a Captain',
     pitchHeadline: 'Train better, together.',

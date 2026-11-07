@@ -215,9 +215,9 @@ function projectTeam(input) {
     // T-4: every completed class that passed the item rules above (gymOk, not penalised,
     // server-synced, confirmed), deduped the same way; team-stats.js applies the share.
     const doneClasses = new Map(); // gym:bookingId -> { gymId, startMs }
-    const noteDone = (gymId, bookingId, startMs) => {
+    const noteDone = (gymId, bookingId, startMs, row) => {
       const k = classKey(gymId, bookingId);
-      if (!doneClasses.has(k)) doneClasses.set(k, { gymId, startMs });
+      doneClasses.set(k, { gymId, startMs, instructorId: str(row.instructor_id), instructorName: str(row.instructor_name) });
     };
     const countIfActivity = (gymId, bookingId, startMs) => {
       if (!share.activity || !gymOk(gymId)) return;
@@ -234,7 +234,7 @@ function projectTeam(input) {
       if (!dt) continue;
       const cls = describe(b.gym_id, b.event_id, b, dt, b.duration_min);
       const today = isTodayIn(dt.setZone(zoneFor(b.gym_id)));
-      if (cls._endMs <= now) noteDone(b.gym_id, b.booking_id, cls._startMs);
+      if (cls._endMs <= now) noteDone(b.gym_id, b.booking_id, cls._startMs, b);
       if (cls._endMs <= now && !today) continue; // a lingering past row
       if (share.activity && today) {
         noteToday(cls);
@@ -256,7 +256,7 @@ function projectTeam(input) {
       const startMs = dt.toMillis();
       if (startMs > now) continue;
       countIfActivity(h.gym_id, h.booking_id, startMs);
-      noteDone(h.gym_id, h.booking_id, startMs);
+      noteDone(h.gym_id, h.booking_id, startMs, h);
       const eventId = h.event_id != null ? h.event_id : `b${h.booking_id}`;
       const cls = describe(h.gym_id, eventId, h, dt, h.duration_min);
       const today = isTodayIn(dt.setZone(z));
@@ -295,6 +295,7 @@ function projectTeam(input) {
         statEntries.push({
           gymId: d.gymId, startMs: d.startMs, zone: zoneFor(d.gymId), viewerLinked: visible(d.gymId),
           activity: !!share.activity, recent: !!share.recent && d.startMs >= recentStart,
+          instructorId: d.instructorId, instructorName: d.instructorName,
         });
       }
     }

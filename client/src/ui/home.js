@@ -92,10 +92,14 @@ export function groupHomeGymLinks(links) {
 }
 
 registerWidget({
-  id: 'book', order: 40, title: COPY.home.findClass,
-  async load(ctx) { return getHomeBookLinks(ctx.gyms); },
+  id: 'book', order: 25, title: COPY.home.findClass,
+  async load(ctx) {
+    const bookings = await api.getBookings({ cacheTtlMs: 120000, gyms: ctx.gyms });
+    return { links: getHomeBookLinks(ctx.gyms), hasBooking: (Array.isArray(bookings) ? bookings : []).some((b) => Date.parse(b.event?.startAt || b.event?.start_at || b.startAt || b.start_at) > Date.now()) };
+  },
+  isHidden: (data) => !!data.hasBooking,
   isEmpty: () => false,
-  render(el, links) {
+  render(el, { links }) {
     const row = document.createElement('div');
     row.className = 'home-book-row';
     const gymLinks = links.filter((link) => link.gymId);

@@ -53,6 +53,7 @@ const MASCOT = {
   resting: '/characters/team-stretch.webp',
   sleeping: '/characters/team-bed.webp',
   warming: '/characters/team-running.webp',
+  referee: '/characters/team-referee.webp',
 };
 
 /**
@@ -400,19 +401,20 @@ export function renderSharingSheet(container, { share, onChange = null, competit
   const paint = () => {
     const all = state.gyms === 'all';
     container.innerHTML = `
+      <p class="tm-group-help">Choose which classes your Team can see. If they don’t use a gym, they won’t see its details.</p>
       <div class="tm-list">
         <div class="tm-sw-row tm-sw-wrap">
-          <div class="tm-grow"><div class="tm-t">${escapeHtml(T.gyms)}</div><div class="tm-d">${escapeHtml(T.gymsDesc)}</div></div>
+          <div class="tm-grow"><div class="tm-t">${escapeHtml(T.gyms)}</div></div>
           <span class="tm-seg tm-seg-strong tm-seg-full" role="group" aria-label="${escapeHtml(T.gyms)}" data-mode="${all ? 'all' : 'choose'}">
             <span class="tm-seg-thumb" aria-hidden="true"></span>
             <button type="button" data-gyms-mode="all" aria-pressed="${all}" class="${all ? 'is-on' : ''}">${escapeHtml(T.allMyGyms)}</button>
             <button type="button" data-gyms-mode="choose" aria-pressed="${!all}" class="${!all ? 'is-on' : ''}">${escapeHtml(T.choose)}</button>
           </span>
-          <div class="tm-chips">${gymChips()}</div>
+          <div class="tm-gym-reveal${all ? '' : ' is-open'}" ${all ? 'inert' : ''}><div class="tm-gym-reveal-inner"><div class="tm-chips">${gymChips()}</div></div></div>
         </div>
         ${SHARE_ROWS.map((r) => {
           const [t, d] = ROW_COPY[r.key];
-          return `<div class="tm-sw-row"><div class="tm-grow"><div class="tm-t">${escapeHtml(T[t])}${r.optIn ? ` <span class="tm-pill tm-pill-off">${escapeHtml(T.optIn)}</span>` : ''}</div><div class="tm-d">${escapeHtml(T[d])}</div></div>${switchHtml(r.key, state[r.key], T[t])}</div>`;
+          return `<div class="tm-sw-row"><div class="tm-grow"><div class="tm-t">${escapeHtml(T[t])}</div></div>${switchHtml(r.key, state[r.key], T[t])}</div>`;
         }).join('')}
       </div>
       <p class="tm-never">${ICONS.shield}<span>${escapeHtml(T.neverShared)}</span></p>
@@ -425,6 +427,12 @@ export function renderSharingSheet(container, { share, onChange = null, competit
     const prev = state;
     state = applyShareChange(state, { ...change, linked });
     paint();
+    if (change.type === 'gymsMode') {
+      const reveal = container.querySelector('.tm-gym-reveal');
+      reveal.classList.toggle('is-open', prev.gyms !== 'all');
+      void reveal.offsetHeight;
+      requestAnimationFrame(() => reveal.classList.toggle('is-open', state.gyms !== 'all'));
+    }
     if (!onChange) return;
     try {
       await onChange(state, change);

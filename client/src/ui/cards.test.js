@@ -82,20 +82,25 @@ describe('getDiscipline & passesDisciplineFilter (Pilates vs Reformer)', () => {
 });
 
 describe('action rail state', () => {
-  it('starts collapsed on every render and closeAllRails collapses open ones', async () => {
+  it('preserves the same gym-qualified card across refresh and resets on logout', async () => {
     const { wireRailToggle, closeAllRails } = await import('./cards.js');
-    const mk = () => {
-      const c = document.createElement('div');
-      c.innerHTML = '<div class="ab-card" data-event-id="1" data-gym="g"><div class="ab-card-footer"></div><div class="ab-card-rail"><button class="ab-rail-btn bk-cancel-btn"></button></div></div>';
-      document.body.appendChild(c); wireRailToggle(c); return c;
+    closeAllRails();
+    const container = document.createElement('div'); container.id = 'refresh-test'; document.body.appendChild(container);
+    const paint = (gym = 'g') => {
+      container.innerHTML = `<div class="ab-card" data-event-id="1" data-gym="${gym}"><div class="ab-card-footer"></div><div class="ab-card-rail"><button class="ab-rail-btn"></button></div></div>`;
+      wireRailToggle(container);
     };
-    const a = mk();
-    a.querySelector('.ab-rail-toggle').click();
-    expect(a.querySelector('.ab-card').classList.contains('is-rail-open')).toBe(true);
-    const b = mk(); // re-render of the same card must not restore the open state
-    expect(b.querySelector('.ab-card').classList.contains('is-rail-open')).toBe(false);
+    paint(); container.querySelector('.ab-rail-toggle').click();
+    paint();
+    expect(container.querySelector('.ab-rail-toggle').getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('.ab-card-rail').hasAttribute('inert')).toBe(false);
+    paint('other'); expect(container.querySelector('.is-rail-open')).toBeNull();
+    paint(); expect(container.querySelector('.is-rail-open')).not.toBeNull();
     expect(closeAllRails()).toBe(1);
-    expect(a.querySelector('.ab-card').classList.contains('is-rail-open')).toBe(false);
-    expect(a.querySelector('.ab-rail-toggle').getAttribute('aria-expanded')).toBe('false');
+    paint(); expect(container.querySelector('.is-rail-open')).toBeNull();
+    container.querySelector('.ab-rail-toggle').click();
+    window.dispatchEvent(new Event('app-logout-triggered'));
+    paint(); expect(container.querySelector('.is-rail-open')).toBeNull();
+    container.remove();
   });
 });

@@ -588,6 +588,26 @@ check('T-4 small Team: the streak cannot date a teammate\'s classes at a gym the
   assert.deepStrictEqual(p.stats.streak, { days: 1, since: '2026-11-09', capped: false }, 'DM\'s JAB weekend extended the streak');
   assert.strictEqual(p.stats.charts.total, 1);
 });
+check('trending instructor identities follow recent-sharing, linked gyms, enabled links, pause and membership', () => {
+  const DV = mkUser('Trendviewer', [PSY]);
+  const DM = mkUser('Trendsharer', [PSY, JAB]);
+  const { team, inviteToken } = teams.createTeam(DV, { name: 'Instructor privacy', share: shareWith() });
+  teams.decideRequest(DV, team.id, teams.requestJoin(DM, inviteToken, shareWith()).requestId, 'approve');
+  for (const gym of [PSY, JAB]) hist(DM, gym, [1, 2].map((day) => ({ bookingId: `trend-${gym}-${day}`, eventId: day, status: 'attended', startAt: at(8, 0, -day), name: 'Class', instructorId: '777', instructorName: gym === PSY ? 'Visible Instructor' : 'Hidden Instructor' })));
+  const rows = () => teams.getTeamToday(DV, team.id, { zone: 'Europe/London' }).stats.charts.trendingInstructors;
+  assert.deepStrictEqual(rows().map((r) => [r.gymId, r.instructorId, r.name, r.current]), [[PSY, '777', 'Visible Instructor', 2]]);
+  teams.updateMe(DM, team.id, { share: { recent: false } });
+  assert.deepStrictEqual(rows(), [], 'counts-only consent exposes no instructor identity');
+  teams.updateMe(DM, team.id, { share: { recent: true }, pause: '7d' });
+  assert.deepStrictEqual(rows(), [], 'paused members expose no instructor identity');
+  teams.updateMe(DM, team.id, { pause: 'off' });
+  db.db.prepare('UPDATE user_gyms SET account_enabled = 0 WHERE user_id = ? AND gym_id = ?').run(DM, PSY);
+  assert.deepStrictEqual(rows(), [], 'disabled member links expose no instructor identity');
+  db.db.prepare('UPDATE user_gyms SET account_enabled = 1 WHERE user_id = ? AND gym_id = ?').run(DM, PSY);
+  teams.removeMember(DV, team.id, db.db.prepare('SELECT member_ref FROM team_members WHERE team_id = ? AND user_id = ?').get(team.id, DM).member_ref);
+  assert.deepStrictEqual(rows(), [], 'removed members expose no instructor identity');
+});
+
 check('T-4 a non-member gets NOT_FOUND for the stats-bearing payload', () => {
   for (const uid of [OUT, PD1]) assert.throws(() => teams.getTeamToday(uid, statsTeam.id), (e) => e.code === 'NOT_FOUND');
 });

@@ -40,7 +40,7 @@ describe('Teams markup escapes every user-supplied string', () => {
 
 describe('leave confirmation names what stops being shared (§5.7)', () => {
   it('lists only what is shared', () => {
-    expect(ui.sharedThingsText({ gyms: 'all', upcoming: true, waitlists: false, activity: true, recent: true })).toBe('upcoming classes, activity counts and recent classes');
+    expect(ui.sharedThingsText({ gyms: 'all', upcoming: true, waitlists: false, activity: true, recent: true })).toBe('upcoming classes, number of classes and recent classes');
     expect(ui.sharedThingsText({ gyms: ['gym-a'], spots: true })).toBe('spot numbers');
     expect(ui.sharedThingsText({ gyms: [], upcoming: true })).toBe('');
     expect(ui.leaveBodyText('Riders', { gyms: [] })).toContain("You aren't sharing anything with Riders");
@@ -57,6 +57,9 @@ describe('sharing sheet (§3)', () => {
     expect(host.querySelector('input[data-share-key="upcoming"]').checked).toBe(true);
     expect(host.querySelector('input[data-share-key="spots"]').checked).toBe(false);
     expect(host.innerHTML).toContain('Gym &lt;B&gt;');
+    expect(host.querySelector('.tm-gym-reveal').hasAttribute('inert')).toBe(true);
+    expect(host.textContent).toContain('Choose which classes your Team can see.');
+    expect(host.querySelector('.tm-d')).toBeNull();
     expect(host.querySelector('input[data-share-key="competition"]')).toBeNull();
 
     const spots = host.querySelector('input[data-share-key="spots"]');

@@ -91,10 +91,28 @@ function teamStats({ entries = [], now, zone = 'UTC' }) {
     .map(([gymId, count]) => ({ gymId, count }))
     .sort((a, b) => (b.count - a.count) || a.gymId.localeCompare(b.gymId));
 
+  // Same itemised-visibility gate as the other charts. Compare equal rolling windows;
+  // rank growth in shared class visits, never members or hidden-gym activity.
+  const instructors = new Map();
+  for (const e of charted) {
+    const name = String(e.instructorName || '').trim();
+    if (!name) continue;
+    const key = `${e.gymId}:${name.toLocaleLowerCase('en')}`;
+    if (!instructors.has(key)) instructors.set(key, { gymId: e.gymId, instructorId: e.instructorId || null, name, current: 0, previous: 0 });
+    const row = instructors.get(key);
+    if (e.instructorId) row.instructorId = e.instructorId;
+    row[e.startMs >= now - 14 * DAY_MS ? 'current' : 'previous'] += 1;
+  }
+  const trendingInstructors = [...instructors.values()]
+    .map((r) => ({ ...r, delta: r.current - r.previous }))
+    .filter((r) => r.current >= 2 && r.delta > 0)
+    .sort((a, b) => b.delta - a.delta || b.current - a.current || a.gymId.localeCompare(b.gymId) || a.name.localeCompare(b.name))
+    .slice(0, 3);
+
   return {
     week: { thisWeek, lastWeek, delta: thisWeek - lastWeek },
     streak: { days, since: days ? since : null, capped },
-    charts: { windowDays: CHART_DAYS, total: charted.length, busiestDays, busiestTimes, gymMix },
+    charts: { windowDays: CHART_DAYS, total: charted.length, busiestDays, busiestTimes, gymMix, trendingInstructors },
   };
 }
 

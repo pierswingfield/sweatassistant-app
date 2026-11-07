@@ -2291,6 +2291,11 @@ export function isEventBookedByMe(event) {
   return userBookings().some((b) => matchesEvent(b, event) && (!gymOf(b) || !event.gymId || gymOf(b) === event.gymId));
 }
 
+/** Complete timetable decision for a Team class sheet, including choose-a-spot. */
+export function actionModelForTeamEvent(event) {
+  return buildActionModel(event, { ...eventActionState(event), compact: true });
+}
+
 /** Primary action for compact, read-only consumers such as Home favourites. */
 export function primaryActionForEvent(event) {
   return buildActionModel(event, { ...eventActionState(event), compact: true }).primary;

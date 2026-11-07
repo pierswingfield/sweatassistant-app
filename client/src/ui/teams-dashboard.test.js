@@ -1,17 +1,20 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
+vi.mock('../api.js', () => ({ api: { getMetadata: vi.fn(async ({ gymId }) => ({ instructors: gymId === 'gym-a' ? [{ gymId, id: '7', name: 'Kemi Lane', thumbUrl: '/gyms/instructor-test.png' }] : [] })) } }));
 vi.mock('../main.js', () => ({ showToast: vi.fn(), debugLog: vi.fn(), cache: {} }));
 vi.mock('../gym-context.js', async (importOriginal) => ({
   ...(await importOriginal()),
   getAllLinkedGyms: () => [{ gym_id: 'gym-a', account_enabled: 1 }, { gym_id: 'gym-off', account_enabled: 0 }],
   getGymShortName: (g) => ({ 'gym-a': 'Gym A', 'gym-off': 'Gym <Off>' }[g] || g),
 }));
+vi.mock('./bookings.js', () => ({ mountBookingCard(host) { const card = document.createElement('div'); card.className = 'ab-card'; host.appendChild(card); } }));
 const quickBook = vi.fn();
 vi.mock('./timetable.js', () => ({
   getLoadedEvents: () => [{ id: '20', gymId: 'gym-a', startAt: '2026-11-05T07:30:00+00:00', timeZone: 'Europe/London', name: 'Ride 45', instructors: [{ name: 'Kemi' }], availableCount: 6 }],
   ensureScheduleLoaded: vi.fn(),
   isEventBookedByMe: () => false,
   primaryActionForEvent: () => ({ label: 'Book', variant: 'success', run: quickBook }),
+  actionModelForTeamEvent: () => ({ alternate: null }),
   actionGlyph: () => '',
   metadata: { instructors: [] },
 }));
@@ -58,51 +61,89 @@ describe('Team dashboard widgets render escaped, from the projection only', () =
   it('header lines name who is in class now', () => {
     const h = dash.heroLines(data, NOW);
     expect(h.state).toContain('in class now');
-    expect(h.sub).toBe('0 workouts done today');
+    expect(h.state).toBe('2 in class now');
+    expect(h.sub).toBe('');
+    expect(h.avatars).toHaveLength(2);
   });
 
-  it("Today's workouts: rows in order, ring on the live class, hidden when empty", () => {
+  it("Today restores a live timeline and completed expansion survives refresh", () => {
     const el = section();
     expect(dash.renderTodaysWorkouts(el, data, NOW)).toBe(true);
     expect(el.querySelectorAll('.tm-tw')).toHaveLength(2);
     expect(el.querySelector('.tm-tw.is-live .tm-pring')).not.toBeNull();
-    expect(el.textContent).toContain('You');
-    const done = el.querySelector('.tm-tw.is-done');
-    if (done) {
-      expect(done.querySelector('.tm-tw-lead .tm-gcirc .fr-gym-dot')).not.toBeNull();
-      expect(done.querySelector('.tm-gcirc .tm-tw-check')).not.toBeNull(); // tick is the badge on the logo
-      expect(done.textContent).not.toMatch(/\bdone\b/i);
-    }
+    expect(el.querySelector('.tm-workout-inst')).toBeNull();
+    dash.renderTodaysWorkouts(el, data, NOW + 60 * 60000);
+    const started = el.querySelector('.tm-tw.is-done');
+    const toggle = started.querySelector('button');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(started.querySelector('.tm-workout-details').hasAttribute('inert')).toBe(true);
+    toggle.click();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(started.querySelector('.tm-workout-details').hasAttribute('inert')).toBe(false);
+    expect(started.querySelector('.tm-spot-pill')).not.toBeNull();
+    dash.renderTodaysWorkouts(el, data, NOW + 61 * 60000);
+    expect(el.querySelector('.is-done button').getAttribute('aria-expanded')).toBe('true');
     noInjection(el);
     const empty = section();
     expect(dash.renderTodaysWorkouts(empty, { ...data, classes: [] }, NOW)).toBe(false);
     expect(empty.hidden).toBe(true);
   });
 
-  it('This week: 7 days, opens on today, instructor in the head, gym logo, attendees below, no date heading, See more after 3', () => {
+  it('This week keeps its compact fields, square gym marks and completed expansion', () => {
     const many = { ...data, classes: [...data.classes, cls('12', 'gym-a', '2026-11-04T18:00:00+00:00', [att('a')]), cls('13', 'gym-a', '2026-11-04T19:00:00+00:00', [att('b')])] };
     const el = section();
     dash.renderThisWeek(el, many, NOW);
     expect(el.querySelectorAll('.tm-wday')).toHaveLength(7);
-    expect(el.querySelector('.tm-wday.is-on').getAttribute('data-day')).toBe('0');
-    expect(el.querySelectorAll('.tm-wrow')).toHaveLength(3);
-    const head = el.querySelector('.tm-wrow-head');
-    expect([...head.children].map((c) => c.className.split(' ')[0])).toEqual(['tm-gcirc', 'tm-wrow-time', 'tm-wrow-name', 'tm-wrow-inst']);
-    expect(head.querySelector('.tm-wrow-name').classList.contains('tm-ellip')).toBe(true);
-    expect(head.querySelector('.tm-gcirc .fr-gym-dot')).not.toBeNull();
-    const sub = el.querySelector('.tm-wrow-sub');
-    expect([...sub.children].map((c) => c.className.split(' ')[0])).toEqual(['tm-stack', 'tm-wrow-who']);
-    expect(el.querySelector('.tm-week-heading')).toBeNull();
-    expect(el.textContent).not.toMatch(/Wednesday \d|November/);
-    // both initials in the identity circles
-    expect(sub.querySelector('.tm-av').textContent).toMatch(/^[A-Z]{2}$/);
-    expect(el.textContent).not.toMatch(/other gym/i);
+    expect(el.querySelector('.tm-wday.is-on')).toBeNull();
+    expect(el.querySelector('.tm-workout')).toBeNull();
+    expect(el.querySelector('[data-more]')).toBeNull();
+    expect(el.textContent).toContain('Choose a day to see classes');
+    expect(el.querySelector('[data-day="0"]').getAttribute('aria-expanded')).toBe('false');
+    el.querySelector('[data-day="0"]').click();
+    expect(el.querySelector('.tm-wday.is-on').getAttribute('aria-expanded')).toBe('true');
+    expect(el.querySelectorAll('.tm-workout')).toHaveLength(3);
+    expect(el.querySelector('.tm-workout-inst')).not.toBeNull();
+    expect(el.querySelector('.tm-workout-gym .app-gym-mark')).not.toBeNull();
+    expect(el.querySelector('.tm-attendees .tm-attendee')).not.toBeNull();
+    const toggle = el.querySelector('.is-done button');
+    toggle.click(); expect(toggle.getAttribute('aria-expanded')).toBe('true');
     el.querySelector('[data-more]').click();
-    expect(el.querySelectorAll('.tm-wrow')).toHaveLength(4);
+    expect(el.querySelectorAll('.tm-workout')).toHaveLength(4);
+    dash.renderThisWeek(el, many, NOW);
+    expect(el.querySelector('.tm-wday.is-on').getAttribute('data-day')).toBe('0');
+    expect(el.querySelector('.is-done button').getAttribute('aria-expanded')).toBe('true');
     noInjection(el);
   });
 
+  it('activates blank and attendee areas, ignores swipes, and keeps completed rows as toggles', async () => {
+    const el = section(); dash.renderThisWeek(el, data, NOW);
+    el.querySelector('[data-day="1"]').click();
+    const row = el.querySelector('.tm-workout');
+    const pointer = (type, x) => { const e = new Event(type, { bubbles: true }); Object.assign(e, { clientX: x, clientY: 0 }); row.dispatchEvent(e); };
+    pointer('pointerdown', 90); pointer('pointermove', 20); row.querySelector('.tm-attendees').click();
+    await new Promise(r => setTimeout(r, 0)); expect(document.querySelector('.tm-ovl')).toBeNull();
+    pointer('pointerdown', 20); row.querySelector('.tm-attendees').click();
+    await vi.waitFor(() => expect(document.querySelector('.tm-class-members')).not.toBeNull());
+    document.querySelector('.tm-ovl').remove();
+    pointer('pointerdown', 20); row.click();
+    await vi.waitFor(() => expect(document.querySelector('.tm-class-members')).not.toBeNull());
+    expect(row.querySelector('button button')).toBeNull();
+  });
+
+  it('a future class opens a dismissible sheet using the timetable action', async () => {
+    quickBook.mockClear();
+    await dash.openTeamClass(data.classes[2], new Map(data.members.map(m => [m.memberRef, m])));
+    const sheet = document.querySelector('.tm-ovl');
+    expect(sheet.getAttribute('role')).toBe('dialog');
+    expect(sheet.querySelector('.tm-class-card .ab-card')).not.toBeNull();
+    expect(sheet.querySelector('.tm-class-members').textContent).toContain('Booked');
+    sheet.querySelector('.tm-class-actions button').click();
+    expect(quickBook).toHaveBeenCalledOnce();
+    sheet.querySelector('[data-nav-close]').click();
+  });
+
   it('Classes together: Home favourite card, avatars left of the CTA, CTAs through existing flows', async () => {
+    quickBook.mockClear();
     const el = section();
     await dash.renderClassesTogether(el, data, NOW);
     const cards = el.querySelectorAll('.home-favourite-card');
@@ -156,7 +197,7 @@ describe('T-4 Team stats widget', () => {
     charts: { windowDays: 28, total: 6, busiestDays: [1, 1, 0, 0, 0, 3, 1], busiestTimes: Object.assign(new Array(24).fill(0), { 7: 4, 18: 2 }),
       gymMix: [{ gymId: 'gym-off', count: 2 }, { gymId: 'gym-a', count: 4 }] },
   };
-  it('renders tiles, "+3 on last week" with no bracketed total, three charts in order, escaped gym names', () => {
+  it('renders tiles, "+3 on last week" with no bracketed total, four charts in order, escaped gym names', () => {
     const el = document.createElement('section');
     document.body.appendChild(el);
     expect(dash.renderTeamStats(el, { ...data, stats }, NOW)).toBe(true);
@@ -167,10 +208,24 @@ describe('T-4 Team stats widget', () => {
     expect(text).toContain('Team streak');
     expect(el.querySelector('.tm-stat-sub')).toBeNull();
     expect(el.querySelector('.tm-chart-meta')).toBeNull();
-    expect([...el.querySelectorAll('.tm-chart-title')].map((n) => n.textContent)).toEqual(['Busiest days', 'Gym mix', 'Busiest times']);
+    expect([...el.querySelectorAll('.tm-chart-title')].map((n) => n.textContent)).toEqual(['Busiest days', 'Gym mix', 'Busiest times', 'Trending instructors']);
     expect(el.querySelector('off')).toBe(null); // the gym name is text, never markup
     expect(el.textContent).toContain('Gym <Off>');
-    expect(el.querySelectorAll('.tm-stats-dots i').length).toBe(3);
+    expect(el.querySelectorAll('.tm-stats-dots i').length).toBe(4);
+  });
+  it('renders server-ranked instructor growth with cached metadata photos and initials on failure', async () => {
+    const el = section();
+    dash.renderTeamStats(el, { ...data, stats: { ...stats, charts: { ...stats.charts, trendingInstructors: [{ gymId: 'gym-a', instructorId: '7', name: 'Kemi Lane', current: 5, previous: 2, delta: 3 }, { gymId: 'gym-off', name: EVIL, current: 2, previous: 0, delta: 2 }] } } }, NOW);
+    expect(el.querySelector('.tm-trending-avatar').textContent).toBe('KL');
+    expect(el.querySelector('.tm-trending-gym .app-gym-mark')).not.toBeNull();
+    expect(el.querySelector('.tm-trending-delta').textContent).toBe('+3');
+    expect(el.textContent).toContain('Last 14 days vs previous 14');
+    expect(el.textContent).toContain('5 shared class visits · was 2');
+    await vi.waitFor(() => expect(el.querySelector('.tm-trending-photo')).not.toBeNull());
+    expect(el.querySelector('.tm-trending-photo').getAttribute('src')).toBe('/gyms/instructor-test.png');
+    el.querySelector('.tm-trending-photo').dispatchEvent(new Event('error'));
+    expect(el.querySelector('.tm-trending-avatar').textContent).toBe('KL');
+    noInjection(el);
   });
   it('hides without a stats block, and shows empty charts and no streak gracefully', () => {
     const el = document.createElement('section');
@@ -180,7 +235,7 @@ describe('T-4 Team stats widget', () => {
     dash.renderTeamStats(el, { ...data, stats: empty }, NOW);
     expect(el.textContent).toContain('Same as last week');
     expect(el.textContent).toContain('No streak');
-    expect(el.querySelectorAll('.tm-chart-empty').length).toBe(3);
+    expect(el.querySelectorAll('.tm-chart-empty').length).toBe(4);
   });
 });
 

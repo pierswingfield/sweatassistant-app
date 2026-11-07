@@ -93,10 +93,10 @@ export function teamCardHtml(m, ui, { compact = false, extras = '', attr = 'data
         ${teamAvatarHtml({ emoji: m.emoji, size: 'sm', dim: m.paused, mascot: m.mascot }, { mascotHtml })}
         <span class="tcard-id">
           <span class="tcard-name">${escapeHtml(m.name)}</span>
-          <span class="tcard-meta">${meta}</span>
+          ${compact ? '' : `<span class="tcard-meta">${meta}</span>`}
         </span>
       </span>
-      <span class="tcard-lines">${lines}</span>
+      <span class="tcard-lines">${compact ? (m.next ? `<span class="tcard-line tcard-next">${CARD_GLYPHS.next}<span class="tcard-line-text"><span class="tcard-next-label">Next up</span><span class="tcard-next-text"><b>${escapeHtml(m.next.className)}</b> · ${escapeHtml(m.next.whenText)}${m.next.gym ? ` · ${escapeHtml(m.next.gym)}` : ''}</span></span></span>` : '') : lines}</span>
     </a>
     ${extras}
   </article>`;

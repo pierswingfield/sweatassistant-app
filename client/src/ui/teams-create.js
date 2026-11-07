@@ -61,7 +61,7 @@ export function readyHtml(team) {
   const captain = fmt(T.captainOf, { name: '\u0000' }).split('\u0000').map(escapeHtml).join(`<b>${escapeHtml(name)}</b>`);
   return `<div class="tm-cf-hero">
       <span class="tm-cf-glow" aria-hidden="true"></span>
-      ${teamAvatar({ emoji: team?.emoji, size: 'hero', pose: 'warming', alt: fmt(T.avatarAria, { name }) })}
+      ${teamAvatar({ emoji: team?.emoji, size: 'hero', pose: 'referee', alt: fmt(T.avatarAria, { name }) })}
       <p class="tm-cf-readyname">${escapeHtml(name)}</p>
     </div>
     <h2 class="tm-cf-readyhead">${escapeHtml(T.readyHeading)}</h2>
@@ -90,7 +90,7 @@ export function openCreateTeamFlow({ onCreated = () => {}, onGoToTeam = () => {}
     page.body.scrollTop = 0;
   };
 
-  const avatarFor = (size, { emptyBadge = false } = {}) => teamAvatar({ emoji: draft.emoji || null, size, pose: 'warming', emptyBadge });
+  const avatarFor = (size, { emptyBadge = false } = {}) => teamAvatar({ emoji: draft.emoji || null, size, pose: 'referee', emptyBadge });
 
   // ---- 1. Name -------------------------------------------------------------------------------
   const stepName = () => {
@@ -194,7 +194,7 @@ export function openCreateTeamFlow({ onCreated = () => {}, onGoToTeam = () => {}
         <span class="tm-cf-glow" aria-hidden="true"></span>
         ${avatarFor('hero')}
         <h2 class="tm-cf-teamname">${escapeHtml(draft.name)}</h2>
-        <p class="tm-cf-sub">${escapeHtml(fmt(T.sharingSubtitle, { name: draft.name }))}</p>
+
       </div>
       <div class="tm-sheet tm-cf-sheet"></div>`);
     const sheet = renderSharingSheet(page.body.querySelector('.tm-sheet'), { share: draft.share, onChange: (s) => { draft.share = s; } });

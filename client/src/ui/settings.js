@@ -1196,13 +1196,16 @@ function setupSettingsNavigation() {
     syncSectionUrl(id, false);
   });
   // Exposed so renderGymsCard can select a gym's pane after creating it.
-  layout.__activateSettingsSection = (id, { sync = true } = {}) => { activateSection(id); if (sync) syncSectionUrl(id, true); };
+  layout.__activateSettingsSection = (id, { sync = true, history = true } = {}) => { activateSection(id, history); if (sync) syncSectionUrl(id, true); };
   // Back/forward: apply the section (or the bare menu on mobile) without touching history.
   layout.__applySettingsRoute = (section) => {
+    navHistory = []; // URL navigation owns its own history; do not accumulate pane hops.
     if (!section) { layout.classList.remove('show-pane'); return; }
     if (section.startsWith('gym-')) { openGymSettings(section.slice(4), true); return; }
-    activateSection(section);
+    activateSection(section, false);
   };
+
+  layout.querySelector('[data-about-account]')?.addEventListener('click', () => { activateSection('account'); syncSectionUrl('account', false); });
 
   // Attach mobile back button listener
   if (backBtn) {
@@ -1903,7 +1906,7 @@ export async function openGymSettings(gymId, fromHistory = false) {
   for (let i = 0; i < 40; i++) {
     const item = [...layout.querySelectorAll('[data-gym-nav]')].find((el) => el.getAttribute('data-gym-nav') === String(gymId));
     if (item && layout.__activateSettingsSection) {
-      layout.__activateSettingsSection(`gym-${gymId}`, { sync: !fromHistory });
+      layout.__activateSettingsSection(`gym-${gymId}`, { sync: !fromHistory, history: !fromHistory });
       return;
     }
     await new Promise((r) => setTimeout(r, 50));
@@ -1933,8 +1936,7 @@ export async function initSettings() {
   initFavouritesPane();
   setupSettingsNavigation();
   // A deep link to one gym's pane: its entry is built asynchronously by renderGymsCard.
-  const deep = currentRoute().section;
-  if (deep && deep.startsWith('gym-')) openGymSettings(deep.slice(4), true).catch(() => {});
+  document.getElementById('app-settings-layout-wrapper')?.__applySettingsRoute?.(currentRoute().section);
 }
 
 // Open an external URL from inside the installed PWA. window.open('_blank') leaves a
@@ -2227,6 +2229,7 @@ async function saveAccountName(button) {
   try {
     await api.updateSettings(patch);
     Object.assign(userSettings, patch);
+    window.dispatchEvent(new Event('app-account-name-changed'));
     first.value = patch.firstName;
     last.value = patch.lastName;
     delete first.dataset.dirty;

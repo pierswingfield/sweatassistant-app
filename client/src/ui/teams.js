@@ -45,10 +45,11 @@ function storage() {
   try { return window.localStorage; } catch (_) { return null; }
 }
 
-export async function initTeams() {
+export async function initTeams({ preserve = false } = {}) {
   const el = root();
   if (!el) return;
   const route = currentRoute().teams || { view: 'list' };
+  if (preserve && route.view === 'team' && el.querySelector(`.tm-team-page[data-team-id="${CSS.escape(route.teamId)}"]`)) return;
   const seq = ++renderSeq;
   const stale = () => seq !== renderSeq;
   if (route.view === 'invite' || (route.view === 'list' && activeInvite)) {
@@ -221,23 +222,23 @@ async function renderTeamPage(el, teamId, { stale }) {
           ${teamAvatar({ emoji: team.emoji, size: 'lg', dim: data.paused, alt: mascotAlt, mascot: data.mascot || null })}
           <div class="tm-grow tm-min0">
             <h1 class="tm-hero-title">${teamTitleHtml(team)}</h1>
-            ${hero.state ? `<p class="tm-hero-state">${escapeHtml(hero.state)}</p>` : ''}
-            <p class="tm-muted tm-sm tm-hero-sub">${escapeHtml(hero.sub)}</p>
+            ${hero.state ? `<p class="tm-hero-state">${avatarStackHtml(hero.avatars, { max: 3 })}<span>${escapeHtml(hero.state)}</span></p>` : ''}
+            ${hero.sub ? `<p class="tm-muted tm-sm tm-hero-sub">${escapeHtml(hero.sub)}</p>` : ''}
           </div>
         </section>
         ${data.paused ? `<div class="tm-hidden-banner">${ICONS.hidden}<span class="tm-grow"><b>${escapeHtml(T.hiddenFromTeam)}</b><br><span class="tm-muted tm-xs">${escapeHtml(until)}</span></span><button type="button" class="tm-btn tm-btn-sm" data-unhide>${escapeHtml(T.unhide)}</button></div>` : ''}
         <section class="tm-card tm-today-w" data-w-today hidden></section>
         <section class="tm-card tm-week-w" data-w-week></section>
-        <section class="tm-card tm-together-w" data-w-together></section>
+        <section class="tm-card tm-together-w" data-w-together hidden></section>
       </div>
       <div class="tm-dash-col">
+        <section class="tm-card tm-stats-w" data-w-stats aria-label="${escapeHtml(T.teamStats)}"></section>
         <section class="tm-card tm-members" data-members></section>
       </div>
     </div>
-    <div class="tm-dash-full"><section class="tm-card tm-stats-w" data-w-stats aria-label="${escapeHtml(T.teamStats)}"></section></div>
   </div>`;
 
-  el.querySelector('[data-back]').addEventListener('click', (e) => { e.preventDefault(); stopDashboardTimers(); goTeams({ view: 'list' }); });
+  el.querySelector('[data-back]').addEventListener('click', (e) => { e.preventDefault(); stopDashboardTimers(); goTeams({ view: 'list' }); requestAnimationFrame(() => root()?.animate?.([{ opacity: .3, transform: 'translateX(-10px)' }, { opacity: 1, transform: 'translateX(0)' }], { duration: 220, easing: 'ease-out' })); });
   el.querySelector('[data-share]')?.addEventListener('click', () => shareInvite(team));
   el.querySelector('[data-manage]').addEventListener('click', async () => {
     const { openManage } = await import('./teams-manage.js');
@@ -262,7 +263,6 @@ async function renderTeamPage(el, teamId, { stale }) {
   const togetherEl = el.querySelector('[data-w-together]');
   guard(todayEl, () => dash.renderTodaysWorkouts(todayEl, data, now));
   guard(el.querySelector('[data-w-week]'), () => dash.renderThisWeek(el.querySelector('[data-w-week]'), data, now));
-  guard(togetherEl, () => dash.renderClassesTogether(togetherEl, data, now, { stale }));
   guard(el.querySelector('[data-members]'), () => dash.renderMembers(el.querySelector('[data-members]'), data, now));
   // D13 Team goal: Captains set or edit it from the stats card (also from Manage).
   const onEditGoal = isCaptain ? async () => {
@@ -275,7 +275,7 @@ async function renderTeamPage(el, teamId, { stale }) {
   // timetable (the booking flow's own state) loads or changes after a booking.
   dashListener = () => {
     if (stale() || !togetherEl.isConnected) { stopDashboardTimers(); return; }
-    guard(togetherEl, () => dash.renderClassesTogether(togetherEl, data, Date.now(), { stale }));
+    guard(el.querySelector('[data-w-stats]'), () => dash.renderTeamStats(el.querySelector('[data-w-stats]'), data, Date.now(), { onEditGoal }));
   };
   window.addEventListener('app-timetable-rendered', dashListener);
   dashTimer = setInterval(() => {

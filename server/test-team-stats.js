@@ -122,6 +122,23 @@ check('future entries are ignored', () => {
   assert.deepStrictEqual([s.week.thisWeek, s.streak.days, s.charts.total], [0, 0, 0]);
 });
 
+check('trending instructors: equal 14-day windows, positive growth, minimum visits and gym-qualified names', () => {
+  const row = (days, name, extra = {}) => e(DateTime.fromMillis(MON_10 - days * 24 * 3600e3).toISO(), LON, { instructorId: name, instructorName: name, ...extra });
+  const entries = [row(1, 'Kemi'), row(2, 'Kemi'), row(3, 'Kemi'), row(15, 'Kemi'), row(28, 'Kemi'),
+    row(1, 'Sam'), row(15, 'Sam'), row(16, 'Sam'), // falling: omitted
+    row(1, 'Single'), // insufficient data
+    row(1, 'Kemi', { gymId: 'jab-boxing' }), row(2, 'Kemi', { gymId: 'jab-boxing' }),
+    row(1, 'Private', { recent: false }), row(2, 'Private', { recent: false }),
+    row(1, 'Hidden gym', { viewerLinked: false }), row(2, 'Hidden gym', { viewerLinked: false }),
+    row(-1, 'Future'), row(-2, 'Future'), row(29, 'Too old')];
+  const result = teamStats({ now: MON_10, zone: LON, entries }).charts.trendingInstructors;
+  assert.deepStrictEqual(result.map(({ gymId, name, current, previous, delta }) => ({ gymId, name, current, previous, delta })), [
+    { gymId: 'jab-boxing', name: 'Kemi', current: 2, previous: 0, delta: 2 },
+    { gymId: 'psycle-london', name: 'Kemi', current: 3, previous: 2, delta: 1 },
+  ]);
+  assert.deepStrictEqual(teamStats({ now: MON_10, entries: [] }).charts.trendingInstructors, []);
+});
+
 (async () => {
   let failed = 0;
   for (const c of checks) {

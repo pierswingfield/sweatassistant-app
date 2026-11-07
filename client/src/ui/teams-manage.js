@@ -48,7 +48,7 @@ async function load(teamId) {
 }
 
 function pauseStatus(detail) {
-  if (!detail.paused) return T.visibleToTeam;
+  if (!detail.paused) return '';
   const when = pauseWhen(detail.pausedUntil);
   return when ? fmt(T.hiddenUntilLong, { when }) : T.hiddenUntilUndone;
 }
@@ -70,14 +70,14 @@ function renderMemberSections(host, ctx, refresh) {
     <h2 class="tm-group-title">${escapeHtml(T.pause)}</h2>
     <div class="tm-list">
       <div class="tm-sw-row tm-sw-wrap">
-        <div class="tm-grow"><div class="tm-t">${escapeHtml(T.hideMe)}</div><div class="tm-d${detail.paused ? ' tm-warn' : ''}">${escapeHtml(pauseStatus(detail))}</div></div>
+        <div class="tm-grow"><div class="tm-t">${escapeHtml(T.hideMe)}</div>${detail.paused ? `<div class="tm-d tm-warn">${escapeHtml(pauseStatus(detail))}</div>` : ''}</div>
         ${switchHtml('pause', detail.paused, T.hideMe, 'data-pause-switch')}
         ${detail.paused ? `<span class="tm-seg tm-seg-full" role="group" aria-label="${escapeHtml(T.pause)}">
           ${PAUSE_OPTIONS.map((p) => `<button type="button" data-pause="${p}" aria-pressed="${pauseMode === p}" class="${pauseMode === p ? 'is-on' : ''}">${escapeHtml(T[PAUSE_LABEL[p]])}</button>`).join('')}
         </span>` : ''}
       </div>
     </div>
-    <p class="tm-group-help tm-mt-s">${escapeHtml(T.pauseHelp)}</p>
+
 
     <h2 class="tm-group-title">${escapeHtml(T.alerts)}</h2>
     <div class="tm-list${notifyOff ? ' is-disabled' : ''}" data-notify-card>
@@ -196,24 +196,29 @@ function renderRequests(host, ctx, refresh) {
   });
 }
 
-function renderMembers(host, ctx, refresh) {
+export function renderMembers(host, ctx, refresh, { full = false } = {}) {
   const { detail } = ctx;
   const teamId = detail.team.id;
   const members = detail.members || [];
+  const captain = detail.myRole === 'captain';
+  if (members.length > 5 && !full) {
+    host.innerHTML = `<h2 class="tm-group-title">${escapeHtml(T.members)}</h2><div class="tm-list"><button type="button" class="tm-li tm-li-link" data-all-members><span class="tm-grow">View all ${members.length} members</span>${ICONS.chevron}</button></div>`;
+    host.querySelector('[data-all-members]').onclick = () => openMembersPage(ctx, refresh);
+    return;
+  }
   const row = (m) => `<div class="tm-mrow" data-member="${escapeHtml(m.memberRef)}">
       ${avatarHtml(m, { size: 'lg' })}
       <div class="tm-grow tm-min0"><div class="tm-li-title"><span class="tm-ellip">${escapeHtml(m.isMe ? T.you : m.name)}</span>${m.isCaptain ? captainBadgeHtml() : ''}</div><div class="tm-li-sub">${escapeHtml(joinedLabel(m.joinedAt))}</div></div>
-      <div class="tm-acts">
+      ${captain ? `<div class="tm-acts">
         <button type="button" class="tm-btn tm-btn-sm" data-captain="${m.isCaptain ? 'off' : 'on'}">${escapeHtml(m.isCaptain ? T.removeCaptain : T.makeCaptain)}</button>
         ${m.isMe ? '' : `<button type="button" class="tm-btn tm-btn-sm tm-btn-danger-ghost" data-remove>${escapeHtml(T.removeFromTeam)}</button>`}
-      </div></div>`;
+      </div>` : ''}</div>`;
   host.innerHTML = `
     <h2 class="tm-group-title">${escapeHtml(T.members)} <span class="tm-muted tm-sm tm-sans">${escapeHtml(fmt(T.membersCount, { count: members.length }))}</span></h2>
-    <div class="tm-list">${members.map(row).join('')}</div>
-    <p class="tm-group-help tm-mt-s">${escapeHtml(T.captainsHelp)}</p>`;
+    <div class="tm-list">${members.map(row).join('')}</div>`;
   host.querySelectorAll('[data-member]').forEach((el) => {
     const m = members.find((x) => x.memberRef === el.getAttribute('data-member'));
-    el.querySelector('[data-captain]').addEventListener('click', async (e) => {
+    el.querySelector('[data-captain]')?.addEventListener('click', async (e) => {
       const on = e.currentTarget.getAttribute('data-captain') === 'on';
       e.currentTarget.disabled = true;
       try {
@@ -242,6 +247,20 @@ function renderMembers(host, ctx, refresh) {
       refresh();
     });
   });
+}
+
+function openMembersPage(ctx, refreshManage) {
+  const page = openTeamsPage({ id: 'teams-all-members', title: T.members, onClose: () => refreshManage() });
+  const refresh = async () => {
+    try {
+      const fresh = await load(ctx.detail.team.id);
+      if (page.isClosed()) return;
+      const scroll = page.body.scrollTop;
+      renderMembers(page.body, fresh, refresh, { full: true });
+      page.body.scrollTop = scroll;
+    } catch (err) { showToast(errorText(err), 'error'); }
+  };
+  renderMembers(page.body, ctx, refresh, { full: true });
 }
 
 function renderTeamSettings(host, ctx, refresh, onChange, managePage) {
@@ -363,17 +382,19 @@ export function openManage(teamId, { onChange = null } = {}) {
     const captain = detail.myRole === 'captain';
     setFooter(page, [{ label: captain ? T.done : T.save, kind: 'primary', onClick: () => page.close() }]);
     if (!captain) {
-      page.body.innerHTML = `<div data-sec="me"></div>
+      page.body.innerHTML = `<div data-sec="me"></div><div data-sec="members"></div>
         <h2 class="tm-group-title">${escapeHtml(T.leave)}</h2>
         <section class="tm-card tm-card-flat"><p class="tm-sm">${escapeHtml(fmt(T.leaveBody, { name }))}</p>
           <button type="button" class="tm-btn tm-btn-danger-ghost tm-btn-block tm-mt" data-leave>${escapeHtml(fmt(T.leaveTeam, { name }))}</button></section>`;
       renderMemberSections(page.body.querySelector('[data-sec="me"]'), ctx, refresh);
+      renderMembers(page.body.querySelector('[data-sec="members"]'), ctx, refresh);
     } else {
-      page.body.innerHTML = `<div data-sec="requests"></div><div data-sec="members"></div><div data-sec="settings"></div>
+      page.body.innerHTML = `<div data-sec="requests"></div>
         <h2 class="tm-group-title">${escapeHtml(T.mySharing)}</h2>
         <div class="tm-list">
           <button type="button" class="tm-li tm-li-link" data-my-sharing><span class="tm-grow tm-min0"><span class="tm-li-title">${escapeHtml(T.sharingManage)}</span><span class="tm-li-sub">${escapeHtml(sharingSummaryText(detail.myShare))}</span>${detail.paused ? `<span class="tm-li-sub tm-warn">${escapeHtml(pauseStatus(detail))}</span>` : ''}</span>${ICONS.chevron}</button>
         </div>
+        <div data-sec="members"></div><div data-sec="settings"></div>
         <h2 class="tm-group-title">${escapeHtml(T.leaveOrDelete)}</h2>
         <section class="tm-card tm-card-flat">
           <button type="button" class="tm-btn tm-btn-danger-ghost tm-btn-block" data-leave>${escapeHtml(fmt(T.leaveTeam, { name }))}</button>

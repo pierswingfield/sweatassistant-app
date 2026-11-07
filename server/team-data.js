@@ -45,7 +45,7 @@ function rowsForUsers(userIds, { now = Date.now() } = {}) {
       studio_name, location_name, duration_min, status, executed_at FROM auto_bookings
       WHERE status = 'pending' AND executed_at IS NULL AND user_id IN (${ph})`).all(...ids),
     history: db.prepare(`SELECT user_id, gym_id, booking_id, event_id, status, start_at, start_ts, time_zone, duration_min,
-      class_name, discipline, instructor_name, studio_name, location_name FROM class_history
+      class_name, discipline, instructor_id, instructor_name, studio_name, location_name FROM class_history
       WHERE start_ts >= ? AND user_id IN (${ph})`).all(sinceTs, ...ids),
     syncState: db.prepare(`SELECT user_id, gym_id, last_synced_at FROM booking_sync_state WHERE user_id IN (${ph})`).all(...ids),
   };

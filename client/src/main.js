@@ -1,3 +1,4 @@
+import { observeEdgeFades } from './ui/edge-fades.js';
 import { parseLocation, legacyHashToPath } from './url-state.js';
 import { currentRoute, navigate, pathFor, migrateLegacyHash, initRouter, stashReturnTo, takeReturnTo } from './router.js';
 import { api, setToken, isLoggedIn } from './api';
@@ -450,6 +451,23 @@ window.switchTab = switchTab;
 let currentTabId = null;
 // T8: the tab we arrived from, so the mobile Auto-Book Back button can pop history when that was Bookings.
 let previousTabId = null;
+let lastTeamsRoute = null;
+window.addEventListener('app-logout-triggered', () => { lastTeamsRoute = null; });
+
+export function updateAccountNav() {
+  const first = String(userSettings.firstName || '').trim().split(/\s+/)[0];
+  const last = String(userSettings.lastName || '').trim();
+  const initials = [first, last].filter(Boolean).map((n) => Array.from(n)[0]).join('').toLocaleUpperCase() || 'ME';
+  document.querySelectorAll('.app-bottom-nav-btn[data-tab="settings"]').forEach((button) => {
+    button.removeAttribute('data-copy-text');
+    button.removeAttribute('data-copy-aria-label');
+    button.setAttribute('aria-label', first ? `${first}, account and settings` : 'Account and settings');
+    if (!button.querySelector('.app-account-initials')) button.innerHTML = '<span class="app-account-initials" aria-hidden="true"></span><span class="app-account-nav-name"></span>';
+    button.querySelector('.app-account-initials').textContent = initials;
+    button.querySelector('.app-account-nav-name').textContent = first || 'Account';
+  });
+}
+window.addEventListener('app-account-name-changed', updateAccountNav);
 
 // Phase 5 motion: a directional one-shot enter (opacity + 12px translate, CSS-owned) on the panel that
 // becomes visible. Direction follows the bottom-nav order. Not played on first paint or for the same tab;
@@ -479,6 +497,10 @@ function switchTab(tabId, opts = {}) {
   // Leaving the timetable ends search: its own filter scope is dropped and the normal filters return.
   if (tabId !== 'class-timetable') import('./ui/timetable-search-state.js').then(m => { if (m.inSearchScope()) import('./ui/timetable').then(t => t.exitSearch()); });
   const prevTabId = currentTabId;
+  if (prevTabId === 'teams' && currentRoute().teams?.view === 'team') lastTeamsRoute = { ...currentRoute().teams };
+  const preserveTeams = tabId === 'teams' && prevTabId !== 'teams' && !opts.teams && !!lastTeamsRoute;
+  if (preserveTeams) opts = { ...opts, teams: lastTeamsRoute };
+  if (tabId === 'teams' && opts.teams?.view === 'list') lastTeamsRoute = null;
   // Back may only pop history when this switch pushed an entry on top of another in-app tab.
   previousTabId = autoBookBackTarget(historyMode, tabId, prevTabId);
   currentTabId = tabId;
@@ -523,7 +545,7 @@ function switchTab(tabId, opts = {}) {
   }
 
   // Trigger tab-specific loading/rendering
-  triggerTabRender(tabId);
+  triggerTabRender(tabId, { preserveTeams });
 }
 
 function routeDiffers(tabId, section, teams) {
@@ -535,7 +557,7 @@ function routeDiffers(tabId, section, teams) {
   return want === 'settings' && !!section && r.section !== section;
 }
 
-async function triggerTabRender(tabId) {
+async function triggerTabRender(tabId, { preserveTeams = false } = {}) {
   try {
     if (tabId === 'home') {
       const { initHome } = await import('./ui/home');
@@ -551,7 +573,7 @@ async function triggerTabRender(tabId) {
       initAutoBook();
     } else if (tabId === 'teams') {
       const { initTeams } = await import('./ui/teams');
-      initTeams();
+      initTeams({ preserve: preserveTeams });
     } else if (tabId === 'buy-credits') {
       refreshUserData(true); // fire-and-forget — update credit badge with fresh counts
       const { initBundles } = await import('./ui/credits');
@@ -582,7 +604,7 @@ tabButtons.forEach(btn => {
       const lay = document.querySelector('.app-settings-layout');
       if (lay && lay.classList.contains('show-pane')) { lay.classList.remove('show-pane'); return; }
     }
-    switchTab(tabId);
+    switchTab(tabId, tabId === 'teams' && currentTabId === 'teams' ? { teams: { view: 'list' } } : {});
   });
 });
 
@@ -672,6 +694,7 @@ async function refreshActiveTab() {
       const settings = await api.getSettings();
       if (settings && Object.keys(settings).length > 0) {
         Object.assign(userSettings, settings);
+        updateAccountNav();
       }
       const { initSettings } = await import('./ui/settings');
       await initSettings();
@@ -1421,6 +1444,7 @@ export async function refreshUserData(force = false) {
     const settings = first.gymSettings || (gymIds.length ? null : await api.getSettings());
     if (settings && Object.keys(settings).length > 0) {
       Object.assign(userSettings, settings);
+        updateAccountNav();
     }
 
     // 3. Credit inventory, via the gym-agnostic route. Empty for a membership
@@ -1668,6 +1692,7 @@ function showLogin() {
   // user, which would skip the Object.assign merge and leave stale values.
   Object.keys(userSettings).forEach(k => delete userSettings[k]);
   Object.assign(userSettings, DEFAULT_SETTINGS);
+  updateAccountNav();
   // Per-gym copies belong to the previous account too.
   cache.profilesByGym = {};
   cache.gymSettings = {};
@@ -2175,3 +2200,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // timetable against the unscoped cache key. Its in-flight empty request then
   // suppressed the correctly scoped initialisation from `initApp()`.
 });
+
+// Keep dynamically rendered attendee and spot strips in sync with their hidden edges.
+if (typeof ResizeObserver !== 'undefined') observeEdgeFades();

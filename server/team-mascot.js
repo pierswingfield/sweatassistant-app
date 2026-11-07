@@ -77,7 +77,9 @@ function mascotFor({ teamId, classes = [], now, zone }) {
   const night = local.hour < MORNING_HOUR || local.hour >= NIGHT_START_HOUR;
   let state;
   if (inProgress > 0) state = 'exercising';
-  else if (night) state = 'sleeping';
+  // A teammate's day may still be underway in another zone. Only sleep once
+  // every shared class has ended, using its absolute end instant.
+  else if (night && done === total) state = 'sleeping';
   else if (total === 0) state = 'resting';
   else if (done === total) state = 'champion';
   else if (done === 0) state = 'warming';

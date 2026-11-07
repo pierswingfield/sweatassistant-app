@@ -13,3 +13,5 @@ Real Chrome CDP own tab, cache-cleared local mock app:
 Checks output: `120/120 server suites passed`; `117 passed` client files, `959 passed` tests. Final build `built in 874ms`; existing import/chunk-size warnings. `git diff --check` no output / exit 0.
 
 Physical iOS remains unverified.
+
+Production released source `b50bf6d09fcd71f3af8993829e99daf2cf41ed10`; existing authenticated session renders Teams empty state (`prod-teams-390.png`), authenticated GET /api/teams HTTP 200. Public/internal health 200, all three services healthy, restart count 0, ARM64 Node22.23.4. Current production has zero Teams; Today rendering validated locally. Exact release receipt in PROGRESS-teams.md.

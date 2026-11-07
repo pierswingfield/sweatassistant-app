@@ -272,3 +272,32 @@ Implemented Today-only 28px gym logos (both upcoming and completed), 14px times,
 Checks: Node 22.23.4 `npm test` exited 0: 120/120 server suites, 117 client files / 959 tests passed. Final `npm run build:client` exited 0 (existing mixed-import/chunk-size warnings); `git diff --check` clean. Gemini Flash used for instruction location and output triage; exact CSS, browser measurements, totals and migration output independently checked.
 
 Production preflight: WAL-safe backup `~/services/sweatassistant/releases/20261107-today/pre-release.db`, integrity `ok`; rollback image `sweatassistant-rollback:20261107-today`. New db/crypto modules ran against a separate backup copy inside the old ARM64 runtime with no network: integrity `ok`, all existing table counts preserved, three Teams tables and booking origin column present. Prod environment file, data and secrets retained. Authorized promotion will use a clean immutable `teams` export: local master b98cccc is its ancestor but its checkout has unrelated tracked/untracked edits, left untouched.
+
+### Production deployment receipt — 2026-11-07 13:45 UTC
+
+Authorized clean immutable `teams` code commit `b50bf6d09fcd71f3af8993829e99daf2cf41ed10` was pushed; GitHub remote ref matched exactly. `./deploy.sh --prod` deployed the existing production service at https://sweat.wingfield.tech. Master checkout (ancestor b98cccc, with unrelated local edits) was preserved without merge. Local QA, source artwork, fixture seed/generator tools were omitted from the staged artifact. `.env` and `data/` were excluded.
+
+Actual verification output:
+
+```text
+sweatassistant | Up About a minute | 3000/tcp
+Image=sha256:43664662130078c05ff3468ff575919340d5a09bc873d2dd65056664fe79c8e8
+RestartCount=0; PublishedPorts={}
+v22.23.4; arm64
+DEPLOYED_COMMIT=b50bf6d09fcd71f3af8993829e99daf2cf41ed10
+.env hash: OK; compose-unchanged
+PRAGMA integrity_check: ok; Teams=0; fixtures=0
+docker diff: A /data
+session-sealing-errors=0
+public/internal health: HTTP 200, status ok
+scheduler/poller/calendar: healthy true
+authenticated existing-session GET /api/teams: HTTP 200, teams=[]
+```
+
+Served assets match local final build byte-for-byte (public URL and container SHA-256):
+
+- `index-B8zMikuX.js`: `839d817c81872bf6c80ea07150762bdd1937e0f442f1b6b70db99ef9460d20ef`.
+- `index-BV8izOqU.css`: `f24a67aea2154c43311829e378d15bfcf3a6b35b6fe82b7d9eee4c1c01af0c17`.
+- `teams-dashboard-DE-kmv7A.js`: `9c73f325a75f991cf6071f6dd36ccaf7064eeeb99a7f9f187a677bdc9236ddae`.
+
+Real Chrome loaded the new `/teams` route with the existing authenticated account. Optional setup was dismissed with its automatic-upgrade checkbox already false; no settings/gym mutation was sent by that action. The empty Teams page renders (production has no Teams); Today rows were verified with local mock data and browser-only timezone cases. No live gym write, data reset, secret rotation, bind/exposure change, or fixture seed occurred. Physical iOS remains unverified. Local selfhost registry and host CHANGELOG updated. Backup and rollback image remain available.

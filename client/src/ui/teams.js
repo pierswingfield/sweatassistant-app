@@ -150,8 +150,7 @@ async function renderList(el, { stale }) {
 }
 
 function renderEmpty(el) {
-  el.innerHTML = `<div class="tm-list-page">
-    <div class="tm-page-head"><h3 class="t-page-title tm-page-title">${escapeHtml(T.title)}</h3></div>
+  el.innerHTML = `<div class="tm-list-page tm-list-page-empty">
     ${pitchHtml(T, { escapeHtml, mascotHtml })}
   </div>`;
   el.querySelector('[data-create]').addEventListener('click', () => openCreateFlow());

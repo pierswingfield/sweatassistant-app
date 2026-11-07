@@ -50,7 +50,7 @@ describe('enableAutoUpgradeForGyms', () => {
 
 describe('gym logo strip mode', () => {
   it('is static for 3 or fewer gyms and a marquee for more', () => {
-    expect([0, 1, 2, 3].map(shouldAnimateGymLogos)).toEqual([false, false, false, false]);
+    expect([0, 1, 2, 3].map(shouldAnimateGymLogos)).toEqual([false, false, true, true]);
     expect([4, 5, 12].map(shouldAnimateGymLogos)).toEqual([true, true, true]);
   });
 });

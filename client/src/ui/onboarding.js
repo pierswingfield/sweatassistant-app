@@ -19,7 +19,8 @@ import { openCalendarSettingsModal } from './calendar-section.js';
 import { appConfig } from '../config';
 import { setGymCatalogue } from '../gym-context.js';
 import { COPY, formatCopyText, appCopy } from '../copy.js';
-import { escapeHtml, gymChip } from './cards';
+import { setupGuideHtml } from './setup-guide.js';
+import { escapeHtml, gymLogoBanner } from './cards';
 import { enableAutoUpgradeForGyms, gymsWithAutoUpgradeOn, shouldAnimateGymLogos, getPostLoginDestination as choosePostLoginDestination, detectInstallContext, shouldOfferInstall } from './onboarding-routing.js';
 import { cleanNameField, inferNames, validPrefill } from './name-capture.js';
 import { pathFor } from '../router.js';
@@ -52,6 +53,7 @@ const PHASE_OF = { intro: 'intro', install: 'install', authchoice: 'account', lo
 let phases = ['intro', 'gyms', 'name', 'features'];
 let lastProgress = 0;
 let currentStep = 'intro';
+let finishDestination = '/';
 
 function planPhases(optionalOnly) {
   phases = ['intro', 'install', 'account', 'gyms', 'name', 'features'].filter((ph) => {
@@ -135,6 +137,7 @@ export function resumeOnboarding({ optionalOnly = false } = {}) {
 
 async function runFrom(startIndex, optionalOnly = false) {
   active = true;
+  finishDestination = '/';
   // Apply the body id that unlocks all #app-helper-container-scoped CSS
   // (font-family, .app-btn-mini, etc.) so modals opened during onboarding
   // look identical to those opened from the main app.
@@ -162,7 +165,7 @@ async function runFrom(startIndex, optionalOnly = false) {
           break;
         }
         if (destination === 'optional') {
-          i = STEPS.indexOf('features');
+          i = STEPS.indexOf('name');
           continue;
         }
       }
@@ -216,8 +219,7 @@ async function finish() {
   container().style.display = 'none';
   container().innerHTML = '';
   container().classList.remove('is-entering');
-  // U4-19: leave the URL alone. initApp() reads the path, so a deep link survives onboarding and a
-  // fresh login (which starts at '/') lands on Home.
+  history.replaceState(history.state, '', finishDestination);
   await initApp();
 }
 
@@ -226,16 +228,12 @@ async function finish() {
 // Renders a standard centred step "sheet" and returns its inner body element.
 // `onBack` adds the shared top Back button (same position and style on every screen).
 const backButtonHtml = () => `<button class="app-onb-back-top" type="button">${COPY.onboarding.back}</button>`;
-// `hero` is a glass medallion with the step's glyph (decorative; aria-hidden).
-const heroHtml = (svg, cls = '') => (svg ? `<div class="app-onb-hero ${cls}" aria-hidden="true">${svg}</div>` : '');
 function renderSheet({ eyebrow, title, body, footer, onBack, hero }) {
   const c = show();
   c.innerHTML = `
     ${topBarHtml(onBack ? backButtonHtml() : '')}
     <div class="app-onb-sheet" role="dialog" aria-modal="true">
-      ${heroHtml(hero)}
-      ${eyebrow ? `<div class="app-onb-eyebrow">${eyebrow}</div>` : ''}
-      ${title ? `<h2 class="app-onb-title">${title}</h2>` : ''}
+      ${setupGuideHtml({ title, eyebrow })}
       <div class="app-onb-body">${body || ''}</div>
       <div class="app-onb-footer">${footer || ''}</div>
     </div>`;
@@ -288,9 +286,9 @@ function stepIntro() {
           <div class="app-onb-track">
             ${slides.map((s) => s.welcome ? `
               <div class="app-onb-slide app-onb-slide-welcome">
-                <img class="app-onb-mascot" src="/characters/droplet.gif" alt="" aria-hidden="true" decoding="async">
+                <img class="app-onb-mascot" src="/characters/team-referee.webp" alt="" aria-hidden="true" decoding="async">
                 <div class="app-onb-wordmark">${escapeHtml(appConfig.appName)}</div>
-                <h2 class="app-onb-title app-onb-welcome-title" id="app-onb-welcome-title">${s.title}</h2>
+                <h2 class="app-onb-title app-onb-welcome-title tm-cf-bubble" id="app-onb-welcome-title">${s.title}</h2>
                 <ul class="app-onb-perks" role="list">
                   ${perks.map((p, i) => `
                   <li class="app-onb-perk" style="--i: ${i};">
@@ -507,17 +505,17 @@ function stepLogin() {
   });
 }
 
-/** Logos of every wired gym, from the catalogue. >3 gyms scroll as a marquee (duplicated track). */
+/** Enabled gym full wordmarks in one horizontal strip; duplicates are decorative. */
 function gymLogoStripHtml(gyms) {
   if (!gyms.length) return '';
-  const items = gyms.map((g) => `<li class="app-onb-gym-logo">${gymChip(g.id)}</li>`).join('');
+  const items = gyms.map((g) => `<li class="app-onb-gym-logo">${gymLogoBanner(g.id, { settings: true })}</li>`).join('');
   const animate = shouldAnimateGymLogos(gyms.length);
   return `<div class="app-onb-gym-logos${animate ? ' is-marquee' : ''}" role="group" tabindex="0" aria-label="${escapeHtml(COPY.onboarding.supportedGyms)}">
     <div class="app-onb-gym-logos-track">
       <ul class="app-onb-gym-logos-set" role="list">${items}</ul>
       ${animate ? `<ul class="app-onb-gym-logos-set is-clone" aria-hidden="true">${items}</ul>` : ''}
     </div>
-  </div>`;
+  </div>${animate ? `<button class="app-btn-mini app-onb-marquee-toggle" type="button" aria-pressed="false">Pause logos</button>` : ''}`;
 }
 
 // ---- STEP: gym linking (sequential multi-gym setup) ----
@@ -639,6 +637,12 @@ function stepGyms() {
         onBack: addingAnother && hasLinked ? () => { addingAnother = false; render(); } : () => resolve('welcome'),
       });
 
+      sheet.querySelector('.app-onb-marquee-toggle')?.addEventListener('click', (event) => {
+        const paused = event.currentTarget.getAttribute('aria-pressed') !== 'true';
+        event.currentTarget.setAttribute('aria-pressed', String(paused));
+        event.currentTarget.textContent = paused ? 'Play logos' : 'Pause logos';
+        sheet.querySelector('.app-onb-gym-logos').classList.toggle('is-paused', paused);
+      });
       const addAnotherBtn = sheet.querySelector('#app-onb-add-another');
       if (addAnotherBtn) addAnotherBtn.addEventListener('click', () => { addingAnother = true; render(); });
 
@@ -711,13 +715,6 @@ function stepName() {
       settings = saved || {};
     } catch (_) {
       // A transient read failure must not trap the member in onboarding.
-      resolve();
-      return;
-    }
-
-    // Skip once both have been captured. A saved lastName of '' is a choice (no last
-    // name), so only a never-captured one (pre-T-1 accounts) brings the step back.
-    if (!linkedGyms.length || (cleanNameField(settings.firstName) && typeof settings.lastName === 'string')) {
       resolve();
       return;
     }
@@ -919,9 +916,7 @@ function stepFeatures() {
   c.innerHTML = `
     ${topBarHtml(backButtonHtml())}
     <div class="app-onb-sheet app-onb-features" role="dialog" aria-modal="true" aria-labelledby="app-onb-features-title">
-      ${heroHtml(ICON.check, 'is-seal')}
-      <div class="app-onb-eyebrow">${COPY.onboarding.optionalSetup}</div>
-      <h2 class="app-onb-title" id="app-onb-features-title">${COPY.onboarding.makeItYours}</h2>
+      ${setupGuideHtml({ title: COPY.onboarding.makeItYours, eyebrow: COPY.onboarding.optionalSetup, id: 'app-onb-features-title' })}
       <p class="app-onb-lead">${appCopy(COPY.onboarding.optionalSetupDescription)}</p>
       <div class="app-onb-feature-list">
         <section class="app-onb-feature-card" data-feature="notifications">
@@ -1028,7 +1023,7 @@ function stepFeatures() {
   // link only, so the Teams empty state is where both paths are explained. finish()
   // runs initApp(), which routes from the URL.
   c.querySelector('[data-feature-action="teams"]').addEventListener('click', (event) => {
-    history.replaceState(history.state, '', pathFor({ tab: 'teams', teams: { view: 'list' } }));
+    finishDestination = pathFor({ tab: 'teams', teams: { view: 'list' } });
     leave(event.currentTarget);
   });
 

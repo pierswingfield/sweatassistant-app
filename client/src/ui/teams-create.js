@@ -5,6 +5,8 @@
 // The pure rules (steps, validation, suggestions, emoji grid, share text) live in
 // teams-create-model.js. Every interpolated string goes through escapeHtml.
 
+import { bubbleHtml } from './setup-guide.js';
+export { bubbleHtml } from './setup-guide.js';
 import { escapeHtml } from '../escape-html.js';
 import { teamsApi } from '../teams-api.js';
 import { showToast } from '../main.js';
@@ -29,11 +31,6 @@ export function progressHtml(step) {
   const label = fmt(T.stepOf, { n: p.index, total: p.total });
   const segs = Array.from({ length: p.total }, (_, i) => `<span class="tm-cf-seg${i < p.index ? ' is-done' : ''}${i === p.index - 1 ? ' is-current' : ''}"></span>`).join('');
   return `<div class="tm-cf-progress" role="progressbar" aria-valuemin="1" aria-valuemax="${p.total}" aria-valuenow="${p.index}" aria-label="${escapeHtml(label)}"><span class="tm-cf-segs">${segs}</span><span class="tm-cf-step">${escapeHtml(label)}</span></div>`;
-}
-
-/** Pure markup: the mascot's speech bubble (tested for escaping). */
-export function bubbleHtml(text) {
-  return `<p class="tm-cf-bubble">${escapeHtml(text)}</p>`;
 }
 
 /** Pure markup: the name suggestion chips for a seed (shared with the edit flow). */

@@ -84,6 +84,15 @@ describe('api.getMetadata — no gym linked (C3-10)', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('keeps offline metadata for different gyms in separate snapshots', async () => {
+    document.documentElement.classList.add('app-offline');
+    cacheMocks.getOfflineSnapshot.mockImplementation(async name => ({ data: { locations: [{ id: name, name }], studios: [], instructors: [], eventTypes: [] } }));
+    const first = await api.getMetadata({ gymId: 'alpha' });
+    const second = await api.getMetadata({ gymId: 'beta' });
+    expect(first.locations[0].id).toBe('metadata:alpha::');
+    expect(second.locations[0].id).toBe('metadata:beta::');
+  });
+
   it('restores saved filter metadata before attempting a fetch while offline', async () => {
     document.documentElement.classList.add('app-offline');
     cacheMocks.getOfflineSnapshot.mockResolvedValue({
@@ -101,7 +110,7 @@ describe('api.getMetadata — no gym linked (C3-10)', () => {
       locations: [{ id: 'location-1', name: 'Mortimer Street' }],
       instructors: [{ id: 'instructor-1', name: 'Becky' }],
     });
-    expect(cacheMocks.getOfflineSnapshot).toHaveBeenCalledWith('metadata::');
+    expect(cacheMocks.getOfflineSnapshot).toHaveBeenCalledWith('metadata:all::');
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

@@ -4,7 +4,7 @@
 
 ## Who is responsible
 
-**[operator's full legal name and status]**, **[contact/service address]**, is the controller for Dibs at dibs.fit and app.dibs.fit. Privacy contact: **[working email]**. This notice covers Dibs; gyms and services you use separately have their own notices.
+**[operator's full legal name and status]**, **[contact/service address]**, is the individual controller operating under the trading name **Dibs** in the United Kingdom at dibs.fit and app.dibs.fit. Privacy contact: **privacy@dibs.fit**. This notice covers Dibs; gyms and services you use separately have their own notices.
 
 ## What we collect and why
 
@@ -50,7 +50,7 @@ Account and class-history records remain while your account/gym connection needs
 
 ## Your rights and contact
 
-You can request access, correction, deletion, restriction and portability, subject to applicable conditions. **You can object to processing based on legitimate interests**, including landing analytics; contact **[privacy email]**. Any consent can be withdrawn without affecting earlier lawful use. You can disable optional features, change Team sharing, revoke browser push permission and regenerate calendar links.
+You can request access, correction, deletion, restriction and portability, subject to applicable conditions. **You can object to processing based on legitimate interests**, including landing analytics; contact **privacy@dibs.fit**. Any consent can be withdrawn without affecting earlier lawful use. You can disable optional features, change Team sharing, revoke browser push permission and regenerate calendar links.
 
 Automation follows your booking instructions and may affect gym credits or charges; you can remove queued instructions and check outcomes with the gym. It is not a guarantee of acceptance by the gym.
 

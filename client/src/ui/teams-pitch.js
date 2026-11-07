@@ -23,9 +23,9 @@ export function pitchHtml(copy, { escapeHtml: esc, mascotHtml }) {
       <div class="tm-orb">${mascotHtml({ size: 150, pose: 'warming' })}</div>
       <h4 class="tm-pitch-headline">${esc(copy.pitchHeadline)}</h4>
       <p class="tm-pitch-promise">${esc(copy.pitchPromise)}</p>
+      <button type="button" class="tm-btn tm-btn-primary tm-btn-pill tm-btn-block" data-create>${esc(copy.createATeam)}</button>
       <ul class="tm-pitch-list">${pitchRows(copy).map((r) => `<li class="tm-pitch-row"><span class="tm-pitch-icon">${PITCH_ICONS[r.icon]}</span><span class="tm-pitch-text"><b>${esc(r.title)}</b><span>${esc(r.body)}</span></span></li>`).join('')}</ul>
       <p class="tm-pitch-privacy">${PITCH_ICONS.lock}<span>${esc(copy.pitchPrivacy)}</span></p>
-      <button type="button" class="tm-btn tm-btn-primary tm-btn-pill tm-btn-block" data-create>${esc(copy.createATeam)}</button>
       <p class="tm-pitch-join">${esc(copy.pitchJoinHint)}</p>
     </section>`;
 }

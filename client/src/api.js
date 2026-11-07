@@ -654,7 +654,7 @@ export const api = {
     // The timetable cache also retains metadata, but this explicit snapshot is
     // needed before the timetable has restored that cache (for example when a
     // filter pane opens during an offline relaunch).
-    const snapshotName = `metadata:${params.startDate || ''}:${params.endDate || ''}`;
+    const snapshotName = `metadata:${params.gymId || 'all'}:${params.startDate || ''}:${params.endDate || ''}`;
     return withOfflineSnapshot(snapshotName, async () => {
     const qs = new URLSearchParams();
     if (params.startDate) qs.set('startDate', params.startDate);

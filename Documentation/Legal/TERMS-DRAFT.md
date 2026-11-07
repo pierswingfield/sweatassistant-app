@@ -4,7 +4,7 @@
 
 ## Who runs Dibs
 
-Dibs is operated by **[operator's full legal name and legal/trading status]**, **[service/contact address]**. Contact: **[working support email]**. These terms cover the website at dibs.fit and the Dibs app at app.dibs.fit. The [Privacy notice](PRIVACY-DRAFT.md) explains personal-data use.
+Dibs is the trading name of **[operator's full legal name]**, an individual based in the United Kingdom, at **[service/contact address]**. Dibs is not an incorporated company. Contact: **privacy@dibs.fit**. These terms cover the website at dibs.fit and the Dibs app at app.dibs.fit. The [Privacy notice](PRIVACY-DRAFT.md) explains personal-data use.
 
 Dibs is an independent assistant, not a gym, booking platform or gym representative. It is not affiliated with or endorsed by the gyms it supports. Your gym membership, classes, credits and purchases remain contracts with the relevant gym or provider.
 

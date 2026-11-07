@@ -12987,3 +12987,41 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 @media (max-width: 359px) { #app-helper-container .tm-tw { grid-template-columns: 36px 40px minmax(0, 1fr); gap: 6px; } #app-helper-container .tm-tw-lead { width: 36px; } }
 
 #app-helper-container .tm-trending-photo, #app-helper-container .tm-trending-avatar .tm-av { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+
+/* Setup: one referee, consistent full-wordmark plates, and one horizontal strip. */
+.app-onb-guide { display: flex; align-items: center; justify-content: center; gap: 14px; width: 100%; margin-bottom: 14px; }
+.app-onb-guide .tm-mascot { flex: 0 0 82px; --s: 82px !important; }
+.app-onb-guide .tm-mascot-disc { display: none; }
+.app-onb-guide-copy { min-width: 0; text-align: left; }
+.app-onb-guide .app-onb-eyebrow { text-align: left; margin-bottom: 8px; }
+#app-helper-container .app-onb-guide .app-onb-title.tm-cf-bubble { margin: 0; padding: 14px 16px; font-size: clamp(21px, 5vw, 28px); line-height: 1.15; text-align: left; }
+#app-helper-container .app-onb-guide .tm-cf-bubble::after { left: -7px; top: calc(50% - 7px); bottom: auto; transform: rotate(45deg); }
+.app-onb-gym-logo .app-gym-logo-banner.is-uniform .app-gym-chip,
+.app-gym-logo-banner.is-uniform .app-gym-chip { width: 140px !important; min-width: 140px !important; max-width: 140px !important; height: 52px !important; padding: 10px 14px !important; box-sizing: border-box; }
+.app-gym-logo-banner.is-uniform .app-gym-chip-logo { width: 100% !important; height: 100% !important; display: flex; align-items: center; justify-content: center; }
+.app-gym-logo-banner.is-uniform .app-gym-chip-logo .gym-logo--full { display: block !important; width: 100% !important; max-width: 100% !important; height: 100% !important; max-height: 100% !important; object-fit: contain; }
+.app-gym-logo-banner.is-uniform .app-gym-chip-logo .gym-logo--half { display: none !important; }
+.app-onb-gym-logos { overflow-x: hidden; }
+.app-onb-gym-logos-set { flex-wrap: nowrap !important; }
+.app-onb-gym-logos.is-paused .app-onb-gym-logos-track { animation-play-state: paused; }
+.app-onb-marquee-toggle { display: block; margin: -10px auto 14px; }
+.set-studios-wait { color: var(--text-secondary); font-size: var(--text-sm); margin: 0 0 14px; }
+.set-studios-gym + .set-studios-gym { margin-top: 18px; }
+@media (prefers-reduced-motion: reduce) { .app-onb-marquee-toggle { display: none; } }
+@media (max-width: 600px) {
+  #app-helper-container .tm-list-page-empty .tm-pitch { padding: 16px 14px; gap: 10px; }
+  #app-helper-container .tm-list-page-empty .tm-orb { width: 88px; height: 88px; margin: 0; }
+  #app-helper-container .tm-list-page-empty .tm-orb .tm-mascot { --s: 88px !important; }
+  #app-helper-container .tm-list-page-empty .tm-pitch-headline { font-size: 26px; }
+  #app-helper-container .tm-list-page-empty .tm-pitch-list { gap: 7px; margin: 0; }
+  #app-helper-container .tm-list-page-empty .tm-pitch-row { padding: 8px 10px; gap: 10px; }
+  #app-helper-container .tm-list-page-empty .tm-pitch-text { font-size: 12px; line-height: 1.3; }
+  #app-helper-container .tm-list-page-empty .tm-pitch-text b { font-size: 14px; }
+  #app-helper-container .tm-list-page-empty .tm-pitch-promise { font-size: 14px; line-height: 1.35; }
+  #app-helper-container .tm-list-page-empty .tm-pitch-privacy { font-size: 11px; line-height: 1.3; margin: 0; }
+  .app-onb-guide { gap: 10px; }
+  .app-onb-guide .tm-mascot { flex-basis: 70px; --s: 70px !important; }
+}
+
+#app-helper-container .app-onb-welcome-title.tm-cf-bubble { font-size: clamp(24px, 7vw, 30px); margin-inline: auto; }
+#app-helper-container .app-onb-welcome-title.tm-cf-bubble::after { top: -7px; bottom: auto; transform: translateX(-50%) rotate(225deg); }

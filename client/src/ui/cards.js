@@ -352,7 +352,7 @@ export function gymBrand(gymId, form = 'full') {
  *  link/re-auth form). Reuses gymChip so there is still exactly one place that knows a gym's assets. */
 export function gymLogoBanner(gymId, { settings = false } = {}) {
   const width = settings ? gymBrand(gymId).settingsLogoWidth : null;
-  return `<span class="app-gym-logo-banner">${gymChip(gymId, { width, responsive: false })}</span>`;
+  return `<span class="app-gym-logo-banner${settings ? ' is-uniform' : ''}">${gymChip(gymId, { width, responsive: false })}</span>`;
 }
 
 /**

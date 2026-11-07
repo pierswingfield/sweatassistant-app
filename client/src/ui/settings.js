@@ -1,4 +1,5 @@
 import { api, apiFetch } from '../api';
+import { loadSpotMapGyms } from './spot-map-loading.js';
 import { mapRemovalWarning } from './spot-map-usage.js';
 import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole, loadGymContext, refreshUserData, updateDebugTerminalVisibility, getIsOffline } from '../main';
 import { getBookingOffset, describeBookingWindow } from '../lib';
@@ -676,7 +677,14 @@ export async function openManageSpotMapsModal(options = {}) {
     close();
     openManageSpotMapsModal(options);
   };
+  let loadGeneration = 0;
+  let waitingTimer;
+  const retryTimers = new Set();
   const cleanup = () => {
+    loadGeneration++;
+    clearTimeout(waitingTimer);
+    retryTimers.forEach(clearTimeout);
+    retryTimers.clear();
     window.removeEventListener('app:gyms-changed', refreshOnGymChange);
     if (closeSpotMapManager === close) closeSpotMapManager = null;
     if (activeSpotManager?.overlay === overlay) activeSpotManager = null;
@@ -711,120 +719,68 @@ export async function openManageSpotMapsModal(options = {}) {
   if (isMobile()) activeSpotManager = { overlay, reload: () => load() };
 
   const load = async () => {
-  body.innerHTML = loadingHtml;
-  try {
-    const [prefs, cachedMeta, cachedEvents, linkedRes] = await Promise.all([
-      api.getStudioPreferences(options.gymId),
-      // The gym-scoped cache keys already resolve to the gym in localStorage, so
-      // a request for a DIFFERENT gym must not read them. With the ambient
-      // active-gym state gone, an explicit gymId is by definition not "the
-      // cached one" — fetch fresh rather than serve another gym's layout.
-      options.gymId ? null : cacheGet(accountScopedKey('appUnifiedCacheMeta')),
-      // C3-24: the unified timetable cache is what timetable.js writes; the old
-      // `appCacheEvents` keys had no writer, so this always missed and the
-      // active-studio filter never applied. It is merged across gyms, so it is
-      // read for an explicit gym too and narrowed to that gym just below.
-      cacheGet(accountScopedKey('appUnifiedCacheEvents')),
-      api.getMyGyms().catch(() => ({ gyms: [] }))
-    ]);
-    const linkedGyms = linkedRes.gyms || linkedRes || [];
-    options.gymNames = Object.fromEntries(linkedGyms.map((gym) => [
-      gym.gym_id || gym.gymId || gym.id,
-      gym.gym_name || gym.name || gym.gym_id || gym.id,
-    ]));
-
-    // Studios from the timetable metadata cache (built from event relations) include full
-    // layout.slots data — the /studios list endpoint omits slots for some studios (e.g. Reformer).
-    // Fall back to fetching directly from the API when there is no timetable cache yet
-    // (e.g. first-run onboarding before the user has loaded the timetable).
-    let studios = cachedMeta?.studios || [];
-    let events = cachedEvents || [];
-    // C3-4: `cache.locations` is an unscoped module-level fallback with no gym
-    // tag of its own — it's whatever gym's Timetable tab happened to populate
-    // it last. Same rule as `cachedMeta`/`cachedEvents` above: an explicit
-    // `options.gymId` is by definition asking for a gym that fallback may not
-    // hold, so only read it in the ambient (no gymId) case. Reading it
-    // unconditionally left a non-context gym's editor with another gym's
-    // locations already "loaded" (non-empty), which skipped the fresh fetch
-    // below and then filtered every studio out as belonging to the wrong gym
-    // — rendering "No Studios With Seat Maps" instead of that gym's rooms.
-    let locations = cachedMeta?.locations || (options.gymId ? [] : cache.locations) || [];
-
-    if (!studios.length || !events.length || !locations.length) {
-      try {
-        // One normalized call for both lists (WP-D9). MarianaTek has no studios
-        // or locations endpoint at all and derives them from its class list, so
-        // asking for them separately only ever worked for CodexFit gyms.
-        if (!studios.length || !locations.length) {
-          const meta = await api.getMetadata({ ttlMs: 3600000, gymId: options.gymId });
-          if (!studios.length) studios = meta.studios || [];
-          if (!locations.length) {
-            locations = meta.locations || [];
-            // Same rule in the other direction: don't let a gym-scoped fetch
-            // overwrite the unscoped ambient fallback with one gym's locations —
-            // a later ambient (no gymId) call would then read this gym's rooms
-            // as if they were "the" locations regardless of which gym it meant.
-            if (!options.gymId) cache.locations = locations;
-          }
+    const generation = ++loadGeneration;
+    clearTimeout(waitingTimer);
+    retryTimers.forEach(clearTimeout);
+    retryTimers.clear();
+    body.innerHTML = `<p class="set-studios-wait" role="status" aria-live="polite" hidden></p><div class="set-studios-gyms">${loadingHtml}</div>`;
+    const waiting = body.querySelector('.set-studios-wait');
+    const list = body.querySelector('.set-studios-gyms');
+    const current = () => generation === loadGeneration && overlay.isConnected;
+    waitingTimer = setTimeout(() => {
+      if (!current()) return;
+      waiting.textContent = COPY.spotMaps.stillWaiting;
+      waiting.hidden = false;
+    }, 5000);
+    try {
+      const linkedRes = await api.getMyGyms();
+      if (!current()) return;
+      const linkedGyms = (linkedRes.gyms || linkedRes || []).filter(gym =>
+        gym.account_enabled !== 0 && gym.account_enabled !== false &&
+        (!options.gymId || (gym.gym_id || gym.gymId || gym.id) === options.gymId));
+      options.gymNames = Object.fromEntries(linkedGyms.map(gym => [
+        gym.gym_id || gym.gymId || gym.id, gym.gym_name || gym.name || gym.id,
+      ]));
+      list.innerHTML = '';
+      if (!linkedGyms.length) list.innerHTML = `<p class="app-card-desc">${COPY.onboarding.connectGymForSpotMaps}</p>`;
+      const sections = new Map(linkedGyms.map(gym => {
+        const gymId = gym.gym_id || gym.gymId || gym.id;
+        const section = document.createElement('section');
+        section.className = 'set-studios-gym';
+        section.dataset.gymId = gymId;
+        section.setAttribute('aria-label', options.gymNames[gymId]);
+        section.innerHTML = `<h4>${escapeHtml(options.gymNames[gymId])}</h4>${loadingHtml}`;
+        list.appendChild(section);
+        return [gymId, section];
+      }));
+      const renderResult = ({ gymId, metadata, preferences, error }) => {
+        if (!current()) return;
+        const section = sections.get(gymId);
+        if (error) {
+          section.innerHTML = `<h4>${escapeHtml(options.gymNames[gymId])}</h4><p class="app-card-error" role="status">${formatCopyText(COPY.settings.studiosLoadFailed, { error: escapeHtml(error.message) })}</p><button type="button" class="app-btn">${COPY.teams.retry}</button>`;
+          section.querySelector('button').addEventListener('click', async () => {
+            section.innerHTML = loadingHtml;
+            const timer = setTimeout(() => {
+              if (current()) section.insertAdjacentHTML('afterbegin', `<p role="status">${COPY.spotMaps.stillWaiting}</p>`);
+            }, 5000);
+            retryTimers.add(timer);
+            await loadSpotMapGyms(linkedGyms.filter(gym => (gym.gym_id || gym.gymId || gym.id) === gymId), api, { onResult: renderResult });
+            clearTimeout(timer);
+            retryTimers.delete(timer);
+          });
+          return;
         }
-
-        // Fetch events to build the activeStudioIds filter (WP-C1: via the
-        // normalized endpoint — fetchTimetable() already fans out per-location
-        // server-side, see providers/codexfit.js, so this no longer needs its
-        // own per-location loop). Only `studio_id` is read below, so the
-        // NormalizedEvent shape (no .raw needed) is enough on its own.
-        if (!events.length && locations.length) {
-          const now = new Date();
-          const startDate = now.toISOString().split('T')[0];
-          const endDate = new Date(now.getTime() + 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-          try {
-            const normalizedEvents = await api.getTimetable({ startDate, endDate, gymId: options.gymId });
-            // C3-4 (found while verifying the fix above): normalized ids are
-            // STRINGS (WP-D9) — MarianaTek's studio ids ("mock-room-BOXING")
-            // are never numeric, so `Number(ne.studioId)` was NaN for every
-            // JAB event. `activeStudioIds` below compares via `String(id)`
-            // regardless, so the coercion here only ever needs to preserve the
-            // id, not convert it — it happened to work for Psycle's numeric-
-            // looking studio ids and silently emptied the filter (every studio
-            // excluded) for JAB's.
-            events = normalizedEvents.map(ne => ({ studio_id: ne.studioId, gymId: ne.gymId }));
-          } catch (_) {
-            // If events fetch fails, events stays empty (no filtering)
-          }
-        }
-      } catch (_) {
-        // If any fetch fails, proceed with what we have
+        renderManageSpotMapsModal(preferences, metadata.studios || [], metadata.locations || [], section, close, null, { ...options, gymId });
+      };
+      await loadSpotMapGyms(linkedGyms, api, { onResult: renderResult });
+    } catch (error) {
+      if (current()) {
+        list.innerHTML = `<p class="app-card-error" role="status">${formatCopyText(COPY.settings.studiosLoadFailed, { error: escapeHtml(error.message) })}</p><button type="button" class="app-btn">${COPY.teams.retry}</button>`;
+        list.querySelector('button').addEventListener('click', () => load());
       }
+    } finally {
+      if (current()) { clearTimeout(waitingTimer); waiting.hidden = true; waiting.textContent = ''; }
     }
-
-    // A future Phase 3 drawer can render a non-active gym. The merged metadata
-    // helpers deliberately return every linked gym, so narrow them back to the
-    // section's explicit gym before rendering or editing provider ids.
-    if (options.gymId) {
-      studios = studios.filter(item => !item.gymId || item.gymId === options.gymId);
-      locations = locations.filter(item => !item.gymId || item.gymId === options.gymId);
-      events = events.filter(item => !item.gymId || item.gymId === options.gymId);
-    }
-
-    // Build a set of studio IDs that actually have upcoming events, to exclude defunct studios
-    // that appear in API relations but no longer have any classes scheduled.
-    // Normalized events expose `studioId` (a string); the pre-D9 raw shape used
-    // `studio_id` (a number). Both are read, and ids are compared as strings —
-    // a Number/string mismatch here empties the list silently rather than
-    // erroring, which is exactly how the location filter broke in slice 1.
-    const activeStudioIds = new Set();
-    if (events?.length > 0) {
-      events.forEach(ev => {
-        const id = ev.studioId ?? ev.studio_id ?? ev.studio?.id;
-        if (id != null) activeStudioIds.add(String(id));
-      });
-    }
-
-    renderManageSpotMapsModal(prefs, studios, locations, body, close, activeStudioIds, options);
-  } catch (err) {
-    body.innerHTML = `<div class="app-card-error set-studios-error">${formatCopyText(COPY.settings.studiosLoadFailed, { error: escapeHtml(err.message) })}</div>`;
-  }
   };
   load();
 }

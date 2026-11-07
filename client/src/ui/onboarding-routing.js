@@ -49,8 +49,8 @@ export function gymsWithAutoUpgradeOn(linkedGyms, catalogue, settingsByGym) {
     .filter((gymId) => settingsByGym?.[gymId]?.autoUpgradeEnabled === true);
 }
 
-/** Gym logos scroll as a marquee only when there are more than this many. */
-export const GYM_LOGO_STATIC_MAX = 3;
+/** A single gym is static; multiple gyms share one horizontal marquee. */
+export const GYM_LOGO_STATIC_MAX = 1;
 export function shouldAnimateGymLogos(count) {
   return Number(count) > GYM_LOGO_STATIC_MAX;
 }

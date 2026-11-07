@@ -1,6 +1,10 @@
+# Dibs domain cutover — 2026-11-07
+
+Live marketing/prod/dev/experiment: dibs.fit, app.dibs.fit, dev.dibs.fit, experiment.dibs.fit. Existing old sweat app hosts now serve the requested exact notice/button; old token feeds remain direct. New test origins preserve Access policies. Exact source `964e04f` deployed/pushed; 121 server suites and 959 client tests passed; build/Nginx/public TLS/health/hash/DB/calendar/holding checks verified. [Migration receipt and explicit device/cache limitations](../QA/browser-runs/domain-migration-2026-11-07/README.md). No account/DB/key reset or live gym write. Prior status below is historical.
+
 # Teams: progress report
 
-**As of 2026-11-07.** Domain migration execution is in progress: [Dibs domain plan](PLAN-domain-dibs-fit.md).
+**As of 2026-11-07.** Domain migration deployed and cut over: [Dibs domain plan](PLAN-domain-dibs-fit.md).
 
 **Historical pre-release status:** Branch `teams` (58 commits ahead of `master`, latest the surname-initial work after `6fedd1a`). Nothing is pushed to `master` or deployed to prod. The experiment twin was redeployed 2026-11-07 04:02 UTC with the UX revision below, from the uncommitted `teams` worktree based at `62a620c`.
 

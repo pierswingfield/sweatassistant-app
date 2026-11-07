@@ -1,6 +1,6 @@
 # Dibs domain migration: dibs.fit + app.dibs.fit
 
-**Requested:** 2026-11-07. **Status:** execution in progress; owner approved publication on 2026-11-07. **Priority:** establish the new public domains before onboarding users. The owner reports no active users, so require fresh login, PWA installation and push permission on the new origin; do not build browser-data migration machinery.
+**Requested:** 2026-11-07. **Status:** deployed and cut over 2026-11-07; [verification/rollback receipt](../QA/browser-runs/domain-migration-2026-11-07/README.md). Native device acceptance and 24h settling checks remain explicit follow-ups. **Priority:** establish the new public domains before onboarding users. The owner reports no active users, so require fresh login, PWA installation and push permission on the new origin; do not build browser-data migration machinery.
 
 ## Recommended topology and scope
 
@@ -129,3 +129,9 @@ The initial new-file checker omitted the explicit Git directory and failed with 
 ## Execution baseline (2026-11-07)
 
 Real Chrome CDP baseline recorded at approximately 14:30 UTC: old landing renders Dibs marketing with old-origin CTA; old app renders signed-in Home. Source confirms calendar UIDs depend on PUBLIC_HOST and landing CTA is fixed to the old production domain. Owner additionally requested dev.dibs.fit and experiment.dibs.fit and very short holding pages on all three old app domains, superseding the redirect and keep-test-domain defaults above. Holding buttons target production Dibs. Preserve exact old calendar feed routes and environment-specific UID namespaces. WAL-safe backups and environment/image rollback records captured on Oracle before changes.
+
+## Execution result — 2026-11-07
+
+Owner-authorized superseding topology is live: dibs.fit marketing, app.dibs.fit production, dev.dibs.fit dev and experiment.dibs.fit experiment. www/old marketing temporarily redirect to apex; all three old app hosts serve the exact requested short holding page and production Open Dibs link, with direct old-feed compatibility retained. The opening plan tables above are historical proposed defaults; the explicit owner instructions supersede their keep-dev/redirect-app policy. All three services retain their DBs, encryption/push keys, accounts and permanent old UID namespace. New dev/experiment retain their previous Access policies and feed/health bypasses; old notice hosts are public static content only.
+
+Source `964e04f` is deployed and pushed to teams. Checks: 121/121 server suites; 117 client files / 959 tests; client build; Nginx config; 36 staged new-origin probes; 15 final legacy probes; current health/config/TLS and public asset hashes; DB integrity/counts; all stored active-feed UIDs retained, and valid old/new feeds 200/304 private. See receipt for exact evidence and limitations: macOS negative DNS cache limits apex/app Chrome capture, while public DNS/TLS and content checks pass; Cloudflare rules/purge scopes are unavailable; native owner login/install/push/calendar and 24h settling review are not claimed complete. Registry and infrastructure changelog updated in this turn.

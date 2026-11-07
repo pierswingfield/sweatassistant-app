@@ -43,4 +43,27 @@ Real Chrome matrix: 320×568 light, 390×844 dark, 1280×900 light, reduced moti
 
 ## Release
 
-Pending immutable production-only release. Landing source unchanged. Preflight confirms Node 22.23.4, no host bindings, writable layer only `/data`. On-demand WAL-safe backup: integrity `ok`, encrypted prod/dev uploads succeeded. Additional rollback DB/env/compose/image and pre-release counts captured at `/home/ubuntu/services/sweatassistant/rollback-sol-design-20261107`; current counts are 2 users, 2 links, 1 Team, 1 member, zero auto-book/upgrade/push rows. Previous DEPLOYED_COMMIT file was stale (`c98ef9a`), while actual source SHA-256 and served assets matched `ce67ae2`; the new release will stamp its exact source commit.
+Immutable production-only source `4e92430317b50939943c13ae3cb3f12299b89eae` is deployed and pushed to `origin/teams` (unmerged into `master`). Landing source unchanged. [Real production welcome](production-welcome-390.png) shows the new centered title, 96px orb, 14px bubble and five feature widgets; loaded asset names match the release. Preflight confirms Node 22.23.4, no host bindings, writable layer only `/data`. On-demand WAL-safe backup: integrity `ok`, encrypted prod/dev uploads succeeded. Additional rollback DB/env/compose/image and pre-release counts captured at `/home/ubuntu/services/sweatassistant/rollback-sol-design-20261107`; current counts are 2 users, 2 links, 1 Team, 1 member, zero auto-book/upgrade/push rows. Previous DEPLOYED_COMMIT file was stale (`c98ef9a`), while actual source SHA-256 and served assets matched `ce67ae2`; the new release now stamps its exact source commit.
+
+
+Live verification output:
+
+```text
+.env: OK; compose unchanged
+PRAGMA integrity_check: ok
+counts before == after: users2, links2, teams1, members1, autobook0, autoupgrade0, push0
+sweatassistant | Up | 3000/tcp
+restarts=0 bindings={}; v22.23.4; arch=arm64
+internal health HTTP200; public health HTTP200 status=ok
+scheduler/poller/calendar healthy=true
+DEPLOYED_COMMIT=4e92430317b50939943c13ae3cb3f12299b89eae
+container onboarding source matches verified commit
+/terms HTTP404; /privacy HTTP404; /sw.js cache-control:no-cache
+```
+
+Container and public JS/CSS match the checked local build:
+
+- `index-B1ZgysMW.js`: `36eb0a9c20fddef4fc66807ca14283a8839852ccbebb231bb04d68e77c6a6e54`.
+- `index-DrnTJXwJ.css`: `9b5131248abe7740b14d661180c349957b3160e5b080ad48d7011a22dc5fb8c5`.
+
+Public urllib probe received HTTP403; normal curl and the real Chrome public load succeeded (HTTP200, exact shell/asset checks). No Cloudflare policy was changed. A 200% text enlargement simulation at 1280×900 retained zero horizontal overflow; at the natural scroll end both public auth actions were within the viewport. This is a text/layout simulation, not a physical-device or browser-zoom claim. Existing dev/experiment/landing were not redeployed. The infrastructure registry and host changelog were updated in the same release turn. Unrelated untracked art and older QA captures remain untouched.

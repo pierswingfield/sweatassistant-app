@@ -115,6 +115,21 @@ describe('Team dashboard widgets render escaped, from the projection only', () =
     noInjection(el);
   });
 
+  it('repeated day tap closes details and See more, restores hint, and reopens compactly with focus', () => {
+    const el = section(); const many = { ...data, classes: [...data.classes, cls('12', 'gym-a', '2026-11-04T18:00:00+00:00', [att('a')]), cls('13', 'gym-a', '2026-11-04T19:00:00+00:00', [att('b')])] };
+    dash.renderThisWeek(el, many, NOW);
+    el.querySelector('[data-day="0"]').click(); el.querySelector('[data-more]').click();
+    expect(el.querySelectorAll('.tm-workout')).toHaveLength(4);
+    el.querySelector('[data-day="0"]').click();
+    expect(el.querySelector('[data-day="0"]').getAttribute('aria-expanded')).toBe('false');
+    expect(el.querySelector('#tm-week-classes').hidden).toBe(true);
+    expect(el.querySelector('[data-more]')).toBeNull(); expect(el.querySelector('[data-less]')).toBeNull();
+    expect(el.querySelector('.tm-week-hint').hidden).toBe(false);
+    expect(document.activeElement).toBe(el.querySelector('[data-day="0"]'));
+    el.querySelector('[data-day="0"]').click(); expect(el.querySelectorAll('.tm-workout')).toHaveLength(3);
+    expect(el.querySelector('.tm-week-hint').hidden).toBe(true);
+  });
+
   it('activates blank and attendee areas, ignores swipes, and keeps completed rows as toggles', async () => {
     const el = section(); dash.renderThisWeek(el, data, NOW);
     el.querySelector('[data-day="1"]').click();
@@ -219,8 +234,10 @@ describe('T-4 Team stats widget', () => {
     expect(el.querySelector('.tm-trending-avatar').textContent).toBe('KL');
     expect(el.querySelector('.tm-trending-gym .app-gym-mark')).not.toBeNull();
     expect(el.querySelector('.tm-trending-delta').textContent).toBe('+3');
-    expect(el.textContent).toContain('Last 14 days vs previous 14');
-    expect(el.textContent).toContain('5 shared class visits · was 2');
+    expect(el.textContent).not.toContain('Last 14 days vs previous 14');
+    expect(el.querySelector('.tm-chart[aria-label="Trending instructors"] [role=img]').getAttribute('aria-label')).toContain('Last 14 days versus previous 14.');
+    expect(el.textContent).toContain('5 shared class visits');
+    expect(el.textContent).not.toContain('was 2');
     await vi.waitFor(() => expect(el.querySelector('.tm-trending-photo')).not.toBeNull());
     expect(el.querySelector('.tm-trending-photo').getAttribute('src')).toBe('/gyms/instructor-test.png');
     el.querySelector('.tm-trending-photo').dispatchEvent(new Event('error'));

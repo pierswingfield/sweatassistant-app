@@ -85,6 +85,7 @@
 
   /* Interaction */
   --tap-min: 44px;
+  --auth-placeholder: color-mix(in srgb, var(--text-tertiary) 97%, var(--surface));
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
 
@@ -1888,7 +1889,7 @@ html, body, * {
     margin-bottom: 4px !important;
   }
 
-  #app-helper-container .app-settings-card h4 {
+  #app-helper-container .app-settings-card:not(.app-about-tour):not(.app-about-purpose) h4 {
     font-size: 15px !important;
     margin: 0 0 2px 0 !important;
   }
@@ -7624,28 +7625,12 @@ html, body, * {
 .app-onb-perk-body span { font-size: var(--text-xs); line-height: 1.35; color: var(--text-secondary); }
 .app-onb-gyms-line { margin: 2px 0 0; font-size: var(--text-xs); color: var(--text-tertiary); text-align: center; }
 
-/* Onboarding gym logo strip: every gym in the catalogue, full-size chips; >3 scroll as a marquee */
-.app-onb-gym-logos { --tt-chip-h: 48px; overflow: hidden; width: 100%; margin: 0 0 16px; border-radius: var(--radius-control); }
+/* A single stable wordmark strip; JS makes one decoded discovery pass. */
+.app-onb-gym-logos { overflow-x: auto; overflow-y: hidden; width: 100%; margin: 0 0 16px; border-radius: var(--radius-control); scrollbar-width: thin; overscroll-behavior-x: contain; }
 .app-onb-gym-logos:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.app-onb-gym-logos-track { display: flex; width: max-content; max-width: none; }
-.app-onb-gym-logos-set { display: flex; gap: 10px; list-style: none; margin: 0; padding: 0 5px; flex: 0 0 auto; justify-content: center; }
-.app-onb-gym-logos:not(.is-marquee) { overflow: visible; }
-.app-onb-gym-logos:not(.is-marquee) .app-onb-gym-logos-track { width: 100%; }
-.app-onb-gym-logos:not(.is-marquee) .app-onb-gym-logos-set { flex-wrap: wrap; width: 100%; }
-.app-onb-gym-logo { flex: 0 0 auto; }
-.app-onb-gym-logo .app-gym-chip { min-width: 120px !important; height: 48px !important; padding: 0 14px !important; }
-.app-onb-gym-logo .app-gym-chip-logo .gym-logo-pair,
-.app-onb-gym-logo .app-gym-chip-logo .gym-logo-flat { height: 24px !important; max-width: 110px !important; width: auto; object-fit: contain; }
-@keyframes app-onb-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-.app-onb-gym-logos.is-marquee .app-onb-gym-logos-track { animation: app-onb-marquee 24s linear infinite; }
-.app-onb-gym-logos.is-marquee:hover .app-onb-gym-logos-track,
-.app-onb-gym-logos.is-marquee:focus-within .app-onb-gym-logos-track,
-.app-onb-gym-logos.is-marquee:focus .app-onb-gym-logos-track { animation-play-state: paused; }
-@media (prefers-reduced-motion: reduce) {
-  .app-onb-gym-logos.is-marquee { overflow-x: auto; }
-  .app-onb-gym-logos.is-marquee .app-onb-gym-logos-track { animation: none; }
-  .app-onb-gym-logos .is-clone { display: none; }
-}
+.app-onb-gym-logos-track { display: flex; width: max-content; }
+.app-onb-gym-logos-set { display: flex; gap: 10px; list-style: none; margin: 0; padding: 4px 2px 8px; }
+.app-onb-gym-logo { flex: 0 0 140px; width: 140px; height: 52px; }
 
 .app-onb-skip {
   position: absolute;
@@ -7760,7 +7745,7 @@ html, body, * {
 .app-onb-feature-list { display: grid; gap: 10px; width: 100%; }
 .app-onb-feature-card {
   padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-card);
-  background: var(--surface); display: grid; gap: 12px;
+  background: var(--surface); display: grid; gap: 6px;
 }
 .app-onb-feature-card.is-complete { border-color: color-mix(in srgb, var(--success) 45%, var(--border)); }
 .app-onb-feature-heading { display: flex; align-items: flex-start; gap: 12px; }
@@ -7775,15 +7760,15 @@ html, body, * {
 .app-onb-feature-heading > div { flex: 1; min-width: 0; }
 .app-onb-feature-heading .app-onb-icon { align-self: flex-start; }
 .app-onb-complete { color: var(--success); font-size: var(--text-sm); font-weight: 600; }
-.app-onb-auto-upgrade-option { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; min-height: var(--tap-min); box-sizing: border-box; border-radius: var(--radius-control); background: color-mix(in srgb, var(--surface) 65%, transparent); cursor: pointer; font-size: var(--text-sm); line-height: 1.45; color: var(--text); }
-.app-onb-auto-upgrade-option input[type="checkbox"] { flex: 0 0 22px; width: 22px; height: 22px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.app-onb-auto-upgrade-option { position: relative; display: flex; align-items: center; gap: 10px; padding: 10px 12px; min-height: var(--tap-min); box-sizing: border-box; border-radius: var(--radius-control); background: color-mix(in srgb, var(--surface) 65%, transparent); cursor: pointer; font-size: var(--text-sm); line-height: 1.45; color: var(--text); }
+.app-onb-auto-upgrade-option input[type="checkbox"] { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
 .app-onb-auto-upgrade-option span { min-width: 0; }
 .app-onb-auto-upgrade-option:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
 /* T-1 (PLAN-teams.md §5.8): with a gym already set up for Auto-Upgrade, a note replaces the tickbox. */
 .app-onb-auto-upgrade-note { display: flex; gap: 6px; align-items: flex-start; margin: 0; color: var(--success); font-weight: 600; font-size: var(--text-sm); }
 .app-onb-auto-upgrade-note svg { flex: 0 0 auto; width: 16px; height: 16px; margin-top: 2px; }
 .app-onb-last-name-label { display: block; margin-top: 14px; }
-.app-onb-features .app-onb-footer { margin-top: 4px; }
+.app-onb-features .app-onb-footer { margin-top: auto; }
 .app-onboarding-container .app-btn-secondary {
   display: inline-flex; align-items: center; justify-content: center; text-align: center; text-decoration: none;
   width: 100%; min-height: var(--tap-min); padding: 12px; border-radius: var(--radius-control);
@@ -7998,7 +7983,7 @@ html, body, * {
 }
 
 #app-helper-container .app-settings-section-pane.active {
-  display: flex;
+  display: flex; padding-top: 14px;
 }
 
 #app-helper-container .app-settings-section-pane .app-settings-grid {
@@ -10145,7 +10130,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 .app-setup-page .app-setup-body { flex: 1 1 auto; min-height: 0; max-height: none; overflow-y: auto; }
 .app-setup-page .app-modal-footer.app-setup-footer { flex-shrink: 0; }
 
-.app-spotmap-clear { width: 100%; margin: 8px 0 0; background: color-mix(in srgb, var(--text) 6%, transparent); border: 1px solid color-mix(in srgb, var(--text) 12%, transparent); color: var(--text); }
+#app-helper-container .app-spotmap-clear { width: 100%; min-height: 44px; margin: 18px 0 0; background: color-mix(in srgb, var(--text) 6%, transparent); border: 1px solid color-mix(in srgb, var(--text) 12%, transparent); color: var(--text); }
 .app-spotmap-clear:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* [Claude 2026-10-11] Guest email fields: one per guest place, never wider than the card. */
@@ -10534,17 +10519,14 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 .home-instructor-gym .app-gym-mark { border-radius: 6px; }
 .home-instructor-text { min-width: 0; }
 
-/* Home keeps its section wells quiet; interactive tiles sit one local tonal
-   step above them in both themes without changing shared surface tokens. */
-#app-helper-container #app-panel-home .home-credits-tile,
-#app-helper-container #app-panel-home .home-attendance-tile,
-#app-helper-container #app-panel-home .home-favourite-card {
-  background: color-mix(in srgb, var(--surface) 84%, var(--tone-ink) 16%);
+/* Inner Home tiles share a quiet glass recipe, without another blur layer. */
+#app-helper-container #app-panel-home :is(.home-credits-tile, .home-attendance-tile, .home-favourite-card, .home-instructor-card) {
+  background: linear-gradient(155deg, color-mix(in srgb, var(--orb-hi) 28%, transparent), transparent 65%), color-mix(in srgb, var(--surface) 91%, var(--tone-ink) 9%);
+  border: 1px solid color-mix(in srgb, var(--border-strong) 75%, transparent);
+  box-shadow: inset 0 1px 0 var(--orb-hi), 0 3px 10px color-mix(in srgb, var(--tone-ink) 7%, transparent);
 }
-#app-helper-container #app-panel-home .home-credits-tile:hover,
-#app-helper-container #app-panel-home .home-attendance-tile:hover,
-#app-helper-container #app-panel-home .home-favourite-card:hover {
-  background: color-mix(in srgb, var(--surface) 78%, var(--tone-ink) 22%);
+#app-helper-container #app-panel-home :is(.home-credits-tile, .home-attendance-tile, .home-favourite-card, .home-instructor-card):hover {
+  border-color: var(--border-strong);
 }
 
 #app-helper-container #app-panel-home .home-book-all {
@@ -11362,11 +11344,11 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .app-onb-body, .app-onb-footer, .app-onb-hero, .app-onb-progress, .app-onb-perk,
-  .app-onboarding-container .app-onb-back-top, .app-onb-feature-card { background: var(--glass-solid); }
+  .app-onb-guide .tm-tav-orb, .app-onboarding-container .app-onb-back-top, .app-onb-feature-card { background: var(--glass-solid); }
 }
 @media (prefers-reduced-transparency: reduce) {
   .app-onb-body, .app-onb-footer, .app-onb-hero, .app-onb-progress, .app-onb-perk,
-  .app-onboarding-container .app-onb-back-top, .app-onb-feature-card {
+  .app-onb-guide .tm-tav-orb, .app-onboarding-container .app-onb-back-top, .app-onb-feature-card {
     background: var(--glass-solid); -webkit-backdrop-filter: none; backdrop-filter: none;
   }
 }
@@ -11397,18 +11379,19 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 }
 /* `#app-helper-container * { margin: 0 }` outranks the class rule, which left the sheet pinned left on desktop. */
 #app-onboarding-container .app-onb-sheet { margin-inline: auto; }
+#app-onboarding-container .app-onb-footer { margin-top: auto; }
 .app-onb-eyebrow { text-align: center; color: var(--accent); }
 .app-onb-title { font-size: clamp(26px, 7.4vw, 32px); text-align: center; text-wrap: balance; }
 .app-onb-sheet > .app-onb-hero + .app-onb-eyebrow { margin-top: 2px; }
-.app-onb-body { position: relative; border-radius: var(--radius-sheet, 24px); padding: 18px; gap: 14px; flex: 0 1 auto; margin-block: 0; }
+.app-onb-body { position: relative; border-radius: var(--radius-sheet, 24px); padding: 16px; gap: 14px; flex: 0 1 auto; margin-block: 0; }
 .app-onb-body:empty { display: none; }
-.app-onb-lead { font-size: var(--text-md); }
+.app-onb-lead { font-size: var(--text-base); line-height: 1.5; }
 .app-onb-footer {
-  position: sticky; z-index: 3; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
-  margin-top: 0; padding: 12px; gap: 8px; border-radius: 28px; order: 4;
+  position: sticky; z-index: 3; bottom: 10px;
+  margin-top: auto; padding: 12px; gap: 8px; border-radius: 28px; order: 4;
 }
 /* Vertical composition: hero + headline top, copy centred in the free space, actions pinned to the bottom. */
-.app-onb-sheet::before, .app-onb-sheet::after { content: ''; flex: 1 1 0; min-height: 0; }
+.app-onb-sheet::before, .app-onb-sheet::after { content: none; }
 .app-onb-sheet::before { order: 1; }
 .app-onb-sheet::after { order: 3; }
 .app-onb-sheet > :is(.app-onb-body, .app-onb-carousel, .app-onb-feature-list) { order: 2; }
@@ -11445,8 +11428,8 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 .app-onb-wordmark { font-size: clamp(34px, 10vw, 44px); letter-spacing: 0; line-height: 1.05; font-weight: 600; color: var(--accent); }
 .app-onb-welcome-title { font-family: var(--font-serif); font-size: var(--text-xl); font-weight: 500; color: var(--text); text-wrap: balance; }
 .app-onb-slide-welcome { gap: 8px; }
-.app-onb-perks { gap: 8px; margin-top: 10px; }
-.app-onb-perk { position: relative; border: 0; border-radius: 18px; padding: 10px 14px; --perk: var(--accent); }
+.app-onb-perks { gap: 10px; margin-top: 10px; }
+.app-onb-perk { position: relative; border: 1px solid var(--border); border-radius: 18px; padding: 12px; --perk: var(--accent); backdrop-filter: none; -webkit-backdrop-filter: none; }
 .app-onb-perk-icon { color: var(--accent); background: color-mix(in srgb, var(--accent-fill) 14%, transparent); border: 0; }
 .app-onb-gyms-line { margin-top: 10px; }
 
@@ -11459,9 +11442,9 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 
 /* ---- features (final step) ---- */
 .app-onb-features { max-width: 520px; }
-.app-onb-feature-card { position: relative; border: 0 !important; border-radius: 20px; padding: 12px 14px; }
-.app-onb-feature-card.is-complete { box-shadow: var(--onb-glass-shadow), inset 0 0 0 1.5px color-mix(in srgb, var(--success) 45%, transparent); }
-.app-onb-feature-list { gap: 10px; }
+.app-onb-feature-card { position: relative; border: 0 !important; border-radius: 20px; padding: 14px 48px 14px 14px; }
+.app-onb-feature-card.is-complete { box-shadow: var(--onb-glass-shadow), inset 0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent); }
+.app-onb-feature-list { gap: 12px; }
 .app-onb-features > .app-onb-lead { font-size: var(--text-sm); }
 
 /* ---- fit: short phones (SE 375x667) trade hero size for visible actions ---- */
@@ -11510,7 +11493,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   background: var(--surface-inset); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-control);
   font: 500 16px/1.3 var(--font-sans); outline: none;
 }
-.app-onb-body .onb-email-input::placeholder { color: var(--text-tertiary); }
+.app-onb-body .onb-email-input::placeholder { color: var(--auth-placeholder, var(--text-secondary)); }
 .app-onb-body .onb-email-input:focus-visible, .app-onb-body .app-select:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 var(--focus-ring-width) color-mix(in srgb, var(--accent) 35%, transparent); }
 
 /* ==========================================================================
@@ -11571,7 +11554,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   background: var(--surface-inset); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-control);
   font: 500 16px/1.3 var(--font-sans); outline: none;
 }
-.app-login-container .app-form-group input::placeholder { color: var(--text-tertiary); }
+.app-login-container .app-form-group input::placeholder { color: var(--auth-placeholder, var(--text-secondary)); }
 .app-login-container .app-form-group input:focus-visible,
 .app-login-container .app-form-group .app-select:focus-visible {
   border-color: var(--accent); box-shadow: 0 0 0 var(--focus-ring-width, 3px) color-mix(in srgb, var(--accent) 35%, transparent);
@@ -12988,26 +12971,76 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 
 #app-helper-container .tm-trending-photo, #app-helper-container .tm-trending-avatar .tm-av { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
 
-/* Setup: one referee, consistent full-wordmark plates, and one horizontal strip. */
-.app-onb-guide { display: flex; align-items: center; justify-content: center; gap: 14px; width: 100%; margin-bottom: 14px; }
-.app-onb-guide .tm-mascot { flex: 0 0 82px; --s: 82px !important; }
-.app-onb-guide .tm-mascot-disc { display: none; }
-.app-onb-guide-copy { min-width: 0; text-align: left; }
-.app-onb-guide .app-onb-eyebrow { text-align: left; margin-bottom: 8px; }
-#app-helper-container .app-onb-guide .app-onb-title.tm-cf-bubble { margin: 0; padding: 14px 16px; font-size: clamp(21px, 5vw, 28px); line-height: 1.15; text-align: left; }
-#app-helper-container .app-onb-guide .tm-cf-bubble::after { left: -7px; top: calc(50% - 7px); bottom: auto; transform: rotate(45deg); }
+/* Setup uses the actual Team avatar and speech component; titles stay semantic. */
+#app-helper-container .app-onb-title { font: 600 clamp(26px, 6vw, 30px)/1.15 var(--font-serif); text-align: center; color: var(--text); outline: none; margin: 0; }
+.app-onb-guide { display: flex; align-items: center; justify-content: center; gap: 16px; width: 100%; margin: 4px 0 8px; }
+#app-helper-container .app-onb-guide .tm-tav { --tav-orb: 96px; }
+#app-helper-container .app-onb-guide .tm-mascot { --s: 90px !important; width: 90px; height: 90px; }
+#app-helper-container .app-onb-guide .tm-cf-bubble { font: 500 14px/1.4 var(--font-sans); max-width: 26ch; text-align: left; padding: 11px 14px; }
+#app-helper-container .app-onb-guide .tm-cf-bubble::after { content: none; }
+.app-onb-credentials { display: grid; gap: 12px; animation: onb-fade var(--dur-base) ease-out; }
+.app-onb-credentials[hidden] { display: none; }
+#app-helper-container .app-onb-body .app-btn-secondary { background: var(--onb-glass-fill); box-shadow: var(--onb-glass-shadow); border: 1px solid var(--border-strong); min-height: 44px; }
+.app-onb-footer .app-btn-primary { background: linear-gradient(160deg, color-mix(in srgb, var(--orb-hi) 20%, transparent), transparent), var(--accent-fill); color: var(--on-accent-fill); border: 1px solid color-mix(in srgb, var(--accent) 70%, var(--orb-hi)); box-shadow: inset 0 1px 0 var(--orb-hi), 0 4px 12px color-mix(in srgb, var(--accent) 20%, transparent); }
+.app-onb-footer button:focus-visible, .app-onb-body button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+#app-helper-container .app-onb-feature-status { position: absolute; right: 6px; top: 14px; width: 44px; height: 44px; padding: 10px; border: 0; background: transparent; color: var(--accent); cursor: pointer; display: grid; place-items: center; }
+.app-onb-feature-status svg { width: 23px; height: 23px; padding: 3px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.app-onb-status-ring { display: block; width: 18px; height: 18px; border: 1.5px solid var(--border-strong); border-radius: 50%; }
+.app-onb-feature-card.is-complete:not(.is-expanded) :is(.app-onb-feature-heading p, .app-onb-feature-action, .app-onb-auto-upgrade-slot, .app-onb-recommended) { display: none; }
+.app-onb-feature-card.is-complete:not(.is-expanded) .app-onb-feature-heading { align-items: center; }
+.app-onb-feature-action { padding-top: 0; }
+.app-onb-features { --onb-ico-card: 36px; --onb-glyph-card: 20px; }
+.app-onb-feature-heading p { font-size: 12px; line-height: 1.4; }
+.app-onboarding-container[data-step="name"] .onb-email-input { text-align: center; }
+.app-onb-switch { flex: 0 0 44px; width: 44px; height: 26px; border-radius: 99px; box-sizing: border-box; border: 1px solid var(--border-strong); background: var(--surface-inset); box-shadow: inset 0 1px 2px var(--orb-lo); display: inline-flex; align-items: center; padding: 3px; transition: background var(--dur-fast); }
+.app-onb-switch::before { content: ''; width: 18px; height: 18px; border-radius: 50%; background: var(--text-secondary); box-shadow: 0 1px 3px var(--orb-lo); transition: transform var(--dur-fast); }
+.app-onb-auto-upgrade-option input:checked + .app-onb-switch { background: var(--accent-fill); }
+.app-onb-auto-upgrade-option input:checked + .app-onb-switch::before { transform: translateX(18px); background: var(--on-accent-fill); }
+.app-onb-auto-upgrade-option:has(input:disabled) { cursor: default; }
+.app-cal-setup [data-calendar-modal-section] { display: grid; gap: 16px; }
+.app-cal-setup .app-settings-card { background: linear-gradient(145deg, var(--surface), var(--surface-2)); border: 1px solid var(--border); box-shadow: inset 0 1px 0 var(--orb-hi); border-radius: 20px; }
+.app-cal-setup .app-cal-feed-actions:empty { display: none; }
+#app-helper-container .app-about-tour { display: flex; flex-direction: row; align-items: center; gap: 22px; padding: 24px; background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, var(--surface)), var(--surface-2)); border: 1px solid var(--border-strong); box-shadow: inset 0 1px 0 var(--orb-hi), 0 5px 18px color-mix(in srgb, var(--tone-ink) 8%, transparent); border-radius: 24px; }
+.app-about-tour-copy { flex: 1; min-width: 0; }
+.app-about-guide { flex: 0 0 80px; width: 80px; height: 80px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--surface) 70%, transparent); border: 1px solid var(--border); box-shadow: inset 0 1px 0 var(--orb-hi), inset 0 -6px 12px var(--orb-lo); }
+.app-about-guide img { width: 94%; height: 94%; object-fit: contain; }
+#app-helper-container .app-about-tour h4 { font: 600 24px/1.15 var(--font-serif); }
+#app-helper-container .app-about-tour .app-card-desc { margin: 8px 0 12px; }
+#app-helper-container .app-about-purpose { background: transparent; border: 0; box-shadow: none; padding: 8px 16px; }
+#app-helper-container .app-about-purpose h4 { font: 600 28px/1.2 var(--font-serif); margin: 10px 0 12px; }
+#app-helper-container .app-about-purpose p + p { margin-top: 12px; }
+#app-helper-container .app-about-privacy { border-radius: 22px; background: linear-gradient(155deg, var(--surface), var(--surface-2)); border: 1px solid var(--border); box-shadow: inset 0 1px 0 var(--orb-hi); }
+.app-about-privacy h4 { display: flex; align-items: center; gap: 10px; }
+.app-about-privacy h4 svg { width: 24px; height: 24px; color: var(--accent); }
+#app-helper-container .app-about-privacy p { margin: 12px 0 16px; }
+.tm-cf-ovl .tm-ovl-header { box-shadow: 0 3px 9px color-mix(in srgb, var(--tone-ink) 7%, transparent); z-index: 1; }
+#app-helper-container .tm-cf-ovl.is-name-editing .tm-cf-ideas { display: none; }
+#app-helper-container .tm-cf-ovl.is-name-editing .tm-cf { gap: 12px; }
+#app-helper-container .tm-cf-ovl.is-name-editing .tm-tav { --tav-orb: 84px; }
+#app-helper-container .tm-cf-ovl.is-name-editing .tm-tav .tm-mascot { --s: 79px !important; width: 79px; height: 79px; }
+#app-helper-container .tm-cf-ovl .tm-cf-guide { flex-shrink: 0; }
+@media (max-width: 768px) {
+  .tm-cf-ovl.app-page .tm-ovl-body { padding-bottom: 12px !important; }
+  .tm-cf-ovl.app-page.is-name-editing .tm-ovl-footer { padding-bottom: 12px; }
+}
+@media (max-width: 359px) {
+  #app-helper-container .app-about-tour { gap: 14px; padding: 18px; align-items: flex-start; }
+  .app-about-guide { flex-basis: 56px; width: 56px; height: 56px; }
+  #app-helper-container .app-about-tour h4 { font-size: 21px; }
+}
+@media (max-height: 720px) {
+  #app-helper-container .app-onb-title { font-size: 24px; }
+  #app-helper-container .app-onb-guide .tm-tav { --tav-orb: 80px; }
+  #app-helper-container .app-onb-guide .tm-mascot { --s: 75px !important; width: 75px; height: 75px; }
+}
+@media (prefers-reduced-motion: reduce) { .app-onb-credentials { animation: none; } }
 .app-onb-gym-logo .app-gym-logo-banner.is-uniform .app-gym-chip,
 .app-gym-logo-banner.is-uniform .app-gym-chip { width: 140px !important; min-width: 140px !important; max-width: 140px !important; height: 52px !important; padding: 10px 14px !important; box-sizing: border-box; }
 .app-gym-logo-banner.is-uniform .app-gym-chip-logo { width: 100% !important; height: 100% !important; display: flex; align-items: center; justify-content: center; }
 .app-gym-logo-banner.is-uniform .app-gym-chip-logo .gym-logo--full { display: block !important; width: 100% !important; max-width: 100% !important; height: 100% !important; max-height: 100% !important; object-fit: contain; }
 .app-gym-logo-banner.is-uniform .app-gym-chip-logo .gym-logo--half { display: none !important; }
-.app-onb-gym-logos { overflow-x: hidden; }
-.app-onb-gym-logos-set { flex-wrap: nowrap !important; }
-.app-onb-gym-logos.is-paused .app-onb-gym-logos-track { animation-play-state: paused; }
-.app-onb-marquee-toggle { display: block; margin: -10px auto 14px; }
 .set-studios-wait { color: var(--text-secondary); font-size: var(--text-sm); margin: 0 0 14px; }
 .set-studios-gym + .set-studios-gym { margin-top: 18px; }
-@media (prefers-reduced-motion: reduce) { .app-onb-marquee-toggle { display: none; } }
 @media (max-width: 600px) {
   #app-helper-container .tm-list-page-empty .tm-pitch { padding: 16px 14px; gap: 10px; }
   #app-helper-container .tm-list-page-empty .tm-orb { width: 88px; height: 88px; margin: 0; }
@@ -13019,9 +13052,5 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   #app-helper-container .tm-list-page-empty .tm-pitch-text b { font-size: 14px; }
   #app-helper-container .tm-list-page-empty .tm-pitch-promise { font-size: 14px; line-height: 1.35; }
   #app-helper-container .tm-list-page-empty .tm-pitch-privacy { font-size: 11px; line-height: 1.3; margin: 0; }
-  .app-onb-guide { gap: 10px; }
-  .app-onb-guide .tm-mascot { flex-basis: 70px; --s: 70px !important; }
+  .app-onb-guide { gap: 12px; }
 }
-
-#app-helper-container .app-onb-welcome-title.tm-cf-bubble { font-size: clamp(24px, 7vw, 30px); margin-inline: auto; }
-#app-helper-container .app-onb-welcome-title.tm-cf-bubble::after { top: -7px; bottom: auto; transform: translateX(-50%) rotate(225deg); }

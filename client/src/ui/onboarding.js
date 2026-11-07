@@ -21,9 +21,9 @@ import { setGymCatalogue } from '../gym-context.js';
 import { COPY, formatCopyText, appCopy } from '../copy.js';
 import { setupGuideHtml } from './setup-guide.js';
 import { escapeHtml, gymLogoBanner } from './cards';
-import { enableAutoUpgradeForGyms, gymsWithAutoUpgradeOn, shouldAnimateGymLogos, getPostLoginDestination as choosePostLoginDestination, detectInstallContext, shouldOfferInstall } from './onboarding-routing.js';
-import { cleanNameField, inferNames, validPrefill } from './name-capture.js';
-import { pathFor } from '../router.js';
+import { enableAutoUpgradeForGyms, gymsWithAutoUpgradeOn, getPostLoginDestination as choosePostLoginDestination, detectInstallContext, shouldOfferInstall } from './onboarding-routing.js';
+import { cleanNameField, onboardingNameSuggestion } from './name-capture.js';
+import { startGymLogoDiscovery } from './gym-logo-strip.js';
 
 const COMPLETE_KEY = 'appOnboardingComplete';
 const STEP_KEY = 'appOnboardingStep';
@@ -54,6 +54,12 @@ let phases = ['intro', 'gyms', 'name', 'features'];
 let lastProgress = 0;
 let currentStep = 'intro';
 let finishDestination = '/';
+let focusedStep = '';
+function focusStepTitle() {
+  if (focusedStep === currentStep) return;
+  focusedStep = currentStep;
+  requestAnimationFrame(() => container()?.querySelector('.app-onb-title')?.focus({ preventScroll: true }));
+}
 
 function planPhases(optionalOnly) {
   phases = ['intro', 'install', 'account', 'gyms', 'name', 'features'].filter((ph) => {
@@ -137,6 +143,7 @@ export function resumeOnboarding({ optionalOnly = false } = {}) {
 
 async function runFrom(startIndex, optionalOnly = false) {
   active = true;
+  focusedStep = '';
   finishDestination = '/';
   // Apply the body id that unlocks all #app-helper-container-scoped CSS
   // (font-family, .app-btn-mini, etc.) so modals opened during onboarding
@@ -216,11 +223,25 @@ async function finish() {
     localStorage.setItem(onboardingKey(COMPLETE_KEY), ONBOARDING_VERSION);
     localStorage.removeItem(onboardingKey(STEP_KEY));
   }
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!reduced && container().animate) {
+    const exit = container().animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-8px)' }], { duration: 240, easing: 'ease-out' });
+    // Background tabs can freeze the animation timeline: completion must still finish.
+    await Promise.race([exit.finished.catch(() => {}), new Promise((done) => setTimeout(done, 300))]);
+    exit.cancel();
+  }
   container().style.display = 'none';
   container().innerHTML = '';
   container().classList.remove('is-entering');
   history.replaceState(history.state, '', finishDestination);
   await initApp();
+  if (location.pathname === '/') {
+    // Home's greeting is mounted asynchronously and survives widget refreshes.
+    const { renderHome } = await import('./home.js');
+    await renderHome();
+    const heading = document.querySelector('#app-panel-home > .app-tab-header h1, #app-panel-home > .app-tab-header h3');
+    if (heading) { heading.setAttribute('tabindex', '-1'); heading.focus({ preventScroll: true }); }
+  }
 }
 
 // ---- shared layout helpers ----
@@ -228,16 +249,17 @@ async function finish() {
 // Renders a standard centred step "sheet" and returns its inner body element.
 // `onBack` adds the shared top Back button (same position and style on every screen).
 const backButtonHtml = () => `<button class="app-onb-back-top" type="button">${COPY.onboarding.back}</button>`;
-function renderSheet({ eyebrow, title, body, footer, onBack, hero }) {
+function renderSheet({ eyebrow, title, message, body, footer, onBack, hero }) {
   const c = show();
   c.innerHTML = `
     ${topBarHtml(onBack ? backButtonHtml() : '')}
     <div class="app-onb-sheet" role="dialog" aria-modal="true">
-      ${setupGuideHtml({ title, eyebrow })}
+      ${setupGuideHtml({ title, message })}
       <div class="app-onb-body">${body || ''}</div>
       <div class="app-onb-footer">${footer || ''}</div>
     </div>`;
   if (onBack) c.querySelector('.app-onb-back-top').addEventListener('click', onBack);
+  focusStepTitle();
   return c.querySelector('.app-onb-sheet');
 }
 
@@ -286,9 +308,7 @@ function stepIntro() {
           <div class="app-onb-track">
             ${slides.map((s) => s.welcome ? `
               <div class="app-onb-slide app-onb-slide-welcome">
-                <img class="app-onb-mascot" src="/characters/team-referee.webp" alt="" aria-hidden="true" decoding="async">
-                <div class="app-onb-wordmark">${escapeHtml(appConfig.appName)}</div>
-                <h2 class="app-onb-title app-onb-welcome-title tm-cf-bubble" id="app-onb-welcome-title">${s.title}</h2>
+                ${setupGuideHtml({ title: `Welcome to ${appConfig.appName}`, message: 'Your boutique fitness concierge.', id: 'app-onb-welcome-title' })}
                 <ul class="app-onb-perks" role="list">
                   ${perks.map((p, i) => `
                   <li class="app-onb-perk" style="--i: ${i};">
@@ -343,6 +363,7 @@ function stepIntro() {
     }, { passive: true });
 
     goto(0);
+    focusStepTitle();
   });
 }
 
@@ -505,17 +526,10 @@ function stepLogin() {
   });
 }
 
-/** Enabled gym full wordmarks in one horizontal strip; duplicates are decorative. */
+/** One set of full wordmarks; finite discovery scroll has no clone seam. */
 function gymLogoStripHtml(gyms) {
   if (!gyms.length) return '';
-  const items = gyms.map((g) => `<li class="app-onb-gym-logo">${gymLogoBanner(g.id, { settings: true })}</li>`).join('');
-  const animate = shouldAnimateGymLogos(gyms.length);
-  return `<div class="app-onb-gym-logos${animate ? ' is-marquee' : ''}" role="group" tabindex="0" aria-label="${escapeHtml(COPY.onboarding.supportedGyms)}">
-    <div class="app-onb-gym-logos-track">
-      <ul class="app-onb-gym-logos-set" role="list">${items}</ul>
-      ${animate ? `<ul class="app-onb-gym-logos-set is-clone" aria-hidden="true">${items}</ul>` : ''}
-    </div>
-  </div>${animate ? `<button class="app-btn-mini app-onb-marquee-toggle" type="button" aria-pressed="false">Pause logos</button>` : ''}`;
+  return `<div class="app-onb-gym-logos" role="group" tabindex="0" aria-label="${escapeHtml(COPY.onboarding.supportedGyms)}"><div class="app-onb-gym-logos-track"><ul class="app-onb-gym-logos-set" role="list">${gyms.map((g) => `<li class="app-onb-gym-logo">${gymLogoBanner(g.id, { settings: true })}</li>`).join('')}</ul></div></div>`;
 }
 
 // ---- STEP: gym linking (sequential multi-gym setup) ----
@@ -524,6 +538,7 @@ function stepGyms() {
     let allGyms = [];
     let myGyms = [];
     let addingAnother = false;
+    let stableLogoStrip = null;
 
     const loadData = async () => {
       try {
@@ -590,22 +605,24 @@ function stepGyms() {
               ${hasLinked ? COPY.onboarding.connectAnotherGym : COPY.onboarding.connectGymAccount}
             </div>
             <div>
-              <label class="onb-select-label">${COPY.onboarding.selectGym}</label>
+              <label class="onb-select-label" for="app-onb-gym-select">${COPY.onboarding.selectGym}</label>
               <select id="app-onb-gym-select" class="app-select onb-gym-select">
+                <option value="">Choose a gym or studio</option>
                 ${unlinkedGyms.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join('')}
               </select>
             </div>
+            <div class="app-onb-credentials" hidden>
             <div>
-              <label class="onb-select-label">${COPY.onboarding.gymLoginEmail}</label>
-              <input class="onb-email-input" type="email" id="app-onb-gym-email" placeholder="${COPY.onboarding.gymEmailPlaceholder}" autocomplete="off">
+              <label class="onb-select-label" for="app-onb-gym-email">${COPY.onboarding.gymLoginEmail}</label>
+              <input class="onb-email-input" type="email" id="app-onb-gym-email" placeholder="${COPY.onboarding.gymEmailPlaceholder}" autocomplete="section-gym username">
             </div>
             <div>
-              <label class="onb-select-label">${COPY.onboarding.gymPassword}</label>
-              <input class="onb-email-input" type="password" id="app-onb-gym-password" placeholder="${COPY.onboarding.gymPasswordPlaceholder}" autocomplete="off">
+              <label class="onb-select-label" for="app-onb-gym-password">${COPY.onboarding.gymPassword}</label>
+              <input class="onb-email-input" type="password" id="app-onb-gym-password" placeholder="${COPY.onboarding.gymPasswordPlaceholder}" autocomplete="section-gym current-password">
             </div>
             <div id="app-onb-gym-error" class="app-login-error" style="display:none;margin-top:4px;"></div>
-            <button type="button" id="app-onb-gym-submit" class="app-btn-primary onb-submit-button"><span>${escapeHtml(submitLabel(unlinkedGyms[0]?.id))}</span></button>
-
+            <button type="button" id="app-onb-gym-submit" class="app-btn-primary onb-submit-button"><span>${escapeHtml(submitLabel(null))}</span></button>
+            </div>
           </div>
         `;
       } else if (unlinkedGyms.length > 0 && hasLinked) {
@@ -620,12 +637,12 @@ function stepGyms() {
       }
 
       const continueBtnHtml = hasLinked
-        ? `<button class="app-btn-primary app-onb-continue" type="button" data-quiet="${unlinkedGyms.length > 0 ? '1' : '0'}"><span>${COPY.onboarding.continue}</span></button>`
+        ? `<button class="app-btn-primary app-onb-continue" type="button" ><span>${COPY.onboarding.continue}</span></button>`
         : `<button class="app-btn-mini app-onb-skip-inline" type="button">${COPY.onboarding.setupLater}</button>`;
 
       const sheet = renderSheet({
-        eyebrow: COPY.onboarding.yourGyms,
-        title: COPY.onboarding.connectGymAccounts,
+        title: 'Your studios',
+        message: 'Bring your studios together.',
         hero: ICON.link,
         body: `
           <p class="app-onb-lead onb-gyms-margin">${appCopy(COPY.onboarding.connectDescription)}</p>
@@ -637,12 +654,9 @@ function stepGyms() {
         onBack: addingAnother && hasLinked ? () => { addingAnother = false; render(); } : () => resolve('welcome'),
       });
 
-      sheet.querySelector('.app-onb-marquee-toggle')?.addEventListener('click', (event) => {
-        const paused = event.currentTarget.getAttribute('aria-pressed') !== 'true';
-        event.currentTarget.setAttribute('aria-pressed', String(paused));
-        event.currentTarget.textContent = paused ? 'Play logos' : 'Pause logos';
-        sheet.querySelector('.app-onb-gym-logos').classList.toggle('is-paused', paused);
-      });
+      const newStrip = sheet.querySelector('.app-onb-gym-logos');
+      if (stableLogoStrip) newStrip.replaceWith(stableLogoStrip);
+      else { stableLogoStrip = newStrip; startGymLogoDiscovery(stableLogoStrip); }
       const addAnotherBtn = sheet.querySelector('#app-onb-add-another');
       if (addAnotherBtn) addAnotherBtn.addEventListener('click', () => { addingAnother = true; render(); });
 
@@ -658,7 +672,11 @@ function stepGyms() {
 
       const submitBtn = sheet.querySelector('#app-onb-gym-submit');
       const gymSel = sheet.querySelector('#app-onb-gym-select');
-      if (gymSel && submitBtn) gymSel.addEventListener('change', () => { submitBtn.querySelector('span').textContent = submitLabel(gymSel.value); });
+      if (gymSel && submitBtn) gymSel.addEventListener('change', () => {
+        const fields = sheet.querySelector('.app-onb-credentials');
+        fields.hidden = !gymSel.value;
+        submitBtn.querySelector('span').textContent = submitLabel(gymSel.value);
+      });
       if (submitBtn) {
         submitBtn.addEventListener('click', async () => {
           const gymSelect = sheet.querySelector('#app-onb-gym-select');
@@ -719,18 +737,18 @@ function stepName() {
       return;
     }
 
-    const suggestion = inferNames(linkedGyms);
-    const prefillFirst = validPrefill(settings.firstName) || suggestion.firstName;
-    const prefillLast = typeof settings.lastName === 'string' ? validPrefill(settings.lastName) : suggestion.lastName;
-    const foundOn = suggestion.firstName
-      ? (suggestion.sources.length === 1 ? formatCopyText(COPY.onboarding.nameFoundOn, { gym: suggestion.sources[0] }) : COPY.onboarding.nameFoundOnGyms)
-      : '';
+    const suggestion = onboardingNameSuggestion(settings, linkedGyms);
+    const prefillFirst = suggestion.firstName;
+    const prefillLast = suggestion.lastName;
+    const foundOn = suggestion.sources.length
+      ? (suggestion.sources.length === 1 ? appCopy(COPY.onboarding.nameFoundOn, { gym: suggestion.sources[0] }) : appCopy(COPY.onboarding.nameFoundOnGyms)) : '';
 
     const sheet = renderSheet({
       eyebrow: COPY.onboarding.nameEyebrow,
-      title: COPY.onboarding.namePrompt,
+      title: suggestion.sources.length ? formatCopyText(COPY.onboarding.namePersonalPrompt, { name: prefillFirst }) : appCopy(COPY.onboarding.namePrompt),
+      message: 'A personal introduction.',
       hero: ICON.user,
-      body: `<p class="app-onb-lead">${escapeHtml([foundOn, COPY.onboarding.nameTeamsNote].filter(Boolean).join(' '))}</p>
+      body: `<p class="app-onb-lead">${escapeHtml([foundOn, COPY.onboarding.nameIdentificationNote].filter(Boolean).join(' '))}</p>
           <label class="onb-select-label" for="app-onb-first-name">${escapeHtml(COPY.onboarding.nameInputLabel)}</label>
           <input class="onb-email-input" id="app-onb-first-name" autocomplete="given-name" maxlength="40" value="${escapeHtml(prefillFirst)}">
           <label class="onb-select-label app-onb-last-name-label" for="app-onb-last-name">${escapeHtml(COPY.onboarding.lastNameInputLabel)}</label>
@@ -742,7 +760,9 @@ function stepName() {
     const firstInput = sheet.querySelector('#app-onb-first-name');
     const lastInput = sheet.querySelector('#app-onb-last-name');
     const errorEl = sheet.querySelector('.app-onb-name-error');
+    let saving = false;
     const save = async () => {
+      if (saving) return;
       const firstName = cleanNameField(firstInput.value);
       const lastName = cleanNameField(lastInput.value);
       if (!firstName) {
@@ -753,9 +773,11 @@ function stepName() {
       }
       errorEl.style.display = 'none';
       try {
+        saving = true; sheet.querySelector(".app-onb-name-save").disabled = true;
         await api.updateSettings({ firstName, lastName });
         resolve();
       } catch (err) {
+        saving = false; sheet.querySelector(".app-onb-name-save").disabled = false;
         errorEl.textContent = err.message || COPY.onboarding.connectionFailed;
         errorEl.style.display = 'block';
       }
@@ -916,35 +938,30 @@ function stepFeatures() {
   c.innerHTML = `
     ${topBarHtml(backButtonHtml())}
     <div class="app-onb-sheet app-onb-features" role="dialog" aria-modal="true" aria-labelledby="app-onb-features-title">
-      ${setupGuideHtml({ title: COPY.onboarding.makeItYours, eyebrow: COPY.onboarding.optionalSetup, id: 'app-onb-features-title' })}
-      <p class="app-onb-lead">${appCopy(COPY.onboarding.optionalSetupDescription)}</p>
+      ${setupGuideHtml({ title: COPY.onboarding.makeItYours, message: appCopy(COPY.onboarding.optionalSetupDescription), id: 'app-onb-features-title' })}
       <div class="app-onb-feature-list">
         <section class="app-onb-feature-card" data-feature="notifications">
-          <div class="app-onb-feature-heading"><span class="app-onb-icon">${ICON.push}</span><div><h3>${COPY.static.notifications} <span class="app-onb-recommended">${COPY.onboarding.recommended}</span></h3><p>${COPY.onboarding.notificationUpdates}</p></div></div>
+          <div class="app-onb-feature-heading"><span class="app-onb-icon">${ICON.push}</span><div><h3>${COPY.static.notifications} <span class="app-onb-recommended">${COPY.onboarding.recommended}</span></h3><p>Booking, upgrade and cancellation updates.</p></div></div>
           <div class="app-onb-feature-action"></div>
         </section>
         <section class="app-onb-feature-card" data-feature="calendar">
-          <div class="app-onb-feature-heading"><span class="app-onb-icon">${ICON.calendarSync}</span><div><h3>${COPY.onboarding.calendarFeatureTitle}</h3><p>${COPY.onboarding.calendarFeedDescription}</p></div></div>
+          <div class="app-onb-feature-heading"><span class="app-onb-icon">${ICON.calendarSync}</span><div><h3>${COPY.onboarding.calendarFeatureTitle}</h3><p>All your connected studios in one live calendar.</p></div></div>
           <div class="app-onb-feature-action"></div>
         </section>
         <section class="app-onb-feature-card" data-feature="spotmaps">
-          <div class="app-onb-feature-heading"><span class="app-onb-icon">${ICON.quickbook}</span><div><h3>${COPY.onboarding.preferredSpotFeatureTitle}</h3><p>${COPY.onboarding.preferredSpotFeatureDescription}</p></div></div>
+          <div class="app-onb-feature-heading"><span class="app-onb-icon">${ICON.quickbook}</span><div><h3>${COPY.onboarding.preferredSpotFeatureTitle}</h3><p>Choose favourite spots for booking and upgrades.</p></div></div>
           <div class="app-onb-feature-action"></div>
         </section>
       <section class="app-onb-feature-card" data-feature="autoupgrade">
-        <div class="app-onb-feature-heading"><span class="app-onb-icon">${ICON.autoupgrade}</span><div><h3>${COPY.onboarding.autoUpgradeFeatureTitle}</h3><p>${COPY.onboarding.autoUpgradeFeatureDescription}</p></div></div>
+        <div class="app-onb-feature-heading"><span class="app-onb-icon">${ICON.autoupgrade}</span><div><h3>${COPY.onboarding.autoUpgradeFeatureTitle}</h3><p>Watch for better spots at your studios.</p></div></div>
           <div class="app-onb-auto-upgrade-slot">${upgradeOn.length
     ? `<p class="app-onb-auto-upgrade-note" role="note"><span aria-hidden="true">${ICON.check}</span><span>${escapeHtml(formatCopyText(COPY.onboarding.autoUpgradeAlreadyOn, { gyms: upgradeOnNames }))}</span></p>`
-    : `<label class="app-onb-auto-upgrade-option"><input type="checkbox" id="app-onb-auto-upgrade-all"><span>${COPY.onboarding.autoUpgradeAllGyms}</span></label>`}</div>
+    : `<label class="app-onb-auto-upgrade-option"><input type="checkbox" role="switch" id="app-onb-auto-upgrade-all"><span class="app-onb-switch" aria-hidden="true"></span><span>${COPY.onboarding.autoUpgradeAllGyms}</span></label>`}</div>
         <div class="app-onb-feature-action"></div>
-      </section>
-      <section class="app-onb-feature-card" data-feature="teams">
-        <div class="app-onb-feature-heading"><span class="app-onb-icon">${ICON.users}</span><div><h3>${COPY.onboarding.teamsFeatureTitle}</h3><p>${COPY.onboarding.teamsFeatureDescription}</p></div></div>
-        <div class="app-onb-feature-action"><button class="app-btn-mini" type="button" data-feature-action="teams">${COPY.onboarding.teamsFeatureButton}</button></div>
       </section>
       </div>
       <div class="app-onb-footer">
-        <button class="app-btn-primary app-onb-finish" type="button">${COPY.onboarding.setupLater}</button>
+        <button class="app-btn-primary app-onb-finish" type="button">${appCopy(COPY.onboarding.continueToApp)}</button>
       </div>
     </div>`;
 
@@ -954,12 +971,29 @@ function stepFeatures() {
   const cards = { notifications: notificationCard, calendar: calendarCard, spotmaps: spotCard };
   const completion = { notifications: false, calendar: false, spotmaps: false };
 
+  const setCardStatus = (card, done) => {
+    card.classList.toggle('is-complete', done);
+    let status = card.querySelector('.app-onb-feature-status');
+    if (!status) {
+      status = document.createElement('button'); status.type = 'button'; status.className = 'app-onb-feature-status';
+      card.appendChild(status);
+      status.addEventListener('click', () => {
+        if (!card.classList.contains('is-complete')) return;
+        const open = card.classList.toggle('is-expanded'); status.setAttribute('aria-expanded', String(open));
+      });
+    }
+    status.innerHTML = done ? ICON.check : '<span class="app-onb-status-ring"></span>';
+    status.setAttribute('aria-label', `${card.querySelector('h3').textContent}: ${done ? 'Set up. Show options' : 'Not set up'}`);
+    status.setAttribute('aria-expanded', String(!done || card.classList.contains('is-expanded')));
+    status.disabled = !done;
+  };
   const renderAction = (name, done, text, disabled = false) => {
     completion[name] = done;
     const target = cards[name].querySelector('.app-onb-feature-action');
-    const buttonText = name === 'calendar' && done ? COPY.onboarding.calendarSettings : text;
-    target.innerHTML = `${done ? `<span class="app-onb-complete" role="status">✓ ${COPY.onboarding.setUp}</span>` : ''}${name === 'calendar' && done || !done ? `<button class="app-btn-mini" type="button" data-feature-action="${name}" ${disabled ? 'disabled' : ''}>${buttonText}</button>` : ''}`;
-    cards[name].classList.toggle('is-complete', done);
+    const buttonText = done ? (name === 'calendar' ? COPY.onboarding.calendarSettings : COPY.onboarding.reviewSetup) : text;
+    if (name === 'notifications' && done) target.textContent = COPY.onboarding.notificationEnabledNote;
+    else target.innerHTML = `<button class="app-btn-mini" type="button" data-feature-action="${name}" ${disabled ? 'disabled' : ''}>${buttonText}</button>`;
+    setCardStatus(cards[name], done);
   };
 
   const refreshStatus = async () => {
@@ -984,47 +1018,42 @@ function stepFeatures() {
     const complete = Object.values(completion).every(Boolean);
     // Success flourish: the seal's ring pulses once when everything becomes set up.
     c.querySelector('.app-onb-hero')?.classList.toggle('is-done', complete);
-    c.querySelector('.app-onb-finish').textContent = complete ? COPY.onboarding.continueToTimetable : COPY.onboarding.setupLater;
+    c.querySelector('.app-onb-finish').textContent = appCopy(COPY.onboarding.continueToApp);
   };
 
   const upgradeCard = c.querySelector('[data-feature="autoupgrade"]');
   const upgradeBox = c.querySelector('#app-onb-auto-upgrade-all');
-  upgradeCard.classList.toggle('is-complete', upgradeOn.length > 0);
-  upgradeBox?.addEventListener('change', () => {
-    upgradeCard.classList.toggle('is-complete', upgradeBox.checked);
-    upgradeCard.querySelector('.app-onb-feature-action').innerHTML = upgradeBox.checked ? `<span class="app-onb-complete" role="status">✓ ${COPY.onboarding.setUp}</span>` : '';
+  setCardStatus(upgradeCard, upgradeOn.length > 0);
+  let upgradePending = false;
+  upgradeBox?.addEventListener('change', async () => {
+    if (upgradePending || !upgradeBox.checked) return;
+    upgradePending = true; upgradeBox.disabled = true;
+    const feedback = upgradeCard.querySelector('.app-onb-feature-action');
+    feedback.setAttribute('role', 'status'); feedback.textContent = COPY.onboarding.setupSaving;
+    c.querySelector('.app-onb-finish').disabled = true;
+    try {
+      const [mine, catalogue] = await Promise.all([api.getMyGyms(), api.getGyms()]);
+      const result = await enableAutoUpgradeForGyms(mine.gyms || [], catalogue, api.updateSettings.bind(api));
+      if (result.failedGymIds.length || !result.enabledGymIds.length) {
+        const names = result.failedGymIds.map((id) => catalogue.find((g) => g.id === id)?.name || id).join(', ');
+        throw new Error(names ? `Could not enable Auto-Upgrade for ${names}. Try again.` : 'Connect a supported gym first.');
+      }
+      feedback.textContent = COPY.onboarding.autoUpgradeEnabledNote;
+      setCardStatus(upgradeCard, true);
+    } catch (err) {
+      upgradeBox.checked = false; upgradeBox.disabled = false;
+      feedback.textContent = err.message || COPY.onboarding.autoUpgradeRetry;
+      setCardStatus(upgradeCard, false);
+    } finally { upgradePending = false; c.querySelector('.app-onb-finish').disabled = false; }
   });
 
   await refreshStatus();
-  c.querySelector('.app-onb-back-top').addEventListener('click', () => { resolve('back'); });
-  // Leaving the screen (Set up later / Continue, or the Teams button) applies the tickbox.
-  const leave = async (finishButton) => {
-    const checkbox = c.querySelector('#app-onb-auto-upgrade-all');
-    if (checkbox?.checked) {
-      finishButton.disabled = true;
-      try {
-        const [mine, catalogue] = await Promise.all([api.getMyGyms(), api.getGyms()]);
-        const linkedGyms = mine.gyms || [];
-        if (linkedGyms.length) {
-          const result = await enableAutoUpgradeForGyms(linkedGyms, catalogue, api.updateSettings.bind(api));
-          if (result.failedGymIds.length) {
-            const names = result.failedGymIds.map((gymId) => catalogue.find((gym) => gym.id === gymId)?.name || gymId).join(', ');
-            showToast(formatCopyText(COPY.onboarding.autoUpgradeEnableFailed, { gyms: names }), 'error');
-          }
-        }
-      } catch (_) {
-        showToast(formatCopyText(COPY.onboarding.autoUpgradeEnableFailed, { gyms: COPY.onboarding.connectedGyms }), 'error');
-      }
-    }
-    resolve();
-  };
-  c.querySelector('.app-onb-finish').addEventListener('click', (event) => leave(event.currentTarget));
-  // "Create or join a Team" finishes onboarding on the Teams tab: joining is by invite
-  // link only, so the Teams empty state is where both paths are explained. finish()
-  // runs initApp(), which routes from the URL.
-  c.querySelector('[data-feature-action="teams"]').addEventListener('click', (event) => {
-    finishDestination = pathFor({ tab: 'teams', teams: { view: 'list' } });
-    leave(event.currentTarget);
+  focusStepTitle();
+  c.querySelector('.app-onb-back-top').addEventListener('click', () => { if (!upgradePending) resolve('back'); });
+  let leaving = false;
+  c.querySelector('.app-onb-finish').addEventListener('click', (event) => {
+    if (leaving || upgradePending) return;
+    leaving = true; event.currentTarget.disabled = true; resolve();
   });
 
   notificationCard.addEventListener('click', async (event) => {
@@ -1035,7 +1064,7 @@ function stepFeatures() {
   });
   calendarCard.addEventListener('click', (event) => {
     if (!event.target.closest('[data-feature-action="calendar"]')) return;
-    openCalendarSettingsModal({ zIndex: 1000000, onChange: refreshStatus, onClose: refreshStatus });
+    openCalendarSettingsModal({ context: 'onboarding', zIndex: 1000000, onChange: refreshStatus, onClose: refreshStatus });
   });
   spotCard.addEventListener('click', (event) => {
     if (!event.target.closest('[data-feature-action="spotmaps"]')) return;

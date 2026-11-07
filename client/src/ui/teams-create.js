@@ -75,13 +75,16 @@ export function readyHtml(team) {
  * list); `onGoToTeam(team)` navigates to it after the page has closed.
  */
 export function openCreateTeamFlow({ onCreated = () => {}, onGoToTeam = () => {} } = {}) {
-  const page = openTeamsPage({ id: 'teams-create', title: T.createTitle });
+  let stopEditing = () => {};
+  const page = openTeamsPage({ id: 'teams-create', title: T.createTitle, onClose: () => stopEditing() });
   page.overlay.classList.add('tm-cf-ovl');
   const draft = { name: '', emoji: '', share: defaultShare() };
   let seed = Math.floor(Math.random() * 1000);
   let created = null;
 
   const shell = (step, inner) => {
+    stopEditing();
+    page.overlay.classList.remove('is-name-editing');
     page.overlay.classList.toggle('is-untitled', step === 'ready');
     page.body.innerHTML = `<div class="tm-cf tm-cf--${step}" data-cf-step="${step}">${progressHtml(step)}${inner}</div>`;
     page.body.scrollTop = 0;
@@ -108,6 +111,18 @@ export function openCreateTeamFlow({ onCreated = () => {}, onGoToTeam = () => {}
     const input = page.body.querySelector('.tm-cf-name');
     const errEl = page.body.querySelector('.tm-cf-error');
     input.value = draft.name;
+    let settle;
+    const syncEditing = () => {
+      clearTimeout(settle);
+      const focused = document.activeElement === input;
+      if (focused) page.overlay.classList.add('is-name-editing');
+      else settle = setTimeout(() => page.overlay.classList.remove('is-name-editing'), 240);
+    };
+    input.addEventListener('focus', syncEditing);
+    input.addEventListener('blur', syncEditing);
+    window.visualViewport?.addEventListener('resize', syncEditing);
+    stopEditing = () => { clearTimeout(settle); window.visualViewport?.removeEventListener('resize', syncEditing); };
+
     const showError = (code) => {
       errEl.hidden = !code;
       errEl.textContent = code ? nameError(code) : '';

@@ -242,18 +242,20 @@ export function renderThisWeek(section, data, now) {
     const d = days[selected];
     const { rows, hidden } = d ? visibleWeekRows(d.classes, expanded) : { rows: [], hidden: 0 };
     section.innerHTML = `<div class="tm-card-head"><h3 class="tm-card-title">${escapeHtml(T.thisWeek)}</h3></div>
-      <p class="tm-week-hint">Choose a day to see classes</p>
+      <p class="tm-week-hint"${d ? ' hidden' : ''}>Choose a day to see classes</p>
       <div class="tm-week" role="group" aria-label="${escapeHtml(T.thisWeek)}">${days.map(dayBtn).join('')}</div>
       <div id="tm-week-classes"${!d ? ' hidden' : ''}>${rows.length ? `<ul class="tm-workouts">${rows.map(rowHtml).join('')}</ul>` : d ? `<p class="tm-muted tm-sm tm-week-empty">${escapeHtml(T.noClassesDay)}</p>` : ''}</div>
       ${hidden ? `<button type="button" class="tm-btn tm-btn-block tm-mt-s" data-more>${escapeHtml(fmt(T.seeMore, { count: hidden }))}</button>` : ''}
       ${expanded && d && d.classes.length > 3 ? `<button type="button" class="tm-btn tm-btn-ghost tm-btn-block tm-mt-s" data-less>${escapeHtml(T.seeLess)}</button>` : ''}`;
     wireWorkouts(section, rows, now, byRef);
     section.querySelectorAll('[data-day]').forEach((b) => b.addEventListener('click', () => {
-      selected = Number(b.getAttribute('data-day'));
-      weekSelections.set(section, days[selected].date);
+      const tapped = Number(b.getAttribute('data-day'));
+      selected = selected === tapped ? -1 : tapped;
+      if (selected < 0) { weekSelections.delete(section); expandedWorkouts.delete(section); }
+      else weekSelections.set(section, days[selected].date);
       expanded = false;
       paint();
-      section.querySelector(`[data-day="${selected}"]`)?.focus();
+      section.querySelector(`[data-day="${tapped}"]`)?.focus();
     }));
     section.querySelector('[data-more]')?.addEventListener('click', () => { expanded = true; paint(); });
     section.querySelector('[data-less]')?.addEventListener('click', () => { expanded = false; paint(); });
@@ -508,9 +510,9 @@ function trendingInstructorsHtml(charts) {
   const peak = Math.max(1, ...rows.map((r) => r.delta));
   const body = rows.length ? `<ol class="tm-trending">${rows.map((r) => `<li class="tm-trending-row">
     <span class="tm-trending-identity" data-instructor-gym="${escapeHtml(r.gymId)}" data-instructor-id="${escapeHtml(r.instructorId || '')}" data-instructor-name="${escapeHtml(r.name)}"><span class="tm-trending-avatar"></span><span class="tm-trending-gym">${gymSquareChip(r.gymId)}</span></span>
-    <span class="tm-trending-info"><span class="tm-trending-name">${escapeHtml(r.name)}</span><span class="tm-trending-count">${r.current} shared class visits · was ${r.previous}</span><span class="tm-trending-track"><i style="width:${Math.round(r.delta / peak * 100)}%"></i></span></span><b class="tm-trending-delta">+${r.delta}</b>
+    <span class="tm-trending-info"><span class="tm-trending-name">${escapeHtml(r.name)}</span><span class="tm-trending-count">${r.current} shared class visits</span><span class="tm-trending-track"><i style="width:${Math.round(r.delta / peak * 100)}%"></i></span></span><b class="tm-trending-delta">+${r.delta}</b>
   </li>`).join('')}</ol>` : '<p class="tm-muted tm-sm tm-chart-empty">No rising instructors yet. At least two shared class visits and an increase are needed.</p>';
-  return chartCard('Trending instructors', '', `<p class="tm-trending-period">Last 14 days vs previous 14</p>${body}`, `Last 14 days versus previous 14. ${rows.map((r) => `${r.name}: ${r.current} shared class visits, previously ${r.previous}, up ${r.delta}`).join('; ') || 'No rising instructors yet'}`);
+  return chartCard('Trending instructors', '', body, `Last 14 days versus previous 14. ${rows.map((r) => `${r.name}: ${r.current} shared class visits, previously ${r.previous}, up ${r.delta}`).join('; ') || 'No rising instructors yet'}`);
 }
 
 function hydrateTrendingPhotos(section) {

@@ -14,7 +14,7 @@ import { noSept } from '../lib';
 import { api } from '../api';
 import { showToast, getIsOffline } from '../main';
 import { escapeHtml, icon } from './cards';
-import { COPY, formatCopyText } from '../copy.js';
+import { COPY, appCopy, formatCopyText } from '../copy.js';
 import { openPage as openNavPage, closePage as closeNavPage } from './modal-nav.js';
 
 // Simplified inline marks (no hotlinking). They approximate the Apple and Google
@@ -41,7 +41,7 @@ function checkRow({ key, title, help, checked, disabled = false }) {
     </label>`;
 }
 
-function feedCardHtml(status) {
+function feedCardHtml(status, context = 'settings') {
   const enabled = !!status.enabled;
   const generated = status.generatedAt
     ? COPY.calendar.lastUpdated.replace('{date}', noSept(new Date(status.generatedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })))
@@ -56,8 +56,8 @@ function feedCardHtml(status) {
         </div>
       </div>
       <div class="app-cal-feed-actions">
-        ${enabled ? `<button class="app-btn app-cal-feed-btn" data-calendar-action="refresh">${icon('refresh', 16)}<span>${COPY.calendar.refreshNow}</span></button>
-        <button class="app-btn app-cal-feed-btn variant-danger" data-calendar-action="disable">${icon('power', 16)}<span>${COPY.calendar.turnOffFeed}</span></button>`
+        ${enabled ? (context === 'onboarding' ? '' : `<button class="app-btn app-cal-feed-btn" data-calendar-action="refresh">${icon('refresh', 16)}<span>${COPY.calendar.refreshNow}</span></button>
+        <button class="app-btn app-cal-feed-btn variant-danger" data-calendar-action="disable">${icon('power', 16)}<span>${COPY.calendar.turnOffFeed}</span></button>`)
         : `<button class="app-btn app-cal-feed-btn" data-calendar-action="enable">${icon('power', 16)}<span>${COPY.calendar.turnOnFeed}</span></button>`}
       </div>
     </div>`;
@@ -114,7 +114,7 @@ export function openCalendarProvider(url) {
   anchor.remove();
 }
 
-export async function renderCalendarSection(targetContainer = null) {
+export async function renderCalendarSection(targetContainer = null, { context = 'settings' } = {}) {
   const container = targetContainer || document.getElementById('app-calendar-section');
   if (!container) return;
 
@@ -139,7 +139,7 @@ export async function renderCalendarSection(targetContainer = null) {
   };
 
   // Card order: feed on/off, Include, Reminders, Add to calendar.
-  container.innerHTML = feedCardHtml(status) + (status.enabled ? includeCardHtml(status) + remindersCardHtml(status) + addCardHtml(status) : '');
+  container.innerHTML = (context === 'onboarding' ? `<p class="app-card-desc app-cal-flow">${escapeHtml(appCopy(COPY.onboarding.calendarSetupFlow))}</p>` : '') + feedCardHtml(status, context) + (status.enabled ? includeCardHtml(status) + remindersCardHtml(status) + addCardHtml(status) : '');
 
   const val = (key) => container.querySelector(`[data-calendar-setting="${key}"]`);
   const notifyActionComplete = () => container.dispatchEvent(new CustomEvent('app:calendar-action-complete'));
@@ -156,7 +156,7 @@ export async function renderCalendarSection(targetContainer = null) {
     if (val('remindBookingWindow')) out.remindBookingWindow = !!val('remindBookingWindow').checked;
     return out;
   };
-  const rerender = () => renderCalendarSection(container).catch(() => {});
+  const rerender = () => renderCalendarSection(container, { context }).catch(() => {});
 
   // Changing a preference re-publishes the feed, so the change reaches the
   // subscribed device rather than waiting for the 3-hourly cycle.
@@ -220,9 +220,9 @@ export async function renderCalendarSection(targetContainer = null) {
  * on desktop and a full-screen page on mobile (modal-nav), with a Done button at the bottom.
  * Renders the same account-level section as Settings; `onClose` fires once however it is dismissed.
  */
-export function openCalendarSettingsModal({ zIndex = 2000, onChange = null, onClose = null } = {}) {
+export function openCalendarSettingsModal({ context = 'settings', zIndex = 2000, onChange = null, onClose = null } = {}) {
   const overlay = document.createElement('div');
-  overlay.className = 'app-ovl';
+  overlay.className = `app-ovl${context === 'onboarding' ? ' app-cal-setup' : ''}`;
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.style.cssText = `position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:${zIndex};display:flex;align-items:center;justify-content:center;padding:16px;`;
@@ -261,6 +261,6 @@ export function openCalendarSettingsModal({ zIndex = 2000, onChange = null, onCl
 
   document.body.appendChild(overlay);
   openNavPage(overlay, { id: 'calendar-settings', remove: true, onClose: cleanup });
-  renderCalendarSection(section);
+  renderCalendarSection(section, { context });
   return { close };
 }

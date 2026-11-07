@@ -443,7 +443,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     // Hint text shown directly under the map when in edit mode
     if (editing && !hideEditHint) {
       const hint = document.createElement('div');
-      hint.style.cssText = 'font-size:12px;color:var(--text-secondary);margin:2px 0 8px;line-height:1.4;';
+      hint.style.cssText = 'font-size:12px;color:var(--text-secondary);margin:2px 0 0;line-height:1.4;';
       hint.textContent = `${COPY.spotMapEditor.editInstructionHtml}${rowGroups && rowYs.length > 1 ? ` ${COPY.spotMapEditor.editRowsInstruction}` : ''}`;
       container.appendChild(hint);
     }

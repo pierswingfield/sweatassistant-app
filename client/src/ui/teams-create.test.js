@@ -48,6 +48,13 @@ describe('create flow markup (T10)', () => {
 });
 
 describe('create flow walk-through (T10)', () => {
+  it('name focus enters compact editing mode and restores Ideas after blur settles', async () => {
+    flow.openCreateTeamFlow(); const input = document.querySelector('.tm-cf-name');
+    input.focus(); expect(document.querySelector('.tm-cf-ovl').classList.contains('is-name-editing')).toBe(true);
+    input.blur(); expect(document.querySelector('.tm-cf-ovl').classList.contains('is-name-editing')).toBe(true);
+    await tick(260); expect(document.querySelector('.tm-cf-ovl').classList.contains('is-name-editing')).toBe(false);
+  });
+
   it('name -> emoji -> sharing -> ready, then shares the invite text', async () => {
     const onCreated = vi.fn();
     const onGoToTeam = vi.fn();

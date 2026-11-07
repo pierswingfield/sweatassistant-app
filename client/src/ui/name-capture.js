@@ -95,3 +95,14 @@ export function welcomeText(firstName) {
   const name = cleanFirstName(firstName);
   return name ? `Welcome, ${name}!` : 'Welcome!';
 }
+
+/** Only attribute the displayed suggestion to a gym when no different account name won. */
+export function onboardingNameSuggestion(settings, linkedGyms) {
+  const suggestion = inferNames(linkedGyms);
+  const saved = validPrefill(settings?.firstName);
+  const firstName = saved || suggestion.firstName;
+  const fromGym = !!suggestion.firstName && !!suggestion.sources.length
+    && (!saved || saved.toLocaleLowerCase() === suggestion.firstName.toLocaleLowerCase());
+  return { firstName, lastName: typeof settings?.lastName === 'string' ? validPrefill(settings.lastName) : suggestion.lastName,
+    sources: fromGym ? suggestion.sources : [] };
+}

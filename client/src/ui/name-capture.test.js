@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanFirstName, cleanNameField, gymProfileName, inferFirstName, inferNames, welcomeText, greetingPhrase, greetingText } from './name-capture.js';
+import { onboardingNameSuggestion, cleanFirstName, cleanNameField, gymProfileName, inferFirstName, inferNames, welcomeText, greetingPhrase, greetingText } from './name-capture.js';
 
 describe('Home name capture', () => {
   it('uses one shared gym-profile first-name suggestion, case-insensitively', () => {
@@ -69,5 +69,19 @@ describe('T-1 first and last name inference (PLAN-teams §5.8)', () => {
     expect(inferFirstName([{ first_name: 'Mary Ann', last_name: 'Smith' }])).toBe('Mary Ann');
     expect(cleanNameField('  de   la  Cruz ')).toBe('de la Cruz');
     expect(cleanNameField(null)).toBe('');
+  });
+});
+
+ describe('onboarding name provenance', () => {
+  const gyms = [{ gym_name: 'Alpha', first_name: 'Alex', last_name: 'Smith' }];
+  it('names the actual gym source for an unambiguous suggestion', () => {
+    expect(onboardingNameSuggestion({}, gyms)).toEqual({ firstName: 'Alex', lastName: 'Smith', sources: ['Alpha'] });
+  });
+  it('retains an edited account name without claiming it came from a gym', () => {
+    expect(onboardingNameSuggestion({ firstName: 'Robin', lastName: '' }, gyms)).toEqual({ firstName: 'Robin', lastName: '', sources: [] });
+  });
+  it('rejects conflicting gym names and never infers from an email', () => {
+    expect(onboardingNameSuggestion({}, [...gyms, { gym_name: 'Beta', first_name: 'Robin' }]).sources).toEqual([]);
+    expect(onboardingNameSuggestion({}, [{ gym_name: 'Alpha', gym_email: 'alex@example.com' }]).firstName).toBe('');
   });
 });

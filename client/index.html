@@ -558,17 +558,17 @@
               <!-- SECTION: ABOUT -->
               <div class="app-settings-section-pane" id="app-settings-pane-about">
                 <section class="app-settings-card app-about-tour">
-                  <h4>Welcome tour</h4>
-                  <p class="app-card-desc">A quick guide to getting started.</p>
-                  <button id="app-replay-onboarding-btn" class="app-btn ui-replay-onboarding">Take the welcome tour</button>
+                  <span class="app-about-guide" aria-hidden="true"><img src="/characters/team-referee.webp" alt="" width="72" height="72"></span><div class="app-about-tour-copy"><h4>Make yourself at home</h4>
+                  <p class="app-card-desc">Meet your fitness concierge. A quick guide to getting started.</p>
+                  <button id="app-replay-onboarding-btn" class="app-btn ui-replay-onboarding">Take the welcome tour <span aria-hidden="true">→</span></button></div>
                 </section>
-                <section class="app-settings-card">
-                  <h4>About <span data-app-name>__APP_NAME__</span></h4>
+                <section class="app-settings-card app-about-purpose">
+                  <p class="app-about-eyebrow">Your fitness, in good company</p><h4>About <span data-app-name>__APP_NAME__</span></h4>
                   <p class="app-card-desc"><span data-app-name>__APP_NAME__</span> brings your connected gyms, bookings and preferred spots together. Auto-Book tries when classes open, Auto-Upgrade watches for better spots, and Teams helps you plan with friends.</p>
                   <p class="app-card-desc">An independent companion for your gyms. Booking rules, availability and cancellation policies are set by each studio.</p>
                 </section>
                 <section class="app-settings-card app-about-privacy">
-                  <h4>Privacy &amp; data</h4>
+                  <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z"/><path d="m8 12 3 3 5-6"/></svg>Privacy &amp; data</h4>
                   <p class="app-card-desc">Your <span data-app-name>__APP_NAME__</span> account is separate from your gym logins. Gym passwords and sessions are encrypted at rest and decrypted on our server for syncing and booking. You control Team sharing. Delete your account and live data from Account settings; backups and copies shared elsewhere may remain.</p>
                   <button type="button" class="app-btn" data-about-account>Account settings</button>
                 </section>
@@ -778,8 +778,7 @@
            debug mode (desktop nav + Home tile only), so a phone never shows seven items. -->
       <button class="app-nav-btn app-bottom-nav-btn" data-tab="teams" data-copy-aria-label="static.navTeams">
         <svg class="app-bn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="9" cy="7" r="3"/><circle cx="17" cy="9" r="2.5"/>
-          <path d="M2.5 21v-3a6.5 6.5 0 0 1 11.3-4.4A5.5 5.5 0 0 1 22 18.5V21H2.5Z"/>
+          <path d="M7 3h10v6a5 5 0 0 1-10 0V3Z"/><path d="M7 5H4v2a4 4 0 0 0 4 4M17 5h3v2a4 4 0 0 1-4 4M12 14v5M8 21h8M9 19h6"/>
         </svg>
         <span data-copy-text="static.navTeams"></span>
       </button>

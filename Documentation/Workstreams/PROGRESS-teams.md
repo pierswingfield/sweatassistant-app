@@ -314,3 +314,9 @@ Real Chrome loaded the new `/teams` route with the existing authenticated accoun
 Production app and landing source `c98ef9a` deployed from an immutable export. Setup actions now use consistent full-width 44px rows; Auto-Upgrade checkbox is separate, off by default, and keyboard-operable. Share My Bookings periods use themed pills and retain focus after repaint. Credential/privacy copy describes at-rest encryption, server decryption and live-data deletion accurately. No legal pages or acceptance/consent flow were published.
 
 Fresh checks: 121/121 server suites, 117 client files / 959 tests, client build (existing Vite warnings), real Chrome at 320/390/1280 light/dark, and 42 active/reference/draft Markdown files / 188 relative targets / zero missing. Public assets match local SHA-256. Containers Up/restarts 0, health HTTP 200, env unchanged, DB integrity/counts unchanged; dev/experiment untouched. [Detailed evidence and rollback receipt](../QA/browser-runs/onboarding-share-polish-2026-11-07/README.md). Physical iOS remains owner acceptance.
+
+## 2026-11-07 — Sol design implementation
+
+Implemented the [approved full onboarding/app refinement](TEAMS-ONBOARDING-DESIGN-2026-11-07.md): shared Team guide with independent titles, five welcome widgets, explicit gym choice/stable finite logo discovery, honest gym-name suggestion provenance, four persisted/collapsible setup widgets, calendar setup context, Home completion focus, Team keyboard/day toggle and Home/About/nav/Settings/spot/auth material refinements. Legal drafts and link-preview images remain unpublished.
+
+Verification: 121 server suites passed; final client run 120 files/976 tests; production build and diff/brand checks passed. Real Chrome matrix and precise remaining physical-iOS limitation are in the [implementation receipt](../QA/browser-runs/sol-design-implementation-2026-11-07/README.md). Production-only release pending; landing unchanged.

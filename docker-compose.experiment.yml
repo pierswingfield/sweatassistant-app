@@ -1,4 +1,4 @@
-# EXPERIMENT twin (sweat-experiment.wingfield.tech), ~/services/sweatassistant-experiment/ on oracle.
+# EXPERIMENT twin (experiment.dibs.fit), ~/services/sweatassistant-experiment/ on oracle.
 # Service name differs from dev/prod: it is a DNS alias on the shared edge network.
 services:
   sweatassistant-experiment:

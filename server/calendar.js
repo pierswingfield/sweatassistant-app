@@ -29,7 +29,7 @@ const bookingSync = require('./booking-sync');
 // No module-level provider (WP-D7) — resolved per user, since a calendar feed is
 // per-gym (its token lives on user_gyms).
 
-const { appName, publicHost: APP_HOST } = require('./config');
+const { appName, publicHost: APP_HOST, calendarUidNamespace: UID_NAMESPACE } = require('./config');
 const PAST_CLASS_CAP = 100;            // rolling history kept per user
 const LOCATIONS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_DURATION_MIN = 45;
@@ -438,7 +438,7 @@ function buildWindowVEvent(userId, w) {
   const title = `${w.gymName} booking window opens`;
   return [
     'BEGIN:VEVENT',
-    `UID:app-${userId}-bw-${w.gymId}-${w.dateKey}@${APP_HOST}`,
+    `UID:app-${userId}-bw-${w.gymId}-${w.dateKey}@${UID_NAMESPACE}`,
     'SEQUENCE:0',
     `DTSTAMP:${fmtUTC(DateTime.now())}`,
     dtProp('DTSTART', start),
@@ -464,7 +464,7 @@ function buildVEvent(userId, row, addrMap, reminders) {
 
   const lines = [
     'BEGIN:VEVENT',
-    `UID:app-${userId}-${row.event_id}@${APP_HOST}`,
+    `UID:app-${userId}-${row.event_id}@${UID_NAMESPACE}`,
     `SEQUENCE:${row.sequence || 0}`,
     `DTSTAMP:${fmtUTC(DateTime.now())}`,
     dtProp('DTSTART', start),

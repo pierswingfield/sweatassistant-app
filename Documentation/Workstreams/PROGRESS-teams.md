@@ -1,6 +1,8 @@
 # Teams: progress report
 
-**As of 2026-11-07.** Branch `teams` (58 commits ahead of `master`, latest the surname-initial work after `6fedd1a`). Nothing is pushed to `master` or deployed to prod. The experiment twin was redeployed 2026-11-07 04:02 UTC with the UX revision below, from the uncommitted `teams` worktree based at `62a620c`.
+**As of 2026-11-07.** Domain migration execution is in progress: [Dibs domain plan](PLAN-domain-dibs-fit.md).
+
+**Historical pre-release status:** Branch `teams` (58 commits ahead of `master`, latest the surname-initial work after `6fedd1a`). Nothing is pushed to `master` or deployed to prod. The experiment twin was redeployed 2026-11-07 04:02 UTC with the UX revision below, from the uncommitted `teams` worktree based at `62a620c`.
 
 Full design and decisions: [PLAN-teams.md](PLAN-teams.md). Screenshots are linked below (open them from the repo).
 

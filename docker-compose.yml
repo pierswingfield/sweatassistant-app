@@ -1,4 +1,4 @@
-# DEV twin (sweat-dev.wingfield.tech), deployed by ./deploy.sh to ~/services/sweatassistant-dev/ on oracle.
+# DEV twin (dev.dibs.fit), deployed by ./deploy.sh to ~/services/sweatassistant-dev/ on oracle.
 # Prod has its own file: docker-compose.prod.yml (deploy.sh --prod ships that one).
 #
 # The service name is also a DNS alias on the shared `edge` network, so dev and prod

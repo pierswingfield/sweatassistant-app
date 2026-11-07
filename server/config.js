@@ -19,6 +19,11 @@ function requiredInProduction(name, devDefault) {
 }
 
 const publicHost = requiredInProduction('PUBLIC_HOST', 'localhost');
+// Pin this once per deployed database. Feed URLs can move; VEVENT identities must not.
+const calendarUidNamespace = (process.env.CALENDAR_UID_NAMESPACE || publicHost).trim();
+if (process.env.CALENDAR_UID_NAMESPACE && !/^[a-zA-Z0-9.-]+$/.test(calendarUidNamespace)) {
+  throw new Error('[Config] CALENDAR_UID_NAMESPACE must be a hostname-shaped stable identifier.');
+}
 const vapidEmail = requiredInProduction('VAPID_EMAIL', 'mailto:admin@localhost.invalid');
 if (!/^(mailto:|https:\/\/)/.test(vapidEmail)) {
   throw new Error('[Config] VAPID_EMAIL must be a mailto: address or an https:// URL.');
@@ -60,12 +65,13 @@ const hsts = isProduction && hstsMaxAge > 0 ? `max-age=${hstsMaxAge}` : null;
 const cspReportOnly = /^(1|true|yes)$/i.test(String(process.env.CSP_REPORT_ONLY || '').trim());
 
 // Where /_a/go sends the landing-page CTA. Fixed here, never taken from request input.
-const landingCtaTarget = 'https://sweat.wingfield.tech';
+const landingCtaTarget = 'https://app.dibs.fit';
 
 module.exports = {
   landingCtaTarget,
   appName: process.env.APP_NAME || 'Dibs',
   publicHost,
+  calendarUidNamespace,
   vapidEmail,
   corsOrigins,
   trustProxy,

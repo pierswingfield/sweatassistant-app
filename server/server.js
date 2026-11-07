@@ -46,6 +46,11 @@ const { getGymConfig } = require('./gyms.config');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+// Account/API responses must never enter a shared edge cache.
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'private, no-store');
+  next();
+});
 // Behind the Cloudflare Tunnel every socket peer is cloudflared; without this every
 // per-IP limiter shares one bucket. Hop count, never `true` (see config.js).
 app.set('trust proxy', config.trustProxy);
@@ -1013,6 +1018,9 @@ app.get('/api/calendar/:token.ics', calendarFeedLimiter, (req, res) => {
     }
     if (!snap || !snap.ics) return res.status(503).type('text/plain').send('Calendar not ready yet, try again shortly.');
 
+    // Set these before conditional delivery so 304 has the same privacy policy.
+    res.set('ETag', snap.etag);
+    res.set('Cache-Control', 'private, no-cache, max-age=0');
     if (req.headers['if-none-match'] && req.headers['if-none-match'] === snap.etag) {
       return res.status(304).end();
     }
@@ -1020,7 +1028,6 @@ app.get('/api/calendar/:token.ics', calendarFeedLimiter, (req, res) => {
     res.set('Content-Type', 'text/calendar; charset=utf-8');
     res.set('Content-Disposition', 'inline; filename="sweat.ics"');
     res.set('ETag', snap.etag);
-    res.set('Cache-Control', 'no-cache, max-age=0');
     res.send(snap.ics);
   } catch (err) {
     res.status(500).type('text/plain').send('Error generating calendar.');

@@ -4,9 +4,9 @@
 #
 # All environments live on `oracle`:
 #
-#   dev twin  ~/services/sweatassistant-dev/   compose: docker-compose.yml        sweat-dev.wingfield.tech  (default)
-#   prod      ~/services/sweatassistant/       compose: docker-compose.prod.yml   sweat.wingfield.tech
-#   experiment ~/services/sweatassistant-experiment/ compose: docker-compose.experiment.yml  sweat-experiment.wingfield.tech
+#   dev twin  ~/services/sweatassistant-dev/   compose: docker-compose.yml        dev.dibs.fit  (default)
+#   prod      ~/services/sweatassistant/       compose: docker-compose.prod.yml   app.dibs.fit
+#   experiment ~/services/sweatassistant-experiment/ compose: docker-compose.experiment.yml  experiment.dibs.fit
 #             (throwaway twin for trying a branch; Piers-only Access; its DB is a copy, never prod's)
 #
 # The flow is what was done by hand: rsync the tree, then
@@ -46,17 +46,17 @@ if [ "$TARGET" = prod ]; then
   REMOTE_DIR='~/services/sweatassistant'
   COMPOSE_FILE='docker-compose.prod.yml'
   CONTAINER='sweatassistant'
-  HEALTH_URL='https://sweat.wingfield.tech/api/health'
+  HEALTH_URL='https://app.dibs.fit/api/health'
 elif [ "$TARGET" = experiment ]; then
   REMOTE_DIR='~/services/sweatassistant-experiment'
   COMPOSE_FILE='docker-compose.experiment.yml'
   CONTAINER='sweatassistant-experiment'
-  HEALTH_URL='https://sweat-experiment.wingfield.tech/api/health'
+  HEALTH_URL='https://experiment.dibs.fit/api/health'
 else
   REMOTE_DIR='~/services/sweatassistant-dev'
   COMPOSE_FILE='docker-compose.yml'
   CONTAINER='sweatassistant-dev'
-  HEALTH_URL='https://sweat-dev.wingfield.tech/api/health'
+  HEALTH_URL='https://dev.dibs.fit/api/health'
 fi
 
 # Always excluded: secrets, the database volume, build output, dependencies, VCS.
@@ -88,7 +88,7 @@ echo "=== Deploy target: $TARGET ($HOST:$REMOTE_DIR) ==="
 
 if [ "$TARGET" = prod ] && [ "$PRINT" = 0 ]; then
   if [ ! -t 0 ]; then echo "Refusing to deploy prod without an interactive terminal." >&2; exit 1; fi
-  echo "This rebuilds the LIVE service at sweat.wingfield.tech."
+  echo "This rebuilds the LIVE service at app.dibs.fit."
   read -r -p 'Type "deploy prod" to continue: ' answer
   [ "$answer" = "deploy prod" ] || { echo "Aborted."; exit 1; }
 fi

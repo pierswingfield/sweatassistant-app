@@ -2,6 +2,8 @@
   "name": "__APP_NAME__",
   "short_name": "__APP_NAME__",
   "description": "Progressive Web App for auto-booking and monitoring your gym classes.",
+  "id": "/",
+  "scope": "/",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait-primary",

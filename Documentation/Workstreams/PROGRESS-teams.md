@@ -307,3 +307,10 @@ Served assets match local final build byte-for-byte (public URL and container SH
 - `teams-dashboard-DE-kmv7A.js`: `9c73f325a75f991cf6071f6dd36ccaf7064eeeb99a7f9f187a677bdc9236ddae`.
 
 Real Chrome loaded the new `/teams` route with the existing authenticated account. Optional setup was dismissed with its automatic-upgrade checkbox already false; no settings/gym mutation was sent by that action. The empty Teams page renders (production has no Teams); Today rows were verified with local mock data and browser-only timezone cases. No live gym write, data reset, secret rotation, bind/exposure change, or fixture seed occurred. Physical iOS remains unverified. Local selfhost registry and host CHANGELOG updated. Backup and rollback image remain available.
+
+
+## 2026-11-07 — Setup/share controls, documentation and unpublished legal drafts
+
+Production app and landing source `c98ef9a` deployed from an immutable export. Setup actions now use consistent full-width 44px rows; Auto-Upgrade checkbox is separate, off by default, and keyboard-operable. Share My Bookings periods use themed pills and retain focus after repaint. Credential/privacy copy describes at-rest encryption, server decryption and live-data deletion accurately. No legal pages or acceptance/consent flow were published.
+
+Fresh checks: 121/121 server suites, 117 client files / 959 tests, client build (existing Vite warnings), real Chrome at 320/390/1280 light/dark, and 42 active/reference/draft Markdown files / 188 relative targets / zero missing. Public assets match local SHA-256. Containers Up/restarts 0, health HTTP 200, env unchanged, DB integrity/counts unchanged; dev/experiment untouched. [Detailed evidence and rollback receipt](../QA/browser-runs/onboarding-share-polish-2026-11-07/README.md). Physical iOS remains owner acceptance.

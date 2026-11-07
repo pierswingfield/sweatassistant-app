@@ -49,4 +49,16 @@ assert.ok(responses.getTeam.members.every((m) => m.lastInitial === null || /^\p{
 assert.strictEqual(responses.listRequests[0].lastInitial, 'H');
 const card = (responses.listTeams.teams || responses.listTeams)[0];
 assert.ok(card.members.some((m) => m.lastInitial === 'S'), 'list card members carry lastInitial');
+
+// initialOf: skip leading non-letters; no letter -> '' (null lastInitial).
+const io = teams.__initialOf;
+assert.strictEqual(io('-Smith'), 'S');
+assert.strictEqual(io("'ébertson"), 'É');
+assert.strictEqual(io('1abc'), 'A');
+assert.strictEqual(io('123'), '');
+assert.strictEqual(io('-'), '');
+assert.strictEqual(io('\u{1F600}'), '');
+assert.strictEqual(io('\u{1F600}Zed'), 'Z');
+assert.strictEqual(io(''), '');
+assert.strictEqual(io('ß'), 'S');
 console.log('team surname initial: ok');

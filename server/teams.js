@@ -176,7 +176,10 @@ function shareFromInput(share) {
 // One letter only: the first grapheme, upper-cased, cut back to one grapheme ("ß" -> "SS" -> "S").
 function initialOf(word) {
   const g = (t) => { const it = GRAPHEMES.segment(t)[Symbol.iterator]().next(); return it.done ? '' : it.value.segment; };
-  return g(g(word).toLocaleUpperCase());
+  // Skip leading non-letters ("-Smith" -> S); no letter at all -> '' (null lastInitial).
+  const letters = String(word == null ? '' : word).replace(/^[^\p{L}]+/u, '');
+  const out = g(g(letters).toLocaleUpperCase());
+  return /^\p{L}$/u.test(out) ? out : '';
 }
 function nameParts(userId) {
   // Stored text is re-validated at read time: whatever predates the validator (or came in by
@@ -954,6 +957,6 @@ module.exports = {
   updateMe, setPinned, leaveTeam, setCaptain, removeMember,
   privacyOverview, beforeAccountDelete, teamCountsByUser, exportMyShares, importMyShares,
   timetableChips, joinRequestTargets, approvalTarget, teammateBookingAlerts, alertsEnabledFor, setEventListener,
-  __now: () => nowFn(),
+  __now: () => nowFn(), __initialOf: initialOf,
   __setNow(fn) { nowFn = typeof fn === 'function' ? fn : () => Date.now(); },
 };

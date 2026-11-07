@@ -1,12 +1,19 @@
 # Work plan: Teams (shared upcoming classes for small groups)
 
-**Status:** In progress on branch `teams` (T-0 design, T-B background sync, T-1 membership core, T-2 projection/Teams list, T-3 dashboard, T-4 stats, T-5 reach and T-7 owner decisions built; T-6 backlogged; nothing pushed or deployed). Handover below. Originally proposed 2026-11-04. Expands F-3 (social class sharing: "who's going", friend graph). The decisions in §9 were settled by the user on 2026-11-04; the T-0 mock-ups (the design phase) were approved after round 3 on 2026-11-04, and every change from the owner's feedback is recorded here.
+**Status:** In progress on branch `teams` (see [PROGRESS-teams.md](PROGRESS-teams.md)) (T-0 design, T-B background sync, T-1 membership core, T-2 projection/Teams list, T-3 dashboard, T-4 stats, T-5 reach and T-7 owner decisions built; T-6 backlogged; nothing pushed or deployed). Handover below. Originally proposed 2026-11-04. Expands F-3 (social class sharing: "who's going", friend graph). The decisions in §9 were settled by the user on 2026-11-04; the T-0 mock-ups (the design phase) were approved after round 3 on 2026-11-04, and every change from the owner's feedback is recorded here.
 
-## Handover (status as of 2026-11-06)
+## Handover (status as of 2026-11-07)
+
+**Start with [PROGRESS-teams.md](PROGRESS-teams.md)**, the owner-facing progress report (phases with commits, decisions, security audit, backups, experiment twin, open items). The detail below is the per-phase log.
 
 **Where the code is**
-- Branch `teams`, worktree `/home/ubuntu/AI Projects/psycle chrome/App-teams`; T-4 sits on 9118075. Branched from `master`; `master` merged in at bd76b7a (brings the trust-proxy fix 35a98b8 and master commits up to b98cccc). Nothing pushed, nothing deployed.
-- Tests after T-7 (2026-11-06): `npm test` green, 114/114 server suites (new `test-team-spots.js`, `test-team-goal.js`, `test-booking-success-limit.js`) and 879 client vitest tests in 108 files.
+- Branch `teams`, worktree `/home/ubuntu/AI Projects/psycle chrome/App-teams`. 58 commits ahead of `master`; `security-audit` is merged in (e86eff6). Phases T-0 to T-5b, T-7 and the mobile rounds T8 to T12 are built (T8 mobile nav, T9 empty state and cards, T10 avatar and create flow, T11 Team page, T12 settings and sharing page); the surname initial is exposed to teammates (D12). T-6 is backlogged. Nothing is pushed or deployed to prod; the experiment twin runs `ed62c04`.
+- Tests: see PROGRESS-teams.md. At `ed62c04`, 119/119 server suites and 950/950 client tests. `server/test-poller-backoff.js` is a known timing flake; rerun it alone.
+
+**Next**
+- Owner's phone check of the experiment twin; redeploy it with the surname initial; measure background gym-call volume there; then merge to `master` and deploy to prod (owner go-ahead and the AGENTS.md security checklist needed). T-6 stays backlogged.
+
+**Older notes below** (security items marked paused were since done on `security-audit`; see PROGRESS-teams.md).
 
 **Done (phase = what it is)**
 - T10, Team avatar and guided create flow (2026-11-06): **Team avatar** (`client/src/ui/team-avatar.js`, sizes sm/lg/hero): the mascot in a frosted glass orb with the Team emoji in a smaller overlapping glass badge. A Team name is no longer concatenated with its emoji anywhere except the timetable chip (owner-approved mock-up 08, left as is) and the invite share text; list and Home cards, the Team header, Settings > Privacy, the join page and Manage show the name alone. **Create a Team** is now a four-step flow (`teams-create.js`, pure rules in `teams-create-model.js`): Name (big input, tappable suggestions, inline error only past 40 characters or on < >), Emoji (curated grid, type-any field, live avatar preview), Your sharing (hero avatar and name; gym cards with a clear selected/unselected state and a filled segmented control, shared with every sharing sheet), Ready (no title, captain box, Share link on the page: `navigator.share` with "You're invited to <app>! Join my Team <emoji> <name>." plus the URL, else clipboard and a toast). The mascot speaks one line per step. **Title centring:** modal-nav page headers with one control get a balancing 44 px spacer and symmetric padding (mobile, all `.app-ovl` pages with two header children); Teams pages are centred on desktop too. No server change. Tests: vitest `team-avatar.test.js`, `teams-create-model.test.js`, `teams-create.test.js`, updated `teams-ui.test.js`. Browser run in the owner's Chrome over CDP (mock gyms only): `teams-mockups/screens/t10-*.png`.

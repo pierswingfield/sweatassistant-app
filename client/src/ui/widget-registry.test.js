@@ -182,4 +182,3 @@ describe('outcome-aware ordering (orderFor)', () => {
     expect(el.dataset.widgetOrder).toBe('30');
   });
 });
-

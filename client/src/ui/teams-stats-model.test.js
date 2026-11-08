@@ -105,4 +105,3 @@ describe('D13 Team goal models', () => {
     for (const bad of ['0', '225', '999']) expect(validateWeeklyGoal(bad).error).toBe('range');
   });
 });
-

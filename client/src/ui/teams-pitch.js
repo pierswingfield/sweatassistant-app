@@ -28,4 +28,3 @@ export function pitchHtml(copy, { escapeHtml: esc, mascotHtml }) {
       <p class="tm-pitch-join">${esc(copy.pitchJoinHint)}</p>
     </section>`;
 }
-

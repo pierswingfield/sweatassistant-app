@@ -1,14 +1,14 @@
 # Dibs privacy notice — draft
 
-**Draft 7 November 2026. Unpublished; resolve placeholders and review notes first.**
+**Draft updated 8 November 2026. Unpublished; see the review notes before publication.**
 
 ## Who is responsible
 
-**[operator's full legal name and status]**, **[contact/service address]**, is the individual controller operating under the trading name **Dibs** in the United Kingdom at dibs.fit and app.dibs.fit. Privacy contact: **privacy@dibs.fit**. This notice covers Dibs; gyms and services you use separately have their own notices.
+Dibs operates in the United Kingdom at dibs.fit and app.dibs.fit. Privacy contact: **privacy@dibs.fit**. This notice covers Dibs; gyms and services you use separately have their own notices.
 
 ## What we collect and why
 
-| Information | Purpose and proposed UK GDPR basis |
+| Information | Purpose and UK GDPR basis |
 |---|---|
 | Dibs email, password hash, name and account/settings records | Create and secure your account and provide the service you request: contract. |
 | Linked gym email, encrypted password and sessions; provider profile, membership/credit and class information | Connect to your chosen gym, show your account and bookings, keep history and run enabled booking/sync features: contract. |
@@ -16,7 +16,7 @@
 | Team memberships and sharing choices; information you choose to share | Provide optional Team features you request: contract. You control participation and per-Team visibility.  |
 | Push subscription/device routing details and calendar tokens | Deliver optional notifications and private calendar feeds you request: contract; browser permission is also required for push. |
 | Technical/security logs, request metadata and support messages | Protect accounts, investigate faults and respond to support: legitimate interests in running a secure, reliable service. Legal obligations apply where retention/disclosure is required by law. |
-| Landing visits/clicks, page/referrer host, broad device/country and campaign information | Understand use of the landing page: proposed legitimate interests in improving it, subject to the tracking-law review below. |
+| Landing visits/clicks, page/referrer host, broad device/country and campaign information | Understand use of the landing page: legitimate interests in understanding and improving the site. |
 
 Account credentials enable sign-in; gym access details enable a connection. Other features are optional. Without necessary information we cannot provide that feature. Dibs sign-in is separate from gym sign-in.
 
@@ -28,25 +28,25 @@ The public service uses HTTPS. Security cannot eliminate breach risk. Never send
 
 ## Who receives information
 
-We send relevant credentials, sessions and requests to the gyms/providers you connect. Their rules govern their own processing. Hosting, network delivery/security and backup providers process information for operating Dibs: **[confirm Oracle hosting region, Cloudflare services, Google Drive encrypted backup arrangement, other providers and contracts]**. Browser push services route enabled notifications. Calendar providers receive the contents of feeds you subscribe to. Checkout is handled through the relevant gym/provider payment flow; **[confirm the final card-data flow before describing payment handling]**.
+We send relevant credentials, sessions and requests to the gyms/providers you connect. Their rules govern their own processing. Oracle Cloud hosts the live app and its database. Cloudflare provides DNS, tunnel, network security and delivery services, access controls and email routing; it may also process network and security metadata for its own purposes. Encrypted backups support recovery: they can be restored by an operator with the appropriate keys and are not end-to-end encrypted. Browser push services route enabled notifications. Calendar providers receive the contents of feeds you subscribe to. For supported credit purchases, Dibs displays saved payment-method details such as card brand, last four digits and expiry, and sends the selected payment-method identifier to the gym provider to request payment. The gym and its payment provider handle the charge; the final payment steps have not been verified live.
 
 Team members see information allowed by your sharing settings. The joining screen initially selects gyms, upcoming classes, waitlists, activity and recent classes; spots, Auto-Book queue and competition start off. Review these choices. Counts may remain visible when class details are hidden. Sharing reveals times/locations. Changing settings cannot recall screenshots or exports.
 
 Anyone with a private calendar URL can read its feed. Keep it secret and regenerate it if exposed. We may disclose necessary information for legal obligations or claims.
 
-**International processing:** [List actual destinations and applicable UK adequacy decisions or safeguards, and how users can obtain details. Do not publish a general assurance until the provider/transfer assessment is complete.]
+**International processing:** The live app and database are hosted in London. Cloudflare operates a global network and information may be processed outside the UK; other providers you use may also process information internationally. Cloudflare publishes a data processing addendum with standard contractual clauses and a UK transfer addendum for qualifying transfers, but their application to this service and the complete destinations and safeguards have not yet been established. Contact privacy@dibs.fit for the information currently available.
 
 ## Device storage and landing analytics
 
 Local storage holds sign-in/preferences, IndexedDB caches account data, and service-worker caches support offline operation. Uninstalling does not delete your server account.
 
-Landing analytics do not set an analytics cookie. The server derives a daily-changing identifier from the IP address, user agent and secret; the analytics table stores that identifier rather than the raw IP or user agent. This is pseudonymous, not guaranteed anonymous. Network/security providers may separately process IP addresses. **[Complete tracking-law assessment and any required notice/objection control before publication; “cookieless” alone does not establish exemption.]**
+Landing analytics do not set an analytics cookie. The server derives a daily-changing identifier from the IP address, user agent and secret; the analytics table stores that identifier rather than the raw IP or user agent. This is pseudonymous, not guaranteed anonymous. Network/security providers may separately process IP addresses. You can object to this measurement by contacting privacy@dibs.fit.
 
 ## Retention and choices
 
-Account and class-history records remain while your account/gym connection needs them. The 30-day Team recent-class view limits visibility, not storage. Unlinking deletes that gym's credentials, sessions and gym-scoped data from the live database. Settings also offers account deletion. This does not cancel gym bookings or delete provider-held records. Landing events are scheduled for deletion after 13 months.
+Account and class-history records remain until you delete your account or unlink the relevant gym; there is currently no automatic deletion solely for inactivity. The 30-day Team recent-class view limits visibility, not storage. Unlinking deletes that gym's credentials, sessions and gym-scoped data from the live database. Settings also offers account deletion. This does not cancel gym bookings or delete provider-held records. Landing events are scheduled for deletion after 13 months.
 
-**[Confirm and insert actual account inactivity, log/support and backup retention periods and any justified exceptions.]** The backup script defaults to 14 days locally/30 remotely; confirm deployed jobs and other snapshots. Deleted information may remain in isolated backups until expiry; any restore must reapply deletions. Restrict retained records to recovery or justified legal needs.
+Security logs and support correspondence may be retained to investigate problems, protect the service or deal with legal matters; a fixed retention period has not yet been established. Deleted information can remain in recovery backups and other copies after deletion from the live database. The app database backup job is configured to prune local copies after 14 days and remote copies after 30 days; this is a rotation target, not a guarantee covering failed jobs, other backups or restored copies. We cannot yet give a reliable deletion deadline for every copy.
 
 ## Your rights and contact
 

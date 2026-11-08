@@ -1,10 +1,10 @@
 # Dibs terms of use — draft
 
-**Draft dated 7 November 2026. Not published or in force. Complete the bracketed fields and the review notes before publication.**
+**Draft updated 8 November 2026. Not published or in force; see the review notes before publication.**
 
 ## Who runs Dibs
 
-Dibs is the trading name of **[operator's full legal name]**, an individual based in the United Kingdom, at **[service/contact address]**. Dibs is not an incorporated company. Contact: **privacy@dibs.fit**. These terms cover the website at dibs.fit and the Dibs app at app.dibs.fit. The [Privacy notice](PRIVACY-DRAFT.md) explains personal-data use.
+Dibs is a trading name used in the United Kingdom. Contact: **privacy@dibs.fit**. These terms cover the website at dibs.fit and the Dibs app at app.dibs.fit. The [Privacy notice](PRIVACY-DRAFT.md) explains personal-data use.
 
 Dibs is an independent assistant, not a gym, booking platform or gym representative. It is not affiliated with or endorsed by the gyms it supports. Your gym membership, classes, credits and purchases remain contracts with the relevant gym or provider.
 
@@ -40,4 +40,4 @@ Nothing in these terms excludes liability for death or personal injury caused by
 
 We will explain material changes before they apply and give you a reasonable opportunity to stop using Dibs. Changes will not retrospectively remove rights you already have. Contact us first to try to resolve a problem.
 
-These terms are governed by **[confirm appropriate governing law]**. You keep any mandatory protections and right to use the courts available to you under the law where you live. No term requires you to waive those rights.
+These terms are governed by the law of England and Wales. You keep any mandatory protections and right to use the courts available to you under the law where you live. No term requires you to waive those rights.

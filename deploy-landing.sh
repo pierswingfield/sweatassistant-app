@@ -2,10 +2,10 @@
 #
 # Landing site: deploy to the oracle VM (workstream M, decision M-D2).
 #
-#   ~/services/landing/   compose: landing/docker-compose.yml   $LANDING_HOST
+#   ~/services/dibs-landing/   compose: landing/docker-compose.yml   $LANDING_HOST
 #
 # MANUAL STEP (not done by this script): add a Cloudflare tunnel ingress rule for
-# $LANDING_HOST -> http://landing:80 (and DNS if not covered by the wildcard).
+# $LANDING_HOST -> http://dibs-landing:80 (and DNS if not covered by the wildcard).
 # Host confirmed: dibs.wingfield.tech.
 #
 # Like `deploy.sh --prod` it asks for a typed confirmation and refuses to run
@@ -21,7 +21,7 @@ set -euo pipefail
 LANDING_HOST="${LANDING_HOST:-dibs.wingfield.tech}"   # confirmed hostname
 HOST="${DEPLOY_HOST:-oracle}"
 DOCKER="${DEPLOY_DOCKER:-docker}"
-REMOTE_DIR='~/services/landing'
+REMOTE_DIR='~/services/dibs-landing'
 PRINT=0
 
 for arg in "$@"; do
@@ -62,5 +62,5 @@ echo "[2/2] docker compose up -d --build"
 run ssh "$HOST" "$REMOTE_UP"
 
 echo "Done. Verify:  curl -sI https://$LANDING_HOST/"
-echo "MANUAL: Cloudflare tunnel ingress for $LANDING_HOST -> http://landing:80 must exist."
-echo "Also update the selfhost-deploy registry (container 'landing', network edge, no published port)."
+echo "MANUAL: Cloudflare tunnel ingress for $LANDING_HOST -> http://dibs-landing:80 must exist."
+echo "Also update the selfhost-deploy registry (container 'dibs-landing', network edge, no published port)."

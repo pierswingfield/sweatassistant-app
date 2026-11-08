@@ -7,7 +7,7 @@ This is the single home for deferred, low-priority, research-first, and user-dep
 - **C5-2 — Auto-Book Favourites.** Build queue rules from gym-neutral favourites. Low priority (P3); unblocked by F-12. Detail: [archived C5 plan](../Archive/2026-10-08/C5-auto-book.md).
 - **C6-1 — Emailed password reset.** Add a transactional email sender and single-use reset flow; no real users yet, so deferred. **C6-2 — Change account email** with address verification shares the mail sender. Detail: [archived C6 plan](../Archive/2026-10-08/C6-accounts-auth.md).
 - **F-1 — In-app 3-D Secure checkout.** Confirm payment in app with Stripe.js; depends on the v2 cart and live payment evidence.
-- **F-3 — Social class sharing.** Weekly schedule export is done; handles, friend graph, “who's going”, and iCal enrichment remain.
+- **F-3 — Social class sharing.** Weekly schedule export is done; handles, friend graph, “who's going”, and iCal enrichment remain. The friend-graph and “who's going” parts are now planned as [Teams](PLAN-teams.md).
 - **F-4 — MCP server** for timetable queries and booking actions. [Current work plan](PLAN-mcp-server.md): OAuth/client compatibility, read-only pilot, shared upstream budgets, then approved writes and automation. Proposed, not implemented.
 - **F-5 — MarianaTek credit-purchase research:** cart authentication and payment-option shapes.
 - **F-6 — Observe MarianaTek refresh-token hard-expiry behavior** in production.

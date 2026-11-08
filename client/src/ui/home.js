@@ -870,7 +870,7 @@ registerWidget({
     const strip = document.createElement('div');
     strip.className = 'home-favourites-strip';
     strip.setAttribute('aria-label', COPY.home.favourites);
-    data.rows.forEach((event) => strip.appendChild(favouriteCard(event, data.primaryActionForEvent, data.actionGlyph)));
+    data.rows.forEach((event) => strip.appendChild(favouriteCard(event, data.primaryActionForEvent)));
     el.appendChild(strip);
   },
 });

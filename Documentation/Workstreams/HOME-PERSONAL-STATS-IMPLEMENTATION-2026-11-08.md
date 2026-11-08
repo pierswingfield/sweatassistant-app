@@ -11,3 +11,9 @@ Review URL: http://localhost:5174/ (isolated fixture server on 3001). Existing 3
 ## Dev release authorized and verified
 
 2026-11-08: user explicitly requested push to dev. Source `46cd27c223853c9130be853c978f2bb004694a42` committed/pushed to `origin/teams` and deployed from an immutable runtime-only archive to `sweatassistant-dev`. [Release receipt](../QA/browser-runs/personal-stats-dev-release-2026-11-08/README.md) records Docker/health, served-hash, database/config preservation and real Chrome welcome evidence. Production/experiment unchanged. App account is signed out in dev Chrome; authenticated chart acceptance remains the local fixture evidence above.
+
+## Team presentation reuse — baseline, 2026-11-08
+
+Authenticated dev in the user's Chrome showed the loose weekly streak, a daily-count details table and a Retry button for the informational disabled-studio coverage note. The Team page showed its contained statistic tile and four chart cards. The personal renderer independently creates a line chart, horizontal bars and arrow controls; it attaches Retry to every coverage note. Team charts use `tm-stat-tile`, `tm-chart`, vertical bars and the scroll-snap carousel. The personal aggregate currently returns only four-hour time bins, so accurate use of the Team hourly chart requires adding hourly counts to that private aggregate.
+
+The Team chart renderers and tile/carousel classes are now reused by the local personal view, with the private projection extended for class-local hourly counts. Local checks and simulated Chrome evidence are recorded in [the Team reuse receipt](../QA/browser-runs/personal-stats-team-reuse-2026-11-08/README.md). This local change has not yet been deployed.

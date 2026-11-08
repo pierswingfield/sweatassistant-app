@@ -26,7 +26,8 @@ import {
   activityScore, heroState, namesList, ctaKind, memberProfile, statusAt,
 } from './teams-dashboard-model.js';
 import { safeImageUrl } from './safe-url.js';
-import { weekChange, streakView, busiestDaysView, busiestTimesView, gymMixView, goalView } from './teams-stats-model.js';
+import { weekChange, streakView, goalView } from './teams-stats-model.js';
+import { chartCard, busiestDaysHtml, gymMixHtml, busiestTimesHtml } from './stats-charts.js';
 
 const SORT_LABEL = { name: 'sortName', activity: 'sortActivity', shuffle: 'sortShuffle' };
 
@@ -465,44 +466,6 @@ function streakText(v) {
   if (k === 'weekday') return { big, sub: fmt(T.streakSinceDay, { day: v.since.label }) };
   if (k === 'date') return { big, sub: fmt(T.streakSinceDate, { day: v.since.label }) };
   return { big, sub: '' };
-}
-
-function chartCard(title, meta, body, aria) {
-  return `<figure class="tm-chart" role="group" aria-label="${escapeHtml(title)}">
-    <figcaption class="tm-chart-title">${escapeHtml(title)}</figcaption>
-    <div role="img" aria-label="${escapeHtml(aria)}">${body}</div>
-  </figure>`;
-}
-
-const emptyChart = () => `<p class="tm-muted tm-sm tm-chart-empty">${escapeHtml(T.statsChartEmpty)}</p>`;
-
-function busiestDaysHtml(charts) {
-  const v = busiestDaysView(charts.busiestDays);
-  const aria = fmt(T.busiestDaysAria, { list: v.bars.map((b) => `${b.long} ${b.count}`).join(', ') });
-  const body = v.total ? `<div class="tm-vbars tm-vbars-days">${v.bars.map((b) => `<span class="tm-vbar${b.isPeak ? ' is-peak' : ''}"><i style="height:${Math.max(b.count ? 6 : 2, Math.round(b.frac * 100))}%"></i><span class="tm-vbar-lab">${escapeHtml(b.label)}</span></span>`).join('')}</div>` : emptyChart();
-  const meta = v.total ? `${T.last4Weeks}${v.peakName ? ` · ${fmt(T.teamsDay, { day: v.peakName })}` : ''}` : '';
-  return chartCard(T.busiestDays, meta, body, aria);
-}
-
-function gymMixHtml(charts) {
-  const v = gymMixView(charts.gymMix, (gymId) => {
-    const b = gymBrand(gymId, 'half');
-    return { name: getGymShortName(gymId) || b.name || '', colour: b.brandBg || '' };
-  });
-  const safeColour = (c) => (/^#[0-9a-f]{3,8}$/i.test(c) || /^rgba?\([\d\s.,%]+\)$/i.test(c) ? c : 'var(--text-secondary)');
-  const aria = fmt(T.gymMixAria, { list: v.rows.map((r) => `${r.name} ${r.percent}%`).join(', ') });
-  const body = v.total ? `<ul class="tm-mix">${v.rows.map((r) => `<li class="tm-mix-row">
-      <span class="tm-mem-gym">${gymSquareChip(r.gymId)}</span><span class="tm-mix-name tm-ellip">${escapeHtml(r.name)}</span>
-      <span class="tm-mix-track"><i style="width:${Math.max(4, Math.round(r.frac * 100))}%;background:${safeColour(r.colour)}"></i></span>
-      <b class="tm-mix-pc">${r.percent}%</b></li>`).join('')}</ul>` : emptyChart();
-  return chartCard(T.gymMix, v.total ? `${T.last4Weeks} · ${T.gymMixNote}` : '', body, aria);
-}
-
-function busiestTimesHtml(charts) {
-  const v = busiestTimesView(charts.busiestTimes);
-  const aria = fmt(T.busiestTimesAria, { list: v.bars.filter((b) => b.count).map((b) => `${b.label} ${b.count}`).join(', ') || '0' });
-  const body = v.total ? `<div class="tm-vbars tm-vbars-times">${v.bars.map((b) => `<span class="tm-vbar${b.isPeak ? ' is-peak' : ''}"><i style="height:${Math.max(b.count ? 6 : 2, Math.round(b.frac * 100))}%"></i><span class="tm-vbar-lab">${b.tick ? escapeHtml(b.label) : ''}</span></span>`).join('')}</div>` : emptyChart();
-  return chartCard(T.busiestTimes, v.total ? T.last4Weeks : '', body, aria);
 }
 
 function trendingInstructorsHtml(charts) {

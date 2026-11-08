@@ -530,7 +530,7 @@ function stepLogin() {
 function gymLogoStripHtml(gyms) {
   if (!gyms.length) return '';
   const logos = gyms.map((g) => `<li class="app-onb-gym-logo">${gymLogoBanner(g.id, { settings: true })}</li>`).join('');
-  return `<div class="app-onb-gym-logos" role="button" tabindex="0" aria-pressed="false" aria-label="${escapeHtml(COPY.onboarding.supportedGyms)}"><div class="app-onb-gym-logos-track"><ul class="app-onb-gym-logos-set" role="list">${logos}</ul><ul class="app-onb-gym-logos-set" aria-hidden="true">${logos}</ul></div><span class="app-onb-logo-hint" aria-hidden="true">${COPY.onboarding.logosPause}</span></div>`;
+  return `<div class="app-onb-gym-logos" role="button" tabindex="0" aria-pressed="false" aria-label="${escapeHtml(COPY.onboarding.supportedGyms)}"><div class="app-onb-gym-logos-track"><ul class="app-onb-gym-logos-set" role="list">${logos}</ul><ul class="app-onb-gym-logos-set" aria-hidden="true">${logos}</ul></div></div>`;
 }
 
 // ---- STEP: gym linking (sequential multi-gym setup) ----

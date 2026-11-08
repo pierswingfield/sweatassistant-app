@@ -16,7 +16,6 @@ export async function startGymLogoDiscovery(strip) {
     else strip.setAttribute('aria-pressed', String(explicitPause));
     const action = explicitPause ? COPY.onboarding.logosResume : COPY.onboarding.logosPause;
     strip.setAttribute('aria-label', motion.matches ? COPY.onboarding.supportedGyms : formatCopyText(COPY.onboarding.logosAction, { action }));
-    strip.querySelector('.app-onb-logo-hint').textContent = action;
     if (animation) { if (paused) animation.pause(); else animation.play(); }
   };
   strip.addEventListener('click', () => { explicitPause = !explicitPause; update(); });

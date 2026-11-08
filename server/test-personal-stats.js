@@ -17,6 +17,7 @@ async function main() {
   const rows = [row('2026-11-02T10:00Z', 'a'), row('2026-11-02T10:00Z', 'a', { bookingId: 'guest' }), row('2026-11-02T10:00Z', 'a', { gymId: 'jab-boxing' }), row('2026-11-03T10:00Z', '', { bookingId: 'empty1' }), row('2026-11-03T10:00Z', '', { bookingId: 'empty2' }), ...['cancelled','late-cancel','no-show','class-cancelled','waitlist'].map(status => row('2026-11-03T10:00Z', status, { status })), row('2026-11-05T10:00Z','future'), row('2026-11-04T17:30Z','running',{ durationMin: 60 })];
   const a = agg(rows);
   assert.equal(a.totalPastClasses, 4); assert.equal(a.volume.points.length, 30); assert.equal(a.volume.points.reduce((n,p)=>n+p.count,0),4);
+  assert.equal(a.patterns.hours[10],4); assert.equal(a.patterns.hours.reduce((sum, count) => sum + count, 0),4);
   assert.equal(a.volume.points[0].count,0); assert.equal(a.patterns.gymMix[0].count,3); assert.equal(a.patterns.gymMix[0].percent,75);
   assert.equal(agg([]).streak.weeks,0); assert.equal(agg([]).patterns.gymMix.length,0);
   const consecutive = [0,1,2,3].map(n=>row(DateTime.fromMillis(NOW).startOf('week').minus({weeks:n}).plus({hours:10}).toISO(),`week${n}`));
@@ -25,7 +26,7 @@ async function main() {
   const years = ['2025-12-22T10:00Z','2025-12-29T10:00Z','2026-01-05T10:00Z'].map((d,i)=>row(d,i));
   assert.equal(agg(years,{now:Date.parse('2026-01-07T18:00Z')}).streak.weeks,3);
   const dst = agg([row('2026-10-25T00:30Z','early',{timeZone:'America/New_York'}),row('2026-10-25T01:30Z','late',{timeZone:'Asia/Tokyo'})],{zone:'Europe/London'});
-  assert.equal(dst.volume.points.find(p=>p.date==='2026-10-25').count,2); assert.equal(dst.patterns.weekdays[5],1); assert.equal(dst.patterns.weekdays[6],1); assert.equal(dst.patterns.timeBins[5],1); assert.equal(dst.patterns.timeBins[2],1);
+  assert.equal(dst.volume.points.find(p=>p.date==='2026-10-25').count,2); assert.equal(dst.patterns.weekdays[5],1); assert.equal(dst.patterns.weekdays[6],1); assert.equal(dst.patterns.timeBins[5],1); assert.equal(dst.patterns.timeBins[2],1); assert.equal(dst.patterns.hours[20],1); assert.equal(dst.patterns.hours[10],1); assert.equal(dst.patterns.hours.reduce((a,b)=>a+b,0),2);
   assert.equal(agg([],{zone:'invalid/zone'}).analysisZone,'UTC');
   assert.equal(agg(rows,{coverage:[{gymId:'jab-boxing',state:'failed',limited:false}]}).streak.atLeast,true);
   console.log('PASS pure aggregates: dedupe, outcomes, future/end, zero dates, weekly grace/year, DST/class-local zones, partial coverage');

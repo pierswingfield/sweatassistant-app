@@ -272,7 +272,7 @@ function aggregatePersonalHistory(entries, { zone = 'UTC', now = Date.now(), cov
   const today = DateTime.fromMillis(now, { zone: analysisZone }).startOf('day');
   const volume = Array.from({ length: 30 }, (_, i) => ({ date: today.minus({ days: 29 - i }).toISODate(), count: 0 }));
   const daily = new Map(volume.map((p) => [p.date, p]));
-  const weekdays = Array(7).fill(0), timeBins = Array(6).fill(0), mix = new Map(), weeks = new Set(), seen = new Set();
+  const weekdays = Array(7).fill(0), timeBins = Array(6).fill(0), hours = Array(24).fill(0), mix = new Map(), weeks = new Set(), seen = new Set();
   const patternStart = today.minus({ days: 89 });
   let total = 0;
   for (const e of entries) {
@@ -294,6 +294,7 @@ function aggregatePersonalHistory(entries, { zone = 'UTC', now = Date.now(), cov
     const local = DateTime.fromMillis(ts, { zone: IANAZone.isValidZone(e.timeZone) ? e.timeZone : analysisZone });
     weekdays[local.weekday - 1]++;
     timeBins[Math.floor(local.hour / 4)]++;
+    hours[local.hour]++;
     mix.set(e.gymId, (mix.get(e.gymId) || 0) + 1);
   }
   let cursor = today.startOf('week');
@@ -307,7 +308,7 @@ function aggregatePersonalHistory(entries, { zone = 'UTC', now = Date.now(), cov
     analysisZone, generatedAt: new Date(now).toISOString(), basis: 'past-bookings', pending, partial,
     totalPastClasses: total, streak: { weeks: streak, atLeast: partial || pending },
     volume: { days: 30, points: volume },
-    patterns: { days: 90, weekdays, timeBins, gymMix: [...mix].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([gymId, count]) => ({ gymId, count, percent: patternTotal ? Math.round(count * 100 / patternTotal) : 0 })) },
+    patterns: { days: 90, weekdays, timeBins, hours, gymMix: [...mix].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([gymId, count]) => ({ gymId, count, percent: patternTotal ? Math.round(count * 100 / patternTotal) : 0 })) },
     coverage,
   };
 }

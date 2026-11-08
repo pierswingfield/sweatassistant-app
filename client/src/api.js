@@ -1144,7 +1144,13 @@ export const api = {
   async getPersonalStats(zone, { refresh = false } = {}) {
     const url = `/api/personal-stats?zone=${encodeURIComponent(zone || 'UTC')}`;
     if (refresh) await invalidateApiCache('/api/personal-stats');
-    return (await getCachedSWR(url, { ttlMs: 300000, fetcher: apiFetch })).data;
+    let result = (await getCachedSWR(url, { ttlMs: 300000, fetcher: apiFetch })).data;
+    // Refresh an older cached projection once after upgrading to hourly charts.
+    if (result?.patterns && !Array.isArray(result.patterns.hours)) {
+      await invalidateApiCache('/api/personal-stats');
+      result = (await getCachedSWR(url, { ttlMs: 300000, fetcher: apiFetch })).data;
+    }
+    return result;
   },
 
   async getHistory(gymId, { days = 30, limit = 1, top = 1, ttlMs = 6 * 60 * 60 * 1000, loading = false } = {}) {

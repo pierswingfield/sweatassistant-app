@@ -13057,10 +13057,9 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 
 /* Personal history habits and final setup refinements (2026-11-08). */
 #app-helper-container .app-onb-guide .tm-cf-bubble { text-align: center; margin-inline: auto; max-width: 32ch; }
-.app-onb-gym-logos { position: relative; overflow: hidden; cursor: pointer; padding-bottom: 22px; }
+.app-onb-gym-logos { overflow: hidden; cursor: pointer; }
 .app-onb-gym-logos-track { will-change: transform; }
 .app-onb-gym-logos-set { gap: 10px; padding: 4px 10px 8px 0; flex: none; }
-.app-onb-logo-hint { position: absolute; bottom: 2px; left: 0; right: 0; text-align: center; color: var(--text-secondary); font-size: 11px; }
 #app-helper-container .app-onb-upgrade-requirement { margin: 8px 0 0; font-size: 12px; line-height: 1.45; color: var(--text-secondary); }
 #app-helper-container .app-onb-auto-upgrade-option:has(input:disabled) { opacity: .55; cursor: default; }
 #app-helper-container .app-wk-scroller.has-edge-fade { --fade-right: #000; }
@@ -13077,53 +13076,30 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container .tm-skeleton-footer { width: 45%; }
 @keyframes personal-skeleton { to { opacity: .45; } }
 #app-helper-container .home-book-invitation { margin: 0 0 17px; color: var(--text); font: 500 17px/1.5 var(--font-sans); max-width: 30ch; text-wrap: balance; }
-#app-helper-container .personal-stats-summary { display: grid; gap: 7px; }
-#app-helper-container .personal-streak { display: flex; flex-wrap: wrap; gap: 7px; align-items: baseline; margin: 0; }
-#app-helper-container .personal-streak strong { font-size: 20px; font-weight: 650; letter-spacing: -.04em; }
-#app-helper-container .personal-streak > span:last-child { color: var(--text-secondary); font-size: 12px; }
-#app-helper-container .personal-streak-mark { color: var(--accent); }
-#app-helper-container .personal-stats-basis, #app-helper-container .personal-coverage { font-size: 12px; line-height: 1.5; color: var(--text-secondary); margin: 0; }
-#app-helper-container .personal-coverage { padding: 10px 0; }
-#app-helper-container .personal-coverage p { margin: 0 0 6px; }
-#app-helper-container .personal-chart-controls { display: flex; justify-content: flex-end; gap: 6px; margin: 8px 0; }
-#app-helper-container .personal-chart-controls .app-btn-mini { padding: 4px 13px; min-height: 32px; }
-#app-helper-container .personal-chart-rail { display: flex; gap: 12px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; padding: 2px 2px 12px; scrollbar-width: thin; }
-#app-helper-container .personal-chart { flex: 0 0 min(300px, 88%); min-width: 0; min-height: 230px; padding: 16px; border: 1px solid var(--border); border-radius: 20px; background: color-mix(in srgb, var(--surface) 70%, transparent); box-shadow: inset 0 1px 0 #ffffff18; scroll-snap-align: start; }
-#app-helper-container .personal-chart header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
-#app-helper-container .personal-chart h4 { font-size: 14px; font-weight: 650; margin: 0; }
-#app-helper-container .personal-chart header span, #app-helper-container .personal-chart-zone { font-size: 10px; color: var(--text-secondary); margin: 0 0 8px; white-space: nowrap; }
-#app-helper-container .personal-chart-zone { margin-top: -6px; }
-#app-helper-container .personal-line { display: block; width: 100%; overflow: visible; color: var(--accent); }
-#app-helper-container .personal-line text { fill: var(--text-secondary); font: 10px var(--font-sans); }
-#app-helper-container .personal-axis { stroke: var(--border-strong); }
-#app-helper-container .personal-gridline { stroke: var(--border); stroke-dasharray: 3 5; }
-#app-helper-container .personal-area { fill: color-mix(in srgb, var(--accent) 10%, transparent); }
-#app-helper-container .personal-line-path { fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
-#app-helper-container .personal-line circle { fill: currentColor; outline: none; }
-#app-helper-container .personal-line circle:focus { stroke: var(--text); stroke-width: 3; }
-#app-helper-container .personal-chart-details { font-size: 11px; color: var(--text-secondary); }
-#app-helper-container .personal-chart-details summary { cursor: pointer; padding: 6px 0; }
-#app-helper-container .personal-chart-details table { width: 100%; font-size: 11px; text-align: left; border-collapse: collapse; }
-#app-helper-container .personal-chart-details th, #app-helper-container .personal-chart-details td { padding: 3px 0; font-weight: 400; }
-#app-helper-container .personal-bars { list-style: none; padding: 0; margin: 13px 0 0; display: grid; gap: 10px; font-size: 11px; }
-#app-helper-container .personal-bars li { display: grid; grid-template-columns: 36px 1fr minmax(15px, max-content); align-items: center; gap: 8px; }
-#app-helper-container .personal-mix li { grid-template-columns: 65px 1fr minmax(48px, max-content); }
-#app-helper-container .personal-bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
-#app-helper-container .personal-bar-track { height: 8px; border-radius: 20px; background: color-mix(in srgb, var(--text) 5%, transparent); overflow: hidden; }
-#app-helper-container .personal-bar-track i { display: block; height: 100%; background: var(--accent); border-radius: inherit; min-width: 0; }
-#app-helper-container .personal-bar-value { color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
-#app-helper-container .personal-bar-value small { color: var(--text-secondary); }
+#app-helper-container .personal-coverage { font-size: 12px; line-height: 1.5; color: var(--text-secondary); padding: 10px 0; }
 @media (max-width: 359px) {
-  #app-helper-container .personal-chart { flex-basis: 90%; padding: 12px; }
   #app-helper-container .tm-list-page-empty .tm-orb { width: 62px; height: 62px; }
   #app-helper-container .tm-list-page-empty .tm-orb .tm-mascot { --s: 62px !important; }
   #app-helper-container .tm-list-page-empty .tm-pitch { gap: 9px; padding-top: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .app-onb-gym-logos { overflow-x: auto; cursor: auto; padding-bottom: 0; }
+  .app-onb-gym-logos { overflow-x: auto; cursor: auto; }
   .app-onb-gym-logos-track { transform: none !important; will-change: auto; }
-  .app-onb-gym-logos-set[aria-hidden], .app-onb-logo-hint { display: none; }
+  .app-onb-gym-logos-set[aria-hidden] { display: none; }
   #app-helper-container .tm-loading-skeleton i { animation: none; }
 }
 #app-helper-container .home-widget-heading:has(.home-widget-title:empty) { display: none; }
 #app-helper-container .personal-line-readout { min-height: 14px; margin: -2px 0 2px; font-size: 10px; color: var(--text-secondary); }
+
+/* Personal statistics reuse the Team tiles, charts and carousel. */
+#app-helper-container .personal-stat-tiles { grid-template-columns: minmax(0, 1fr); }
+#app-helper-container .personal-coverage { margin-top: 8px; }
+#app-helper-container .personal-volume-bars { gap: 0; }
+#app-helper-container .personal-volume-day { padding: 0 1px; }
+#app-helper-container .personal-volume-day.band-1 { background: color-mix(in srgb, var(--text) 5%, transparent); }
+#app-helper-container .personal-volume-day i { border-radius: 2px 2px 0 0; }
+#app-helper-container .personal-volume-readout { min-height: 1em; margin: 0; font-size: 11px; color: var(--text-secondary); }
+#app-helper-container .personal-stats-dots { gap: 0; margin-top: 0; }
+#app-helper-container .personal-stats-dots button { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+#app-helper-container .personal-chart-period { font-size: 11px; color: var(--text-secondary); }
+#app-helper-container .personal-stats-carousel.has-edge-fade { -webkit-mask-image: none; mask-image: none; }

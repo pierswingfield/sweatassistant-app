@@ -73,10 +73,11 @@ export async function initTeams({ preserve = false } = {}) {
 // ---- shared states ---------------------------------------------------------------------------
 
 function loadingHtml() {
-  return `<div class="tm-loading" role="status" aria-live="polite"><span class="tm-spinner" aria-hidden="true"></span><span>${escapeHtml(T.loading)}</span></div>`;
+  return `<div class="tm-loading-skeleton"><p role="status" aria-live="polite">${escapeHtml(T.loadingTeams)}</p><div aria-hidden="true" class="tm-skeleton-head"><i></i><i></i></div>${[0, 1].map(() => '<div class="tm-card tm-skeleton-card" aria-hidden="true"><i class="tm-skeleton-avatar"></i><div><i></i><i></i><i></i></div></div>').join('')}<i class="tm-skeleton-footer" aria-hidden="true"></i></div>`;
 }
 
 function errorState(el, message, retry) {
+  el.setAttribute('aria-busy', 'false');
   el.innerHTML = `<section class="tm-card tm-error" role="alert"><p>${escapeHtml(message)}</p><button type="button" class="tm-btn">${escapeHtml(T.retry)}</button></section>`;
   el.querySelector('button').addEventListener('click', retry);
 }
@@ -85,6 +86,7 @@ function errorState(el, message, retry) {
 
 async function renderList(el, { stale }) {
   if (!el.querySelector('.tm-list-page')) el.innerHTML = loadingHtml();
+  el.setAttribute('aria-busy', 'true');
   let teams;
   try {
     teams = (await teamsApi.list()).teams || [];
@@ -94,6 +96,7 @@ async function renderList(el, { stale }) {
     return;
   }
   if (stale()) return;
+  el.setAttribute('aria-busy', 'false');
   if (!teams.length) { renderEmpty(el); return; }
 
   const ordered = orderTeams(teams);
@@ -177,6 +180,7 @@ function stopDashboardTimers() {
 
 async function renderTeamPage(el, teamId, { stale }) {
   stopDashboardTimers();
+  el.setAttribute('aria-busy', 'true');
   if (!el.querySelector(`.tm-team-page[data-team-id="${CSS.escape(teamId)}"]`)) el.innerHTML = loadingHtml();
   let data;
   let dash;
@@ -186,6 +190,7 @@ async function renderTeamPage(el, teamId, { stale }) {
   } catch (err) {
     if (stale()) return;
     if (err.status === 404) {
+      el.setAttribute('aria-busy', 'false');
       el.innerHTML = `<section class="tm-card tm-error" role="alert"><p>${escapeHtml(T.teamGone)}</p><button type="button" class="tm-btn">${escapeHtml(T.backToTeams)}</button></section>`;
       el.querySelector('button').addEventListener('click', () => goTeams({ view: 'list' }, { replace: true }));
       return;
@@ -194,6 +199,7 @@ async function renderTeamPage(el, teamId, { stale }) {
     return;
   }
   if (stale()) return;
+  el.setAttribute('aria-busy', 'false');
   data.members = data.members || [];
   data.classes = data.classes || [];
   data.recent = data.recent || [];

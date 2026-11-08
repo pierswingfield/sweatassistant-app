@@ -477,6 +477,7 @@ export const api = {
     // callers reload their gym context, otherwise a newly linked gym remains
     // invisible until the TTL expires.
     await invalidateApiCache('/api/my-gyms');
+    await invalidateApiCache('/api/personal-stats');
     await invalidateApiCache('/api/auto-book');
     await invalidateApiCache('/api/auto-upgrade');
     await Promise.all(['metadata:', 'bookings', 'waitlists', 'studio-preferences'].map(deleteOfflineSnapshotsByPrefix));
@@ -491,6 +492,7 @@ export const api = {
     if (!res.ok) throw new Error(data.message || 'Could not change gym availability');
     await setOfflineSnapshot('my-gyms', data);
     await invalidateApiCache('/api/my-gyms');
+    await invalidateApiCache('/api/personal-stats');
     await invalidateApiCache('/api/auto-book');
     await invalidateApiCache('/api/auto-upgrade');
     await Promise.all(['metadata:', 'bookings', 'waitlists', 'studio-preferences'].map(deleteOfflineSnapshotsByPrefix));
@@ -502,6 +504,7 @@ export const api = {
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Could not unlink that gym');
     await invalidateApiCache('/api/my-gyms');
+    await invalidateApiCache('/api/personal-stats');
     return data.gyms || [];
   },
 
@@ -925,9 +928,9 @@ export const api = {
   // 2026-07-03 for CodexFit — see providers/codexfit.js listBookings doc
   // comment — it resolves via the response's embedded `relations` block when
   // not already inline). bookings.js's renderBookings() is the first caller.
-  async getBookings({ silent = false, cacheTtlMs = 0, gyms = null } = {}) {
+  async getBookings({ silent = false, cacheTtlMs = 0, gyms = null, requireComplete = false } = {}) {
     let incomplete = false; // a gym failed with no last-known rows: never persist the merged list
-    return withOfflineSnapshot('bookings', async () => {
+    const load = async () => {
       debugLog('GET /api/bookings', 'network');
       const myGymsRes = gyms ? null : await this.getMyGyms();
       const linked = (gyms || myGymsRes.gyms || []).filter(g => g.account_enabled !== 0 && g.account_enabled !== false);
@@ -976,12 +979,14 @@ export const api = {
         });
       }));
       incomplete = results.some(r => !r.complete);
+      if (requireComplete && results.some(r => !r.loaded)) throw new Error('Some gym bookings could not be checked');
 
       lastLoadedGymIds = new Set(results.filter(r => r.loaded).map(r => r.gymId));
       const all = results.flatMap(r => r.data);
       all.sort((a, b) => new Date(a.event?.startAt || a.event?.start_at || a.start_at || 0) - new Date(b.event?.startAt || b.event?.start_at || b.start_at || 0));
       return all;
-    }, { persist: () => !incomplete });
+    };
+    return requireComplete ? load() : withOfflineSnapshot('bookings', load, { persist: () => !incomplete });
   },
 
   // One gym's bookings straight from the provider (`refresh=1`), annotated like getBookings().
@@ -1136,6 +1141,12 @@ export const api = {
   // Normalized, durable class history for one explicitly-scoped gym. The
   // server owns the lazy backfill and stale refresh; the client only asks for
   // the small aggregate a Home widget needs.
+  async getPersonalStats(zone, { refresh = false } = {}) {
+    const url = `/api/personal-stats?zone=${encodeURIComponent(zone || 'UTC')}`;
+    if (refresh) await invalidateApiCache('/api/personal-stats');
+    return (await getCachedSWR(url, { ttlMs: 300000, fetcher: apiFetch })).data;
+  },
+
   async getHistory(gymId, { days = 30, limit = 1, top = 1, ttlMs = 6 * 60 * 60 * 1000, loading = false } = {}) {
     const query = { days: String(days), limit: String(limit), top: String(top) };
     if (ttlMs) return getCachedGymResponse('/api/history', gymId, { ttlMs, loading, query, errorMessage: 'Failed to load class history' });

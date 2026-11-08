@@ -1954,7 +1954,6 @@ if (signupForm) {
       rememberAccountEmail((user && user.email) || email);
       setCacheKeyPrefix(currentUser.id || email);
       localStorage.setItem('appUserId', currentUser.id || email);
-      showToast(COPY.auth.accountCreated, 'success');
       await onLoginSuccess();
     } catch (err) {
       fail(err instanceof TypeError ? COPY.auth.connectionFailed : err.message);

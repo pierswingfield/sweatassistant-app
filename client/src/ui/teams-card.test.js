@@ -84,11 +84,11 @@ describe('Team card markup (T9)', () => {
 });
 
 describe('Teams marketing empty state (T9)', () => {
-  it('has three benefit rows, a privacy line and the Create action', () => {
-    expect(pitchRows(copy).map((r) => r.icon)).toEqual(['see', 'book', 'goal']);
+  it('has two benefit rows, a privacy line and the Create action', () => {
+    expect(pitchRows(copy).map((r) => r.icon)).toEqual(['book', 'goal']);
     const d = document.createElement('div');
     d.innerHTML = pitchHtml(copy, { escapeHtml, mascotHtml: ui.mascotHtml });
-    expect(d.querySelectorAll('.tm-pitch-row svg').length).toBe(3);
+    expect(d.querySelectorAll('.tm-pitch-row svg').length).toBe(2);
     expect(d.querySelector('.tm-pitch-privacy').textContent).toContain('only people in your Team');
     expect(d.querySelector('[data-create]').textContent).toBe(copy.createATeam);
     expect(d.querySelector('.tm-orb')).not.toBeNull();

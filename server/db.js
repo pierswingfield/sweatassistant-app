@@ -291,6 +291,7 @@ db.exec(`
     last_attempt_at TEXT,
     last_error TEXT,
     row_count INTEGER NOT NULL DEFAULT 0,
+    limited INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     PRIMARY KEY (user_id, gym_id)
   );

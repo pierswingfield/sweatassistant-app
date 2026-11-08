@@ -12,7 +12,6 @@ const PITCH_ICONS = {
 /** Pure copy-to-rows for the marketing empty state (tested). */
 export function pitchRows(copy) {
   return [
-    { icon: 'see', title: copy.pitchSeeTitle, body: copy.pitchSeeBody },
     { icon: 'book', title: copy.pitchBookTitle, body: copy.pitchBookBody },
     { icon: 'goal', title: copy.pitchGoalTitle, body: copy.pitchGoalBody },
   ];

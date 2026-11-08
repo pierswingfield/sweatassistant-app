@@ -49,7 +49,7 @@ export function gymStackHtml(gymIds, { max = 4 } = {}) {
   return `<span class="tm-gstack" aria-hidden="true">${shown.map((g, i) => `<span class="tm-gstack-i" style="z-index:${Math.max(1, shown.length - i)}">${gymCircleHtml(g, { size: 'sm' })}</span>`).join('')}${more > 0 ? `<span class="tm-gstack-more">+${more}</span>` : ''}</span>`;
 }
 
-const MASCOT = {
+export const MASCOT = {
   resting: '/characters/team-stretch.webp',
   sleeping: '/characters/team-bed.webp',
   warming: '/characters/team-running.webp',

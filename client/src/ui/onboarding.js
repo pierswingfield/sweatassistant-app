@@ -21,7 +21,7 @@ import { setGymCatalogue } from '../gym-context.js';
 import { COPY, formatCopyText, appCopy } from '../copy.js';
 import { setupGuideHtml } from './setup-guide.js';
 import { escapeHtml, gymLogoBanner } from './cards';
-import { enableAutoUpgradeForGyms, gymsWithAutoUpgradeOn, getPostLoginDestination as choosePostLoginDestination, detectInstallContext, shouldOfferInstall } from './onboarding-routing.js';
+import { enableAutoUpgradeForGyms, gymsWithPreferredSlots, gymsWithAutoUpgradeOn, getPostLoginDestination as choosePostLoginDestination, detectInstallContext, shouldOfferInstall } from './onboarding-routing.js';
 import { cleanNameField, onboardingNameSuggestion } from './name-capture.js';
 import { startGymLogoDiscovery } from './gym-logo-strip.js';
 
@@ -308,7 +308,7 @@ function stepIntro() {
           <div class="app-onb-track">
             ${slides.map((s) => s.welcome ? `
               <div class="app-onb-slide app-onb-slide-welcome">
-                ${setupGuideHtml({ title: `Welcome to ${appConfig.appName}`, message: 'Your boutique fitness concierge.', id: 'app-onb-welcome-title' })}
+                ${setupGuideHtml({ title: `Welcome to ${appConfig.appName}`, message: COPY.onboarding.welcomeConcierge, id: 'app-onb-welcome-title' })}
                 <ul class="app-onb-perks" role="list">
                   ${perks.map((p, i) => `
                   <li class="app-onb-perk" style="--i: ${i};">
@@ -526,10 +526,11 @@ function stepLogin() {
   });
 }
 
-/** One set of full wordmarks; finite discovery scroll has no clone seam. */
+/** Two identical fixed-size tracks, with the duplicate hidden from accessibility APIs. */
 function gymLogoStripHtml(gyms) {
   if (!gyms.length) return '';
-  return `<div class="app-onb-gym-logos" role="group" tabindex="0" aria-label="${escapeHtml(COPY.onboarding.supportedGyms)}"><div class="app-onb-gym-logos-track"><ul class="app-onb-gym-logos-set" role="list">${gyms.map((g) => `<li class="app-onb-gym-logo">${gymLogoBanner(g.id, { settings: true })}</li>`).join('')}</ul></div></div>`;
+  const logos = gyms.map((g) => `<li class="app-onb-gym-logo">${gymLogoBanner(g.id, { settings: true })}</li>`).join('');
+  return `<div class="app-onb-gym-logos" role="button" tabindex="0" aria-pressed="false" aria-label="${escapeHtml(COPY.onboarding.supportedGyms)}"><div class="app-onb-gym-logos-track"><ul class="app-onb-gym-logos-set" role="list">${logos}</ul><ul class="app-onb-gym-logos-set" aria-hidden="true">${logos}</ul></div><span class="app-onb-logo-hint" aria-hidden="true">${COPY.onboarding.logosPause}</span></div>`;
 }
 
 // ---- STEP: gym linking (sequential multi-gym setup) ----
@@ -642,7 +643,7 @@ function stepGyms() {
 
       const sheet = renderSheet({
         title: 'Your studios',
-        message: 'Bring your studios together.',
+        message: COPY.onboarding.studiosConcierge,
         hero: ICON.link,
         body: `
           <p class="app-onb-lead onb-gyms-margin">${appCopy(COPY.onboarding.connectDescription)}</p>
@@ -956,8 +957,8 @@ function stepFeatures() {
         <div class="app-onb-feature-heading"><span class="app-onb-icon">${ICON.autoupgrade}</span><div><h3>${COPY.onboarding.autoUpgradeFeatureTitle}</h3><p>Watch for better spots at your studios.</p></div></div>
           <div class="app-onb-auto-upgrade-slot">${upgradeOn.length
     ? `<p class="app-onb-auto-upgrade-note" role="note"><span aria-hidden="true">${ICON.check}</span><span>${escapeHtml(formatCopyText(COPY.onboarding.autoUpgradeAlreadyOn, { gyms: upgradeOnNames }))}</span></p>`
-    : `<label class="app-onb-auto-upgrade-option"><input type="checkbox" role="switch" id="app-onb-auto-upgrade-all"><span class="app-onb-switch" aria-hidden="true"></span><span>${COPY.onboarding.autoUpgradeAllGyms}</span></label>`}</div>
-        <div class="app-onb-feature-action"></div>
+    : `<label class="app-onb-auto-upgrade-option"><input type="checkbox" role="switch" id="app-onb-auto-upgrade-all" disabled aria-describedby="app-onb-upgrade-requirement"><span class="app-onb-switch" aria-hidden="true"></span><span>${COPY.onboarding.autoUpgradeAllGyms}</span></label>`}</div>
+        <p id="app-onb-upgrade-requirement" class="app-onb-upgrade-requirement">${COPY.onboarding.preferredSpotsRequired}</p><div class="app-onb-feature-action"></div>
       </section>
       </div>
       <div class="app-onb-footer">
@@ -996,6 +997,25 @@ function stepFeatures() {
     setCardStatus(cards[name], done);
   };
 
+  let eligibilityRevision = 0;
+  let eligibleIds = [];
+  const loadEligibility = async () => {
+    const revision = ++eligibilityRevision;
+    if (upgradeBox && !upgradeBox.checked) upgradeBox.disabled = true;
+    const [mine, catalogue] = await Promise.all([api.getMyGyms(), api.getGyms()]);
+    const links = mine.gyms || [];
+    const results = await Promise.allSettled(links.map(async (link) => {
+      const id = link.gym_id || link.gymId || link.id;
+      return [id, await api.getStudioPreferences(id)];
+    }));
+    if (revision !== eligibilityRevision || !c.isConnected) return null;
+    const prefs = Object.fromEntries(results.filter((r) => r.status === 'fulfilled').map((r) => r.value));
+    eligibleIds = gymsWithPreferredSlots(links, catalogue, prefs);
+    if (upgradeBox) upgradeBox.disabled = upgradePending || (!upgradeBox.checked && !eligibleIds.length);
+    const note = c.querySelector('#app-onb-upgrade-requirement');
+    if (note) note.hidden = !!upgradeOn.length || !!eligibleIds.length;
+    return { links, catalogue, eligibleIds: [...eligibleIds], revision };
+  };
   const refreshStatus = async () => {
     const supported = pushSupported();
     let notificationsEnabled = false;
@@ -1012,7 +1032,8 @@ function stepFeatures() {
       api.getMyGyms().catch(() => ({ gyms: [] })),
     ]);
     renderAction('calendar', !!calendar.enabled, COPY.onboarding.calendarSetupButton);
-    const hasSpotMap = Object.values(prefs || {}).some((p) => p?.preferredSlots?.length || p?.preferredRows?.length);
+    const hasSpotMap = Object.values(prefs || {}).some((p) => Array.isArray(p?.preferredSlots) && p.preferredSlots.length > 0);
+    await loadEligibility().catch(() => { eligibleIds = []; if (upgradeBox && !upgradeBox.checked) upgradeBox.disabled = true; });
     const linkedGyms = linkedRes.gyms || linkedRes || [];
     renderAction('spotmaps', hasSpotMap, linkedGyms.length ? COPY.onboarding.spotMapSetupButton : COPY.onboarding.connectGymForSpotMaps, linkedGyms.length === 0);
     const complete = Object.values(completion).every(Boolean);
@@ -1032,28 +1053,33 @@ function stepFeatures() {
     feedback.setAttribute('role', 'status'); feedback.textContent = COPY.onboarding.setupSaving;
     c.querySelector('.app-onb-finish').disabled = true;
     try {
-      const [mine, catalogue] = await Promise.all([api.getMyGyms(), api.getGyms()]);
-      const result = await enableAutoUpgradeForGyms(mine.gyms || [], catalogue, api.updateSettings.bind(api));
+      const eligibility = await loadEligibility();
+      if (!eligibility || !eligibility.eligibleIds.length || eligibility.revision !== eligibilityRevision) throw new Error(COPY.onboarding.preferredSpotsRequired);
+      const { links, catalogue, eligibleIds: selected } = eligibility;
+      const result = await enableAutoUpgradeForGyms(links, catalogue, api.updateSettings.bind(api), selected);
       if (result.failedGymIds.length || !result.enabledGymIds.length) {
         const names = result.failedGymIds.map((id) => catalogue.find((g) => g.id === id)?.name || id).join(', ');
         throw new Error(names ? `Could not enable Auto-Upgrade for ${names}. Try again.` : 'Connect a supported gym first.');
       }
-      feedback.textContent = COPY.onboarding.autoUpgradeEnabledNote;
+      feedback.textContent = formatCopyText(COPY.onboarding.autoUpgradeEnabledGyms, { gyms: result.enabledGymIds.map((id) => catalogue.find((g) => g.id === id)?.name || id).join(', ') });
       setCardStatus(upgradeCard, true);
     } catch (err) {
       upgradeBox.checked = false; upgradeBox.disabled = false;
       feedback.textContent = err.message || COPY.onboarding.autoUpgradeRetry;
       setCardStatus(upgradeCard, false);
-    } finally { upgradePending = false; c.querySelector('.app-onb-finish').disabled = false; }
+    } finally { upgradePending = false; if (upgradeBox) upgradeBox.disabled = !upgradeBox.checked && !eligibleIds.length; c.querySelector('.app-onb-finish').disabled = false; }
   });
 
+  const onPreferencesMutated = () => { eligibilityRevision++; loadEligibility().catch(() => { eligibleIds = []; if (upgradeBox && !upgradeBox.checked) upgradeBox.disabled = true; }); };
+  window.addEventListener('app-studio-preferences-mutated', onPreferencesMutated);
+  const finish = (value) => { window.removeEventListener('app-studio-preferences-mutated', onPreferencesMutated); resolve(value); };
   await refreshStatus();
   focusStepTitle();
-  c.querySelector('.app-onb-back-top').addEventListener('click', () => { if (!upgradePending) resolve('back'); });
+  c.querySelector('.app-onb-back-top').addEventListener('click', () => { if (!upgradePending) finish('back'); });
   let leaving = false;
   c.querySelector('.app-onb-finish').addEventListener('click', (event) => {
     if (leaving || upgradePending) return;
-    leaving = true; event.currentTarget.disabled = true; resolve();
+    leaving = true; event.currentTarget.disabled = true; finish();
   });
 
   notificationCard.addEventListener('click', async (event) => {

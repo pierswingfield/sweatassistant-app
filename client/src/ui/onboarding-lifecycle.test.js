@@ -30,13 +30,28 @@ const ready = async () => vi.waitFor(() => expect(document.querySelectorAll('.ap
 const finish = () => document.querySelector('.app-onb-finish').click();
 
 describe('optional setup lifecycle', () => {
+  it('requires actual saved slots and fails closed when a fresh preference check fails', async () => {
+    const flow = resumeOnboarding({ optionalOnly: true }); await ready();
+    const input = document.querySelector('[role="switch"]');
+    await vi.waitFor(() => expect(input.disabled).toBe(true)); input.click(); expect(api.updateSettings).not.toHaveBeenCalled();
+    expect(document.querySelector('#app-onb-upgrade-requirement').textContent).toBe('Set up some preferred spots before you enable Auto-Upgrade.');
+    api.getStudioPreferences.mockResolvedValue({ '1': { preferredSlots: ['9'] } });
+    window.dispatchEvent(new CustomEvent('app-studio-preferences-mutated'));
+    await vi.waitFor(() => expect(input.disabled).toBe(false));
+    api.getStudioPreferences.mockRejectedValue(new Error('unavailable'));
+    input.click(); await vi.waitFor(() => expect(input.checked).toBe(false));
+    expect(api.updateSettings).not.toHaveBeenCalled(); finish(); await flow;
+  });
+
   it('offers four features, persists only an explicit switch, then collapses and reopens saved success', async () => {
+    api.getStudioPreferences.mockResolvedValue({ '1': { preferredSlots: ['9'] } });
     let saved;
     api.updateSettings.mockImplementation(() => new Promise((resolve) => { saved = resolve; }));
     const flow = resumeOnboarding({ optionalOnly: true }); await ready();
     expect(document.querySelectorAll('.app-onb-feature-card')).toHaveLength(4);
     const input = document.querySelector('[role="switch"]');
     expect(input.checked).toBe(false); expect(api.updateSettings).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(input.disabled).toBe(false));
     input.click();
     await vi.waitFor(() => expect(api.updateSettings).toHaveBeenCalledWith({ autoUpgradeEnabled: true }, 'alpha'));
     expect(feature('autoupgrade').classList.contains('is-complete')).toBe(false);
@@ -50,11 +65,12 @@ describe('optional setup lifecycle', () => {
   });
 
   it('keeps partial failure incomplete, rolls the switch back and permits retry', async () => {
+    api.getStudioPreferences.mockResolvedValue({ '1': { preferredSlots: ['9'] } });
     api.getMyGyms.mockResolvedValue({ gyms: [{ gym_id: 'alpha' }, { gym_id: 'beta' }] });
     api.getGyms.mockResolvedValue([{ id: 'alpha', name: 'Alpha' }, { id: 'beta', name: 'Beta' }]);
     api.updateSettings.mockImplementation((_, id) => id === 'beta' ? Promise.reject(new Error('offline')) : Promise.resolve({}));
     const flow = resumeOnboarding({ optionalOnly: true }); await ready();
-    const input = document.querySelector('[role="switch"]'); input.click();
+    const input = document.querySelector('[role="switch"]'); await vi.waitFor(() => expect(input.disabled).toBe(false)); input.click();
     await vi.waitFor(() => expect(feature('autoupgrade').textContent).toContain('Could not enable Auto-Upgrade for Beta'));
     expect(input.checked).toBe(false); expect(input.disabled).toBe(false);
     expect(feature('autoupgrade').classList.contains('is-complete')).toBe(false);

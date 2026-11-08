@@ -21,10 +21,11 @@ export function coldBootDestination(destination, dismissed) {
 }
 
 /** Enable Auto-Upgrade polling for each linked gym that supports the feature. */
-export async function enableAutoUpgradeForGyms(linkedGyms, catalogue, updateSettings) {
+export async function enableAutoUpgradeForGyms(linkedGyms, catalogue, updateSettings, eligibleGymIds = null) {
   const configured = new Map((catalogue || []).map((gym) => [gym.id, gym]));
   const gymIds = [...new Set((linkedGyms || []).map((link) => link.gym_id || link.gymId || link.id).filter(Boolean))]
-    .filter((gymId) => configured.has(gymId) && configured.get(gymId)?.capabilities?.autoUpgrade !== false);
+    .filter((gymId) => configured.has(gymId) && configured.get(gymId)?.capabilities?.autoUpgrade !== false)
+    .filter((gymId) => !eligibleGymIds || eligibleGymIds.includes(gymId));
 
   const results = await Promise.allSettled(gymIds.map((gymId) => updateSettings({ autoUpgradeEnabled: true }, gymId)));
   return {
@@ -88,4 +89,12 @@ export function detectInstallContext({
  */
 export function shouldOfferInstall(ctx, dismissed = false) {
   return !!(ctx && ctx.mobile && !ctx.standalone && !dismissed);
+}
+
+/** Only a successfully loaded, saved selection in this gym can unlock onboarding. */
+export function gymsWithPreferredSlots(linkedGyms, catalogue, preferencesByGym = {}) {
+  const configured = new Map((catalogue || []).map((gym) => [gym.id, gym]));
+  return [...new Set((linkedGyms || []).filter((g) => g.account_enabled !== 0 && g.account_enabled !== false && g.status !== 'disabled' && g.gym_enabled !== 0 && g.gym_enabled !== false).map((g) => g.gym_id || g.gymId || g.id).filter(Boolean))]
+    .filter((id) => configured.has(id) && configured.get(id).enabled !== false && configured.get(id)?.capabilities?.autoUpgrade !== false)
+    .filter((id) => Object.values(preferencesByGym[id] || {}).some((p) => Array.isArray(p?.preferredSlots) && p.preferredSlots.length > 0));
 }

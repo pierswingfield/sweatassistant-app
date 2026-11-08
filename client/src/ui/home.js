@@ -1,3 +1,4 @@
+import { personalStatsZone, personalStatsKey, renderPersonalStats } from './personal-stats.js';
 // Home tab: a page of independent widgets (F-10-1).
 // Framework lives in widget-registry.js; this file registers the widgets and paints the page.
 import { api } from '../api.js';
@@ -31,7 +32,7 @@ const gymCacheKey = (path, gymId, extra = {}) => {
   return `${path}?${params}`;
 };
 const uniqueGymIds = (gyms) => [...new Set((Array.isArray(gyms) ? gyms : []).map(gymIdOf).filter(Boolean))];
-const homeContextKey = (gyms) => `${localStorage.getItem('appUserId') || ''}:${uniqueGymIds(gyms).sort().join(',')}`;
+const homeContextKey = (gyms) => `${localStorage.getItem('appUserId') || ''}:${uniqueGymIds(gyms).sort().join(',')}:${uniqueGymIds(getAllLinkedGyms()).sort().join(',')}`;
 const isCurrentHomeContext = (ctx) => !!ctx?.contextKey && ctx.contextKey === homeContextKey(getLinkedGyms());
 
 /**
@@ -94,12 +95,13 @@ export function groupHomeGymLinks(links) {
 registerWidget({
   id: 'book', order: 25, title: COPY.home.findClass,
   async load(ctx) {
-    const bookings = await api.getBookings({ cacheTtlMs: 120000, gyms: ctx.gyms });
+    const bookings = await api.getBookings({ cacheTtlMs: 120000, gyms: ctx.gyms, requireComplete: true });
     return { links: getHomeBookLinks(ctx.gyms), hasBooking: (Array.isArray(bookings) ? bookings : []).some((b) => Date.parse(b.event?.startAt || b.event?.start_at || b.startAt || b.start_at) > Date.now()) };
   },
   isHidden: (data) => !!data.hasBooking,
   isEmpty: () => false,
   render(el, { links }) {
+    const invitation = document.createElement('p'); invitation.className = 'home-book-invitation'; invitation.textContent = COPY.home.noBookingsInvitation; el.appendChild(invitation);
     const row = document.createElement('div');
     row.className = 'home-book-row';
     const gymLinks = links.filter((link) => link.gymId);
@@ -244,29 +246,33 @@ function attendanceTile(row, ctx) {
 // stored history); every other widget sees only the enabled gyms in ctx.gyms.
 const statsGyms = (ctx) => (Array.isArray(ctx.allGyms) ? ctx.allGyms : (Array.isArray(ctx.gyms) ? ctx.gyms : []));
 
+// Pending imports get a bounded, account-owned follow-up; ordinary Home paints use SWR.
+let statsPoll = null, statsPollCount = 0, statsPollAccount = '';
+function stopStatsPoll() { clearTimeout(statsPoll); statsPoll = null; statsPollCount = 0; statsPollAccount = ''; }
+function scheduleStatsPoll(data, ctx) {
+  const account = localStorage.getItem('appUserId') || '';
+  if (statsPollAccount !== account) { stopStatsPoll(); statsPollAccount = account; }
+  if (!data.pending && !data.coverage?.some((c) => c.state === 'stale')) { stopStatsPoll(); return; }
+  if (statsPoll || statsPollCount >= 6) return;
+  statsPoll = setTimeout(async () => {
+    statsPoll = null;
+    if (!isCurrentHomeContext(ctx) || document.getElementById('app-panel-home')?.style.display === 'none' || account !== localStorage.getItem('appUserId')) { stopStatsPoll(); return; }
+    statsPollCount++;
+    try { await api.getPersonalStats(personalStatsZone(), { refresh: true }); if (isCurrentHomeContext(ctx)) renderHome(); }
+    catch (_) { /* stop after failure: Retry remains available */ }
+  }, Math.min(30000, 2500 * 2 ** statsPollCount));
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('app-logout-triggered', stopStatsPoll);
+  window.addEventListener('app:gyms-changed', stopStatsPoll);
+}
 registerWidget({
   id: 'stats', order: 70, title: COPY.home.stats,
-  cacheKeys(ctx) {
-    const gyms = statsGyms(ctx);
-    const wanted = new Set(gyms.filter(homeStatsWantsAttendance).map(gymIdOf));
-    return uniqueGymIds(gyms).filter((id) => wanted.has(id)).map((id) => gymCacheKey('/api/attendance-totals', id));
-  },
-  headerMeta: getHomeActivityMeta,
-  async load(ctx) { return loadHomeStats(statsGyms(ctx)); },
-  isEmpty: (data) => Array.isArray(data?.rows) && data.rows.length === 0 && !data.unsupported && !data.failed,
-  emptyText: COPY.home.statsNone,
-  render(el, data, ctx) {
-    const grid = document.createElement('div');
-    grid.className = 'home-attendance-grid';
-    data.rows.filter((row) => !row.hidden).forEach((row) => grid.appendChild(attendanceTile(row, ctx)));
-    el.appendChild(grid);
-    for (const text of [data.unsupported && COPY.home.statsUnsupported, data.failed && COPY.home.statsPartial].filter(Boolean)) {
-      const note = document.createElement('p');
-      note.className = 'home-stats-partial';
-      note.textContent = text;
-      el.appendChild(note);
-    }
-  },
+  cacheKeys() { return [personalStatsKey()]; },
+  dataSignature(data) { const { generatedAt, ...stable } = data; return stable; },
+  async load(ctx) { const data = await api.getPersonalStats(personalStatsZone()); scheduleStatsPoll(data, ctx); return data; },
+  isEmpty: () => false,
+  render(el, data, ctx) { renderPersonalStats(el, data, { retry: async () => { stopStatsPoll(); try { await api.getPersonalStats(personalStatsZone(), { refresh: true }); } catch (_) {} if (isCurrentHomeContext(ctx)) renderHome(); } }); },
 });
 
 function guestCreditBalance(credits) {
@@ -694,12 +700,17 @@ export function getHomeFavouriteRows(gyms, {
   return { state: 'empty', rows: [] };
 }
 
+export function savedFavouritesVisibility(gymIds, byGym = {}) {
+  if (gymIds.some((id) => byGym[id]?.items?.length > 0)) return 'visible';
+  return gymIds.every((id) => Array.isArray(byGym[id]?.items)) ? 'hidden' : 'unknown';
+}
+
 async function loadHomeFavourites(ctx) {
   const { gyms } = ctx;
   const [{ cache }, timetable] = await Promise.all([
     import('../main.js'), import('./timetable.js'),
   ]);
-  const gymIds = [...new Set((Array.isArray(gyms) ? gyms : []).map(gymIdOf).filter(Boolean))];
+  const gymIds = uniqueGymIds(ctx.allGyms || gyms);
   const settled = await Promise.allSettled(gymIds.map((gymId) => api.getFavourites(gymId, { loading: true })));
   const favouritesByGym = { ...(cache.favouritesByGym || {}) };
   const decisionByGym = { ...favouritesByGym };
@@ -708,11 +719,13 @@ async function loadHomeFavourites(ctx) {
       favouritesByGym[gymIds[index]] = indexFavourites(result.value.favourites);
       decisionByGym[gymIds[index]] = favouritesByGym[gymIds[index]];
     } else if (!decisionByGym[gymIds[index]]) {
-      // One gym failing must not hold the others back: it counts as "no favourites" for this render only.
-      decisionByGym[gymIds[index]] = indexFavourites([]);
+      // Unknown is not zero. The visibility decision below must stay unresolved.
     }
   });
   if (isCurrentHomeContext(ctx)) cache.favouritesByGym = favouritesByGym;
+  const visibility = savedFavouritesVisibility(gymIds, decisionByGym);
+  if (visibility === 'unknown') throw new Error(COPY.home.favouritesUnknown);
+  if (visibility === 'hidden') return { state: 'hidden', rows: [] };
   const events = timetable.getLoadedEvents();
   if (!events.length) timetable.ensureScheduleLoaded();
   return {
@@ -831,8 +844,8 @@ export function renderHomeFavouriteCard(event, primaryActionForEvent, actionGlyp
 const favouriteCard = renderHomeFavouriteCard;
 
 registerWidget({
-  id: 'favourites', order: 50, title: COPY.home.favourites,
-  cacheKeys(ctx) { return uniqueGymIds(ctx.gyms).map((id) => gymCacheKey('/api/favourites', id)); },
+  id: 'favourites', order: 50, title: (data) => data ? COPY.home.favourites : '',
+  cacheKeys(ctx) { return uniqueGymIds(ctx.allGyms || ctx.gyms).map((id) => gymCacheKey('/api/favourites', id)); },
   async load(ctx) { return loadHomeFavourites(ctx); },
   // Event objects alone do not change when a release instant passes. Include
   // the time-derived status/action so a foreground refresh moves Auto-Book to
@@ -847,6 +860,7 @@ registerWidget({
       })),
     };
   },
+  isHidden: (data) => data?.state === 'hidden',
   isEmpty: (data) => data?.state === 'empty',
   emptyText: COPY.home.favouritesNone,
   render(el, data) {

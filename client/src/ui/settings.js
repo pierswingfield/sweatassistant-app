@@ -1,3 +1,4 @@
+import { MASCOT } from './teams-ui.js';
 import { api, apiFetch } from '../api';
 import { loadSpotMapGyms } from './spot-map-loading.js';
 import { mapRemovalWarning } from './spot-map-usage.js';
@@ -1109,6 +1110,15 @@ function setupSettingsNavigation() {
   const activateSection = (sectionId, pushHistory = true) => {
     if (pushHistory && currentSection && currentSection !== sectionId) {
       navHistory.push(currentSection);
+    }
+    if (sectionId === 'about' && (currentSection !== 'about' || !layout.dataset.aboutMascotChosen)) {
+      const image = document.querySelector('.app-about-guide img');
+      if (image) {
+        const assets = Object.values(MASCOT);
+        image.onerror = () => { image.onerror = null; image.src = MASCOT.referee; };
+        image.src = assets[Math.floor(Math.random() * assets.length)];
+        layout.dataset.aboutMascotChosen = 'true';
+      }
     }
     currentSection = sectionId;
 

@@ -755,6 +755,14 @@ router.get('/waitlists', authenticateToken, readLimiter, async (req, res) => {
   }
 });
 
+// Private, account-level history habits. Caller IDs/gym filters never choose the scope.
+router.get('/personal-stats', authenticateToken, readLimiter, (req, res) => {
+  try {
+    res.set('Cache-Control', 'private, no-store');
+    res.json(classHistory.personalStats(req.userId, { zone: req.query.zone }));
+  } catch (err) { handleError(res, err); }
+});
+
 // GET /api/history?days=30&limit=200&top=5 — F-10-0: the member's class history for
 // the gym named by x-gym-id (normalized rows from the local store, never `.raw`), plus
 // the sync state and the top instructors over the same window. The first call for a

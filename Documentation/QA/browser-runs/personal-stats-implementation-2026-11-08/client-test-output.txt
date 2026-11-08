@@ -1,0 +1,16 @@
+
+> app-pwa@1.0.0 test:client
+> npm run test --prefix client
+
+
+> app-client@1.0.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client
+
+
+ Test Files  122 passed (122)
+      Tests  981 passed (981)
+   Start at  01:18:07
+   Duration  19.42s (transform 5.18s, setup 0ms, import 9.49s, tests 18.16s, environment 87.72s)

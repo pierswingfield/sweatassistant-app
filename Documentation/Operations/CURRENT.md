@@ -1,6 +1,6 @@
 # Current Dibs operations
 
-As of 2026-11-07. This is the entry point for current deployment facts; dated audits and launch receipts describe their own inspection time.
+As of 2026-11-08. This is the entry point for current deployment facts; dated audits and launch receipts describe their own inspection time.
 
 | Surface | Canonical origin | Existing Oracle container |
 |---|---|---|
@@ -9,7 +9,7 @@ As of 2026-11-07. This is the entry point for current deployment facts; dated au
 | Dev | https://dev.dibs.fit | `sweatassistant-dev` |
 | Experiment | https://experiment.dibs.fit | `sweatassistant-experiment` |
 
-The current source is `teams` in worktree `App-teams`, pushed to `origin/teams`, unmerged into `master`. Production now runs the Sol onboarding/app design refinement `4e92430`; see the [verified receipt](../QA/browser-runs/sol-design-implementation-2026-11-07/README.md). All five configured gyms are enabled, including Homerun and Barry’s. Landing remains on UI/copy release `c98ef9a`; see the [polish receipt](../QA/browser-runs/onboarding-share-polish-2026-11-07/README.md). Dev/experiment remain on domain release `964e04f`; the [migration receipt](../QA/browser-runs/domain-migration-2026-11-07/README.md) establishes their baseline. Later documentation-only changes do not change deployed application code. Do not infer current remote health from this document: verify it when operating on a host.
+The current source is `teams` in worktree `App-teams`, pushed to `origin/teams`, unmerged into `master`. Production now runs the Sol onboarding/app design refinement `4e92430`; see the [verified receipt](../QA/browser-runs/sol-design-implementation-2026-11-07/README.md). All five configured gyms are enabled, including Homerun and Barry’s. Landing remains on UI/copy release `c98ef9a`; see the [polish receipt](../QA/browser-runs/onboarding-share-polish-2026-11-07/README.md). Dev now runs private-history personal statistics and final setup refinements `46cd27c`; see the [dev release receipt](../QA/browser-runs/personal-stats-dev-release-2026-11-08/README.md). Experiment remains on domain release `964e04f`; the [migration receipt](../QA/browser-runs/domain-migration-2026-11-07/README.md) establishes its baseline. Later documentation-only changes do not change deployed application code. Do not infer current remote health from this document: verify it when operating on a host.
 
 `deploy.sh` defaults to dev; `--experiment` selects experiment and `--prod` selects production with typed confirmation. `deploy-landing.sh` selects the landing site. Scripts ship the working tree, so inspect its exact diff and target first. Load the `selfhost-deploy` skill before host work; keep its service registry current with infrastructure changes. All existing hosts are ARM64; use `docker compose`. Secrets and databases stay on the host and are excluded from app rsync. See each script for its actual exclusion list and check commands.
 
@@ -24,3 +24,5 @@ The latest production release check was 121 server suites and 976 client tests a
 Legal drafts and unresolved publication decisions are under [Legal review notes](../Legal/REVIEW-NOTES.md). They are not published policies.
 
 `privacy@dibs.fit` now forwards through Cloudflare Email Routing to the verified `dibsadmin@piersj.com` destination. Routing API and authoritative MX/SPF checks pass; end-to-end delivery has not been tested. Legal drafts remain unpublished.
+
+Latest dev release: 122 server suites / 981 client tests retained from unchanged verified source; immutable Node 22.23.4 client build and served JS/CSS/Home/Teams hashes match. Dev health/internal/public and database integrity pass; environment, bind, keys and data counts preserved. Production, experiment and marketing were not deployed. Dev Chrome verifies the updated welcome through existing Access; the app account is signed out, so authenticated chart behavior is covered by the local fixture receipt.

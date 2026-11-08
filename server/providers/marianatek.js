@@ -198,6 +198,7 @@ class MarianaTekProvider extends GymProvider {
   }
 
   async request(path, { token, method = 'GET', body, timeoutMs = MT_REQUEST_TIMEOUT_MS } = {}) {
+    require('../gym-outbound').assertNotFixtureToken(token, this.gym.id);
     require('../gym-mutation-gate').beforeRequest(this.gym.id, method);
     if (token === MOCK_TOKEN) {
       const { handleMockRequest } = require('../mock-marianatek');
@@ -1335,7 +1336,7 @@ class MarianaTekProvider extends GymProvider {
    * 482 rows over 5 pages of 100, back to 2024-11-23 on the measured account. Waitlist
    * reservations are excluded.
    */
-  async listBookingHistory(session, { sinceDate } = {}) {
+  async listBookingHistory(session, { sinceDate, onCoverage } = {}) {
     const qs = new URLSearchParams({ is_upcoming: 'false', page_size: '100' });
     if (sinceDate) qs.set('min_start_date', String(sinceDate).slice(0, 10));
     let path = `/me/reservations?${qs}`;
@@ -1370,6 +1371,7 @@ class MarianaTekProvider extends GymProvider {
         if (path) await new Promise((r) => setTimeout(r, process.env.NODE_ENV === 'test' ? 0 : 250));
       }
     }
+    onCoverage?.({ limited: !!path });
     return out;
   }
   async listWaitlists(session) { return this._listReservations(session, 'waitlist'); }

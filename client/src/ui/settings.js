@@ -1,4 +1,6 @@
+import { MASCOT } from './teams-ui.js';
 import { api, apiFetch } from '../api';
+import { loadSpotMapGyms } from './spot-map-loading.js';
 import { mapRemovalWarning } from './spot-map-usage.js';
 import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole, loadGymContext, refreshUserData, updateDebugTerminalVisibility, getIsOffline } from '../main';
 import { getBookingOffset, describeBookingWindow } from '../lib';
@@ -11,13 +13,14 @@ import { clearApiCache, invalidateApiCache, accountScopedKey } from '../cache.js
 import { renderGymSettingsSection as renderGymSettingsSectionView } from './gym-settings-section.js';
 import { renderCalendarSection } from './calendar-section.js';
 import { getLinkedGyms, getAllLinkedGyms, getGymShortName } from '../gym-context.js';
-import { icon, gymSquareChip, gymBrand, gymLogoBanner } from './cards.js';
+import { icon, gymSquareChip, gymBrand, gymLogoBanner, escapeHtml } from './cards.js';
 import { createRenderGuard, reconcileKeyed, lastAuthLabel, connectionHealth } from './gym-connections.js';
 import { COPY, formatCopyText } from '../copy.js';
 import { renderCardSkeletons, renderFloorPlanSkeleton, renderPanelSkeleton } from './loading-skeleton.js';
 import { appConfig } from '../config.js';
 import { openPage as openNavPage, closePage as closeNavPage, isMobile } from './modal-nav.js';
 import { initFavouritesPane, renderFavouritesPane } from './favourites-pane.js';
+import { cleanNameField, inferNames } from './name-capture.js';
 
 let loadedProfile = null;
 let activeSpotEditorOverlay = null;
@@ -97,12 +100,12 @@ function isScalar(val) {
 function formatVal(val) {
   if (val === null || val === undefined) return '<span class="set-null-text">null</span>';
   if (typeof val === 'object') {
-    return `<pre class="set-json-box">${JSON.stringify(val, null, 2)}</pre>`;
+    return `<pre class="set-json-box">${escapeHtml(JSON.stringify(val, null, 2))}</pre>`;
   }
   if (typeof val === 'boolean') {
     return val ? '<span class="set-bool-true">true</span>' : '<span class="set-bool-false">false</span>';
   }
-  return `<span class="set-value-text">${String(val)}</span>`;
+  return `<span class="set-value-text">${escapeHtml(String(val))}</span>`;
 }
 
 // ─── Special Section Renderers ──────────────────────────────────────────────
@@ -112,10 +115,10 @@ function renderCreditsHtml(credits) {
   return credits.map(c => `
     <div class="set-credit-row">
       <div class="set-credit-stack">
-        <strong class="set-credit-name">${c.credit_type?.name || COPY.profileExplorer.unknown}</strong>
+        <strong class="set-credit-name">${escapeHtml(c.credit_type?.name || COPY.profileExplorer.unknown)}</strong>
         <span class="set-credit-handle">${formatCopyText(COPY.profileExplorer.creditHandle, { handle: escapeHtml(c.credit_type?.handle || '—') })}</span>
       </div>
-      <span class="set-credit-badge">${formatCopyText(COPY.profileExplorer.creditsLeft, { count: c.count })}</span>
+      <span class="set-credit-badge">${formatCopyText(COPY.profileExplorer.creditsLeft, { count: escapeHtml(c.count) })}</span>
     </div>
   `).join('');
 }
@@ -132,10 +135,10 @@ function renderSubsHtml(subs, statuses) {
     return `
       <div class="set-studio-row">
         <div class="set-studio-stack">
-          <span class="set-studio-name">${s.name || '—'}</span>
+          <span class="set-studio-name">${escapeHtml(s.name || '—')}</span>
           <span class="set-credit-handle">${formatCopyText(COPY.profileExplorer.planHandle, { handle: escapeHtml(s.handle || '—') })}</span>
         </div>
-        <span style="background:${statusBg};border:1px solid ${statusBorder};color:${statusColor};border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">${status}</span>
+        <span style="background:${statusBg};border:1px solid ${statusBorder};color:${statusColor};border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">${escapeHtml(status)}</span>
       </div>
     `;
   }).join('');
@@ -422,21 +425,21 @@ function renderSectionAccordion(section, idx, isSpecial) {
         const isBool = typeof field.value === 'boolean';
         let inputHtml;
         if (isBool) {
-          inputHtml = `<input type="checkbox" class="app-profile-edit-input set-field-checkbox" data-path="${field.path}" ${field.value ? 'checked' : ''}>`;
+          inputHtml = `<input type="checkbox" class="app-profile-edit-input set-field-checkbox" data-path="${escapeHtml(field.path)}" ${field.value ? 'checked' : ''}>`;
         } else {
           const val = field.value !== null && field.value !== undefined ? String(field.value) : '';
-          inputHtml = `<input type="text" class="app-profile-edit-input set-field-input" data-path="${field.path}" value="${val.replace(/"/g, '&quot;')}" placeholder="${field.value === null ? 'null' : ''}">`;
+          inputHtml = `<input type="text" class="app-profile-edit-input set-field-input" data-path="${escapeHtml(field.path)}" value="${escapeHtml(val)}" placeholder="${field.value === null ? 'null' : ''}">`;
         }
         contentHtml += `
-          <div class="app-profile-field-row set-field-row" data-path="${field.path}">
-            <span class="set-field-label">${label}</span>
+          <div class="app-profile-field-row set-field-row" data-path="${escapeHtml(field.path)}">
+            <span class="set-field-label">${escapeHtml(label)}</span>
             ${inputHtml}
           </div>
         `;
       } else {
         contentHtml += `
           <div class="set-field-group">
-            <span class="set-field-sublabel">${label}</span>
+            <span class="set-field-sublabel">${escapeHtml(label)}</span>
             <div class="set-field-value">${formatVal(field.value)}</div>
           </div>
         `;
@@ -512,8 +515,8 @@ function renderLogEntriesHtml() {
     const color = e.status === 'verified' ? 'var(--success)' : e.status === 'sent' ? 'var(--warning)' : e.status === 'failed' ? 'var(--danger)' : 'var(--text-secondary)';
     return `<div class="set-change-row">
       <span class="set-change-time">${ts}</span>
-      <span class="set-change-path">${e.fieldPath}</span>
-      <span class="set-change-desc">${oldS} → <span class="set-change-new">${newS}</span></span>
+      <span class="set-change-path">${escapeHtml(e.fieldPath)}</span>
+      <span class="set-change-desc">${escapeHtml(oldS)} → <span class="set-change-new">${escapeHtml(newS)}</span></span>
       <span style="color:${color};">${icon}</span>
     </div>`;
   }).join('');
@@ -601,7 +604,7 @@ async function saveProfileChanges(body, originalProfile) {
         }
 
         // Update the input element in-place to reflect verified/reverted value
-        const input = body.querySelector(`.app-profile-edit-input[data-path="${entry.fieldPath}"]`);
+        const input = body.querySelector(`.app-profile-edit-input[data-path="${CSS.escape(String(entry.fieldPath))}"]`);
         if (input) {
           if (input.type === 'checkbox') {
             input.checked = verifiedVal === true;
@@ -675,7 +678,14 @@ export async function openManageSpotMapsModal(options = {}) {
     close();
     openManageSpotMapsModal(options);
   };
+  let loadGeneration = 0;
+  let waitingTimer;
+  const retryTimers = new Set();
   const cleanup = () => {
+    loadGeneration++;
+    clearTimeout(waitingTimer);
+    retryTimers.forEach(clearTimeout);
+    retryTimers.clear();
     window.removeEventListener('app:gyms-changed', refreshOnGymChange);
     if (closeSpotMapManager === close) closeSpotMapManager = null;
     if (activeSpotManager?.overlay === overlay) activeSpotManager = null;
@@ -710,120 +720,68 @@ export async function openManageSpotMapsModal(options = {}) {
   if (isMobile()) activeSpotManager = { overlay, reload: () => load() };
 
   const load = async () => {
-  body.innerHTML = loadingHtml;
-  try {
-    const [prefs, cachedMeta, cachedEvents, linkedRes] = await Promise.all([
-      api.getStudioPreferences(options.gymId),
-      // The gym-scoped cache keys already resolve to the gym in localStorage, so
-      // a request for a DIFFERENT gym must not read them. With the ambient
-      // active-gym state gone, an explicit gymId is by definition not "the
-      // cached one" — fetch fresh rather than serve another gym's layout.
-      options.gymId ? null : cacheGet(accountScopedKey('appUnifiedCacheMeta')),
-      // C3-24: the unified timetable cache is what timetable.js writes; the old
-      // `appCacheEvents` keys had no writer, so this always missed and the
-      // active-studio filter never applied. It is merged across gyms, so it is
-      // read for an explicit gym too and narrowed to that gym just below.
-      cacheGet(accountScopedKey('appUnifiedCacheEvents')),
-      api.getMyGyms().catch(() => ({ gyms: [] }))
-    ]);
-    const linkedGyms = linkedRes.gyms || linkedRes || [];
-    options.gymNames = Object.fromEntries(linkedGyms.map((gym) => [
-      gym.gym_id || gym.gymId || gym.id,
-      gym.gym_name || gym.name || gym.gym_id || gym.id,
-    ]));
-
-    // Studios from the timetable metadata cache (built from event relations) include full
-    // layout.slots data — the /studios list endpoint omits slots for some studios (e.g. Reformer).
-    // Fall back to fetching directly from the API when there is no timetable cache yet
-    // (e.g. first-run onboarding before the user has loaded the timetable).
-    let studios = cachedMeta?.studios || [];
-    let events = cachedEvents || [];
-    // C3-4: `cache.locations` is an unscoped module-level fallback with no gym
-    // tag of its own — it's whatever gym's Timetable tab happened to populate
-    // it last. Same rule as `cachedMeta`/`cachedEvents` above: an explicit
-    // `options.gymId` is by definition asking for a gym that fallback may not
-    // hold, so only read it in the ambient (no gymId) case. Reading it
-    // unconditionally left a non-context gym's editor with another gym's
-    // locations already "loaded" (non-empty), which skipped the fresh fetch
-    // below and then filtered every studio out as belonging to the wrong gym
-    // — rendering "No Studios With Seat Maps" instead of that gym's rooms.
-    let locations = cachedMeta?.locations || (options.gymId ? [] : cache.locations) || [];
-
-    if (!studios.length || !events.length || !locations.length) {
-      try {
-        // One normalized call for both lists (WP-D9). MarianaTek has no studios
-        // or locations endpoint at all and derives them from its class list, so
-        // asking for them separately only ever worked for CodexFit gyms.
-        if (!studios.length || !locations.length) {
-          const meta = await api.getMetadata({ ttlMs: 3600000, gymId: options.gymId });
-          if (!studios.length) studios = meta.studios || [];
-          if (!locations.length) {
-            locations = meta.locations || [];
-            // Same rule in the other direction: don't let a gym-scoped fetch
-            // overwrite the unscoped ambient fallback with one gym's locations —
-            // a later ambient (no gymId) call would then read this gym's rooms
-            // as if they were "the" locations regardless of which gym it meant.
-            if (!options.gymId) cache.locations = locations;
-          }
+    const generation = ++loadGeneration;
+    clearTimeout(waitingTimer);
+    retryTimers.forEach(clearTimeout);
+    retryTimers.clear();
+    body.innerHTML = `<p class="set-studios-wait" role="status" aria-live="polite" hidden></p><div class="set-studios-gyms">${loadingHtml}</div>`;
+    const waiting = body.querySelector('.set-studios-wait');
+    const list = body.querySelector('.set-studios-gyms');
+    const current = () => generation === loadGeneration && overlay.isConnected;
+    waitingTimer = setTimeout(() => {
+      if (!current()) return;
+      waiting.textContent = COPY.spotMaps.stillWaiting;
+      waiting.hidden = false;
+    }, 5000);
+    try {
+      const linkedRes = await api.getMyGyms();
+      if (!current()) return;
+      const linkedGyms = (linkedRes.gyms || linkedRes || []).filter(gym =>
+        gym.account_enabled !== 0 && gym.account_enabled !== false &&
+        (!options.gymId || (gym.gym_id || gym.gymId || gym.id) === options.gymId));
+      options.gymNames = Object.fromEntries(linkedGyms.map(gym => [
+        gym.gym_id || gym.gymId || gym.id, gym.gym_name || gym.name || gym.id,
+      ]));
+      list.innerHTML = '';
+      if (!linkedGyms.length) list.innerHTML = `<p class="app-card-desc">${COPY.onboarding.connectGymForSpotMaps}</p>`;
+      const sections = new Map(linkedGyms.map(gym => {
+        const gymId = gym.gym_id || gym.gymId || gym.id;
+        const section = document.createElement('section');
+        section.className = 'set-studios-gym';
+        section.dataset.gymId = gymId;
+        section.setAttribute('aria-label', options.gymNames[gymId]);
+        section.innerHTML = `<h4>${escapeHtml(options.gymNames[gymId])}</h4>${loadingHtml}`;
+        list.appendChild(section);
+        return [gymId, section];
+      }));
+      const renderResult = ({ gymId, metadata, preferences, error }) => {
+        if (!current()) return;
+        const section = sections.get(gymId);
+        if (error) {
+          section.innerHTML = `<h4>${escapeHtml(options.gymNames[gymId])}</h4><p class="app-card-error" role="status">${formatCopyText(COPY.settings.studiosLoadFailed, { error: escapeHtml(error.message) })}</p><button type="button" class="app-btn">${COPY.teams.retry}</button>`;
+          section.querySelector('button').addEventListener('click', async () => {
+            section.innerHTML = loadingHtml;
+            const timer = setTimeout(() => {
+              if (current()) section.insertAdjacentHTML('afterbegin', `<p role="status">${COPY.spotMaps.stillWaiting}</p>`);
+            }, 5000);
+            retryTimers.add(timer);
+            await loadSpotMapGyms(linkedGyms.filter(gym => (gym.gym_id || gym.gymId || gym.id) === gymId), api, { onResult: renderResult });
+            clearTimeout(timer);
+            retryTimers.delete(timer);
+          });
+          return;
         }
-
-        // Fetch events to build the activeStudioIds filter (WP-C1: via the
-        // normalized endpoint — fetchTimetable() already fans out per-location
-        // server-side, see providers/codexfit.js, so this no longer needs its
-        // own per-location loop). Only `studio_id` is read below, so the
-        // NormalizedEvent shape (no .raw needed) is enough on its own.
-        if (!events.length && locations.length) {
-          const now = new Date();
-          const startDate = now.toISOString().split('T')[0];
-          const endDate = new Date(now.getTime() + 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-          try {
-            const normalizedEvents = await api.getTimetable({ startDate, endDate, gymId: options.gymId });
-            // C3-4 (found while verifying the fix above): normalized ids are
-            // STRINGS (WP-D9) — MarianaTek's studio ids ("mock-room-BOXING")
-            // are never numeric, so `Number(ne.studioId)` was NaN for every
-            // JAB event. `activeStudioIds` below compares via `String(id)`
-            // regardless, so the coercion here only ever needs to preserve the
-            // id, not convert it — it happened to work for Psycle's numeric-
-            // looking studio ids and silently emptied the filter (every studio
-            // excluded) for JAB's.
-            events = normalizedEvents.map(ne => ({ studio_id: ne.studioId, gymId: ne.gymId }));
-          } catch (_) {
-            // If events fetch fails, events stays empty (no filtering)
-          }
-        }
-      } catch (_) {
-        // If any fetch fails, proceed with what we have
+        renderManageSpotMapsModal(preferences, metadata.studios || [], metadata.locations || [], section, close, null, { ...options, gymId });
+      };
+      await loadSpotMapGyms(linkedGyms, api, { onResult: renderResult });
+    } catch (error) {
+      if (current()) {
+        list.innerHTML = `<p class="app-card-error" role="status">${formatCopyText(COPY.settings.studiosLoadFailed, { error: escapeHtml(error.message) })}</p><button type="button" class="app-btn">${COPY.teams.retry}</button>`;
+        list.querySelector('button').addEventListener('click', () => load());
       }
+    } finally {
+      if (current()) { clearTimeout(waitingTimer); waiting.hidden = true; waiting.textContent = ''; }
     }
-
-    // A future Phase 3 drawer can render a non-active gym. The merged metadata
-    // helpers deliberately return every linked gym, so narrow them back to the
-    // section's explicit gym before rendering or editing provider ids.
-    if (options.gymId) {
-      studios = studios.filter(item => !item.gymId || item.gymId === options.gymId);
-      locations = locations.filter(item => !item.gymId || item.gymId === options.gymId);
-      events = events.filter(item => !item.gymId || item.gymId === options.gymId);
-    }
-
-    // Build a set of studio IDs that actually have upcoming events, to exclude defunct studios
-    // that appear in API relations but no longer have any classes scheduled.
-    // Normalized events expose `studioId` (a string); the pre-D9 raw shape used
-    // `studio_id` (a number). Both are read, and ids are compared as strings —
-    // a Number/string mismatch here empties the list silently rather than
-    // erroring, which is exactly how the location filter broke in slice 1.
-    const activeStudioIds = new Set();
-    if (events?.length > 0) {
-      events.forEach(ev => {
-        const id = ev.studioId ?? ev.studio_id ?? ev.studio?.id;
-        if (id != null) activeStudioIds.add(String(id));
-      });
-    }
-
-    renderManageSpotMapsModal(prefs, studios, locations, body, close, activeStudioIds, options);
-  } catch (err) {
-    body.innerHTML = `<div class="app-card-error set-studios-error">${formatCopyText(COPY.settings.studiosLoadFailed, { error: escapeHtml(err.message) })}</div>`;
-  }
   };
   load();
 }
@@ -885,7 +843,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
     const chevron = document.createElement('span');
     chevron.textContent = '▼';
     chevron.style.cssText = 'transition:transform 0.2s;';
-    locHeader.innerHTML = `<span>${locName}</span>`;
+    locHeader.innerHTML = `<span>${escapeHtml(locName)}</span>`;
     locHeader.appendChild(chevron);
 
     const studioList = document.createElement('div');
@@ -1040,7 +998,7 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
   const header = document.createElement('div');
   header.className = 'app-ovl-header';
   header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;';
-  header.innerHTML = `<div data-nav-title><div class="set-editor-title">${COPY.spotMaps.spotMap}</div><div class="set-editor-subtitle">${studioName}</div></div><button class="set-modal-close" data-nav-close id="spot-editor-close" aria-label="${COPY.credits.closeModal}">×</button>`;
+  header.innerHTML = `<div data-nav-title><div class="set-editor-title">${COPY.spotMaps.spotMap}</div><div class="set-editor-subtitle">${escapeHtml(studioName)}</div></div><button class="set-modal-close" data-nav-close id="spot-editor-close" aria-label="${COPY.credits.closeModal}">×</button>`;
 
   const body = document.createElement('div');
   body.className = 'app-ovl-body';
@@ -1144,7 +1102,7 @@ function setupSettingsNavigation() {
   // were already rewritten to paths at boot (router.migrateLegacyHash).
   const routeSection = currentRoute().section || '';
   let initialSection = 'account';
-  if (['general', 'account', 'gyms', 'about', 'calendar', 'notifications', 'favourites'].includes(routeSection)) initialSection = routeSection;
+  if (['general', 'account', 'gyms', 'about', 'calendar', 'notifications', 'privacy', 'favourites'].includes(routeSection)) initialSection = routeSection;
 
   let navHistory = [];
   let currentSection = initialSection;
@@ -1152,6 +1110,15 @@ function setupSettingsNavigation() {
   const activateSection = (sectionId, pushHistory = true) => {
     if (pushHistory && currentSection && currentSection !== sectionId) {
       navHistory.push(currentSection);
+    }
+    if (sectionId === 'about' && (currentSection !== 'about' || !layout.dataset.aboutMascotChosen)) {
+      const image = document.querySelector('.app-about-guide img');
+      if (image) {
+        const assets = Object.values(MASCOT);
+        image.onerror = () => { image.onerror = null; image.src = MASCOT.referee; };
+        image.src = assets[Math.floor(Math.random() * assets.length)];
+        layout.dataset.aboutMascotChosen = 'true';
+      }
     }
     currentSection = sectionId;
 
@@ -1170,6 +1137,8 @@ function setupSettingsNavigation() {
 
     // F-12: the Favourites pane is painted from live caches each time it is shown.
     if (sectionId === 'favourites') renderFavouritesPane();
+    // T-1: Settings -> Privacy, "Who can see my classes" (live from GET /api/privacy/sharing).
+    if (sectionId === 'privacy') import('./teams-privacy.js').then((m) => m.renderPrivacyPane()).catch(() => {});
 
     // On mobile, drill down
     layout.classList.add('show-pane');
@@ -1193,13 +1162,16 @@ function setupSettingsNavigation() {
     syncSectionUrl(id, false);
   });
   // Exposed so renderGymsCard can select a gym's pane after creating it.
-  layout.__activateSettingsSection = (id, { sync = true } = {}) => { activateSection(id); if (sync) syncSectionUrl(id, true); };
+  layout.__activateSettingsSection = (id, { sync = true, history = true } = {}) => { activateSection(id, history); if (sync) syncSectionUrl(id, true); };
   // Back/forward: apply the section (or the bare menu on mobile) without touching history.
   layout.__applySettingsRoute = (section) => {
+    navHistory = []; // URL navigation owns its own history; do not accumulate pane hops.
     if (!section) { layout.classList.remove('show-pane'); return; }
     if (section.startsWith('gym-')) { openGymSettings(section.slice(4), true); return; }
-    activateSection(section);
+    activateSection(section, false);
   };
+
+  layout.querySelector('[data-about-account]')?.addEventListener('click', () => { activateSection('account'); syncSectionUrl('account', false); });
 
   // Attach mobile back button listener
   if (backBtn) {
@@ -1281,14 +1253,6 @@ function setupSettingsNavigation() {
 // email/status/provider strings rendered below can originate from a provider
 // response, and AGENTS.md flags unescaped innerHTML as a known weak spot. Cheap
 // to be correct here rather than add to the pile.
-function escapeHtml(str) {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 // ═══════════════════════════════════════════════════════════════════════
 //  YOUR GYMS — link/unlink and per-gym settings. NO SWITCHER.
@@ -1360,7 +1324,7 @@ function ensureConnTable(list) {
   return list.querySelector('.app-gym-conn-table');
 }
 
-function connRowCreate(g) {
+export function connRowCreate(g) {
   const row = document.createElement('div');
   row.className = 'app-gym-conn-row';
   row.setAttribute('role', 'row');
@@ -1376,7 +1340,7 @@ function connRowCreate(g) {
   return row;
 }
 
-function connRowUpdate(row, g) {
+export function connRowUpdate(row, g) {
   const health = connectionHealth(g);
   // Full logo; rebuilt when the resolved brand changes (a chip built before the catalogue loads is the neutral placeholder).
   const logo = row.querySelector('.app-gym-conn-logo');
@@ -1883,7 +1847,7 @@ function openAccountPasswordModal() {
 // shared cards.js icon set) rather than pasted into index.html so the sidebar uses
 // exactly the same stroke, size and currentColor rules as every other icon in the
 // app. Idempotent; per-gym entries lead with the gym's own mark instead (U1-8).
-const SETTINGS_MENU_ICONS = { general: 'sliders', calendar: 'calendar', notifications: 'bell', favourites: 'heart', account: 'user', gyms: 'link', about: 'info' };
+const SETTINGS_MENU_ICONS = { general: 'sliders', calendar: 'calendar', notifications: 'bell', privacy: 'shield', favourites: 'heart', account: 'user', gyms: 'link', about: 'info' };
 export function decorateSettingsMenu() {
   document.querySelectorAll('.app-settings-menu > [data-settings-section]').forEach((item) => {
     const name = SETTINGS_MENU_ICONS[item.getAttribute('data-settings-section')];
@@ -1908,7 +1872,7 @@ export async function openGymSettings(gymId, fromHistory = false) {
   for (let i = 0; i < 40; i++) {
     const item = [...layout.querySelectorAll('[data-gym-nav]')].find((el) => el.getAttribute('data-gym-nav') === String(gymId));
     if (item && layout.__activateSettingsSection) {
-      layout.__activateSettingsSection(`gym-${gymId}`, { sync: !fromHistory });
+      layout.__activateSettingsSection(`gym-${gymId}`, { sync: !fromHistory, history: !fromHistory });
       return;
     }
     await new Promise((r) => setTimeout(r, 50));
@@ -1938,8 +1902,7 @@ export async function initSettings() {
   initFavouritesPane();
   setupSettingsNavigation();
   // A deep link to one gym's pane: its entry is built asynchronously by renderGymsCard.
-  const deep = currentRoute().section;
-  if (deep && deep.startsWith('gym-')) openGymSettings(deep.slice(4), true).catch(() => {});
+  document.getElementById('app-settings-layout-wrapper')?.__applySettingsRoute?.(currentRoute().section);
 }
 
 // Open an external URL from inside the installed PWA. window.open('_blank') leaves a
@@ -1984,6 +1947,10 @@ const NOTIF_DEFAULTS = {
   creditWarning: { enabled: true },
   cancellationReminder: { enabled: true, timing: '24h' },
   bookingWindow: { enabled: true },
+  // T-5 Teams (server notifications.js DEFAULT_PREFS): only "request approved" is an
+  // account switch (the requester has no Team page yet). Join requests and "a teammate
+  // booked a class you're in" are per Team, on each Team's Manage page (T-5b).
+  teamApproved: { enabled: true },
 };
 
 function getNotifPrefs() {
@@ -2006,6 +1973,8 @@ const NOTIF_ROWS = [
   // warn about, so each gym carries its own default (gyms.config.js) and the
   // member can override either way.
   { key: 'bookingWindow', title: COPY.settings.notificationBookingWindow, desc: COPY.settings.notificationBookingWindowHelp, perGym: true },
+  // T-5 Teams (PLAN-teams.md §5.3): the rest are per Team (pointer line below the rows).
+  { key: 'teamApproved', title: COPY.settings.notificationTeamApproved, desc: COPY.settings.notificationTeamApprovedHelp },
 ];
 
 /**
@@ -2044,9 +2013,9 @@ function renderPerGymToggles(key, parentPref) {
         const locked = key === 'bookingWindow' && !gymHasPeriodicWindow(g);
         return `
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:4px 0;${locked ? 'opacity:0.45;' : ''}">
-          <span class="set-credit-handle">${getGymShortName(gymId) || gymId}${locked ? `<br><small class="set-gym-note">${COPY.settings.bookingWindowRollingNote}</small>` : ''}</span>
+          <span class="set-credit-handle">${escapeHtml(getGymShortName(gymId) || gymId)}${locked ? `<br><small class="set-gym-note">${COPY.settings.bookingWindowRollingNote}</small>` : ''}</span>
           <label class="app-switch set-gym-switch">
-            <input type="checkbox" class="notif-pergym-toggle" data-key="${key}" data-gym-id="${gymId}" ${locked ? 'disabled' : ''} ${perGymPrefOn(parentPref, g) ? 'checked' : ''}>
+            <input type="checkbox" class="notif-pergym-toggle" data-key="${escapeHtml(key)}" data-gym-id="${escapeHtml(gymId)}" ${locked ? 'disabled' : ''} ${perGymPrefOn(parentPref, g) ? 'checked' : ''}>
             <span class="app-slider"></span>
           </label>
         </div>`;
@@ -2086,6 +2055,7 @@ function renderNotifPrefs() {
           ${row.perGym ? renderPerGymToggles(row.key, p) : ''}
         </div>`;
     }).join('')}
+    <p class="set-push-desc">${escapeHtml(COPY.settings.notificationTeamsPointer)}</p>
   `;
 
   body.querySelectorAll('.notif-toggle').forEach(el => {
@@ -2185,11 +2155,68 @@ function loadSettingsInputs() {
 
   if (debugMode) debugMode.checked = !!userSettings.debugMode;
   if (prefetchWeeks) prefetchWeeks.value = String(userSettings.prefetchWeeks || 4);
+  loadAccountNameInputs();
+}
+
+// T-1 (PLAN-teams.md §5.8): first and last name, account-scoped. The saved value wins;
+// a never-saved field is prefilled from the linked gym profiles (the same inference
+// onboarding uses) and only stored when the member presses Save. Read from the server
+// rather than `userSettings`: on a cold load straight into Settings the in-memory blob
+// is still the defaults, which made a saved name look unsaved.
+function loadAccountNameInputs() {
+  const first = document.getElementById('app-account-first-name');
+  const last = document.getElementById('app-account-last-name');
+  if (!first || !last) return;
+  const fill = (input, value) => { if (!input.dataset.dirty) input.value = value; };
+  for (const input of [first, last]) {
+    if (!input.dataset.dirtyListener) {
+      input.dataset.dirtyListener = 'true';
+      input.addEventListener('input', () => { input.dataset.dirty = 'true'; });
+    }
+  }
+  fill(first, cleanNameField(userSettings.firstName));
+  fill(last, cleanNameField(userSettings.lastName));
+  Promise.all([api.getSettings().catch(() => null), api.getMyGyms().catch(() => null)]).then(([saved, mine]) => {
+    const settings = saved || userSettings;
+    const guess = inferNames(mine?.gyms || []);
+    const savedFirst = cleanNameField(settings.firstName);
+    fill(first, savedFirst || guess.firstName);
+    if (typeof settings.lastName === 'string') fill(last, cleanNameField(settings.lastName));
+    else fill(last, (savedFirst || guess.firstName).toLocaleLowerCase() === guess.firstName.toLocaleLowerCase() ? guess.lastName : '');
+  });
+}
+
+async function saveAccountName(button) {
+  const first = document.getElementById('app-account-first-name');
+  const last = document.getElementById('app-account-last-name');
+  const patch = { firstName: cleanNameField(first?.value), lastName: cleanNameField(last?.value) };
+  if (!patch.firstName) { showToast(COPY.settings.firstNameRequired, 'error'); first?.focus(); return; }
+  button.disabled = true;
+  try {
+    await api.updateSettings(patch);
+    Object.assign(userSettings, patch);
+    window.dispatchEvent(new Event('app-account-name-changed'));
+    first.value = patch.firstName;
+    last.value = patch.lastName;
+    delete first.dataset.dirty;
+    delete last.dataset.dirty;
+    showToast(COPY.settings.nameSaved, 'success');
+  } catch (err) {
+    showToast(formatCopyText(COPY.settings.nameSaveFailed, { error: err.message }), 'error');
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function setupSettingsListeners() {
   const debugMode = document.getElementById('app-setting-debug-mode');
   const prefetchWeeks = document.getElementById('app-setting-prefetch-weeks');
+
+  const accountNameBtn = document.getElementById('app-account-name-save');
+  if (accountNameBtn && !accountNameBtn.dataset.listener) {
+    accountNameBtn.dataset.listener = 'true';
+    accountNameBtn.addEventListener('click', () => saveAccountName(accountNameBtn));
+  }
 
   const accountPasswordBtn = document.getElementById('app-account-password-btn');
   if (accountPasswordBtn && !accountPasswordBtn.dataset.listener) {
@@ -2347,6 +2374,7 @@ function setupSettingsListeners() {
       showToast(COPY.settings.loggingOut, 'info');
       clearApiCache().catch(() => {}).finally(() => {
         localStorage.removeItem('appLocalToken');
+        try { localStorage.removeItem('appPendingTeamInvite'); } catch (_) { /* T-1: drop a stashed invite on sign-out */ }
         window.location.reload();
       });
     });
@@ -2381,6 +2409,7 @@ function setupSettingsListeners() {
         await apiFetch('/api/auth/me', { method: 'DELETE' });
         showToast(COPY.settings.allDataDeleted, 'success');
         localStorage.removeItem('appLocalToken');
+        try { localStorage.removeItem('appPendingTeamInvite'); } catch (_) { /* T-1: drop a stashed invite on sign-out */ }
         setTimeout(() => { window.location.reload(); }, 1500);
       } catch (err) {
         showToast(formatCopyText(COPY.settings.deleteFailed, { error: err.message }), 'error');

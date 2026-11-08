@@ -1,5 +1,7 @@
 # Handoff: fix backups and notifications after the sweatassistant rename/cutover
 
+> Historical record: domains, host state and pending actions below describe the dated inspection/cutover. For current domains, branch and deployment workflow, use [current operations](../Operations/CURRENT.md). Do not execute this old runbook as a current deployment plan.
+
 Written 2026-10-08 ~19:05 BST from read-only inspection of oracle and pi. Labels: CURRENT (seen live), PLANNED (runbook `Documentation/Audits/default-gym-and-infra-plan.md`, not done), IN-FLUX (another agent is mid-cutover; re-check before acting).
 
 ## 1. Naming map (old -> new)

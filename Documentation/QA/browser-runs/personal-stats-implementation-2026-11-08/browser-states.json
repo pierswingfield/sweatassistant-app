@@ -1,0 +1,33 @@
+{
+  "loading": {
+    "resolver": "function",
+    "busy": "true",
+    "cards": 2,
+    "pitch": false
+  },
+  "empty": {
+    "busy": "false",
+    "rows": 2
+  },
+  "error": {
+    "retry": "Retry",
+    "busy": "false"
+  },
+  "retry": true,
+  "favouritesNone": true,
+  "favouritesNoMatch": {
+    "hidden": false,
+    "text": "Upcoming favourite classes\n\nNo favourite classes in the next 7 days."
+  },
+  "favouritesRemoved": true,
+  "guardEmpty": true,
+  "guardSaved": {
+    "disabled": false,
+    "checked": false
+  },
+  "guardFailure": {
+    "checked": false,
+    "complete": false,
+    "text": "Auto-Upgrade\n\nWatch for better spots at your studios.\n\nTurn on Auto-Upgrade for studios with preferred spots\nCould not enable Auto-Upgrade for Aarmy, JAB Boxing Club, Psycle London. Try again."
+  }
+}

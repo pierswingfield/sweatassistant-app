@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://dibs.fit/sitemap.xml

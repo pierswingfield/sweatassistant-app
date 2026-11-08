@@ -1,6 +1,10 @@
 // Tiny widget framework for the Home page (F-10-1).
 //
-//   registerWidget({ id, title, order, load(ctx), render(el, data, ctx), isVisible?(ctx), isEmpty?(data, ctx), emptyText?, renderEmpty?(el, data, ctx) })
+//   registerWidget({ id, title, order, load(ctx), render(el, data, ctx), isVisible?(ctx), isEmpty?(data, ctx), emptyText?, renderEmpty?(el, data, ctx), orderFor?(outcome) })
+//
+// `order` is the widget's place; `orderFor(outcome)` may move it once its outcome is known
+// ('loading' | 'ready' | 'empty' | 'hidden' | 'error'), e.g. an empty-state card that
+// belongs below everything else. A non-finite answer keeps `order`.
 //
 // Every widget loads, renders and fails independently: one rejection never reaches
 // a sibling. Pure registry + a small DOM mounter with loading / empty / error(retry).
@@ -18,8 +22,27 @@ export function createRegistry() {
         .filter((w) => { try { return typeof w.isVisible === 'function' ? w.isVisible(ctx) !== false : true; } catch (_) { return false; } })
         .sort((a, b) => (a.order - b.order) || String(a.id).localeCompare(String(b.id)));
     },
+    /** One registered widget by id (or undefined). */
+    get(id) { return widgets.get(id); },
     clear() { widgets.clear(); },
   };
+}
+
+/** Pure: the order a widget takes for an outcome (orderFor, else its static order). */
+export function effectiveOrder(def, outcome) {
+  const base = def && Number.isFinite(def.order) ? def.order : 100;
+  if (def && typeof def.orderFor === 'function') {
+    try { const o = def.orderFor(outcome); if (Number.isFinite(o)) return o; } catch (_) { /* keep the static order */ }
+  }
+  return base;
+}
+
+/** Pure: [{ id, order }] -> ids in display order (order, then id, as list() sorts). */
+export function orderIds(entries) {
+  return [...(entries || [])]
+    .filter((e) => e && e.id)
+    .sort((a, b) => ((Number.isFinite(a.order) ? a.order : 100) - (Number.isFinite(b.order) ? b.order : 100)) || String(a.id).localeCompare(String(b.id)))
+    .map((e) => e.id);
 }
 
 export const registry = createRegistry();
@@ -35,7 +58,7 @@ export function isNoGymError(err) {
   return !!err && (err.code === 'NO_GYM_LINKED' || err.status === 409);
 }
 
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+import { escapeHtml as esc } from '../escape-html.js';
 
 // Home refreshes on foregrounding and on successful stale-cache writes. Keep a
 // widget's already-mounted controls when those refreshes resolve to the same
@@ -57,15 +80,24 @@ function dataSignature(widget, data, ctx) {
  * Run ONE widget into `el`, going loading -> (render | empty | error). Safe to call
  * again (that is the retry). A newer run supersedes an older one still in flight.
  */
-export async function mountWidget(el, widget, ctx, { skeleton = () => '', copy = {}, hasCachedData = null, contextKey = '' } = {}) {
+export async function mountWidget(el, widget, ctx, { skeleton = () => '', copy = {}, hasCachedData = null, contextKey = '', onPlaced = null } = {}) {
   const token = (el._wRun = (el._wRun || 0) + 1);
   const live = () => el._wRun === token;
+  // The widget's place for its current outcome (effectiveOrder), read by the page's layout.
+  // onPlaced lets the page re-flow when an outcome moves a widget.
+  const place = (outcome) => {
+    const next = String(effectiveOrder(widget, outcome));
+    if (el.dataset.widgetOrder === next) return;
+    el.dataset.widgetOrder = next;
+    if (typeof onPlaced === 'function') { try { onPlaced(el); } catch (_) { /* layout is best-effort */ } }
+  };
   const body = () => el.querySelector('[data-widget-body]');
   const heading = () => el.querySelector('.home-widget-title');
   const titleFor = (data) => typeof widget.title === 'function' ? widget.title(data, ctx) : widget.title;
   const canKeepContent = !!contextKey && el.dataset.widgetContextKey === contextKey && el.dataset.widgetHasContent === 'true';
   el.dataset.widgetContextKey = contextKey;
   el.dataset.widgetState = canKeepContent ? 'refreshing' : 'loading';
+  place(canKeepContent && el._wOutcome ? el._wOutcome : 'loading');
   if (!canKeepContent) {
     let cached = false;
     if (typeof hasCachedData === 'function') {
@@ -100,6 +132,7 @@ export async function mountWidget(el, widget, ctx, { skeleton = () => '', copy =
       && signature !== null
       && el._wOutcome === outcome
       && el._wDataSignature === signature;
+    place(outcome);
     if (unchanged) {
       el.hidden = outcome === 'hidden';
       el.dataset.widgetState = outcome;
@@ -147,14 +180,21 @@ export async function mountWidget(el, widget, ctx, { skeleton = () => '', copy =
       el.dataset.widgetStale = 'true';
       return;
     }
+    if (widget.hideOnError) {
+      el.hidden = true;
+      el.dataset.widgetState = 'error';
+      place('error');
+      return;
+    }
     el.hidden = false;
     el.dataset.widgetState = 'error';
+    place('error');
     const b = body();
     if (isNoGymError(err)) {
       b.innerHTML = `<p class="home-widget-empty">${esc(copy.noGym || '')}</p>`;
       return;
     }
     b.innerHTML = `<p class="home-widget-error" role="alert">${esc(copy.error || '')}</p><button type="button" class="home-widget-retry">${esc(copy.retry || 'Retry')}</button>`;
-    b.querySelector('.home-widget-retry').addEventListener('click', () => mountWidget(el, widget, ctx, { skeleton, copy, hasCachedData, contextKey }));
+    b.querySelector('.home-widget-retry').addEventListener('click', () => mountWidget(el, widget, ctx, { skeleton, copy, hasCachedData, contextKey, onPlaced }));
   }
 }

@@ -1,0 +1,165 @@
+/* Verbatim copy of the Home favourite-card rules from client/src/styles.css (lines 10196-10332, 10385-10407, 10499-10501),
+   so 'Classes together' reuses the real component (PLAN-teams §5.3 item 4). The #app-panel-home background override is rescoped to .fav-host. */
+.home-favourites-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  align-items: stretch;
+}
+.home-favourite-card {
+  min-width: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+.home-favourite-media {
+  min-width: 0;
+  width: 44px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  background: transparent;
+}
+.home-favourite-avatar,
+.home-favourite-initial {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  object-fit: cover;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 2rem;
+  font-weight: 700;
+  border-radius: 50%;
+}
+.home-favourite-avatar { object-fit: cover; }
+.home-favourite-gym {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  flex: 0 0 28px;
+  grid-area: gym;
+  align-self: center;
+}
+.home-favourite-gym .app-gym-mark { width: 28px; height: 28px; border-radius: 8px; }
+.home-favourite-body {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-areas: "gym when" "class class" "status status" "action action";
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 3px;
+}
+.home-favourite-meta {
+  display: contents;
+}
+.home-favourite-when {
+  grid-area: when;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.home-favourite-instructor {
+  max-width: 56px;
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  line-height: 1.15;
+  text-align: center;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.home-favourite-class {
+  grid-area: class;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-favourite-status {
+  grid-area: status;
+  min-width: 0;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  line-height: 1.25;
+}
+.home-favourite-status.is-release { color: var(--accent); }
+.home-favourite-status.is-open { color: var(--success); }
+.home-favourite-status.is-full,
+.home-favourite-status.is-waitlist { color: var(--warning); }
+.home-favourite-cta {
+  grid-area: action;
+  justify-self: end;
+  margin-top: 2px;
+  min-height: 36px;
+  max-width: 100%;
+  padding: 7px 14px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-fill);
+  color: var(--on-accent-fill);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-favourite-cta.variant-autoupgrade { background: var(--feature-violet, var(--accent-fill)); }
+.home-favourite-cta.variant-neutral,
+.home-favourite-cta:disabled { background: var(--surface-inset); color: var(--text-secondary); cursor: default; }
+.home-favourite-cta.variant-danger,
+.home-favourite-cta.variant-danger-strong { background: var(--danger); color: var(--on-danger, #fff); }
+.home-favourite-cta:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+@media (max-width: 768px) {
+  .home-favourites-strip {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 4px;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    touch-action: pan-x pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+  .home-favourite-card {
+    flex: 0 0 286px;
+    width: 286px;
+    grid-template-columns: 56px minmax(0, 1fr);
+    grid-template-rows: auto;
+    align-items: start;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+  .home-favourite-media { width: 44px; padding: 0; }
+}
+.fav-host .home-favourite-card { background: color-mix(in srgb, var(--surface) 84%, var(--tone-ink) 16%); }

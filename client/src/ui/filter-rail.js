@@ -9,6 +9,7 @@
 
 import { icon, gymBrand, gymDot, gymLogoPlate, getDiscipline } from './cards.js';
 import { escapeHtml } from './cards.js';
+import { safeImageUrl } from './safe-url.js';
 import { COPY, formatCopyText } from '../copy.js';
 import { pushLayer, isMobile } from './modal-nav.js';
 import { summariseInstructorsByGym, compactInstructorsCount } from './instructor-filter.js';
@@ -45,7 +46,7 @@ export function gymPlate(gymId) {
 }
 
 function avatar(instr) {
-  const url = instr && (instr.thumbUrl || instr.imageUrl);
+  const url = safeImageUrl(instr && (instr.thumbUrl || instr.imageUrl));
   if (url) return `<img class="fr-avatar" src="${escapeHtml(url)}" alt="" width="20" height="20">`;
   const initial = escapeHtml(((instr && instr.name) || '?')[0]);
   return `<span class="fr-avatar fr-avatar-fallback">${initial}</span>`;

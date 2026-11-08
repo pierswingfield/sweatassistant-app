@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Join: pending</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="mock.css">
+<script src="chrome.js"></script>
+</head>
+<body data-chrome="none">
+<header class="ovl-header"><a class="back" href="02-teams-list.html" aria-label="Close">‹</a><h3>Team invite</h3></header>
+<main class="ovl-body">
+  <div class="center-hero"><span class="mascot lg" style="--s:132px"><span class="disc"></span><img src="img/pose-running.webp" alt="Team mascot"></span>
+    <h1>🚲 Tuesday Riders</h1>
+    <span class="status-chip pending"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Request pending</span>
+    <p>Sent today at 07:52. You'll get a notification when a Captain replies. Nothing you share is visible until then.</p>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <div class="row"><div class="grow"><div class="card-sub">Changed your mind?</div><div class="muted sm">Withdrawing deletes the request.</div></div><button class="btn danger-ghost">Withdraw</button></div>
+  </div>
+  <p class="note"><b>Mock-up notes.</b> This link page is the only place a pending request appears (§5.6): not in the Teams list and not in Settings → Privacy. Re-opening the link shows this same state.</p>
+</main>
+<footer class="ovl-footer"><div class="inner"><a class="btn" href="02-teams-list.html">Back to Teams</a></div></footer>
+</body>
+</html>

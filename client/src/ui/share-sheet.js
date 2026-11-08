@@ -100,7 +100,7 @@ export async function openShareSheet() {
     return tbc ? formatCopyText(COPY.share.withTbc, { base, tbc }) : base;
   };
 
-  const paint = () => {
+  const paint = (focusSelector) => {
     const { counts, html } = compute();
     const empty = counts.total === 0;
     sheet.innerHTML = `
@@ -132,20 +132,21 @@ export async function openShareSheet() {
         <button type="button" class="share-cancel" data-share-close="1">${COPY.share.cancel}</button>
       </div>`;
     wireDragToDismiss(sheet, closeShareSheet);
+    if (focusSelector) sheet.querySelector(focusSelector)?.focus({ preventScroll: true });
   };
 
   sheet.addEventListener('change', (e) => {
-    if (e.target.dataset.shareTbc) { state.includeTbc = e.target.checked; paint(); }
+    if (e.target.dataset.shareTbc) { state.includeTbc = e.target.checked; paint('[data-share-tbc]'); }
   });
   sheet.addEventListener('click', async (e) => {
     const t = e.target.closest('button');
     if (!t) return;
     if (t.dataset.shareClose) return closeShareSheet();
-    if (t.dataset.shareWindow) { state.windowId = t.dataset.shareWindow; saveWindow(state.windowId); return paint(); }
+    if (t.dataset.shareWindow) { state.windowId = t.dataset.shareWindow; saveWindow(state.windowId); return paint(`[data-share-window="${state.windowId}"]`); }
     if (t.dataset.shareGym) {
       const id = t.dataset.shareGym;
       if (!state.gyms.delete(id)) state.gyms.add(id);
-      return paint();
+      return paint(`[data-share-gym="${CSS.escape(id)}"]`);
     }
     if (t.dataset.shareCopy) {
       const ok = await copyText(compute());

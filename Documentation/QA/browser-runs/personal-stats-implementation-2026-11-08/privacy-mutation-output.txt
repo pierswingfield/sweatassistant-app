@@ -1,0 +1,21 @@
+PASS pure aggregates: dedupe, outcomes, future/end, zero dates, weekly grace/year, DST/class-local zones, partial coverage
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+1706 !== 1705
+
+    at main (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-personal-stats.js:42:10)
+    at Object.<anonymous> (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-personal-stats.js:61:1)
+    at Module._compile (node:internal/modules/cjs/loader:1781:14)
+    at Object..js (node:internal/modules/cjs/loader:1913:10)
+    at Module.load (node:internal/modules/cjs/loader:1505:32)
+    at Function._load (node:internal/modules/cjs/loader:1309:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+    at node:internal/main/run_main_module:36:49 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 1706,
+  expected: 1705,
+  operator: 'strictEqual',
+  diff: 'simple'
+}

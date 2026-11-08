@@ -1,10 +1,12 @@
+import { personalStatsZone, personalStatsKey, renderPersonalStats } from './personal-stats.js';
 // Home tab: a page of independent widgets (F-10-1).
 // Framework lives in widget-registry.js; this file registers the widgets and paints the page.
 import { api } from '../api.js';
 import { appConfig } from '../config.js';
 import { COPY, formatCountLabel, formatCopyText } from '../copy.js';
-import { registerWidget, registry, mountWidget, isNoGymError } from './widget-registry.js';
+import { registerWidget, registry, mountWidget, isNoGymError, orderIds } from './widget-registry.js';
 import { renderCardSkeletons } from './loading-skeleton.js';
+import { homeTeamsOrderFor, HOME_TEAMS_ORDER, HOME_ORDER_LAST } from './home-order.js';
 import { greetingText } from './name-capture.js';
 import { getTotalCredits, isMetered } from './credit-allowance.js';
 import { canForGym, getGymShortName, getLinkedGyms, getAllLinkedGyms } from '../gym-context.js';
@@ -15,8 +17,10 @@ import { navigate } from '../router.js';
 import { DateTime } from 'luxon';
 import { groupBookingsByEvent, selectUpcoming } from './upcoming.js';
 import { mountBookingCard } from './bookings.js';
+import { countPendingAutoBooks } from './autobook-nav.js';
 import { formatInZone, formatOpensIn, getClassReleaseTime, zoneFor } from '../lib.js';
 import { instructorAvatar } from './tooltips.js';
+import { safeImageUrl } from './safe-url.js';
 import { indexFavourites, isFavouriteIn } from '../favourites.js';
 
 const goTo = (tabId) => (window.switchTab ? window.switchTab(tabId) : null);
@@ -28,7 +32,7 @@ const gymCacheKey = (path, gymId, extra = {}) => {
   return `${path}?${params}`;
 };
 const uniqueGymIds = (gyms) => [...new Set((Array.isArray(gyms) ? gyms : []).map(gymIdOf).filter(Boolean))];
-const homeContextKey = (gyms) => `${localStorage.getItem('appUserId') || ''}:${uniqueGymIds(gyms).sort().join(',')}`;
+const homeContextKey = (gyms) => `${localStorage.getItem('appUserId') || ''}:${uniqueGymIds(gyms).sort().join(',')}:${uniqueGymIds(getAllLinkedGyms()).sort().join(',')}`;
 const isCurrentHomeContext = (ctx) => !!ctx?.contextKey && ctx.contextKey === homeContextKey(getLinkedGyms());
 
 /**
@@ -89,10 +93,15 @@ export function groupHomeGymLinks(links) {
 }
 
 registerWidget({
-  id: 'book', order: 40, title: COPY.home.findClass,
-  async load(ctx) { return getHomeBookLinks(ctx.gyms); },
+  id: 'book', order: 25, title: COPY.home.findClass,
+  async load(ctx) {
+    const bookings = await api.getBookings({ cacheTtlMs: 120000, gyms: ctx.gyms, requireComplete: true });
+    return { links: getHomeBookLinks(ctx.gyms), hasBooking: (Array.isArray(bookings) ? bookings : []).some((b) => Date.parse(b.event?.startAt || b.event?.start_at || b.startAt || b.start_at) > Date.now()) };
+  },
+  isHidden: (data) => !!data.hasBooking,
   isEmpty: () => false,
-  render(el, links) {
+  render(el, { links }) {
+    const invitation = document.createElement('p'); invitation.className = 'home-book-invitation'; invitation.textContent = COPY.home.noBookingsInvitation; el.appendChild(invitation);
     const row = document.createElement('div');
     row.className = 'home-book-row';
     const gymLinks = links.filter((link) => link.gymId);
@@ -237,29 +246,33 @@ function attendanceTile(row, ctx) {
 // stored history); every other widget sees only the enabled gyms in ctx.gyms.
 const statsGyms = (ctx) => (Array.isArray(ctx.allGyms) ? ctx.allGyms : (Array.isArray(ctx.gyms) ? ctx.gyms : []));
 
+// Pending imports get a bounded, account-owned follow-up; ordinary Home paints use SWR.
+let statsPoll = null, statsPollCount = 0, statsPollAccount = '';
+function stopStatsPoll() { clearTimeout(statsPoll); statsPoll = null; statsPollCount = 0; statsPollAccount = ''; }
+function scheduleStatsPoll(data, ctx) {
+  const account = localStorage.getItem('appUserId') || '';
+  if (statsPollAccount !== account) { stopStatsPoll(); statsPollAccount = account; }
+  if (!data.pending && !data.coverage?.some((c) => c.state === 'stale')) { stopStatsPoll(); return; }
+  if (statsPoll || statsPollCount >= 6) return;
+  statsPoll = setTimeout(async () => {
+    statsPoll = null;
+    if (!isCurrentHomeContext(ctx) || document.getElementById('app-panel-home')?.style.display === 'none' || account !== localStorage.getItem('appUserId')) { stopStatsPoll(); return; }
+    statsPollCount++;
+    try { await api.getPersonalStats(personalStatsZone(), { refresh: true }); if (isCurrentHomeContext(ctx)) renderHome(); }
+    catch (_) { /* stop after failure; the next Home load can refresh */ }
+  }, Math.min(30000, 2500 * 2 ** statsPollCount));
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('app-logout-triggered', stopStatsPoll);
+  window.addEventListener('app:gyms-changed', stopStatsPoll);
+}
 registerWidget({
-  id: 'stats', order: 70, title: COPY.home.stats,
-  cacheKeys(ctx) {
-    const gyms = statsGyms(ctx);
-    const wanted = new Set(gyms.filter(homeStatsWantsAttendance).map(gymIdOf));
-    return uniqueGymIds(gyms).filter((id) => wanted.has(id)).map((id) => gymCacheKey('/api/attendance-totals', id));
-  },
-  headerMeta: getHomeActivityMeta,
-  async load(ctx) { return loadHomeStats(statsGyms(ctx)); },
-  isEmpty: (data) => Array.isArray(data?.rows) && data.rows.length === 0 && !data.unsupported && !data.failed,
-  emptyText: COPY.home.statsNone,
-  render(el, data, ctx) {
-    const grid = document.createElement('div');
-    grid.className = 'home-attendance-grid';
-    data.rows.filter((row) => !row.hidden).forEach((row) => grid.appendChild(attendanceTile(row, ctx)));
-    el.appendChild(grid);
-    for (const text of [data.unsupported && COPY.home.statsUnsupported, data.failed && COPY.home.statsPartial].filter(Boolean)) {
-      const note = document.createElement('p');
-      note.className = 'home-stats-partial';
-      note.textContent = text;
-      el.appendChild(note);
-    }
-  },
+  id: 'stats', order: 70, title: COPY.home.stats, hideOnError: true,
+  cacheKeys() { return [personalStatsKey()]; },
+  dataSignature(data) { const { generatedAt, ...stable } = data; return stable; },
+  async load(ctx) { const data = await api.getPersonalStats(personalStatsZone()); scheduleStatsPoll(data, ctx); return data; },
+  isEmpty: () => false,
+  render(el, data) { renderPersonalStats(el, data); },
 });
 
 function guestCreditBalance(credits) {
@@ -374,7 +387,7 @@ function upcomingChip(group) {
   const e = group.event;
   const zone = zoneFor(e, group.gymId);
   const when = formatInZone(e.startAt || e.start_at, zone).timeLabel;
-  const photo = e.instructors?.[0]?.thumbUrl || e.instructors?.[0]?.imageUrl || '';
+  const photo = safeImageUrl(e.instructors?.[0]?.thumbUrl || e.instructors?.[0]?.imageUrl || '');
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'home-up-chip';
@@ -579,11 +592,64 @@ registerWidget({
   },
 });
 
-/** Pending = still in the queue (not executed), across every linked gym. */
-export function countPendingAutoBooks(rows) {
-  if (!Array.isArray(rows)) return null; // not loaded is not zero
-  return rows.filter((r) => !r.executed_at).length;
+// T-5 "Your Teams today" (PLAN-teams.md §5.3): the top two Teams' today lines, from the
+// same list projection as the Teams tab (GET /api/teams). Modules load lazily so Home's
+// import graph (and its tests) stay as they were. Empty = no Teams: one line + Create.
+async function teamsWidgetDeps() {
+  const [ui, model, api_, cards] = await Promise.all([
+    import('./teams-ui.js'), import('./home-teams.js'), import('../teams-api.js'), import('./cards.js'),
+  ]);
+  return {
+    ui: { T: ui.T, fmt: ui.fmt, mascotHtml: ui.mascotHtml, avatarStackHtml: ui.avatarStackHtml, memberCountLabel: ui.memberCountLabel, teamTitleText: ui.teamTitleText, segmentsHtml: ui.segmentsHtml, whenOf: ui.whenOf, escapeHtml: cards.escapeHtml },
+    model, teamsApi: api_.teamsApi,
+  };
 }
+const openTeam = (teamId) => (window.switchTab ? window.switchTab('teams', { teams: teamId ? { view: 'team', teamId } : { view: 'list' } }) : null);
+
+// Teams widget placement (owner, 2026-11-06): in a Team it keeps order 30 (after Upcoming);
+// in no Team its "Create a Team" card goes BELOW every other widget (homeTeamsOrder). The
+// last answer is remembered so a no-Team member's skeleton does not appear at 30 first.
+let teamsEmptyHint = null;
+const TEAMS_EMPTY_HINT_KEY = 'appHomeTeamsEmpty';
+function readTeamsEmptyHint() {
+  if (teamsEmptyHint !== null) return teamsEmptyHint;
+  try { teamsEmptyHint = localStorage.getItem(`${TEAMS_EMPTY_HINT_KEY}:${localStorage.getItem('appUserId') || ''}`) === '1'; } catch (_) { teamsEmptyHint = false; }
+  return teamsEmptyHint;
+}
+function writeTeamsEmptyHint(empty) {
+  teamsEmptyHint = !!empty;
+  try { localStorage.setItem(`${TEAMS_EMPTY_HINT_KEY}:${localStorage.getItem('appUserId') || ''}`, empty ? '1' : '0'); } catch (_) { /* per-device convenience only */ }
+}
+
+registerWidget({
+  id: 'teams', order: HOME_TEAMS_ORDER,
+  orderFor: (outcome) => {
+    if (outcome === 'empty') writeTeamsEmptyHint(true);
+    else if (outcome === 'ready') writeTeamsEmptyHint(false);
+    return homeTeamsOrderFor(outcome, readTeamsEmptyHint());
+  },
+  title: () => COPY.teams.homeTitle,
+  async load() {
+    const deps = await teamsWidgetDeps();
+    const res = await deps.teamsApi.list();
+    const rows = deps.model.homeTeamsModel(res && res.teams, { when: deps.ui.whenOf, copy: deps.ui.T, gymName: getGymShortName, memberCountLabel: deps.ui.memberCountLabel });
+    return { rows, deps };
+  },
+  dataSignature: (d) => (d ? d.rows : null),
+  isEmpty: (d) => !d || !d.rows.length,
+  renderEmpty(el, d) {
+    if (!d || !d.deps) return;
+    d.deps.model.renderHomeTeamsEmpty(el, {
+      ui: d.deps.ui,
+      onCreate: () => { openTeam(null); import('./teams.js').then((m) => m.openCreateFlow()).catch(() => {}); },
+    });
+  },
+  render(el, d) {
+    d.deps.model.renderHomeTeams(el, d.rows, { ui: d.deps.ui, onOpen: openTeam });
+  },
+});
+
+export { countPendingAutoBooks };
 
 function renderAutoBookQueue(el, count) {
   if (count === 0) return;
@@ -634,12 +700,17 @@ export function getHomeFavouriteRows(gyms, {
   return { state: 'empty', rows: [] };
 }
 
+export function savedFavouritesVisibility(gymIds, byGym = {}) {
+  if (gymIds.some((id) => byGym[id]?.items?.length > 0)) return 'visible';
+  return gymIds.every((id) => Array.isArray(byGym[id]?.items)) ? 'hidden' : 'unknown';
+}
+
 async function loadHomeFavourites(ctx) {
   const { gyms } = ctx;
   const [{ cache }, timetable] = await Promise.all([
     import('../main.js'), import('./timetable.js'),
   ]);
-  const gymIds = [...new Set((Array.isArray(gyms) ? gyms : []).map(gymIdOf).filter(Boolean))];
+  const gymIds = uniqueGymIds(ctx.allGyms || gyms);
   const settled = await Promise.allSettled(gymIds.map((gymId) => api.getFavourites(gymId, { loading: true })));
   const favouritesByGym = { ...(cache.favouritesByGym || {}) };
   const decisionByGym = { ...favouritesByGym };
@@ -648,11 +719,13 @@ async function loadHomeFavourites(ctx) {
       favouritesByGym[gymIds[index]] = indexFavourites(result.value.favourites);
       decisionByGym[gymIds[index]] = favouritesByGym[gymIds[index]];
     } else if (!decisionByGym[gymIds[index]]) {
-      // One gym failing must not hold the others back: it counts as "no favourites" for this render only.
-      decisionByGym[gymIds[index]] = indexFavourites([]);
+      // Unknown is not zero. The visibility decision below must stay unresolved.
     }
   });
   if (isCurrentHomeContext(ctx)) cache.favouritesByGym = favouritesByGym;
+  const visibility = savedFavouritesVisibility(gymIds, decisionByGym);
+  if (visibility === 'unknown') throw new Error(COPY.home.favouritesUnknown);
+  if (visibility === 'hidden') return { state: 'hidden', rows: [] };
   const events = timetable.getLoadedEvents();
   if (!events.length) timetable.ensureScheduleLoaded();
   return {
@@ -684,13 +757,18 @@ export function getHomeFavouriteStatus(event, now = DateTime.now(), viewingZone)
   return { kind: 'unknown', label: 'Availability not published' };
 }
 
-export function renderHomeFavouriteCard(event, primaryActionForEvent, actionGlyph = null) {
+/**
+ * `options` (T-3 Teams "Classes together" reuses this card, PLAN-teams.md §5.3):
+ *   extra   an element placed left of the CTA (the teammates' avatars)
+ *   status  { kind, label } overriding the availability line (e.g. a class not in the loaded timetable)
+ */
+export function renderHomeFavouriteCard(event, primaryActionForEvent, actionGlyph = null, options = {}) {
   const zone = zoneFor(event);
   const dt = DateTime.fromISO(String(event.startAt), { setZone: true }).setZone(zone);
   const formatted = formatInZone(event.startAt, zone);
   const instructor = event.instructors?.[0] || {};
   const instructorName = String(instructor.name || '').trim();
-  const status = getHomeFavouriteStatus(event);
+  const status = options.status || getHomeFavouriteStatus(event);
   const card = document.createElement('article');
   card.className = 'home-favourite-card';
   const media = document.createElement('div');
@@ -751,7 +829,14 @@ export function renderHomeFavouriteCard(event, primaryActionForEvent, actionGlyp
   if (action.title) { button.title = action.title; button.setAttribute('aria-label', action.title); }
   if (action.disabled) button.disabled = true;
   else if (action.run) button.addEventListener('click', () => action.run(button));
-  body.append(button);
+  if (options.extra) {
+    const foot = document.createElement('div');
+    foot.className = 'home-favourite-foot';
+    foot.append(options.extra, button);
+    body.append(foot);
+  } else {
+    body.append(button);
+  }
   card.append(media, body);
   return card;
 }
@@ -759,8 +844,8 @@ export function renderHomeFavouriteCard(event, primaryActionForEvent, actionGlyp
 const favouriteCard = renderHomeFavouriteCard;
 
 registerWidget({
-  id: 'favourites', order: 50, title: COPY.home.favourites,
-  cacheKeys(ctx) { return uniqueGymIds(ctx.gyms).map((id) => gymCacheKey('/api/favourites', id)); },
+  id: 'favourites', order: 50, title: (data) => data ? COPY.home.favourites : '',
+  cacheKeys(ctx) { return uniqueGymIds(ctx.allGyms || ctx.gyms).map((id) => gymCacheKey('/api/favourites', id)); },
   async load(ctx) { return loadHomeFavourites(ctx); },
   // Event objects alone do not change when a release instant passes. Include
   // the time-derived status/action so a foreground refresh moves Auto-Book to
@@ -775,6 +860,7 @@ registerWidget({
       })),
     };
   },
+  isHidden: (data) => data?.state === 'hidden',
   isEmpty: (data) => data?.state === 'empty',
   emptyText: COPY.home.favouritesNone,
   render(el, data) {
@@ -784,7 +870,7 @@ registerWidget({
     const strip = document.createElement('div');
     strip.className = 'home-favourites-strip';
     strip.setAttribute('aria-label', COPY.home.favourites);
-    data.rows.forEach((event) => strip.appendChild(favouriteCard(event, data.primaryActionForEvent, data.actionGlyph)));
+    data.rows.forEach((event) => strip.appendChild(favouriteCard(event, data.primaryActionForEvent)));
     el.appendChild(strip);
   },
 });
@@ -872,9 +958,37 @@ registerWidget({
 let host = null;
 let renderRun = 0;
 
-const HOME_MOBILE_ORDER = ['upcoming', 'book', 'favourites', 'credits', 'stats', 'top-instructors'];
-const HOME_LEFT_COLUMN_ORDER = ['upcoming', 'book', 'stats'];
+// Mobile reading order comes from the widget registry: each section's data-widget-order,
+// which mountWidget sets from the widget's order or orderFor(outcome). Desktop keeps its two
+// columns in their own fixed order, except that a widget the registry has placed LAST
+// (order >= HOME_ORDER_LAST, e.g. the no-Team "Create a Team" card) leaves its column for
+// a tail row under BOTH columns (owner: "the bottom of the other widgets"), at its
+// column's width.
+const HOME_LEFT_COLUMN_ORDER = ['upcoming', 'teams', 'book', 'stats'];
 const HOME_RIGHT_COLUMN_ORDER = ['credits', 'favourites', 'top-instructors'];
+
+/** Pure: [{ id, order }] (effective registry orders) -> { mobile, left, right, tail } id lists. */
+export function homeLayout(entries) {
+  const list = (entries || []).filter((e) => e && e.id);
+  const mobile = orderIds(list);
+  const orderOf = new Map(list.map((e) => [e.id, e.order]));
+  const present = new Set(mobile);
+  const isLast = (id) => orderOf.get(id) >= HOME_ORDER_LAST;
+  const column = (ids) => ids.filter((id) => present.has(id) && !isLast(id));
+  const known = new Set([...HOME_LEFT_COLUMN_ORDER, ...HOME_RIGHT_COLUMN_ORDER]);
+  return {
+    mobile,
+    left: column(HOME_LEFT_COLUMN_ORDER),
+    right: column([...HOME_RIGHT_COLUMN_ORDER, ...mobile.filter((id) => !known.has(id))]),
+    tail: mobile.filter(isLast),
+  };
+}
+const sectionEntries = (widgets) => widgets.map((w) => {
+  const id = w.dataset.widgetId;
+  const own = Number(w.dataset.widgetOrder);
+  const def = registry.get(id);
+  return { id, order: Number.isFinite(own) && w.dataset.widgetOrder !== '' && w.dataset.widgetOrder != null ? own : (def ? def.order : 100) };
+});
 
 /**
  * Keep the registry's reading order on mobile while giving desktop its two
@@ -899,13 +1013,14 @@ export function syncHomeDesktopFlow(root) {
   const activeMedia = root._homeDesktopMedia;
 
   const widgets = [...root.querySelectorAll('.home-widget')];
+  const layout = homeLayout(sectionEntries(widgets));
   if (!activeMedia.matches) {
     const byId = new Map(widgets.map((widget) => [widget.dataset.widgetId, widget]));
-    HOME_MOBILE_ORDER.forEach((id) => {
+    layout.mobile.forEach((id) => {
       const widget = byId.get(id);
       if (widget) root.appendChild(widget);
     });
-    root.querySelectorAll(':scope > .home-desktop-column').forEach((column) => column.remove());
+    root.querySelectorAll(':scope > .home-desktop-column, :scope > .home-desktop-tail').forEach((column) => column.remove());
     return;
   }
 
@@ -919,10 +1034,15 @@ export function syncHomeDesktopFlow(root) {
     root.append(left, right);
   }
   const byId = new Map(widgets.map((widget) => [widget.dataset.widgetId, widget]));
-  [...HOME_LEFT_COLUMN_ORDER, ...HOME_RIGHT_COLUMN_ORDER].forEach((id) => {
-    const widget = byId.get(id);
-    if (widget) (HOME_LEFT_COLUMN_ORDER.includes(id) ? left : right).appendChild(widget);
-  });
+  layout.left.forEach((id) => { const widget = byId.get(id); if (widget) left.appendChild(widget); });
+  layout.right.forEach((id) => { const widget = byId.get(id); if (widget) right.appendChild(widget); });
+  // Widgets placed last get a row of their own under both columns (only while there are any).
+  let tail = root.querySelector(':scope > .home-desktop-tail');
+  if (layout.tail.length) {
+    if (!tail) { tail = document.createElement('div'); tail.className = 'home-desktop-tail'; }
+    root.appendChild(tail); // always after the two columns
+    layout.tail.forEach((id) => { const widget = byId.get(id); if (widget) tail.appendChild(widget); });
+  } else if (tail) tail.remove();
 }
 
 function widgetCopy() {
@@ -964,6 +1084,10 @@ export async function renderHome() {
   // syncHomeDesktopFlow nests sections inside columns; include those mounted
   // sections so a refresh moves/reuses them instead of appending duplicates.
   const existing = new Map([...host.querySelectorAll('.home-widget')].map((el) => [el.dataset.widgetId, el]));
+  // A widget whose outcome moves it (orderFor, e.g. the Teams empty card) re-flows the page
+  // once every section is in place; before that the final syncHomeDesktopFlow below does it.
+  let placed = false;
+  const onPlaced = () => { if (placed && run === renderRun) syncHomeDesktopFlow(host); };
   for (const w of widgets) {
     const el = existing.get(w.id) || document.createElement('section');
     el.classList.add('home-widget');
@@ -974,6 +1098,7 @@ export async function renderHome() {
       skeleton,
       copy: widgetCopy(),
       contextKey,
+      onPlaced,
       hasCachedData: async (widget) => {
         const keys = typeof widget.cacheKeys === 'function' ? widget.cacheKeys(ctx) : [];
         if (!keys.length) return false;
@@ -983,6 +1108,7 @@ export async function renderHome() {
     }); // independent; never awaited together
   }
   existing.forEach((el) => el.remove());
+  placed = true;
   syncHomeDesktopFlow(host);
 }
 

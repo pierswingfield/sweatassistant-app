@@ -31,16 +31,10 @@ function audit(req, action, targetUserId, detail) {
   db.recordAdminAudit({ action, targetUserId: targetUserId ?? null, ip: req.ip || null, detail });
 }
 
-// Admin auth uses the same JWT_SECRET as user auth but requires { admin: true } in the payload.
+// Admin sessions are signed with a secret DERIVED from the user JWT secret (secrets.js),
+// so a user token can never pass as an admin token. Requires { admin: true } in the payload.
 // ADMIN_PASSWORD must be set in the environment; if absent all admin routes return 503.
-const JWT_SECRET = (() => {
-  let s = process.env.JWT_SECRET;
-  if (!s) {
-    s = db.getKV('jwt_secret');
-    if (!s) { s = require('crypto').randomBytes(32).toString('hex'); db.setKV('jwt_secret', s); }
-  }
-  return s;
-})();
+const JWT_SECRET = require('./secrets').adminJwtSecret();
 
 function adminUnavailable(res) {
   return res.status(503).json({ message: 'Admin access is not configured (ADMIN_PASSWORD not set).' });
@@ -108,7 +102,11 @@ router.post('/login', (req, res) => {
 // GET /api/admin/users — list all users with queue counts
 router.get('/users', authenticateAdmin, (req, res) => {
   try {
-    const users = db.getAllUsers();
+    // T-1: a Team COUNT per user only (PLAN-teams.md §7.4); the operator has no product
+    // need for Team membership or member class data. teams.js owns the tables.
+    const teamCounts = require('./teams').teamCountsByUser();
+    // is_fixture: demo fixture accounts (seed-team-fixtures.js) get a badge so they are never mistaken for members.
+    const users = db.getAllUsers().map((u) => ({ ...u, is_fixture: !!u.is_fixture, team_count: teamCounts.get(u.id) || 0 }));
     res.json({ users });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -154,15 +152,8 @@ router.get('/users/:id', authenticateAdmin, async (req, res) => {
       const normalized = (Array.isArray(list) ? list : []).map(adminBookingFromNormalized).filter(Boolean);
       if (normalized.length > 0) {
         bookings = normalized;
-        // Warm the reminder cache (camelCase shape expected by replaceBookingCache).
-        try {
-          db.replaceBookingCache(userId, normalized.map(b => ({
-            bookingId: b.booking_id, eventId: b.event_id, startAt: b.start_at,
-            className: b.class_name, groupName: b.group_name, instructorName: b.instructor_name,
-            studioName: b.studio_name, locationName: b.location_name, slotLabel: b.slot_label,
-            gymId,
-          })), [gymId]);
-        } catch (_) {}
+        // Read-only: booking_cache has one background writer (booking-sync.js),
+        // and this shape lacks its enrichment (duration, address).
       }
     } catch (err) {
       console.warn('[Admin] Live bookings fetch failed for user', userId, err.message);

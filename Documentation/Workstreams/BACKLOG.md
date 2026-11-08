@@ -8,6 +8,11 @@ This is the single home for deferred, low-priority, research-first, and user-dep
 - **C6-1 — Emailed password reset.** Add a transactional email sender and single-use reset flow; no real users yet, so deferred. **C6-2 — Change account email** with address verification shares the mail sender. Detail: [archived C6 plan](../Archive/2026-10-08/C6-accounts-auth.md).
 - **F-1 — In-app 3-D Secure checkout.** Confirm payment in app with Stripe.js; depends on the v2 cart and live payment evidence.
 - **F-3 — Social class sharing.** Weekly schedule export is done; handles, friend graph, “who's going”, and iCal enrichment remain. The friend-graph and “who's going” parts are now planned as [Teams](PLAN-teams.md).
+- **T-6 — Teams later items.** Backlogged by the owner on 2026-11-06; none built. Plan: [Teams](PLAN-teams.md) §8 (T-6 row) and §5.3, §5.5.
+  - **T-6a — Team profile photos.** Optional uploaded avatar in place of initials; needs storage and size limits, EXIF/GPS stripping, server-side re-encoding and a report path ([§5.5](PLAN-teams.md#55-identity-and-avatars)).
+  - **T-6b — Book next to.** Highlight a teammate's seat in the spot picker for a class you are booking. Settled to follow the same-class rule (D13 (ii)): only for a class you are booked into, waitlisted for or queued for, and only when that teammate shares spots ([§8.1](PLAN-teams.md#81-t-4-proposal-for-the-owner-friendly-competition-and-spot-numbers-not-built)).
+  - **T-6c — Moments.** Team-visible milestones such as "Sam's 100th class", a first class together and new members joining ([§5.3](PLAN-teams.md#53-team-dashboard) item 7).
+  - **T-6d — Per-Team nicknames.** An optional name a member uses in one Team only, in place of first name plus last initial ([§5.5](PLAN-teams.md#55-identity-and-avatars)).
 - **F-4 — MCP server** for timetable queries and booking actions. [Current work plan](PLAN-mcp-server.md): OAuth/client compatibility, read-only pilot, shared upstream budgets, then approved writes and automation. Proposed, not implemented.
 - **F-5 — MarianaTek credit-purchase research:** cart authentication and payment-option shapes.
 - **F-6 — Observe MarianaTek refresh-token hard-expiry behavior** in production.

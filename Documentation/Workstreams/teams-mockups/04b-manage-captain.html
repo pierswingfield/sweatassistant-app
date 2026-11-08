@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Manage Team (Captain)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="mock.css">
+<script src="chrome.js"></script>
+</head>
+<body data-chrome="none">
+<header class="ovl-header"><a class="back" href="03-team-dashboard.html" aria-label="Back">‹</a><h3>Tuesday Riders</h3></header>
+<main class="ovl-body">
+  <h2 class="group-title">Join requests <span class="count-badge" style="vertical-align:3px">2</span></h2>
+  <div class="list">
+    <div class="mrow"><span class="av lg c1">MA</span><div class="grow"><div class="li-title">Marcus</div><div class="li-sub">Requested via link · 2 h ago</div></div>
+      <div class="acts"><button class="btn sm primary">Approve</button><button class="btn sm">Decline</button><button class="btn sm danger-ghost">Decline and block</button></div></div>
+    <div class="mrow"><span class="av lg c5">CH</span><div class="grow"><div class="li-title">Chloe</div><div class="li-sub">Requested via link · yesterday</div></div>
+      <div class="acts"><button class="btn sm primary">Approve</button><button class="btn sm">Decline</button><button class="btn sm danger-ghost">Decline and block</button></div></div>
+  </div>
+  <p class="group-help" style="margin-top:8px">Requests expire after 14 days. Someone declined, blocked or removed only ever sees "You aren't a member of this Team."</p>
+
+  <h2 class="group-title">Members <span class="muted sm" style="font-family:var(--font-sans);font-weight:400">8 of 16</span></h2>
+  <div class="list">
+    <div class="mrow"><span class="av lg c1">PW</span><div class="grow"><div class="li-title row">You <span class="captain"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m3 7 4.5 4L12 4l4.5 7L21 7l-2 12H5Z"/></svg> Captain</span></div><div class="li-sub">Joined Sep 2026</div></div>
+      <div class="acts"><button class="btn sm">Remove as Captain</button></div></div>
+    <div class="mrow"><span class="av lg c2">AO</span><div class="grow"><div class="li-title row">Ana <span class="captain"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m3 7 4.5 4L12 4l4.5 7L21 7l-2 12H5Z"/></svg> Captain</span></div><div class="li-sub">Joined Sep 2026</div></div>
+      <div class="acts"><button class="btn sm">Remove as Captain</button><button class="btn sm danger-ghost">Remove from Team</button></div></div>
+    <div class="mrow"><span class="av lg c3">SB</span><div class="grow"><div class="li-title">Sam</div><div class="li-sub">Joined Oct 2026</div></div>
+      <div class="acts"><button class="btn sm">Make Captain</button><button class="btn sm danger-ghost">Remove from Team</button></div></div>
+    <div class="mrow"><span class="av lg c4">PS</span><div class="grow"><div class="li-title">Priya</div><div class="li-sub">Joined Oct 2026</div></div>
+      <div class="acts"><button class="btn sm">Make Captain</button><button class="btn sm danger-ghost">Remove from Team</button></div></div>
+    <div class="li link"><span class="grow muted">+ 4 more members</span><span class="chev">›</span></div>
+  </div>
+  <p class="group-help" style="margin-top:8px">All Captains are equal. The Team always keeps at least one Captain, and every change is shown to the Team.</p>
+
+  <h2 class="group-title">Team settings</h2>
+  <div class="list">
+    <div class="li link"><div class="grow"><div class="li-sub">Name</div><div class="li-title">Tuesday Riders</div></div><span class="chev">›</span></div>
+    <div class="li link"><div class="grow"><div class="li-sub">Emoji or colour</div><div class="li-title">🚲 Clay</div></div><span class="chev">›</span></div>
+    <div class="sw-row"><div class="grow"><div class="t">Friendly competition <span class="proposed">Proposed</span></div><div class="d">Leaderboards and streaks for members who opt in</div></div><span class="sw" role="switch" aria-checked="false"></span></div>
+    <div class="li link"><div class="grow"><div class="li-title">Reset link</div><div class="li-sub">Old links stop working. Members aren't affected.</div></div><span class="chev">›</span></div>
+    <div class="sw-row"><div class="grow"><div class="t">Joining by link</div><div class="d">Turn off to stop new requests. Pending requests stay.</div></div><span class="sw on" role="switch" aria-checked="true"></span></div>
+  </div>
+
+  <h2 class="group-title">My sharing</h2>
+  <div class="list"><div class="li link"><div class="grow"><div class="li-title">What Tuesday Riders sees about you</div><div class="li-sub">All gyms · upcoming · waitlists · activity · recent</div></div><span class="chev">›</span></div>
+  <div class="li link"><div class="grow"><div class="li-title">Pause</div><div class="li-sub">Visible to the Team</div></div><span class="chev">›</span></div>
+  <div class="li link"><div class="grow"><div class="li-title">Pin to top</div><div class="li-sub">Pinned</div></div><span class="chev">›</span></div></div>
+
+  <h2 class="group-title">Leave or delete</h2>
+  <div class="card">
+    <button class="btn danger-ghost block">Leave Tuesday Riders</button>
+    <button class="btn danger block" style="margin-top:8px">Delete Team…</button>
+    <p class="muted xs" style="margin-top:8px">Deleting asks you to type the Team name. It removes the Team for all 8 members.</p>
+  </div>
+  <p class="note"><b>Mock-up notes.</b> Captain view of Manage (§5.7). No "any member can approve" setting. Link management stays with Captains: Share in the dashboard header, Reset link and Joining by link as Team settings items.</p>
+</main>
+<footer class="ovl-footer"><div class="inner"><button class="btn primary">Done</button></div></footer>
+</body>
+</html>

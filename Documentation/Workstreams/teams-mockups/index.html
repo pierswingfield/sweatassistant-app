@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teams mock-ups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="mock.css">
+<script>document.documentElement.setAttribute('data-theme', new URLSearchParams(location.search).get('theme') === 'dark' ? 'dark' : 'light');</script>
+<style>
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 6px; border-top: 1px solid var(--separator); vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-secondary); }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+  .gallery a { display: block; text-decoration: none; color: var(--text-secondary); font-size: 12px; word-break: break-all; }
+  .gallery img { width: 100%; height: 220px; object-fit: cover; object-position: top; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
+  td a { margin-right: 8px; }
+  h2.sec { font: 600 var(--text-xl)/1.3 var(--font-serif); margin: 28px 0 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="kicker">T-0 · Teams design · approved 2026-11-04 (round 3)</p>
+  <h1 class="page-title" style="padding:0">Teams mock-ups</h1>
+  <p class="muted" style="margin-top:8px;max-width:70ch">Static mock-ups of the Teams feature (spec: <a href="../PLAN-teams.md">PLAN-teams.md</a> §3–§6, decisions §9), built from the app's own CSSv2 tokens (<code>tokens.css</code> is a verbatim copy of the token layer in <code>client/src/styles.css</code>) and component measurements taken from the running app. Sample data is invented. Open any screen with <code>?theme=dark</code> for dark mode; resize to 390 px for mobile.</p>
+
+  <h2 class="sec">Screens (approved, round 3)</h2>
+  <div class="card" style="padding:4px 12px">
+  <table>
+    <tr><th>#</th><th>Screen</th><th>Open</th></tr>
+    <tr><td>1</td><td>Bottom nav with six items, desktop Teams tab</td><td><a href="01-bottom-nav.html">open</a><a href="01-bottom-nav.html?theme=dark">dark</a></td></tr>
+    <tr><td>2</td><td>Teams list: pinned Teams, new today lines and hints, paused card, Create only (no request badge, no paste field)</td><td><a href="02-teams-list.html">open</a><a href="02-teams-list.html?theme=dark">dark</a></td></tr>
+    <tr><td>2b</td><td>Teams list, empty state (spec copy, Create only)</td><td><a href="02b-teams-empty.html">open</a><a href="02b-teams-empty.html?theme=dark">dark</a></td></tr>
+    <tr><td>3</td><td>Team dashboard: header icons, Today's workouts, This week, Classes together (Home favourite card), Members (pages of 4), Stats carousel</td><td><a href="03-team-dashboard.html">open</a><a href="03-team-dashboard.html?theme=dark">dark</a></td></tr>
+    <tr><td>3+</td><td>Dashboard variants: all CTAs, sort menu, members page 2, stats slides, See more</td><td><a href="03-team-dashboard.html?ct=grid">open</a></td></tr>
+    <tr><td>3j</td><td>Friendly competition on (proposed): Leaderboard slide and member streaks</td><td><a href="03-team-dashboard.html?competition=on">open</a><a href="03-team-dashboard.html?competition=on&theme=dark">dark</a></td></tr>
+    <tr><td>4</td><td>Manage, member view (My sharing, competition opt-in, Pause, Pin to top, Leave)</td><td><a href="04-manage-member.html">open</a><a href="04-manage-member.html?theme=dark">dark</a></td></tr>
+    <tr><td>4b</td><td>Manage, Captain view (requests, members, Team settings incl. Reset link and Turn off joining)</td><td><a href="04b-manage-captain.html">open</a><a href="04b-manage-captain.html?theme=dark">dark</a></td></tr>
+    <tr><td>5a</td><td>Link page: Request to join (name + mascot only)</td><td><a href="05a-join-invite.html">open</a><a href="05a-join-invite.html?theme=dark">dark</a></td></tr>
+    <tr><td>5b</td><td>Join: sharing sheet with D3 defaults</td><td><a href="05b-join-sharing.html">open</a><a href="05b-join-sharing.html?theme=dark">dark</a></td></tr>
+    <tr><td>5c</td><td>Link page: request pending, Withdraw</td><td><a href="05c-join-pending.html">open</a><a href="05c-join-pending.html?theme=dark">dark</a></td></tr>
+    <tr><td>5d</td><td>Link page: "You aren't a member of this Team."</td><td><a href="05d-join-not-a-member.html">open</a><a href="05d-join-not-a-member.html?theme=dark">dark</a></td></tr>
+    <tr><td>6</td><td>Settings → Privacy: "Who can see my classes"</td><td><a href="06-settings-privacy.html">open</a><a href="06-settings-privacy.html?theme=dark">dark</a></td></tr>
+    <tr><td>7</td><td>Mascot: states, exercising poses, daily rotation and eligibility, day-progress ring</td><td><a href="07-mascot-states.html">open</a><a href="07-mascot-states.html?theme=dark">dark</a></td></tr>
+    <tr><td>8</td><td>Timetable rows: teammate avatars stacked inside the Team chip (filter-rail stack), +1 overflow, spot number in detail. Live-app snapshot</td><td><a href="08-timetable-teammates.html">open</a></td></tr>
+    <tr><td>9</td><td>Spot picker with teammate seats ("Book next to"). Live-app snapshot</td><td><a href="09-spot-picker-teammates.html">open</a></td></tr>
+    <tr><td>10a</td><td>Onboarding: first and last name. Live-app snapshot</td><td><a href="10a-onboarding-name.html">open</a></td></tr>
+    <tr><td>10b</td><td>Onboarding welcome: Teams added to the feature list (no separate Teams step). Live-app snapshot</td><td><a href="10b-onboarding-intro-teams-perk.html">open</a></td></tr>
+    <tr><td>10c</td><td>Onboarding final setup page: Teams card with "Create or join a Team", Auto-Upgrade note. Live-app snapshot</td><td><a href="10c-onboarding-features-teams.html">open</a></td></tr>
+    <tr><td>11</td><td>Landing page: Teams section and new hero paragraph, approved copy (copy of landing/index.html)</td><td><a href="11-landing-teams.html#teams">open</a></td></tr>
+  </table>
+  <p class="muted sm" style="padding:6px 6px 10px">Screens 8–10 are DOM snapshots of the running dev app with the Teams changes injected, styled by the real <code>client/src/styles.css</code>; use the OS dark mode to see them dark. Screens 1–7 are hand-built from the app's tokens; screen 3 reuses the real Home favourite-card CSS (<code>fav-card.css</code>).</p>
+  </div>
+
+  <h2 class="sec">Bottom-nav fit (D1), measured in the real app (round 1; labels unchanged)</h2>
+  <div class="card" style="padding:4px 12px">
+  <p class="muted sm" style="padding:10px 6px 4px">A sixth "Teams" button was inserted into the live app's bottom nav (dev server, Chrome via CDP, 2026-11-04). The current labels are 10 px bold, single line, ellipsis.</p>
+  <table>
+    <tr><th>Width</th><th>Docked nav (browser)</th><th>Liquid Glass nav (installed PWA)</th></tr>
+    <tr><td>390 px</td><td>64×55 px per item; all labels fit</td><td>60×56; all fit</td></tr>
+    <tr><td>375 px</td><td>61×55; all fit</td><td>57×56; all fit ("Auto-Book" 52 of 52 px, no margin)</td></tr>
+    <tr><td>320 px</td><td>52×55; <b>"Auto-Book" truncated</b> (52 px label in 48 px)</td><td>48×56; <b>"Timetable", "Bookings" and "Auto-Book" truncated</b> (44 px available)</td></tr>
+  </table>
+  <p class="muted sm" style="padding:6px 6px 10px">Tap targets stay at least 48×55 px at every width. Options for 320 px: a shorter label ("Auto"), 9 px labels below 360 px, or icon-only below 340 px.</p>
+  </div>
+
+  <h2 class="sec">Screenshots</h2>
+  <div class="gallery" id="g"></div>
+</div>
+<script>
+const shots = ['00-baseline-home-390-dark.png', '00-baseline-home-390-light.png', '00-baseline-home-desktop-light.png', '00-baseline-livenav-6items-320-glass.png', '00-baseline-livenav-6items-320.png', '00-baseline-livenav-6items-375.png', '00-baseline-livenav-6items-390.png', '00-baseline-onboarding-intro-390-light.png', '00-baseline-settings-390-light.png', '00-baseline-timetable-390-light.png', '01-bottom-nav-390-dark.png', '01-bottom-nav-390-light.png', '01-desktop-tabs-light.png', '02-teams-list-390-dark.png', '02-teams-list-390-light.png', '02-teams-list-desktop-dark.png', '02-teams-list-desktop-light.png', '02b-teams-empty-390-dark.png', '02b-teams-empty-390-light.png', '03-team-dashboard-390-dark.png', '03-team-dashboard-390-light.png', '03-team-dashboard-desktop-dark.png', '03-team-dashboard-desktop-light.png', '03b-classes-together-cta-variants-390-dark.png', '03b-classes-together-cta-variants-390-light.png', '03c-members-sort-menu-390-light.png', '03d-members-page2-390-light.png', '03e-stats-gym-mix-390-light.png', '03f-stats-busiest-times-390-light.png', '03g-stats-leaderboard-proposed-390-light.png', '03h-members-streaks-proposed-390-light.png', '03i-this-week-see-more-390-light.png', '03j-team-dashboard-competition-desktop-light.png', '04-manage-member-390-light.png', '04b-manage-captain-390-dark.png', '04b-manage-captain-390-light.png', '05a-join-invite-390-light.png', '05b-join-sharing-390-dark.png', '05b-join-sharing-390-light.png', '05c-join-pending-390-light.png', '05d-join-not-a-member-390-light.png', '06-settings-privacy-390-light.png', '07-mascot-states-390-light.png', '07-mascot-states-desktop-dark.png', '07-mascot-states-desktop-light.png', '08-timetable-teammates-390-dark.png', '08-timetable-teammates-390-light.png', '09-spot-picker-teammates-390-dark.png', '09-spot-picker-teammates-390-light.png', '10a-onboarding-name-390-light.png', '10b-onboarding-intro-teams-perk-390-light.png', '10c-onboarding-features-teams-390-light.png', '11-landing-hero-intro-390-light.png', '11-landing-hero-intro-desktop-light.png', '11-landing-teams-section-390-light.png', '11-landing-teams-section-desktop-light.png', 'index-page-desktop-light.png'];
+document.getElementById('g').innerHTML = shots.map(s => `<a href="screens/${s}"><img loading="lazy" src="screens/${s}" alt="">${s}</a>`).join('');
+</script>
+</body>
+</html>

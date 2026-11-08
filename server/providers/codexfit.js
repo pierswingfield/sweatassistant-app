@@ -183,6 +183,7 @@ class CodexFitProvider extends GymProvider {
   }
 
   async _doFetch(urlFn, pathOrUrl, { token, method = 'GET', body, headers } = {}) {
+    require('../gym-outbound').assertNotFixtureToken(token, this.gym.id);
     require('../gym-mutation-gate').beforeRequest(this.gym.id, method);
     if (token === MOCK_TOKEN) {
       const { handleMockRequest } = require('../mock');
@@ -1038,12 +1039,13 @@ class CodexFitProvider extends GymProvider {
    *    'unconfirmed'. Several rows can share an event (multi-slot or guest bookings:
    *    57 events), so aggregates count DISTINCT events (class-history.js).
    */
-  async listBookingHistory(session, { sinceDate } = {}) {
+  async listBookingHistory(session, { sinceDate, onCoverage } = {}) {
     const PAGE_SIZE = 100;
     const sinceMs = sinceDate ? Date.parse(sinceDate) : null;
     const nowMs = Date.now();
     const out = [];
     const MAX_PAGES = 60;
+    let limited = false;
     for (let page = 1; page <= MAX_PAGES; page++) {
       const res = await this.requestV2(`/bookings?filter[type]=past&page[size]=${PAGE_SIZE}&page[number]=${page}`, { token: session.accessToken });
       if (!res.ok) throw httpError(`listBookingHistory failed: ${res.status}`, res.status);
@@ -1065,8 +1067,10 @@ class CodexFitProvider extends GymProvider {
       }
       const lastPage = data && data.meta && data.meta.last_page;
       if (!list.length || page >= (lastPage || 1)) break;
+      if (page === MAX_PAGES) limited = true;
       await new Promise((r) => setTimeout(r, process.env.NODE_ENV === 'test' ? 0 : 250)); // playbook s4 pacing
     }
+    onCoverage?.({ limited });
     return out;
   }
 

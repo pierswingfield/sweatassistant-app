@@ -1,23 +1,23 @@
 # M — Dibs landing page (spec)
 
-**Status:** live at `dibs.wingfield.tech`. Renamed from "Front Row" to "Dibs" on 2026-10-24 (landing only: droplet mascot header, run-in video that slides in from the left, pushes the headline right and freezes on its last frame; the old Front Row subdomain was removed 2026-10-24). Built 2026-10-23. Specified 2026-10-23. Step 3 (server-side analytics: `server/landing-events.js`, `/_a/pv`, `/_a/go`, `GET /api/admin/landing-stats`, `server/test-landing-events.js`) built 2026-10-23, not deployed; landing page built. Decisions below were settled in a grilling session with the user. Deploying anything to the public internet needs a separate explicit go-ahead.
+**Status:** live at `dibs.fit`. Renamed from "Front Row" to "Dibs" on 2026-10-24 (landing only: droplet mascot header, run-in video that slides in from the left, pushes the headline right and freezes on its last frame; the old Front Row subdomain was removed 2026-10-24). Built 2026-10-23. Specified 2026-10-23. Step 3 (server-side analytics: `server/landing-events.js`, `/_a/pv`, `/_a/go`, `GET /api/admin/landing-stats`, `server/test-landing-events.js`) built 2026-10-23 and now deployed; see the [2026-11-07 migration receipt](../QA/browser-runs/domain-migration-2026-11-07/README.md). Decisions below were settled in a grilling session with the user. Deploying anything to the public internet needs a separate explicit go-ahead.
 
 ## Outcome
 
-A public, glassy, animated marketing page that presents the app as a **concierge for people who organise their fitness life across gyms**, with one CTA: install the PWA at `https://sweat.wingfield.tech`.
+A public, glassy, animated marketing page that presents the app as a **concierge for people who organise their fitness life across gyms**, with one CTA: install the PWA at `https://app.dibs.fit`.
 
 ## Decisions
 
 | # | Decision |
 |---|---|
-| M-D1 | **Name: "Dibs"** (landing page only; was "Front Row" until 2026-10-24, see `M-name-check.md`, whose research is about the old name). The in-app name stays "Sweat Assistant" (`APP_NAME`); a full rename is a separate decision. Run domain, app-store and trademark availability checks for "Dibs" (not yet done). |
-| M-D2 | **Host:** separate static site on `dibs.wingfield.tech` (moved from the retired Front Row host on 2026-10-24). Own folder `landing/` in this repo, tiny nginx container on oracle behind the existing Cloudflare tunnel, own `deploy-landing.sh` mirroring `deploy.sh`. Zero coupling to the SPA, its routes (`/` is the SPA, PWA `start_url` is `/`) or the service worker. |
+| M-D1 | **Name: "Dibs"** across the landing and app (`APP_NAME`). Originally landing-only; the app rename subsequently shipped. The landing was "Front Row" until 2026-10-24; `M-name-check.md` records research about that old name. Run domain, app-store and trademark availability checks for "Dibs" (not yet done). |
+| M-D2 | **Host:** separate static site on `dibs.fit` (moved from `dibs.wingfield.tech` on 2026-11-07; the Front Row host retired on 2026-10-24). Own folder `landing/` in this repo, tiny nginx container on oracle behind the existing Cloudflare tunnel, own `deploy-landing.sh` mirroring `deploy.sh`. Zero coupling to the SPA, its routes (`/` is the SPA, PWA `start_url` is `/`) or the service worker. |
 | M-D3 | **Audience and hook:** public gym-goers. Headline "Your fitness life, handled." / hero line "Be first in the room." Auto-book is the proof point, not the whole story. Calm, premium, warm tone, no hype. |
 | M-D4 | **Brands:** show the Psycle, JAB Boxing and AARMY **logos** in a "Works with" strip (copy assets from `client/public/gyms` into `landing/`, never hotlink) with a footer disclaimer: unofficial, not affiliated with or endorsed by any gym. |
 | M-D5 | **Product visuals:** coded, sanitised mock UI built from the app's own tokens with fake data; no screenshots. |
 | M-D6 | **Theme:** light only. Warm `#f5f2ec` ground, frosted white glass panels (backdrop blur, hairline borders), drifting clay and slate-blue light blobs. Fraunces headings, Inter body, 12px type floor. Tokens defined once on `:root`; no glows on buttons (DESIGN.md anti-patterns). |
 | M-D7 | **Build:** one dependency-free `index.html`, inline CSS and vanilla JS, Google Fonts only, no framework, no build step. |
-| M-D8 | **CTA:** primary "Get the app" to `https://sweat.wingfield.tech`, in the sticky nav, hero, install section and footer. Quiet secondary "Already a member? Open the app" link to the same URL. Platform-aware install hint: iOS Safari shows "Share, then Add to Home Screen"; Android and desktop show the browser install path. |
+| M-D8 | **CTA:** primary "Get the app" to `https://app.dibs.fit`, in the sticky nav, hero, install section and footer. Quiet secondary "Already a member? Open the app" link to the same URL. Platform-aware install hint: iOS Safari shows "Share, then Add to Home Screen"; Android and desktop show the browser install path. |
 
 ## Sections (in order)
 
@@ -61,3 +61,7 @@ Privacy and terms pages (gap to file in BACKLOG.md), full app rename, scroll-dep
 - Server test covers event recording, visitor-hash rotation, the click redirect, rate limiting and the admin stats endpoint.
 - No raw hex or `rgba()` outside the `:root` token block; every heading uses the serif stack.
 - Nothing deployed without an explicit go-ahead.
+
+## Teams section (added 2026-11-04)
+
+The landing page also gets a Teams section with details; the content and the spec live in [PLAN-teams.md](PLAN-teams.md) §5.8. Ships with the Teams launch. Built on branch `teams` (T-1 part B, 2026-11-04): the hero paragraph, a Teams nav link and `<section id="teams">` in `landing/index.html`, with the round-3 copy verbatim; the `/_a/pv` and `/_a/go?src=` hooks are unchanged.

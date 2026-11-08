@@ -1,0 +1,92 @@
+[
+  {
+    "host": "sweat.wingfield.tech",
+    "path": "/",
+    "status": 200,
+    "noStore": true
+  },
+  {
+    "host": "sweat.wingfield.tech",
+    "path": "/teams/example",
+    "status": 200,
+    "noStore": true
+  },
+  {
+    "host": "sweat.wingfield.tech",
+    "path": "/settings",
+    "status": 200,
+    "noStore": true
+  },
+  {
+    "host": "sweat.wingfield.tech",
+    "path": "/sw.js",
+    "status": 200,
+    "noStore": true
+  },
+  {
+    "host": "sweat.wingfield.tech",
+    "path": "/api/health",
+    "status": 410,
+    "noStore": true
+  },
+  {
+    "host": "sweat-dev.wingfield.tech",
+    "path": "/",
+    "status": 200,
+    "noStore": true
+  },
+  {
+    "host": "sweat-dev.wingfield.tech",
+    "path": "/teams/example",
+    "status": 200,
+    "noStore": true
+  },
+  {
+    "host": "sweat-dev.wingfield.tech",
+    "path": "/settings",
+    "status": 200,
+    "noStore": true
+  },
+  {
+    "host": "sweat-dev.wingfield.tech",
+    "path": "/sw.js",
+    "status": 200,
+    "noStore": true
+  },
+  {
+    "host": "sweat-dev.wingfield.tech",
+    "path": "/api/health",
+    "status": 410,
+    "noStore": true
+  },
+  {
+    "host": "sweat-experiment.wingfield.tech",
+    "path": "/",
+    "status": 200,
+    "noStore": true
+  },
+  {
+    "host": "sweat-experiment.wingfield.tech",
+    "path": "/teams/example",
+    "status": 200,
+    "noStore": true
+  },
+  {
+    "host": "sweat-experiment.wingfield.tech",
+    "path": "/settings",
+    "status": 200,
+    "noStore": true
+  },
+  {
+    "host": "sweat-experiment.wingfield.tech",
+    "path": "/sw.js",
+    "status": 200,
+    "noStore": true
+  },
+  {
+    "host": "sweat-experiment.wingfield.tech",
+    "path": "/api/health",
+    "status": 410,
+    "noStore": true
+  }
+]

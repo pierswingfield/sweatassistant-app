@@ -1,0 +1,17 @@
+[
+  {
+    "asset": "/assets/index-CmhfhiX_.js",
+    "match": true,
+    "sha256": "be0b05d8dec6c9936b45f0bdbbc4fd4031da2174877dca8b576542c4c38e1777"
+  },
+  {
+    "asset": "/assets/index-C7Wj0Qfu.css",
+    "match": true,
+    "sha256": "935f4d892e7edde42c8b9b6e8798f4c82a3d9c93a0941d50d07e1fdb61df60b2"
+  },
+  {
+    "asset": "/assets/teams-dashboard-neEhC618.js",
+    "match": true,
+    "sha256": "05a8575fd9d889c976caf1acd1c88e05d778ede5f7bda61788d383d919b13b78"
+  }
+]

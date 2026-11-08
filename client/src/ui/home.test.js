@@ -21,6 +21,7 @@ let primaryActionForEvent;
 let actionGlyph;
 let formatInZone;
 let syncHomeDesktopFlow;
+let homeLayout;
 let homeRegistry;
 let mountWidget;
 let cache;
@@ -38,7 +39,7 @@ beforeAll(async () => {
   }
   ({ cache } = await import('../main.js'));
   ({ formatInZone } = await import('../lib.js'));
-  ({ countPendingAutoBooks, getHomeCreditRows, getHomeBookLinks, groupHomeGymLinks, getHomeTopInstructorRows, getHomeFavouriteRows, getHomeStats, getHomeActivityMeta, isDisabledLinkedGym, homeStatsWantsAttendance, getHomeFavouriteStatus, renderHomeFavouriteCard, syncHomeDesktopFlow } = await import('./home.js'));
+  ({ countPendingAutoBooks, getHomeCreditRows, getHomeBookLinks, groupHomeGymLinks, getHomeTopInstructorRows, getHomeFavouriteRows, getHomeStats, getHomeActivityMeta, isDisabledLinkedGym, homeStatsWantsAttendance, getHomeFavouriteStatus, renderHomeFavouriteCard, syncHomeDesktopFlow, homeLayout } = await import('./home.js'));
   ({ primaryActionForEvent, actionGlyph } = await import('./timetable.js'));
   ({ registry: homeRegistry, mountWidget } = await import('./widget-registry.js'));
 });
@@ -141,6 +142,95 @@ describe('Home desktop flow', () => {
   });
 });
 
+describe('Home ordering: the Teams widget (owner, 2026-11-06)', () => {
+  it('homeTeamsOrderFor: last when in no Team, its place when in Teams, the remembered answer while loading', async () => {
+    const { homeTeamsOrderFor, HOME_ORDER_LAST, HOME_TEAMS_ORDER } = await import('./home-order.js');
+    expect(homeTeamsOrderFor('empty')).toBe(HOME_ORDER_LAST);
+    expect(homeTeamsOrderFor('ready')).toBe(HOME_TEAMS_ORDER);
+    expect(homeTeamsOrderFor('ready', true)).toBe(HOME_TEAMS_ORDER);
+    expect(homeTeamsOrderFor('loading')).toBe(HOME_TEAMS_ORDER);
+    expect(homeTeamsOrderFor('loading', true)).toBe(HOME_ORDER_LAST);
+    expect(homeTeamsOrderFor('error', true)).toBe(HOME_ORDER_LAST);
+    const top = Math.max(...homeRegistry.list({}).filter((x) => x.id !== 'teams').map((x) => x.order));
+    expect(HOME_ORDER_LAST).toBeGreaterThan(top);
+  });
+  it('the registered Teams widget uses that rule', () => {
+    const def = homeRegistry.get('teams');
+    expect(def.order).toBe(30);
+    expect(def.orderFor('ready')).toBe(30);
+    expect(def.orderFor('empty')).toBe(1000);
+    expect(def.orderFor('loading')).toBe(1000); // remembered: this device last saw no Team
+    expect(def.orderFor('ready')).toBe(30);
+    expect(def.orderFor('loading')).toBe(30);
+  });
+  it('homeLayout: in a Team, Teams sits after Upcoming; in no Team, below everything (mobile) and in a tail row under both columns (desktop)', () => {
+    const base = [['upcoming', 20], ['book', 40], ['favourites', 50], ['credits', 60], ['stats', 70], ['top-instructors', 80]];
+    const inTeam = homeLayout([...base, ['teams', 30]].map(([id, order]) => ({ id, order })));
+    expect(inTeam.mobile).toEqual(['upcoming', 'teams', 'book', 'favourites', 'credits', 'stats', 'top-instructors']);
+    expect(inTeam.left).toEqual(['upcoming', 'teams', 'book', 'stats']);
+    expect(inTeam.right).toEqual(['credits', 'favourites', 'top-instructors']);
+    expect(inTeam.tail).toEqual([]);
+    const noTeam = homeLayout([...base, ['teams', 1000]].map(([id, order]) => ({ id, order })));
+    expect(noTeam.mobile).toEqual(['upcoming', 'book', 'favourites', 'credits', 'stats', 'top-instructors', 'teams']);
+    expect(noTeam.left).toEqual(['upcoming', 'book', 'stats']);
+    expect(noTeam.right).toEqual(['credits', 'favourites', 'top-instructors']);
+    expect(noTeam.tail).toEqual(['teams']);
+  });
+  it('syncHomeDesktopFlow on desktop: the no-Team card goes to a tail row after both columns, and back when in a Team', () => {
+    const root = document.createElement('div');
+    const make = (id, order) => {
+      const el = document.createElement('section');
+      el.className = 'home-widget';
+      el.dataset.widgetId = id;
+      el.dataset.widgetOrder = String(order);
+      root.appendChild(el);
+      return el;
+    };
+    const teams = make('teams', 1000);
+    [['upcoming', 20], ['book', 40], ['credits', 60], ['stats', 70]].forEach(([id, o]) => make(id, o));
+    const media = { matches: true, addEventListener() {}, addListener() {} };
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = () => media;
+    try {
+      syncHomeDesktopFlow(root);
+      expect([...root.children].map((n) => n.className)).toEqual([
+        'home-desktop-column home-desktop-column--left',
+        'home-desktop-column home-desktop-column--right',
+        'home-desktop-tail',
+      ]);
+      expect([...root.children[0].children].map((n) => n.dataset.widgetId)).toEqual(['upcoming', 'book', 'stats']);
+      expect([...root.children[2].children].map((n) => n.dataset.widgetId)).toEqual(['teams']);
+      // Joined a Team: the widget returns to its column place and the tail row goes.
+      teams.dataset.widgetOrder = '30';
+      syncHomeDesktopFlow(root);
+      expect(root.querySelector('.home-desktop-tail')).toBeNull();
+      expect([...root.children[0].children].map((n) => n.dataset.widgetId)).toEqual(['upcoming', 'teams', 'book', 'stats']);
+      // Back to no Team, then mobile: one flat list with the card last and no wrappers left.
+      teams.dataset.widgetOrder = '1000';
+      syncHomeDesktopFlow(root);
+      media.matches = false;
+      syncHomeDesktopFlow(root);
+      expect([...root.children].map((n) => n.dataset.widgetId)).toEqual(['upcoming', 'book', 'credits', 'stats', 'teams']);
+    } finally { window.matchMedia = originalMatchMedia; }
+  });
+  it('syncHomeDesktopFlow reads the sections\' registry order on mobile', () => {
+    const root = document.createElement('div');
+    [['teams', 1000], ['upcoming', 20], ['book', 40]].forEach(([id, order]) => {
+      const el = document.createElement('section');
+      el.className = 'home-widget';
+      el.dataset.widgetId = id;
+      el.dataset.widgetOrder = String(order);
+      root.appendChild(el);
+    });
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = () => ({ matches: false, addEventListener() {}, addListener() {} });
+    try {
+      syncHomeDesktopFlow(root);
+      expect([...root.children].map((n) => n.dataset.widgetId)).toEqual(['upcoming', 'book', 'teams']);
+    } finally { window.matchMedia = originalMatchMedia; }
+  });
+});
+
 describe('Home cache context', () => {
   it('does not let an old account refresh repopulate shared credit maps after a switch', async () => {
     const { api } = await import('../api.js');
@@ -182,6 +272,22 @@ describe('Home cache context', () => {
 });
 
 describe('W2 Home book row', () => {
+  it('hides for an upcoming confirmed booking, including nested snake-case times', async () => {
+    const { api } = await import('../api.js');
+    const widget = homeRegistry.list({}).find((item) => item.id === 'book');
+    const spy = vi.spyOn(api, 'getBookings');
+    const waitlists = vi.spyOn(api, 'getWaitlists').mockResolvedValue([{ event: { startAt: '2999-01-01T12:00:00Z' } }]);
+    try {
+      spy.mockResolvedValue([{ event: { start_at: '2999-01-01T12:00:00Z' } }]);
+      expect(widget.isHidden(await widget.load({ gyms: [] }))).toBe(true);
+      spy.mockResolvedValue([{ event: { startAt: '2000-01-01T12:00:00Z' } }]);
+      expect(widget.isHidden(await widget.load({ gyms: [] }))).toBe(false);
+      spy.mockResolvedValue([]);
+      expect(widget.isHidden(await widget.load({ gyms: [] }))).toBe(false);
+      expect(waitlists).not.toHaveBeenCalled();
+    } finally { spy.mockRestore(); waitlists.mockRestore(); }
+  });
+
   it('uses timetable overlay URLs for each linked gym and an explicit merged All link', () => {
     setLinkedGyms([
       { gym_id: 'jab-boxing', shortName: 'JAB' },
@@ -362,25 +468,6 @@ describe('W4 auto-book count', () => {
   it('never turns not-loaded into zero', () => {
     expect(countPendingAutoBooks(undefined)).toBeNull();
     expect(countPendingAutoBooks([])).toBe(0);
-  });
-});
-
-describe('Home activity tiles', () => {
-  it('uses named Settings controls without visible gym-name text or a subtitle', () => {
-    const widget = homeRegistry.list().find((item) => item.id === 'stats');
-    const root = document.createElement('div');
-    const openGymSettings = vi.fn();
-    widget.render(root, {
-      rows: [{ gymId: 'metered', gymName: 'Metered', attendanceTotal: 12 }],
-      partial: false,
-    }, { openGymSettings });
-    const tile = root.querySelector('.home-attendance-tile');
-    expect(tile.tagName).toBe('BUTTON');
-    expect(tile.textContent).toBe('12classes');
-    expect(tile.getAttribute('aria-label')).toBe(`Open Metered settings: 12 ${COPY.home.statsProviderAttended}`);
-    expect(root.querySelector('.home-section-subtitle, .home-section-divider')).toBeNull();
-    tile.click();
-    expect(openGymSettings).toHaveBeenCalledWith('metered');
   });
 });
 
@@ -582,7 +669,7 @@ describe('W8 Home stats', () => {
       'jab-boxing': { attendance: { attendedTotal: 0 } },
       aarmy: { attendance: { attendedTotal: 899 } },
     });
-    expect(widget.headerMeta(complete)).toBe('900 classes');
+    expect(getHomeActivityMeta(complete)).toBe('900 classes');
     expect(getHomeActivityMeta({ rows: [{ attendanceTotal: 1 }], partial: false })).toBe('1 class');
     expect(getHomeActivityMeta({ rows: [{ attendanceTotal: 4 }, { attendanceTotal: Infinity }], partial: false })).toBe('');
     expect(getHomeActivityMeta({ rows: [{ attendanceTotal: 4 }], partial: true })).toBe('');
@@ -637,45 +724,6 @@ describe('W8 Home stats', () => {
     expect(stats.partial).toBe(true);
   });
 
-  it('distinguishes unsupported totals from failed requests without inventing attendance', () => {
-    const widget = homeRegistry.list().find((item) => item.id === 'stats');
-    const stats = getHomeStats(gyms, {
-      'psycle-london': { attendance: { attendedTotal: 12 } },
-      'jab-boxing': { attendanceUnsupported: true },
-      aarmy: {},
-    });
-    expect(stats).toMatchObject({ partial: true, unsupported: true, failed: true });
-    expect(widget.headerMeta(stats)).toBe('');
-    const root = document.createElement('div');
-    widget.render(root, stats, { openGymSettings: vi.fn() });
-    expect(root.textContent).toContain(COPY.home.statsUnsupported);
-    expect(root.textContent).toContain(COPY.home.statsPartial);
-    expect(root.querySelectorAll('.home-attendance-tile')).toHaveLength(1);
-    const supportedPlusUnsupported = getHomeStats(gyms.slice(0, 2), {
-      'psycle-london': { attendance: { attendedTotal: 12 } },
-      'jab-boxing': { attendanceUnsupported: true },
-    });
-    expect(supportedPlusUnsupported).toMatchObject({ partial: true, unsupported: true, failed: false });
-    const supportedRoot = document.createElement('div');
-    widget.render(supportedRoot, supportedPlusUnsupported, { openGymSettings: vi.fn() });
-    expect(supportedRoot.textContent).not.toContain(COPY.home.statsPartial);
-    expect(widget.headerMeta(supportedPlusUnsupported)).toBe('');
-    const unsupportedOnly = getHomeStats([{ gym_id: 'jab-boxing' }], { 'jab-boxing': { attendanceUnsupported: true } });
-    expect(widget.isEmpty(unsupportedOnly)).toBe(false);
-    const empty = document.createElement('div');
-    widget.render(empty, unsupportedOnly, { openGymSettings: vi.fn() });
-    expect(empty.textContent).toContain(COPY.home.statsUnsupported);
-    expect(empty.textContent).not.toContain(COPY.home.statsPartial);
-  });
-
-  it('renders a prominent number with an inline classes unit', () => {
-    const widget = homeRegistry.list().find((item) => item.id === 'stats');
-    const root = document.createElement('div');
-    widget.render(root, { rows: [{ gymId: 'psycle-london', gymName: 'Psycle', attendanceTotal: 8 }], partial: false }, { openGymSettings: vi.fn() });
-    expect(root.querySelector('.home-attendance-number').textContent).toBe('8');
-    expect(root.querySelector('.home-attendance-unit').textContent).toBe('classes');
-    expect(root.querySelector('.home-attendance-gym')).toBeNull();
-  });
 
 });
 

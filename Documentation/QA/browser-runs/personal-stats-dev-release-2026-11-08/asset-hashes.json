@@ -1,0 +1,26 @@
+[
+  {
+    "path": "/assets/index-CwzPpEIL.js",
+    "sha256": "c5e771d53ce94b7742486870d1ac71f9904ee0086c8d1df1c84c613caff35a9e",
+    "servedSha256": "c5e771d53ce94b7742486870d1ac71f9904ee0086c8d1df1c84c613caff35a9e",
+    "match": true
+  },
+  {
+    "path": "/assets/index-Xo34H8Dp.css",
+    "sha256": "243a2433a1fc6fd285d53c4df6703067738251481bb1774c566cdf468c111749",
+    "servedSha256": "243a2433a1fc6fd285d53c4df6703067738251481bb1774c566cdf468c111749",
+    "match": true
+  },
+  {
+    "path": "/assets/home-TlY5Saa3.js",
+    "sha256": "4b6fc7ea07114b17652a24c531e906070e04dcc20510b20087c385d19ebaabb3",
+    "servedSha256": "4b6fc7ea07114b17652a24c531e906070e04dcc20510b20087c385d19ebaabb3",
+    "match": true
+  },
+  {
+    "path": "/assets/home-teams-Coa49N0w.js",
+    "sha256": "a97d89913d33a368743bc9ac054215341676b7aee2f9fcc6dfeaefc04c464b16",
+    "servedSha256": "a97d89913d33a368743bc9ac054215341676b7aee2f9fcc6dfeaefc04c464b16",
+    "match": true
+  }
+]

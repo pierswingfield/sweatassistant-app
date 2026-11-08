@@ -37,7 +37,7 @@ import { claimAutoUpgradeTipOnce, hasDisabledAutoUpgradeGym } from './autoupgrad
 import { decideRefresh } from './refresh-policy.js';
 import { bookingNotifyPayload } from './booking-notify.js';
 import { spotSelectionRule } from './spot-selection.js';
-import { disciplineTag, seatNoun, sparklesIcon, trendingUpIcon, icon, pulseIcon, trimLocation, displayStudioName, equalizeDiscTagWidths , gymChip , cleanClassName, getDiscipline, passesDisciplineFilter } from './cards';
+import { disciplineTag, seatNoun, sparklesIcon, trendingUpIcon, icon, pulseIcon, trimLocation, displayStudioName, equalizeDiscTagWidths , gymChip , cleanClassName, getDiscipline, passesDisciplineFilter, escapeHtml } from './cards';
 import { openEditBookingModal, openGroupedCancellationModal, syncBookingCache } from './bookings';
 import { openStudioFloorPlanEditor } from './settings';
 import { studioHasRowGroups, rowSelectorVisible } from './spotmap.js';
@@ -68,6 +68,8 @@ import { bookGuestAfterPrimary as bookGuestAfterPrimaryStep } from './quickbook-
 import { orderCompanionSlots, orderTogetherSlots } from './companion-slots.js';
 import { guestFieldsHtml, wireGuestFields } from './guest-fields.js';
 import { renderStudioFloorPlan } from './spotmap.js';
+import { chipsFor, teamChipHtml, wireTeamChip, loadTeamChips, resetTeamChips } from './team-chips.js';
+import { teamsApi } from '../teams-api.js';
 import { currentRoute, commitFilterChange, commitNow, replaceCurrent, pathFor } from '../router.js';
 import { stateToUrlTimetable, urlToState, savedToState, sameFilters, overlayLabels, guardedSaveDefaults, emptyFilterState } from './timetable-url-sync.js';
 
@@ -801,6 +803,7 @@ export async function initTimetable() {
   const r = currentRoute();
   pendingUrlTimetable = r.tab === 'class-timetable' ? r.timetable : null;
   setupDropdownFilters();
+  refreshTeamChips();
   await prefetchTimetableData();
   recordTimetableTiming('initialise-total', initStartedAt);
   // Pull-to-refresh is registered centrally on this mobile class list; other
@@ -905,6 +908,8 @@ async function cacheDel(key) {
 export async function resetTimetableForGymChange({ refetch = true } = {}) {
   prefetchGeneration++;
   timetableEvents = [];
+  resetTeamChips(); // T-5: chips name linked gyms only; a changed gym set refetches them
+  if (refetch) refreshTeamChips({ force: true });
   await Promise.all([
     cacheDel(accountScopedKey(CACHE_KEY_EVENTS)),
     cacheDel(accountScopedKey(CACHE_KEY_META)),
@@ -919,6 +924,14 @@ const PROGRESSIVE_GRACE_MS = 0;
 // Re-render the grid but keep the reader where they were: a late gym's rows are
 // merged into a list someone may already be scrolled down, so anchor on the
 // first row in view (by event id) rather than a raw scrollTop that shifts.
+// T-5: the Team chips index is ONE request per timetable load (never per row), and a
+// row renders without it until it lands; a change repaints only while the tab is open.
+function refreshTeamChips({ force = false } = {}) {
+  loadTeamChips(() => teamsApi.timetable(), { force }).then((changed) => {
+    if (changed && timetableTabVisible() && timetableEvents.length) renderPreservingScroll('team-chips');
+  }).catch(() => {});
+}
+
 function renderPreservingScroll(reason) {
   const grid = document.getElementById('app-timetable-grid');
   // The list is the scroller on mobile AND on landscape phones (styles.css makes it overflow:auto there);
@@ -1335,8 +1348,8 @@ function buildFilterOptionLabel(item, labelText, selectedArray, type) {
   const label = document.createElement('label');
   label.className = 'app-ms-option-label';
   label.innerHTML = `
-    <input type="checkbox" class="app-ms-checkbox" data-type="${type}" data-id="${item.id}" ${isChecked ? 'checked' : ''} style="cursor: pointer;">
-    <span>${labelText}</span>
+    <input type="checkbox" class="app-ms-checkbox" data-type="${escapeHtml(type)}" data-id="${escapeHtml(item.id)}" ${isChecked ? 'checked' : ''} style="cursor: pointer;">
+    <span>${escapeHtml(labelText)}</span>
   `;
   return label;
 }
@@ -2270,6 +2283,19 @@ function eventActionState(event, autoBookedIds = autoBookingIdSet()) {
   };
 }
 
+/** T-3: whether the signed-in member holds a booking for this event (Teams "You're in"). */
+export function isEventBookedByMe(event) {
+  if (!event) return false;
+  // Gym-qualified (WP-G): two gyms can publish the same event id.
+  const gymOf = (b) => b.gymId ?? b.gym_id ?? null;
+  return userBookings().some((b) => matchesEvent(b, event) && (!gymOf(b) || !event.gymId || gymOf(b) === event.gymId));
+}
+
+/** Complete timetable decision for a Team class sheet, including choose-a-spot. */
+export function actionModelForTeamEvent(event) {
+  return buildActionModel(event, { ...eventActionState(event), compact: true });
+}
+
 /** Primary action for compact, read-only consumers such as Home favourites. */
 export function primaryActionForEvent(event) {
   return buildActionModel(event, { ...eventActionState(event), compact: true }).primary;
@@ -2336,15 +2362,15 @@ function buildEventRow(event, autoBookedIds) {
   if (!isLive) {
     if (isScheduled) {
       rowClass = 'app-table-row row-beyond-cutoff row-scheduled';
-      statusBadge = `<span class="badge-pill scheduled app-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${pulseIcon(12)}${COPY.timetable.autoBook.toUpperCase()}</span>`;
+      statusBadge = `<span class="badge-pill scheduled app-occupancy-hover" data-id="${escapeHtml(event.id)}" data-gym-id="${escapeHtml(event.gymId || '')}">${pulseIcon(12)}${COPY.timetable.autoBook.toUpperCase()}</span>`;
     } else {
       rowClass = 'app-table-row row-beyond-cutoff';
-      statusBadge = `<span class="badge-pill not-live app-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${COPY.timetable.notLive}</span>`;
+      statusBadge = `<span class="badge-pill not-live app-occupancy-hover" data-id="${escapeHtml(event.id)}" data-gym-id="${escapeHtml(event.gymId || '')}">${COPY.timetable.notLive}</span>`;
     }
   } else if (isBooked) {
     const eventBookings = userBookings().filter(b => matchesEvent(b, event));
     slotsBookedCount = eventBookings.length;
-    statusBadge = `<span class="badge-pill yes app-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.booked}${slotsBookedCount > 1 ? ` (${slotsBookedCount})` : ''}</span>`;
+    statusBadge = `<span class="badge-pill yes app-occupancy-hover" data-id="${escapeHtml(event.id)}" data-gym-id="${escapeHtml(event.gymId || '')}" style="cursor: pointer;">${COPY.timetable.booked}${slotsBookedCount > 1 ? ` (${slotsBookedCount})` : ''}</span>`;
     if (slotsBookedCount === 1) {
       bookingId = eventBookings[0].bookingId ?? eventBookings[0].id;
       const bookedAt = eventBookings[0].bookedAt ?? eventBookings[0].booked_at;
@@ -2355,7 +2381,7 @@ function buildEventRow(event, autoBookedIds) {
       }
     }
   } else if (isOnWaitlist) {
-    statusBadge = `<span class="badge-pill waitlisted app-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.waitlisted}</span>`;
+    statusBadge = `<span class="badge-pill waitlisted app-occupancy-hover" data-id="${escapeHtml(event.id)}" data-gym-id="${escapeHtml(event.gymId || '')}" style="cursor: pointer;">${COPY.timetable.waitlisted}</span>`;
     const waitlistEntry = userWaitlists().find(w => matchesEvent(w, event));
     // C2-2 fix (2026-09-26): this read `waitlistEntry.id`, a field that has
     // never existed on a NormalizedBooking (it's `bookingId` — see base.js's
@@ -2368,8 +2394,8 @@ function buildEventRow(event, autoBookedIds) {
     if (waitlistEntry) waitlistId = event.id;
   } else if (isFullyBooked) {
     statusBadge = canWaitlist
-      ? `<span class="badge-pill waitlist-open app-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.waitlist}</span>`
-      : `<span class="badge-pill no fully-booked app-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${COPY.timetable.full}</span>`;
+      ? `<span class="badge-pill waitlist-open app-occupancy-hover" data-id="${escapeHtml(event.id)}" data-gym-id="${escapeHtml(event.gymId || '')}" style="cursor: pointer;">${COPY.timetable.waitlist}</span>`
+      : `<span class="badge-pill no fully-booked app-occupancy-hover" data-id="${escapeHtml(event.id)}" data-gym-id="${escapeHtml(event.gymId || '')}">${COPY.timetable.full}</span>`;
   } else if (!hasCredit) {
     // Short label in the pill, full reason in the tooltip — the column is
     // narrow and "NO CREDITS AVAILABLE" spends all of it restating "no".
@@ -2377,9 +2403,9 @@ function buildEventRow(event, autoBookedIds) {
     // says "Buy Credits", so a "No credits" pill beside it is the same fact
     // twice — and it was spending the narrowest column in the table to do it.
     // The reason still reaches the user: it's the button's tooltip.
-    statusBadge = `<span class="badge-pill yes app-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;" title="${escapeHtml(getIneligibleReason(event.gymId) || COPY.timetable.noCredits)}">${spotsText}</span>`;
+    statusBadge = `<span class="badge-pill yes app-occupancy-hover" data-id="${escapeHtml(event.id)}" data-gym-id="${escapeHtml(event.gymId || '')}" style="cursor: pointer;" title="${escapeHtml(getIneligibleReason(event.gymId) || COPY.timetable.noCredits)}">${spotsText}</span>`;
   } else {
-    statusBadge = `<span class="badge-pill yes app-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${spotsText}</span>`;
+    statusBadge = `<span class="badge-pill yes app-occupancy-hover" data-id="${escapeHtml(event.id)}" data-gym-id="${escapeHtml(event.gymId || '')}" style="cursor: pointer;">${spotsText}</span>`;
   }
 
   const actionModel = buildActionModel(event, {
@@ -2388,11 +2414,14 @@ function buildEventRow(event, autoBookedIds) {
     bookingId, isPenalty, slotsBookedCount, waitlistId, graceDeadline,
   });
 
+  // T-5: teammates booked into this class (escaped markup; '' when none).
+  const teamChip = teamChipHtml(chipsFor(event));
+
   // === MOBILE TIMETABLE — PWA MOBILE LAYOUT (added Jun 2026; delete this block to revert) ===
   if (window.matchMedia('(max-width: 768px)').matches) {
     return buildMobileClassRow(event, {
       timeStr, hasTimezone, groupName, strippedClassName, instrName, locName,
-      isBookmarked, heartChar, heartClass, rowClass
+      isBookmarked, heartChar, heartClass, rowClass, teamChip
     }, actionModel); // skip desktop rendering for this row
   }
   // === END MOBILE TIMETABLE BLOCK ===
@@ -2415,10 +2444,11 @@ function buildEventRow(event, autoBookedIds) {
       <div class="app-tt-class-cell">
         ${heartButtonHtml({ isFavourite: isBookmarked, eventId: event.id, label: COPY.timetable.favourite, pressedLabel: COPY.timetable.unfavourite })}
         ${disciplineTag(groupName)}
-        <span class="app-tt-class-name">${strippedClassName}</span>
+        <span class="app-tt-class-name">${escapeHtml(strippedClassName)}</span>
       </div>
+      ${teamChip}
     </td>
-    <td class="col-instructor">${instrName ? `<span class="app-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}</td>
+    <td class="col-instructor">${instrName ? `<span class="app-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${escapeHtml(instrName)}</span>` : ''}</td>
     ${/* MID-WIDTH COLUMN: instructor + top-level location only ("SW1",
          "Oxford Circus"), with the specific studio dropped — at that width
          the studio is the least useful thing on the row and the most
@@ -2426,18 +2456,19 @@ function buildEventRow(event, autoBookedIds) {
          Always rendered; CSS shows exactly one of {instructor+location} or
          {this} at any width, so a resize needs no re-render. */ ''}
     <td class="col-who-where">
-      ${instrName ? `<span class="app-ww-who app-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}
-      ${locName ? `<span class="app-ww-loc">${trimLocation(locName, getGymShortName(event.gymId))}</span>` : ''}
+      ${instrName ? `<span class="app-ww-who app-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${escapeHtml(instrName)}</span>` : ''}
+      ${locName ? `<span class="app-ww-loc">${escapeHtml(trimLocation(locName, getGymShortName(event.gymId)))}</span>` : ''}
     </td>
     <td class="col-location">
-      <span style="font-weight:600; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${trimLocation(locName, getGymShortName(event.gymId))}</span>
-      ${studioName ? `<span style="font-size:12px; color:var(--text-secondary); display:block; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${displayStudioName(event.gymId, studioName)}</span>` : ''}
+      <span style="font-weight:600; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(trimLocation(locName, getGymShortName(event.gymId)))}</span>
+      ${studioName ? `<span style="font-size:12px; color:var(--text-secondary); display:block; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(displayStudioName(event.gymId, studioName))}</span>` : ''}
     </td>
     <td class="col-status">${statusBadge}</td>
     <td class="col-actions"></td>
   `;
 
   row.querySelector('.col-actions').appendChild(buildDesktopActions(actionModel, event, userSettings.debugMode, isBookmarked));
+  wireTeamChip(row);
 
   // Heart click listener (kept null-safe: an unconditional querySelector that threw
   // once emptied the whole timetable).
@@ -3317,7 +3348,7 @@ function injectMobileFilterHamburger() {
 function buildMobileClassRow(event, ctx, model) {
   const {
     timeStr, hasTimezone, groupName, strippedClassName, instrName, locName,
-    isBookmarked, heartChar, heartClass, rowClass
+    isBookmarked, heartChar, heartClass, rowClass, teamChip = ''
   } = ctx;
 
   const tr = document.createElement('tr');
@@ -3359,12 +3390,13 @@ function buildMobileClassRow(event, ctx, model) {
           ${favIndicator}
         </div>
         <div class="app-mobile-line2">
-          <span class="app-mobile-class-name">${strippedClassName}</span>
-          ${instrName ? `<span class="app-mobile-dot">&middot;</span><span class="app-mobile-instructor app-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}
+          <span class="app-mobile-class-name">${escapeHtml(strippedClassName)}</span>
+          ${instrName ? `<span class="app-mobile-dot">&middot;</span><span class="app-mobile-instructor app-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${escapeHtml(instrName)}</span>` : ''}
         </div>
         <div class="app-mobile-bottom-line">
-          <span class="app-mobile-location">${displayLoc}</span>
+          <span class="app-mobile-location">${escapeHtml(displayLoc)}</span>
         </div>
+        ${teamChip}
       </div>
     </div>
     <div class="app-mobile-rail"></div>
@@ -3388,6 +3420,7 @@ function buildMobileClassRow(event, ctx, model) {
   }
 
   const rail = card.querySelector('.app-mobile-rail');
+  wireTeamChip(card);
 
   const mobileHeart = card.querySelector('.app-timetable-heart');
   if (mobileHeart) {
@@ -5449,11 +5482,6 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
 
 // ─── Debug Mode ──────────────────────────────────────────────────
 
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = String(str ?? '');
-  return div.innerHTML;
-}
 
 export async function openDebugModal(event) {
   const modal = document.getElementById('app-debug-modal');
@@ -5550,13 +5578,13 @@ export async function openDebugModal(event) {
               <span class="u-text-2">Layout spots:</span><span class="u-strong">${totalLayout}</span><span></span>
               <span class="u-text-2">Available:</span><span style="color:var(--success);font-weight:600;">${totalAvail}</span><span></span>
               <span class="u-text-2">Occupied:</span><span style="color:var(--danger);font-weight:600;">${occupied}</span><span></span>
-              <span class="u-text-2">Capacity:</span><span class="u-strong">${event.capacity ?? 'N/A'}</span><span></span>
+              <span class="u-text-2">Capacity:</span><span class="u-strong">${escapeHtml(event.capacity ?? 'N/A')}</span><span></span>
               <span class="u-text-2">Occupancy:</span><span class="u-strong">${(event.capacity != null && event.availableCount != null ? event.capacity - event.availableCount : undefined) ?? 'N/A'}</span><span></span>
             </div>
           </div>
-          ${unmapped.length > 0 ? `<div style="font-size:12px;color:var(--warning);background:color-mix(in srgb, var(--warning) 8%, transparent);border:1px solid color-mix(in srgb, var(--warning) 20%, transparent);border-radius:6px;padding:8px 12px;margin-bottom:12px;">⚠ ${unmapped.length} available slot${unmapped.length>1?'s are':' is'} not on the layout map — IDs: ${unmapped.join(', ')}</div>` : ''}
+          ${unmapped.length > 0 ? `<div style="font-size:12px;color:var(--warning);background:color-mix(in srgb, var(--warning) 8%, transparent);border:1px solid color-mix(in srgb, var(--warning) 20%, transparent);border-radius:6px;padding:8px 12px;margin-bottom:12px;">⚠ ${unmapped.length} available slot${unmapped.length>1?'s are':' is'} not on the layout map — IDs: ${escapeHtml(unmapped.join(', '))}</div>` : ''}
           ${rows.length > 0 ? `<table style="width:100%;border-collapse:collapse;"><thead><tr style="font-size:12px;color:var(--text-tertiary);"><th class="u-cell">Row</th><th class="u-cell">Total</th><th class="u-cell">Available</th><th class="u-cell">Occupied</th></tr></thead><tbody>${rowsHtml}</tbody></table>` : ''}
-          <div style="margin-top:12px;"><h5 style="color:var(--feat-autoupgrade);margin:0 0 6px 0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Available Slot IDs</h5><pre style="background:var(--surface-inset);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:12px;color:var(--text);white-space:pre-wrap;word-break:break-all;margin:0;">${JSON.stringify(availableSlots)}</pre></div>
+          <div style="margin-top:12px;"><h5 style="color:var(--feat-autoupgrade);margin:0 0 6px 0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Available Slot IDs</h5><pre style="background:var(--surface-inset);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:12px;color:var(--text);white-space:pre-wrap;word-break:break-all;margin:0;">${escapeHtml(JSON.stringify(availableSlots))}</pre></div>
         `;
         return;
       }
@@ -5593,17 +5621,17 @@ export async function openDebugModal(event) {
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; font-size:12px;">
               <span class="u-text-2">isLive:</span><span class="u-strong">${isLive}</span>
               <span class="u-text-2">classReleaseTime:</span><span class="u-strong">${classRelease ? classRelease.toISO() : 'unknown'}</span>
-              <span class="u-text-2">bookingCutoff:</span><span class="u-strong">${bookingCutoff}</span>
-              <span class="u-text-2">extendedCutoff:</span><span class="u-strong">${extendedCutoff}</span>
+              <span class="u-text-2">bookingCutoff:</span><span class="u-strong">${escapeHtml(bookingCutoff)}</span>
+              <span class="u-text-2">extendedCutoff:</span><span class="u-strong">${escapeHtml(extendedCutoff)}</span>
               <span class="u-text-2">isFullyBooked:</span><span class="u-strong">${!!event.isFull}</span>
               <span class="u-text-2">isAlwaysBookable:</span><span class="u-strong">${!!event.alwaysBookable}</span>
-              <span class="u-text-2">capacity:</span><span class="u-strong">${event.capacity ?? 'N/A'}</span>
+              <span class="u-text-2">capacity:</span><span class="u-strong">${escapeHtml(event.capacity ?? 'N/A')}</span>
               <span class="u-text-2">occupancy:</span><span class="u-strong">${(event.capacity != null && event.availableCount != null ? event.capacity - event.availableCount : undefined) ?? 'N/A'}</span>
-              ${studio ? `<span class="u-text-2">Studio:</span><span class="u-strong">${studio.name} (ID: ${studio.id})</span>` : ''}
-              ${loc ? `<span class="u-text-2">Location:</span><span class="u-strong">${loc.name} (ID: ${loc.id})</span>` : ''}
-              ${instructor ? `<span class="u-text-2">Instructor:</span><span class="u-strong">${instructor.full_name || instructor.name} (ID: ${instructor.id})</span>` : ''}
-              ${typeInfo ? `<span class="u-text-2">Event Type:</span><span class="u-strong">${typeInfo.name} (ID: ${typeInfo.id})</span>` : ''}
-              <span class="u-text-2">Bookmark ID:</span><span style="color:var(--text); font-weight:600; word-break:break-all;">${generateBookmarkIdentifier(event) || 'N/A'}</span>
+              ${studio ? `<span class="u-text-2">Studio:</span><span class="u-strong">${escapeHtml(studio.name)} (ID: ${escapeHtml(studio.id)})</span>` : ''}
+              ${loc ? `<span class="u-text-2">Location:</span><span class="u-strong">${escapeHtml(loc.name)} (ID: ${escapeHtml(loc.id)})</span>` : ''}
+              ${instructor ? `<span class="u-text-2">Instructor:</span><span class="u-strong">${escapeHtml(instructor.full_name || instructor.name)} (ID: ${escapeHtml(instructor.id)})</span>` : ''}
+              ${typeInfo ? `<span class="u-text-2">Event Type:</span><span class="u-strong">${escapeHtml(typeInfo.name)} (ID: ${escapeHtml(typeInfo.id)})</span>` : ''}
+              <span class="u-text-2">Bookmark ID:</span><span style="color:var(--text); font-weight:600; word-break:break-all;">${escapeHtml(generateBookmarkIdentifier(event) || 'N/A')}</span>
             </div>
           </div>
         `;
@@ -5637,7 +5665,7 @@ export async function openDebugModal(event) {
         html += '<span class="u-meta-ml-sm">None</span>';
       } else {
         studioList.forEach(s => {
-          html += `<div class="u-meta-ml">• ${s.name || 'Unnamed'} (ID: ${s.id}, Location ID: ${s.locationId ?? s.locationId})</div>`;
+          html += `<div class="u-meta-ml">• ${escapeHtml(s.name || 'Unnamed')} (ID: ${escapeHtml(s.id)}, Location ID: ${escapeHtml(s.locationId)})</div>`;
         });
       }
       html += '</div>';
@@ -5649,7 +5677,7 @@ export async function openDebugModal(event) {
         html += '<span class="u-meta-ml-sm">None</span>';
       } else {
         locList.forEach(l => {
-          html += `<div class="u-meta-ml">• ${l.name || 'Unnamed'} (ID: ${l.id})</div>`;
+          html += `<div class="u-meta-ml">• ${escapeHtml(l.name || 'Unnamed')} (ID: ${escapeHtml(l.id)})</div>`;
         });
       }
       html += '</div>';
@@ -5661,7 +5689,7 @@ export async function openDebugModal(event) {
         html += '<span class="u-meta-ml-sm">None</span>';
       } else {
         instrList.forEach(i => {
-          html += `<div class="u-meta-ml">• ${i.full_name || i.name || 'Unnamed'} (ID: ${i.id})</div>`;
+          html += `<div class="u-meta-ml">• ${escapeHtml(i.full_name || i.name || 'Unnamed')} (ID: ${escapeHtml(i.id)})</div>`;
         });
       }
       html += '</div>';
@@ -5674,7 +5702,7 @@ export async function openDebugModal(event) {
       } else {
         etList.forEach(et => {
           const groupName = et.group || '';
-          html += `<div class="u-meta-ml">• ${et.name || 'Unnamed'} (ID: ${et.id}${groupName ? `, Group: ${groupName}` : ''})</div>`;
+          html += `<div class="u-meta-ml">• ${escapeHtml(et.name || 'Unnamed')} (ID: ${escapeHtml(et.id)}${groupName ? `, Group: ${escapeHtml(groupName)}` : ''})</div>`;
         });
       }
       html += '</div>';

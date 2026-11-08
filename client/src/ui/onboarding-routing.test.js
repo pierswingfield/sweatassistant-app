@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { coldBootDestination, enableAutoUpgradeForGyms, getPostLoginDestination, shouldAnimateGymLogos, detectInstallContext, shouldOfferInstall } from './onboarding-routing.js';
+import { coldBootDestination, enableAutoUpgradeForGyms, gymsWithAutoUpgradeOn, getPostLoginDestination, shouldAnimateGymLogos, detectInstallContext, shouldOfferInstall } from './onboarding-routing.js';
 
 describe('post-login onboarding destination', () => {
   it('keeps the full flow when no gyms are connected', () => {
@@ -50,7 +50,7 @@ describe('enableAutoUpgradeForGyms', () => {
 
 describe('gym logo strip mode', () => {
   it('is static for 3 or fewer gyms and a marquee for more', () => {
-    expect([0, 1, 2, 3].map(shouldAnimateGymLogos)).toEqual([false, false, false, false]);
+    expect([0, 1, 2, 3].map(shouldAnimateGymLogos)).toEqual([false, false, true, true]);
     expect([4, 5, 12].map(shouldAnimateGymLogos)).toEqual([true, true, true]);
   });
 });
@@ -99,5 +99,34 @@ describe('cold-boot destination', () => {
     expect(coldBootDestination('full', true)).toBe('full');
     expect(coldBootDestination('home', true)).toBe('home');
     expect(coldBootDestination(null, true)).toBe(null);
+  });
+});
+
+describe('T-1 onboarding Auto-Upgrade card: tickbox or "already on" note (PLAN-teams §5.8)', () => {
+  const catalogue = [
+    { id: 'psycle', name: 'Psycle', capabilities: { autoUpgrade: true } },
+    { id: 'jab', name: 'JAB', capabilities: { autoUpgrade: true } },
+    { id: 'noupgrade', name: 'No', capabilities: { autoUpgrade: false } },
+  ];
+  const links = [{ gym_id: 'psycle' }, { gym_id: 'jab' }, { gym_id: 'noupgrade' }];
+
+  it('counts a gym only when its own settings explicitly turn Auto-Upgrade on', () => {
+    expect(gymsWithAutoUpgradeOn(links, catalogue, { psycle: { autoUpgradeEnabled: true }, jab: {} })).toEqual(['psycle']);
+  });
+
+  it('an unset (default) or false value keeps the tickbox: nothing counts', () => {
+    expect(gymsWithAutoUpgradeOn(links, catalogue, { psycle: {}, jab: { autoUpgradeEnabled: false } })).toEqual([]);
+    expect(gymsWithAutoUpgradeOn(links, catalogue, {})).toEqual([]);
+    expect(gymsWithAutoUpgradeOn([], catalogue, { psycle: { autoUpgradeEnabled: true } })).toEqual([]);
+  });
+
+  it('ignores gyms without the capability and unlinked gyms, and de-duplicates', () => {
+    expect(gymsWithAutoUpgradeOn([...links, { gymId: 'psycle' }], catalogue, {
+      psycle: { autoUpgradeEnabled: true }, jab: { autoUpgradeEnabled: true }, noupgrade: { autoUpgradeEnabled: true }, other: { autoUpgradeEnabled: true },
+    })).toEqual(['psycle', 'jab']);
+  });
+
+  it('a failed settings read (null) does not count', () => {
+    expect(gymsWithAutoUpgradeOn(links, catalogue, { psycle: null, jab: { autoUpgradeEnabled: true } })).toEqual(['jab']);
   });
 });

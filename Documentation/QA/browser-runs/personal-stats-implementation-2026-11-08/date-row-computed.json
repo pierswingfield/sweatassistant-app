@@ -1,0 +1,16 @@
+{
+  "mask": "linear-gradient(to right, rgb(0, 0, 0), rgb(0, 0, 0) 10px, rgb(0, 0, 0) calc(100% - 10px), rgb(0, 0, 0))",
+  "before": {
+    "content": "none",
+    "background": "none",
+    "filter": "none",
+    "backdrop": "none"
+  },
+  "after": {
+    "content": "none",
+    "background": "none",
+    "filter": "none",
+    "backdrop": "none"
+  },
+  "overflow": "auto"
+}

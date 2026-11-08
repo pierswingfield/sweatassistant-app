@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRegistry, loadWidgets, mountWidget } from './widget-registry.js';
+import { createRegistry, loadWidgets, mountWidget, effectiveOrder, orderIds } from './widget-registry.js';
 
 const w = (id, order, extra = {}) => ({ id, title: id, order, render() {}, ...extra });
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -156,3 +156,30 @@ describe('mountWidget isHidden', () => {
     expect(el.querySelector('[data-widget-body]').textContent).toBe('x');
   });
 });
+
+describe('outcome-aware ordering (orderFor)', () => {
+  it('effectiveOrder: orderFor wins when finite, else the static order', () => {
+    const def = w('t', 30, { orderFor: (o) => (o === 'empty' ? 1000 : undefined) });
+    expect(effectiveOrder(def, 'empty')).toBe(1000);
+    expect(effectiveOrder(def, 'ready')).toBe(30);
+    expect(effectiveOrder(w('x', 40, { orderFor: () => { throw new Error('boom'); } }), 'empty')).toBe(40);
+    expect(effectiveOrder(w('y', 50), 'empty')).toBe(50);
+  });
+  it('orderIds: order, then id', () => {
+    expect(orderIds([{ id: 'b', order: 20 }, { id: 'a', order: 20 }, { id: 'z', order: 1 }, { id: 'n' }])).toEqual(['z', 'a', 'b', 'n']);
+  });
+  it('mountWidget stamps the outcome order on the section and calls onPlaced when it moves', async () => {
+    const el = document.createElement('section');
+    const onPlaced = vi.fn();
+    const def = w('t', 30, { load: async () => [], isEmpty: (d) => !d.length, orderFor: (o) => (o === 'empty' ? 1000 : undefined) });
+    const p = mountWidget(el, def, {}, { onPlaced });
+    expect(el.dataset.widgetOrder).toBe('30');
+    await p;
+    expect(el.dataset.widgetState).toBe('empty');
+    expect(el.dataset.widgetOrder).toBe('1000');
+    expect(onPlaced).toHaveBeenCalledTimes(2); // loading place, then the move
+    await mountWidget(el, { ...def, load: async () => [1] }, {}, { onPlaced });
+    expect(el.dataset.widgetOrder).toBe('30');
+  });
+});
+

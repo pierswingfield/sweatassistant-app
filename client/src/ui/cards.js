@@ -2,6 +2,7 @@
 // Used by the Auto-Book tab (autobook.js) and My Bookings (bookings.js) so the
 // card visual language (glyphs, discipline pills) stays identical everywhere.
 
+import { escapeHtml } from '../escape-html.js';
 import { cleanClassNameWith } from '../class-name.js';
 import { spriteRefFor } from '../gym-logo-sprite.js';
 import { getGymPresentation, getGymShortName, getDisplayAlias } from '../gym-context.js';
@@ -26,6 +27,7 @@ export const SVG_PATHS = {
   location: '<path d="M12 6c0 3.5-4 8-4 8s-4-4.5-4-8a4 4 0 0 1 8 0Z"/><circle cx="8" cy="6" r="1.5"/>',
   user: '<circle cx="8" cy="5.5" r="2.7"/><path d="M2.8 13.8c.6-2.6 2.5-3.9 5.2-3.9s4.6 1.3 5.2 3.9"/>',
   plus: '<path d="M8 3v10M3 8h10"/>',
+  shield: '<path d="M8 1.8 2.8 3.8v4c0 3 2.3 5.5 5.2 6.4 2.9-.9 5.2-3.4 5.2-6.4v-4Z"/><path d="m5.9 8.1 1.5 1.5 2.8-2.9"/>',
   heart: '<path d="M8 13.5S2.5 10 2.5 6.2A2.7 2.7 0 0 1 8 5a2.7 2.7 0 0 1 5.5 1.2C13.5 10 8 13.5 8 13.5Z"/>',
   bolt: '<path d="M8.5 1.5 3.5 9h3.5l-1 5.5L13 6.5H9z"/>',
   warning: '<path d="M8 2 14.5 13.5h-13L8 2Z"/><path d="M8 6.5v3M8 11.8h.01"/>',
@@ -137,7 +139,7 @@ export function passesDisciplineFilter(selected, groupLabel) {
 // Render a discipline tag chip (coloured pastel pill with glyph).
 export function disciplineTag(name) {
   const d = getDiscipline(name);
-  return `<span class="ab-disc-tag" data-disc="${d.key}">${icon(d.icon, 11)}${d.label}</span>`;
+  return `<span class="ab-disc-tag" data-disc="${escapeHtml(d.key)}">${icon(d.icon, 11)}${escapeHtml(d.label)}</span>`;
 }
 
 // Make every `.ab-disc-tag` within `container` the same width — the widest
@@ -277,7 +279,7 @@ export function pulseIcon(size = 14) {
 export function wordmarkElement(cls, src, styleAttr = '') {
   const ref = spriteRefFor(src);
   if (ref) return `<svg class="${cls} gym-logo-inline" viewBox="${ref.viewBox}" aria-hidden="true" focusable="false"${styleAttr}><use href="#${ref.id}"></use></svg>`;
-  return `<img class="${cls}" src="${src}" alt="" aria-hidden="true" decoding="sync"${styleAttr}>`;
+  return `<img class="${escapeHtml(cls)}" src="${escapeHtml(src)}" alt="" aria-hidden="true" decoding="sync"${styleAttr}>`;
 }
 
 /** Logo form factors, the ONLY size choice a caller makes:
@@ -350,7 +352,7 @@ export function gymBrand(gymId, form = 'full') {
  *  link/re-auth form). Reuses gymChip so there is still exactly one place that knows a gym's assets. */
 export function gymLogoBanner(gymId, { settings = false } = {}) {
   const width = settings ? gymBrand(gymId).settingsLogoWidth : null;
-  return `<span class="app-gym-logo-banner">${gymChip(gymId, { width, responsive: false })}</span>`;
+  return `<span class="app-gym-logo-banner${settings ? ' is-uniform' : ''}">${gymChip(gymId, { width, responsive: false })}</span>`;
 }
 
 /**
@@ -362,9 +364,9 @@ export function gymChip(gymId, { width = null, responsive = true } = {}) {
   const both = responsive && full.hasHalf;
   const logoWidth = width || full.logoWidth;
   const wStyle = logoWidth ? `;--logo-w:${logoWidth}px` : '';
-  return `<span class="app-gym-chip app-gym-chip-${full.id}${logoWidth ? ' has-logo-w' : ''}${both ? ' is-responsive' : ''}" title="${full.name}" style="background:${full.brandBg};border:1px solid ${full.brandBg}${wStyle}">`
+  return `<span class="app-gym-chip app-gym-chip-${full.id}${logoWidth ? ' has-logo-w' : ''}${both ? ' is-responsive' : ''}" title="${escapeHtml(full.name)}" style="background:${full.brandBg};border:1px solid ${full.brandBg}${wStyle}">`
     + `<span class="app-gym-chip-logo">${full.logo}${both ? gymBrand(gymId, 'half').logo : ''}</span>`
-    + `<span class="u-visually-hidden">${full.name}</span>`
+    + `<span class="u-visually-hidden">${escapeHtml(full.name)}</span>`
     + `</span>`;
 }
 
@@ -390,27 +392,17 @@ export function gymDot(gymId, cls = '') {
 export function renderGymRail(gymId) {
   const brand = gymBrand(gymId, 'half');
   return `
-    <div class="ab-card-gym-rail" data-gym="${brand.id}" title="${brand.name}" style="background:${brand.brandBg};border-right-color:${brand.brandBg}">
+    <div class="ab-card-gym-rail" data-gym="${escapeHtml(brand.id)}" title="${escapeHtml(brand.name)}" style="background:${brand.brandBg};border-right-color:${brand.brandBg}">
       <div class="ab-gym-logo">${brand.logo}</div>
-      <span class="u-visually-hidden">${brand.name}</span>
+      <span class="u-visually-hidden">${escapeHtml(brand.name)}</span>
     </div>
   `;
 }
 
 
-/**
- * Shared HTML escaper. Four modules each had a private copy of this
- * (timetable, settings, credits, gym-settings-section); new call sites should
- * import this one rather than adding a fifth.
- */
-export function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+// The shared HTML escaper lives in ../escape-html.js; re-exported here because
+// most UI modules already import from cards.js.
+export { escapeHtml };
 
 /** Choose the instructor label layout from the name's visible Unicode characters. */
 export function instructorNameLengthClass(value) {
@@ -461,7 +453,7 @@ export function cleanClassName(name = '', discipline = '') {
  * card that shares the line1/line2/figure markup.
  */
 export function instructorInlineHtml(name) {
-  return name ? `<span class="ab-meta-dot ab-dot-instr">·</span><span class="ab-card-instructor-inline">${name}</span>` : '';
+  return name ? `<span class="ab-meta-dot ab-dot-instr">·</span><span class="ab-card-instructor-inline">${escapeHtml(name)}</span>` : '';
 }
 
 // Hide the "·" separator when the location wraps onto its own line. Wrapping
@@ -490,12 +482,14 @@ export function observeLocationWrap(container) {
 
 // Action rail toggle (shared by My Bookings, Waitlists, Auto-Book, Auto-Upgrade).
 // The rail is collapsed by default; a "more" button at the end of the footer
-// slides it in. Open state is deliberately NOT remembered: every (re)render starts
-// collapsed (a remembered open rail showed up pre-pressed on page load / after a
-// background refresh), and any modal opening collapses them all (closeAllRails).
+// slides it in. Remember the open card across a background re-render; opening a
+// modal or signing out clears it (closeAllRails).
 let railSeq = 0;
+let openRailKey = null;
+if (typeof window !== 'undefined') window.addEventListener('app-logout-triggered', () => { openRailKey = null; });
 
 export function closeAllRails(root = typeof document !== 'undefined' ? document : null) {
+  openRailKey = null;
   if (!root) return 0;
   const open = Array.from(root.querySelectorAll('.ab-card.is-rail-open'));
   open.forEach(card => { if (card._closeRail) card._closeRail(); else card.classList.remove('is-rail-open'); });
@@ -503,6 +497,7 @@ export function closeAllRails(root = typeof document !== 'undefined' ? document 
 }
 export function wireRailToggle(container) {
   container.querySelectorAll('.ab-card').forEach(card => {
+    const railKey = `${container.id || container.closest('[id]')?.id || ''}:${card.dataset.gym || ''}:${card.dataset.eventId || ''}`;
     const rail = card.querySelector(':scope > .ab-card-rail');
     const footer = card.querySelector('.ab-card-footer');
     if (!rail || !footer || footer.querySelector('.ab-rail-toggle')) return;
@@ -513,6 +508,8 @@ export function wireRailToggle(container) {
     btn.setAttribute('aria-controls', rail.id);
     btn.innerHTML = `<svg class="ab-ico ab-rail-chevron" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="10 3 5 8 10 13"/></svg><span>${COPY.accessibility.editCard}</span>`;
     const apply = (open) => {
+      if (open) openRailKey = railKey;
+      else if (openRailKey === railKey) openRailKey = null;
       card.classList.toggle('is-rail-open', open);
       btn.setAttribute('aria-expanded', String(open));
       btn.setAttribute('aria-label', open ? COPY.accessibility.hideCardActions : COPY.accessibility.showCardActions);
@@ -531,6 +528,6 @@ export function wireRailToggle(container) {
     });
     card._closeRail = () => apply(false);
     footer.appendChild(btn);
-    apply(false);
+    apply(openRailKey === railKey);
   });
 }

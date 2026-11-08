@@ -6,7 +6,7 @@
 #
 # MANUAL STEP (not done by this script): add a Cloudflare tunnel ingress rule for
 # $LANDING_HOST -> http://dibs-landing:80 (and DNS if not covered by the wildcard).
-# Host confirmed: dibs.wingfield.tech.
+# Host confirmed: dibs.fit.
 #
 # Like `deploy.sh --prod` it asks for a typed confirmation and refuses to run
 # without a terminal. Nothing is executed with --print (no ssh at all).
@@ -18,7 +18,7 @@
 # Env: DEPLOY_HOST (default oracle), DEPLOY_DOCKER (default "docker").
 set -euo pipefail
 
-LANDING_HOST="${LANDING_HOST:-dibs.wingfield.tech}"   # confirmed hostname
+LANDING_HOST="${LANDING_HOST:-dibs.fit}"   # confirmed hostname
 HOST="${DEPLOY_HOST:-oracle}"
 DOCKER="${DEPLOY_DOCKER:-docker}"
 REMOTE_DIR='~/services/dibs-landing'

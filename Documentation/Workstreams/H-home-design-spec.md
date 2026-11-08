@@ -74,7 +74,7 @@ The stale release was caused by using the profile's stored booking cutoff after 
 
 The Home-only action rail was still in layout after its footer was removed. On sweat-dev, it forced a JAB Home card to 134px with a 70.5px body; its three hidden action buttons were 44px tall. Home now removes that unused rail. The shared instructor label uses the raw, trimmed Unicode code-point count before HTML escaping: names under 10 characters center under the avatar; names of 10 or more stay right-aligned and clamp visually to two lines. The full accessible DOM text is retained.
 
-Verification: real Chrome on the local Vite checkout retained all six My Bookings card rails and both Auto-Book queue card rails. The local Home dataset had no booked-card row, so a temporary DOM fixture with the checkout stylesheet verified geometry and short/long name alignment ([QA run](../../QA/browser-runs/home-instructor-card-layout-2026-10-20.md)). Node 20.19.0 client tests passed 92 files / 690 tests; client build passed with the existing mixed-import and large-chunk warnings. The release-time diagnosis remains separate and unresolved: the read-only profile cutoff is Oct 20 while last sync is Oct 11; continue tracing the profile and normalized event release payload.
+Verification: real Chrome on the local Vite checkout retained all six My Bookings card rails and both Auto-Book queue card rails. The local Home dataset had no booked-card row, so a temporary DOM fixture with the checkout stylesheet verified geometry and short/long name alignment (QA run (historical receipt `home-instructor-card-layout-2026-10-20.md` is absent from this checkout)). Node 20.19.0 client tests passed 92 files / 690 tests; client build passed with the existing mixed-import and large-chunk warnings. The release-time diagnosis remains separate and unresolved: the read-only profile cutoff is Oct 20 while last sync is Oct 11; continue tracing the profile and normalized event release payload.
 
 ## Home header and actions pass — result (2026-10-20)
 
@@ -110,7 +110,7 @@ The deployed dev Home reproduced the foreground lifecycle: `visibilitychange` ca
 
 Home now retains the existing greeting and widget body when the account/gym context and rendered data are unchanged. The favourites widget adds its release-derived status and action to its render key, so unchanged event payloads still repaint at a release boundary; the generic regression covers Auto-Book changing to Quick book with a fixed clock. Account/gym context changes, changed data, and stale-refresh failures retain their existing behavior.
 
-Read-only live `sweat-dev` cold-load evidence at 390×844 found a 41px header ending at y=41 and the Home greeting starting at y=45: the visible clearance is the intended 4px after the fixed header, not a 45px blank margin. A true foreground cycle retained that geometry and seven widget shells. At 800px and 1280×900, the visible 39px header plus 51px desktop navigation placed Home at y=90 with no extra reservation. The reported first-load versus revisit geometry difference was not reproduced. Local Chrome at exact 390×844 confirmed no horizontal overflow, seven widgets, y=41/45 header/greeting geometry, and stable CDP backend node identities for both a widget button and the greeting across a real foreground cycle; 1280×900 retained two Home columns without overflow. Details: [QA browser run](../../QA/browser-runs/home-focus-firstload-2026-10-20.md).
+Read-only live `sweat-dev` cold-load evidence at 390×844 found a 41px header ending at y=41 and the Home greeting starting at y=45: the visible clearance is the intended 4px after the fixed header, not a 45px blank margin. A true foreground cycle retained that geometry and seven widget shells. At 800px and 1280×900, the visible 39px header plus 51px desktop navigation placed Home at y=90 with no extra reservation. The reported first-load versus revisit geometry difference was not reproduced. Local Chrome at exact 390×844 confirmed no horizontal overflow, seven widgets, y=41/45 header/greeting geometry, and stable CDP backend node identities for both a widget button and the greeting across a real foreground cycle; 1280×900 retained two Home columns without overflow. Details: QA browser run (historical receipt `home-focus-firstload-2026-10-20.md` is absent from this checkout).
 
 Verification: focused Home/registry tests passed (47/47); Node 20.19.0 `npm test` passed (92/92 server suites; 92 client files / 697 tests); the client build passed with existing Vite mixed-import and >500 kB chunk warnings; `git diff --check` passed. No commit, deployment, or live-gym write occurred.
 
@@ -128,7 +128,7 @@ Credits and activity now share a centred mark/value/detail composition. Credit b
 
 The Home five-day strip retained its real `/bookings?day=YYYY-MM-DD` hrefs, but ordinary primary clicks now use the existing router and switch to My Bookings without adding a second history entry. Modified, secondary and new-tab clicks remain native. Bookings therefore paints its cached cards immediately and retains its existing route-driven selected-day scroll and focus; Back, Forward and a normal refresh continue to hydrate the same day. The strip applies `is-today` from its existing viewer-local day model. Every tile reserves a transparent one-pixel border, while only the current viewer-local day receives the theme accent, keeping all tile geometry stable in light and dark themes.
 
-Read-only Chrome evidence first reproduced the deployed dev failure: selecting `/bookings?day=2026-10-22` performed a document navigation. After the local change, Chrome at 390×844 switched to Bookings, focused the `2026-10-21` card, and showed an accent only on Today; Back, Forward and normal refresh preserved the selected day. At 1280×900, a navbar switch completed in 142 ms and the booked-day SPA switch in 94 ms, with the same document retained. No live-gym write, deployment, commit or staging occurred. See [QA browser run](../../QA/browser-runs/home-booked-day-spa-2026-10-21.md).
+Read-only Chrome evidence first reproduced the deployed dev failure: selecting `/bookings?day=2026-10-22` performed a document navigation. After the local change, Chrome at 390×844 switched to Bookings, focused the `2026-10-21` card, and showed an accent only on Today; Back, Forward and normal refresh preserved the selected day. At 1280×900, a navbar switch completed in 142 ms and the booked-day SPA switch in 94 ms, with the same document retained. No live-gym write, deployment, commit or staging occurred. See QA browser run (historical receipt `home-booked-day-spa-2026-10-21.md` is absent from this checkout).
 
 Verification: focused Home/upcoming/router/URL tests passed (89/89); Node 20.19.0 full client suite passed (92 files, 697 tests); client build passed with existing Vite mixed-import and >500 kB chunk warnings; `git diff --check` passed.
 
@@ -138,7 +138,7 @@ Before-change read-only `sweat-dev` evidence at 390×844 showed `Booked Classes 
 
 Home now keeps every instructor photo in the fixed right-hand slot. A short raw name stays centered in the 52px photo-width label under that photo; a long name remains right-aligned and two-line clamped. The Booked Classes title has no count; the preserved header action updates only its text to `View all N booking(s) →` after the grouped future-occurrence count loads, without replacing its node during Home refreshes. The queue uses 13px title text, 12px secondary count text, and a 4px grid gap. The filter drawer’s compact selector plate is now an extracted shared helper and class, so Home uses the same full logo asset, 30px container, 4px padding, and 15px wordmark. Linked-gym rows retain the existing one-to-four full-width grid and more-than-four centered rows of at most three.
 
-Home-only header padding is now 0px at mobile, where the existing 4px fixed-header margin supplies the visible gap, and 4px at 800px/1280px. Chrome local-source checks at exact 390×844 measured mobile cold-load and revisit header top 45/greeting top 45 with zero overflow; 800×900 and 1280×900 measured header top 90/greeting top 94 with zero overflow. The 390px Home and live filter drawer both measured 30px height, 4px inline padding, and a displayed 15px full logo. See [QA browser run](../../QA/browser-runs/home-compact-controls-2026-10-21.md).
+Home-only header padding is now 0px at mobile, where the existing 4px fixed-header margin supplies the visible gap, and 4px at 800px/1280px. Chrome local-source checks at exact 390×844 measured mobile cold-load and revisit header top 45/greeting top 45 with zero overflow; 800×900 and 1280×900 measured header top 90/greeting top 94 with zero overflow. The 390px Home and live filter drawer both measured 30px height, 4px inline padding, and a displayed 15px full logo. See QA browser run (historical receipt `home-compact-controls-2026-10-21.md` is absent from this checkout).
 
 Verification: Node 20.19.0 focused Home/instructor/gym-brand tests passed (3 files, 50 tests); full client tests passed (92 files, 698 tests); client build passed with existing Vite mixed static/dynamic-import and >500 kB chunk warnings; `git diff --check` passed. No server suite, commit, deployment, or live-gym write occurred.
 
@@ -204,7 +204,7 @@ Chrome at 390×844, 800×900 and 1280×900 completed Home → Timetable → Home
 Bookings → Auto-Book → Settings → Timetable with scrollTop zero throughout.
 At mobile, Home alone had 0px scrollport top padding and each other tab had
 61px; tablet and desktop retained their 10px layout. Details:
-[QA browser run](../../QA/browser-runs/home-tab-scroll-state-2026-10-22.md).
+QA browser run (historical receipt `home-tab-scroll-state-2026-10-22.md` is absent from this checkout).
 
 Verification: the new tab-state regression plus modal scroll-lock coverage
 passed (2 files, 16 tests); Node 20.19.0 client build passed with existing
@@ -231,7 +231,7 @@ rule, preserving membership, true zero, unknown/error and guest-detail data.
 Local Chrome at 390×844, 800×900 and 1280×900 measured a 16px gap, 128.25px
 favourite cards, zero document/body overflow, and centered actual tile styles.
 The 390px tiles used `rgba(31, 27, 22, 0.03)` (`--surface-2`). See
-[QA run](../../QA/browser-runs/home-section-card-polish-2026-10-22.md).
+QA run (historical receipt `home-section-card-polish-2026-10-22.md` is absent from this checkout).
 Node 20.19.0 client tests passed 93 files / 699 tests; the client build passed
 with the existing Vite dynamic/static-import and >500kB warnings; `git diff
 --check` passed. Dark mode was not retested because its Settings control is

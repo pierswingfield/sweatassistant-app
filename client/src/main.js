@@ -1,3 +1,4 @@
+import { observeEdgeFades } from './ui/edge-fades.js';
 import { parseLocation, legacyHashToPath } from './url-state.js';
 import { currentRoute, navigate, pathFor, migrateLegacyHash, initRouter, stashReturnTo, takeReturnTo } from './router.js';
 import { api, setToken, isLoggedIn } from './api';
@@ -22,6 +23,8 @@ import { applyStaticCopy } from './copy.js';
 import { COPY, formatCopyText } from './copy.js';
 import { resetWindowScroll, installStaleScrollGuard } from './scroll-reset.js';
 import { syncTabScrollState } from './tab-scroll-state.js';
+import { parseTeamsPath, stashPendingInvite, consumePendingInvite, clearPendingInvite } from './ui/teams-model.js';
+import { autoBookBackAction, autoBookBackTarget } from './ui/autobook-nav.js';
 
 installStaleScrollGuard();
 
@@ -374,7 +377,7 @@ export function debugLog(message, type = 'info') {
   
   const line = document.createElement('div');
   line.style.cssText = `margin: 2px 0; line-height: 1.4; word-break: break-all;`;
-  line.innerHTML = `<span style="color: var(--text-tertiary);">${timestamp}</span> <span style="color: ${color};">${prefix}</span> <span style="color: ${color};">${message}</span>`;
+  line.innerHTML = `<span style="color: var(--text-tertiary);">${timestamp}</span> <span style="color: ${color};">${prefix}</span> <span style="color: ${color};">${escapeHtml(message)}</span>`;
   logEl.appendChild(line);
   
   // Keep max 200 entries
@@ -446,11 +449,30 @@ window.switchTab = switchTab;
 
 // The currently active tab — used by the shared pull-to-refresh dispatcher.
 let currentTabId = null;
+// T8: the tab we arrived from, so the mobile Auto-Book Back button can pop history when that was Bookings.
+let previousTabId = null;
+let lastTeamsRoute = null;
+window.addEventListener('app-logout-triggered', () => { lastTeamsRoute = null; });
+
+export function updateAccountNav() {
+  const first = String(userSettings.firstName || '').trim().split(/\s+/)[0];
+  const last = String(userSettings.lastName || '').trim();
+  const initials = [first, last].filter(Boolean).map((n) => Array.from(n)[0]).join('').toLocaleUpperCase() || 'ME';
+  document.querySelectorAll('.app-bottom-nav-btn[data-tab="settings"]').forEach((button) => {
+    button.removeAttribute('data-copy-text');
+    button.removeAttribute('data-copy-aria-label');
+    button.setAttribute('aria-label', first ? `${first}, account and settings` : 'Account and settings');
+    if (!button.querySelector('.app-account-initials')) button.innerHTML = '<span class="app-account-initials" aria-hidden="true"></span><span class="app-account-nav-name"></span>';
+    button.querySelector('.app-account-initials').textContent = initials;
+    button.querySelector('.app-account-nav-name').textContent = first || 'Account';
+  });
+}
+window.addEventListener('app-account-name-changed', updateAccountNav);
 
 // Phase 5 motion: a directional one-shot enter (opacity + 12px translate, CSS-owned) on the panel that
 // becomes visible. Direction follows the bottom-nav order. Not played on first paint or for the same tab;
 // the class is removed on animationend with a timeout fallback so a skipped event can never leave it on.
-const TAB_ORDER = ['home', 'class-timetable', 'my-bookings', 'auto-book', 'buy-credits', 'settings', 'about'];
+const TAB_ORDER = ['home', 'class-timetable', 'my-bookings', 'auto-book', 'teams', 'buy-credits', 'settings', 'about'];
 function playTabEnter(panel, fromId, toId) {
   if (!panel || !fromId || fromId === toId) return;
   const dir = TAB_ORDER.indexOf(toId) >= TAB_ORDER.indexOf(fromId) ? 'fwd' : 'back';
@@ -475,6 +497,12 @@ function switchTab(tabId, opts = {}) {
   // Leaving the timetable ends search: its own filter scope is dropped and the normal filters return.
   if (tabId !== 'class-timetable') import('./ui/timetable-search-state.js').then(m => { if (m.inSearchScope()) import('./ui/timetable').then(t => t.exitSearch()); });
   const prevTabId = currentTabId;
+  if (prevTabId === 'teams' && currentRoute().teams?.view === 'team') lastTeamsRoute = { ...currentRoute().teams };
+  const preserveTeams = tabId === 'teams' && prevTabId !== 'teams' && !opts.teams && !!lastTeamsRoute;
+  if (preserveTeams) opts = { ...opts, teams: lastTeamsRoute };
+  if (tabId === 'teams' && opts.teams?.view === 'list') lastTeamsRoute = null;
+  // Back may only pop history when this switch pushed an entry on top of another in-app tab.
+  previousTabId = autoBookBackTarget(historyMode, tabId, prevTabId);
   currentTabId = tabId;
   const targetPanelId = `app-panel-${tabId}`;
 
@@ -511,23 +539,25 @@ function switchTab(tabId, opts = {}) {
 
   // U4-19: the tab lives in the PATH (/bookings, /settings/about ...) so refresh, back/forward
   // and shared links restore it. Skip when the URL already names this tab (keeps any query).
-  if (historyMode !== 'none' && routeDiffers(tabId, opts.section)) {
-    navigate(pathFor(tabId === 'about' ? { tab: 'settings', section: 'about' } : { tab: tabId, section: opts.section }),
+  if (historyMode !== 'none' && routeDiffers(tabId, opts.section, opts.teams)) {
+    navigate(pathFor(tabId === 'about' ? { tab: 'settings', section: 'about' } : { tab: tabId, section: opts.section, teams: opts.teams }),
       { replace: historyMode === 'replace' });
   }
 
   // Trigger tab-specific loading/rendering
-  triggerTabRender(tabId);
+  triggerTabRender(tabId, { preserveTeams });
 }
 
-function routeDiffers(tabId, section) {
+function routeDiffers(tabId, section, teams) {
   const r = currentRoute();
   const want = tabId === 'about' ? 'settings' : tabId;
   if (!r.valid || r.tab !== want) return true;
+  // T-1: Teams has sub-routes (/teams/<id>, /t/<token>); tapping the Teams tab returns to the list.
+  if (want === 'teams') return pathFor({ tab: 'teams', teams: teams || { view: 'list' } }) !== pathFor({ tab: 'teams', teams: r.teams });
   return want === 'settings' && !!section && r.section !== section;
 }
 
-async function triggerTabRender(tabId) {
+async function triggerTabRender(tabId, { preserveTeams = false } = {}) {
   try {
     if (tabId === 'home') {
       const { initHome } = await import('./ui/home');
@@ -541,6 +571,9 @@ async function triggerTabRender(tabId) {
     } else if (tabId === 'auto-book') {
       const { initAutoBook } = await import('./ui/autobook');
       initAutoBook();
+    } else if (tabId === 'teams') {
+      const { initTeams } = await import('./ui/teams');
+      initTeams({ preserve: preserveTeams });
     } else if (tabId === 'buy-credits') {
       refreshUserData(true); // fire-and-forget — update credit badge with fresh counts
       const { initBundles } = await import('./ui/credits');
@@ -571,8 +604,15 @@ tabButtons.forEach(btn => {
       const lay = document.querySelector('.app-settings-layout');
       if (lay && lay.classList.contains('show-pane')) { lay.classList.remove('show-pane'); return; }
     }
-    switchTab(tabId);
+    switchTab(tabId, tabId === 'teams' && currentTabId === 'teams' ? { teams: { view: 'list' } } : {});
   });
+});
+
+// T8: mobile Bookings -> Auto-Book bar, and the Auto-Book page's Back button.
+document.getElementById('app-bookings-autobook-bar')?.addEventListener('click', () => switchTab('auto-book'));
+document.getElementById('app-autobook-back-btn')?.addEventListener('click', () => {
+  if (autoBookBackAction(previousTabId) === 'history-back') history.back();
+  else switchTab('my-bookings', { history: 'replace' });
 });
 
 // --- PULL-TO-REFRESH ---
@@ -628,6 +668,9 @@ async function refreshActiveTab() {
       await invalidateApiCache('/api/settings');
       const { refreshAutoBookTab } = await import('./ui/autobook');
       await refreshAutoBookTab();
+    } else if (currentTabId === 'teams') {
+      const { initTeams } = await import('./ui/teams');
+      await initTeams();
     } else if (currentTabId === 'buy-credits') {
       await invalidateApiCache('/api/bundles');
       await invalidateApiCache('/api/profile');
@@ -651,6 +694,7 @@ async function refreshActiveTab() {
       const settings = await api.getSettings();
       if (settings && Object.keys(settings).length > 0) {
         Object.assign(userSettings, settings);
+        updateAccountNav();
       }
       const { initSettings } = await import('./ui/settings');
       await initSettings();
@@ -752,7 +796,8 @@ async function registerServiceWorker() {
         const target = event.data.path || (event.data.hash ? legacyHashToPath(event.data.hash) : null);
         if (target) {
           const r = parseLocation(target.split('?')[0], '');
-          if (r.valid) switchTab(r.tab, { section: r.section });
+          // T-5: a Team push opens its Team page, so the Teams sub-route travels too.
+          if (r.valid) switchTab(r.tab, { section: r.section, ...(r.teams ? { teams: r.teams } : {}) });
         }
       } else if (event.data.type === 'PUSH_RECEIVED') {
         // If we are on the bookings tab, refresh it automatically so they see the new spot
@@ -953,7 +998,7 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
   badge.className = 'app-header-gym-badge';
   badge.setAttribute('data-gym', gymId);
   if (isMetered) {
-    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="app-hgb-pill">${total}<span class="app-hgb-unit"> ${COPY.shell.creditUnit}</span></span>`;
+    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="app-hgb-pill">${escapeHtml(total)}<span class="app-hgb-unit"> ${COPY.shell.creditUnit}</span></span>`;
     badge.title = formatCopyText(COPY.shell.creditBadgeTitle, { gymName: shortName, total, plural: total !== 1 ? 's' : '' });
   } else if (canBookAtAll(gymId)) {
     // "Active" alone reads as "this is the currently-selected gym" rather than
@@ -964,7 +1009,7 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
     // eligibility hasn't loaded yet (same unknown-defaults-ON rule as
     // capabilities), but never shown once the server has confirmed this
     // account has no active membership at this gym.
-    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="app-hgb-pill member">${unmeteredBadgeLabel(gymId)}</span>`;
+    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="app-hgb-pill member">${escapeHtml(unmeteredBadgeLabel(gymId))}</span>`;
     badge.title = formatCopyText(COPY.shell.membershipBadgeTitle, { gymName: shortName });
   } else {
     // C3-3: an unmetered gym with no active membership (and no usable
@@ -1399,6 +1444,7 @@ export async function refreshUserData(force = false) {
     const settings = first.gymSettings || (gymIds.length ? null : await api.getSettings());
     if (settings && Object.keys(settings).length > 0) {
       Object.assign(userSettings, settings);
+        updateAccountNav();
     }
 
     // 3. Credit inventory, via the gym-agnostic route. Empty for a membership
@@ -1534,6 +1580,14 @@ export async function initApp() {
     const rt = takeReturnTo();
     if (rt && location.pathname === '/' && !location.search && !location.hash) history.replaceState(history.state, '', rt);
   }
+  // T-1 (PLAN-teams.md §5.6): an invite link opened while signed out resumes here once the
+  // member has logged in or signed up (and finished onboarding). The token is never logged.
+  {
+    const pendingInvite = consumePendingInvite(safeLocalStorage()); // single use: removed as it is acted on
+    if (pendingInvite && !(parseTeamsPath(location.pathname)?.view === 'invite')) {
+      history.replaceState(history.state, '', `/t/${pendingInvite}`);
+    }
+  }
   const route = currentRoute();
   applyCreditsTabGate(); // TEMP: credits hidden unless debugMode (restore by removing gate)
   // The URL already names the tab ('none'); an unknown path is normalised to Home ('replace').
@@ -1558,7 +1612,7 @@ async function checkAuth() {
 
   // U4-19: a logged-out visit to a deep link (including via onboarding, which never calls showLogin)
   // remembers where it was headed.
-  if (!isLoggedIn()) stashReturnTo(location.pathname + location.search);
+  if (!isLoggedIn()) { stashReturnTo(location.pathname + location.search); rememberInviteForAuth(); }
   if (isLoggedIn()) {
     // Restore per-user cache key prefix from localStorage so cached data
     // is found on reload (the prefix was set during login but is lost on reload).
@@ -1616,8 +1670,19 @@ async function checkAuth() {
   }
 }
 
+// T-1: keep an invite link's token across login/signup/onboarding (validated, short TTL,
+// never logged). Leaving the login screen from any other page drops a stale one.
+function safeLocalStorage() {
+  try { return window.localStorage; } catch (_) { return null; }
+}
+function rememberInviteForAuth() {
+  const r = parseTeamsPath(location.pathname);
+  if (r && r.view === 'invite') stashPendingInvite(safeLocalStorage(), r.token);
+}
+
 function showLogin() {
   stashReturnTo(location.pathname + location.search);   // U4-19: same-origin path only; validated on both ends
+  rememberInviteForAuth();
   setCacheKeyPrefix('');
   clearApiCache().catch(() => {});
   localStorage.removeItem('appUserId');
@@ -1627,6 +1692,7 @@ function showLogin() {
   // user, which would skip the Object.assign merge and leave stale values.
   Object.keys(userSettings).forEach(k => delete userSettings[k]);
   Object.assign(userSettings, DEFAULT_SETTINGS);
+  updateAccountNav();
   // Per-gym copies belong to the previous account too.
   cache.profilesByGym = {};
   cache.gymSettings = {};
@@ -1888,7 +1954,6 @@ if (signupForm) {
       rememberAccountEmail((user && user.email) || email);
       setCacheKeyPrefix(currentUser.id || email);
       localStorage.setItem('appUserId', currentUser.id || email);
-      showToast(COPY.auth.accountCreated, 'success');
       await onLoginSuccess();
     } catch (err) {
       fail(err instanceof TypeError ? COPY.auth.connectionFailed : err.message);
@@ -1915,6 +1980,9 @@ if (recoverFindBtn) {
 
 // Listen for global logout triggers (e.g. from api.js 401 interceptor)
 window.addEventListener('app-logout-triggered', () => {
+  clearPendingInvite(safeLocalStorage()); // T-1: an invite stashed for one account never resumes for the next
+  // ...and the /t/<token> must not be re-stashed by showLogin() for the NEXT account.
+  if (parseTeamsPath(location.pathname)) { try { history.replaceState(null, '', '/'); } catch (_) { /* keep */ } }
   setCacheKeyPrefix('');
   clearApiCache().catch(() => {});
   showToast(COPY.auth.sessionExpired, 'warning');
@@ -2131,3 +2199,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // timetable against the unscoped cache key. Its in-flight empty request then
   // suppressed the correctly scoped initialisation from `initApp()`.
 });
+
+// Keep dynamically rendered attendee and spot strips in sync with their hidden edges.
+if (typeof ResizeObserver !== 'undefined') observeEdgeFades();

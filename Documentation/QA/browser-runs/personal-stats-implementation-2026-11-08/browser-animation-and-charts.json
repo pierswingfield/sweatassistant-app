@@ -1,0 +1,82 @@
+{
+  "marquee": {
+    "width": 750,
+    "duration": 46875,
+    "pixelsPerSecond": 16,
+    "easing": "linear",
+    "infinite": true,
+    "phases": [
+      {
+        "phase": 0,
+        "x": 0
+      },
+      {
+        "phase": 0.25,
+        "x": -187.5
+      },
+      {
+        "phase": 0.5,
+        "x": -375
+      },
+      {
+        "phase": 0.75,
+        "x": -562.5
+      },
+      {
+        "phase": 0.999999,
+        "x": -749.999
+      },
+      {
+        "phase": 1,
+        "x": 0
+      },
+      {
+        "phase": 1.25,
+        "x": -187.5
+      },
+      {
+        "phase": 1.999999,
+        "x": -749.999
+      },
+      {
+        "phase": 2,
+        "x": 0
+      },
+      {
+        "phase": 2.25,
+        "x": -187.5
+      }
+    ],
+    "cloneHidden": "true",
+    "naturalDelta550ms": -8.79965
+  },
+  "pause": {
+    "persistent": "true",
+    "resumed": "false",
+    "focusPause": "false",
+    "afterBlur": "false",
+    "sameNode": true
+  },
+  "reduced": {
+    "transform": "none",
+    "overflow": "auto",
+    "cloneDisplay": "none",
+    "role": "button"
+  },
+  "failedLogo": 750,
+  "dateMask": {
+    "className": "app-wk-scroller has-edge-fade fade-right",
+    "mask": "linear-gradient(to right, rgb(0, 0, 0), rgb(0, 0, 0) 10px, rgb(0, 0, 0) calc(100% - 10px), rgb(0, 0, 0))",
+    "right": "#000",
+    "scrollWidth": 1496,
+    "width": 374
+  },
+  "charts": {
+    "cards": 4,
+    "points": 30,
+    "tableRows": 30,
+    "readout": "",
+    "scrollable": true,
+    "theme": "dark"
+  }
+}

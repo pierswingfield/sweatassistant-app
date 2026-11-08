@@ -166,3 +166,18 @@ describe('buildBookingsDayUrl (H day handoff contract)', () => {
     expect(buildBookingsDayUrl('2026-02-30')).toBe('/bookings');
   });
 });
+
+describe('T-1 Teams paths', () => {
+  const token = 'AbC_dEf-123456789XYZab';
+  it('maps /teams, /teams/<id> and /t/<token> to the Teams tab, keeping id case', () => {
+    expect(parseLocation('/teams', '')).toMatchObject({ tab: 'teams', valid: true, teams: { view: 'list' } });
+    expect(parseLocation('/teams/AbCd1234', '').teams).toEqual({ view: 'team', teamId: 'AbCd1234' });
+    expect(parseLocation(`/t/${token}`, '').teams).toEqual({ view: 'invite', token });
+    expect(parseLocation('/t/x', '').valid).toBe(false);
+  });
+  it('serialises Teams routes', () => {
+    expect(serializeState({ tab: 'teams' })).toBe('/teams');
+    expect(serializeState({ tab: 'teams', teams: { view: 'team', teamId: 'AbCd1234' } })).toBe('/teams/AbCd1234');
+    expect(serializeState({ tab: 'teams', teams: { view: 'invite', token } })).toBe(`/t/${token}`);
+  });
+});

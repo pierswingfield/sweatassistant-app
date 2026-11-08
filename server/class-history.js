@@ -19,6 +19,11 @@
 // keys include gymId.
 
 const db = require('./db');
+const { DateTime, IANAZone } = require('luxon');
+// Additive coverage metadata for existing installations; no history is rewritten.
+if (!db.db.prepare('PRAGMA table_info(class_history_sync)').all().some((c) => c.name === 'limited')) {
+  db.db.exec('ALTER TABLE class_history_sync ADD COLUMN limited INTEGER NOT NULL DEFAULT 0');
+}
 const { getProvider } = require('./providers');
 const { triggerAutoRelogin } = require('./auth');
 const backoff = require('./rate-limit-backoff');
@@ -146,26 +151,27 @@ function summary(userId, gymId, { statuses = COUNTED_STATUSES } = {}) {
 function getSyncState(userId, gymId) {
   const r = db.db.prepare('SELECT * FROM class_history_sync WHERE user_id = ? AND gym_id = ?').get(userId, gymId);
   if (!r) return null;
-  return { lastSyncedAt: r.last_synced_at, lastAttemptAt: r.last_attempt_at, lastError: r.last_error, rowCount: r.row_count };
+  return { lastSyncedAt: r.last_synced_at, lastAttemptAt: r.last_attempt_at, lastError: r.last_error, rowCount: r.row_count, limited: !!r.limited };
 }
 
 function countRows(userId, gymId) {
   return db.db.prepare('SELECT COUNT(*) AS n FROM class_history WHERE user_id = ? AND gym_id = ?').get(userId, gymId).n;
 }
 
-function recordSync(userId, gymId, { ok, error }) {
+function recordSync(userId, gymId, { ok, error, limited = false, full = false }) {
   const now = new Date().toISOString();
   db.db.prepare(`
-    INSERT INTO class_history_sync (user_id, gym_id, last_synced_at, last_attempt_at, last_error, row_count)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO class_history_sync (user_id, gym_id, last_synced_at, last_attempt_at, last_error, row_count, limited)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(user_id, gym_id) DO UPDATE SET
       last_synced_at = CASE WHEN ? THEN excluded.last_synced_at ELSE class_history_sync.last_synced_at END,
-      last_attempt_at = excluded.last_attempt_at, last_error = excluded.last_error, row_count = excluded.row_count
+      last_attempt_at = excluded.last_attempt_at, last_error = excluded.last_error, row_count = excluded.row_count,
+      limited = CASE WHEN ? THEN excluded.limited ELSE MAX(class_history_sync.limited, excluded.limited) END
   `).run(userId, gymId, ok ? now : null, now, ok ? null : String(error || 'failed').slice(0, 300),
-    countRows(userId, gymId), ok ? 1 : 0);
+    countRows(userId, gymId), limited ? 1 : 0, ok ? 1 : 0, ok && full ? 1 : 0);
 }
 
-async function pull(userId, gymId, sinceDate) {
+async function pull(userId, gymId, sinceDate, onCoverage) {
   const provider = getProvider(gymId);
   const session = db.getUserSession(userId, gymId);
   if (!session || !session.accessToken) {
@@ -173,7 +179,7 @@ async function pull(userId, gymId, sinceDate) {
     e.status = 401;
     throw e;
   }
-  const opts = sinceDate ? { sinceDate } : {};
+  const opts = { ...(sinceDate ? { sinceDate } : {}), onCoverage };
   try {
     return await provider.listBookingHistory(session, opts);
   } catch (err) {
@@ -204,13 +210,16 @@ function syncUserGym(userId, gymId, { full = false } = {}) {
       const since = (!full && state && state.lastSyncedAt)
         ? new Date(Date.parse(state.lastSyncedAt) - OVERLAP_MS).toISOString()
         : undefined;
-      const entries = await pull(userId, gymId, since);
+      let limited = false;
+      const entries = await pull(userId, gymId, since, (coverage) => { limited = !!coverage.limited; });
+      // A member may unlink while a provider pull is in flight: never resurrect their history.
+      if (!db.isGymLinked(userId, gymId)) return { ok: false, error: 'gym not linked' };
       const upserted = upsertEntries(userId, gymId, entries);
-      recordSync(userId, gymId, { ok: true });
+      recordSync(userId, gymId, { ok: true, limited, full: !since });
       return { ok: true, upserted };
     } catch (err) {
       try { backoff.noteThrottleError(gymId, err); } catch (_) {}
-      try { recordSync(userId, gymId, { ok: false, error: err.message }); } catch (_) {}
+      try { if (db.isGymLinked(userId, gymId)) recordSync(userId, gymId, { ok: false, error: err.message }); } catch (_) {}
       return { ok: false, error: err.message };
     } finally {
       inflight.delete(k);
@@ -254,7 +263,96 @@ async function syncStale({ maxAgeMs = DEFAULT_MAX_AGE_MS } = {}) {
   return { scanned: links.length, synced: done };
 }
 
+/** Invalid or missing viewer zones use UTC, never an invented gym/account zone. */
+function analysisZoneOf(zone) { return typeof zone === 'string' && IANAZone.isValidZone(zone) ? zone : 'UTC'; }
+
+/** Pure private-history projection. No raw/provider fields escape this function. */
+function aggregatePersonalHistory(entries, { zone = 'UTC', now = Date.now(), coverage = [] } = {}) {
+  const analysisZone = analysisZoneOf(zone);
+  const today = DateTime.fromMillis(now, { zone: analysisZone }).startOf('day');
+  const volume = Array.from({ length: 30 }, (_, i) => ({ date: today.minus({ days: 29 - i }).toISODate(), count: 0 }));
+  const daily = new Map(volume.map((p) => [p.date, p]));
+  const weekdays = Array(7).fill(0), timeBins = Array(6).fill(0), hours = Array(24).fill(0), mix = new Map(), weeks = new Set(), seen = new Set();
+  const patternStart = today.minus({ days: 89 });
+  let total = 0;
+  for (const e of entries) {
+    if (!COUNTED_STATUSES.includes(e.status)) continue;
+    const ts = Date.parse(e.startAt);
+    const duration = Number(e.durationMin);
+    if (!Number.isFinite(ts) || ts >= now || (duration > 0 && ts + duration * 60000 > now)) continue;
+    const identity = e.eventId != null && String(e.eventId).trim() !== '' ? ['event', String(e.eventId)] : ['booking', String(e.bookingId)];
+    if (!e.gymId || (identity[0] === 'booking' && !e.bookingId)) continue;
+    const k = JSON.stringify([e.gymId, ...identity]);
+    if (seen.has(k)) continue;
+    seen.add(k); total++;
+    const viewerDay = DateTime.fromMillis(ts, { zone: analysisZone });
+    weeks.add(viewerDay.startOf('week').toISODate());
+    const point = daily.get(viewerDay.toISODate());
+    if (point) point.count++;
+    if (viewerDay < patternStart) continue;
+    // Habits are experienced in the class's own zone; invalid historical zones use viewer zone.
+    const local = DateTime.fromMillis(ts, { zone: IANAZone.isValidZone(e.timeZone) ? e.timeZone : analysisZone });
+    weekdays[local.weekday - 1]++;
+    timeBins[Math.floor(local.hour / 4)]++;
+    hours[local.hour]++;
+    mix.set(e.gymId, (mix.get(e.gymId) || 0) + 1);
+  }
+  let cursor = today.startOf('week');
+  if (!weeks.has(cursor.toISODate())) cursor = cursor.minus({ weeks: 1 });
+  let streak = 0;
+  while (weeks.has(cursor.toISODate())) { streak++; cursor = cursor.minus({ weeks: 1 }); }
+  const pending = coverage.some((c) => c.state === 'pending');
+  const partial = coverage.some((c) => ['failed', 'stale', 'disabled'].includes(c.state) || c.limited);
+  const patternTotal = [...mix.values()].reduce((a, b) => a + b, 0);
+  return {
+    analysisZone, generatedAt: new Date(now).toISOString(), basis: 'past-bookings', pending, partial,
+    totalPastClasses: total, streak: { weeks: streak, atLeast: partial || pending },
+    volume: { days: 30, points: volume },
+    patterns: { days: 90, weekdays, timeBins, hours, gymMix: [...mix].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([gymId, count]) => ({ gymId, count, percent: patternTotal ? Math.round(count * 100 / patternTotal) : 0 })) },
+    coverage,
+  };
+}
+
+// One paced import loop per account, reusing the existing gym-keyed in-flight pipeline.
+const personalRefreshes = new Map();
+function refreshPersonalHistory(userId, links) {
+  if (personalRefreshes.has(userId)) return;
+  const needs = links.filter((link) => {
+    if (gymOutbound.isOutboundBlocked(link.gym_id, userId) || backoff.isGymRateLimited(link.gym_id) || link.relogin_suspended) return false;
+    const state = getSyncState(userId, link.gym_id);
+    return (!state?.lastSyncedAt || Date.now() - Date.parse(state.lastSyncedAt) > DEFAULT_MAX_AGE_MS)
+      && (!state?.lastAttemptAt || Date.now() - Date.parse(state.lastAttemptAt) > 60000);
+  });
+  if (!needs.length) return;
+  const task = (async () => {
+    for (const link of needs) await ensureHistory(userId, link.gym_id);
+  })().finally(() => personalRefreshes.delete(userId));
+  personalRefreshes.set(userId, task);
+}
+
+/** Account-level aggregate over ALL stored linked history, without list/date caps. */
+function personalStats(userId, { zone, now = Date.now(), refresh = true } = {}) {
+  const links = db.getUserGymsPublic(userId);
+  if (refresh) refreshPersonalHistory(userId, links);
+  const rows = db.db.prepare(`
+    SELECT h.gym_id, h.booking_id, h.event_id, h.status, h.start_at, h.time_zone, h.duration_min
+    FROM class_history h JOIN user_gyms ug ON ug.user_id = h.user_id AND ug.gym_id = h.gym_id
+    WHERE h.user_id = ? AND h.status IN ('attended', 'unconfirmed') AND h.start_ts < ?
+    ORDER BY h.start_ts, h.booking_id
+  `).iterate(userId, now);
+  const entries = (function* () { for (const r of rows) yield { gymId: r.gym_id, ...rowToEntry(r) }; })();
+  const coverage = links.map((link) => {
+    const gymId = link.gym_id, sync = getSyncState(userId, gymId);
+    const disabled = gymOutbound.isOutboundBlocked(gymId, userId);
+    const state = disabled ? 'disabled' : sync?.lastError ? 'failed' : !sync?.lastSyncedAt ? 'pending'
+      : now - Date.parse(sync.lastSyncedAt) > DEFAULT_MAX_AGE_MS ? 'stale' : 'ready';
+    const first = db.db.prepare('SELECT MIN(start_ts) AS ts FROM class_history WHERE user_id = ? AND gym_id = ?').get(userId, gymId).ts;
+    return { gymId, state, lastSyncedAt: sync?.lastSyncedAt || null, earliestStoredAt: first == null ? null : new Date(first).toISOString(), limited: !!sync?.limited };
+  });
+  return aggregatePersonalHistory(entries, { zone, now, coverage });
+}
+
 module.exports = {
-  COUNTED_STATUSES, upsertEntries, listHistory, topInstructors, summary, getSyncState,
+  analysisZoneOf, aggregatePersonalHistory, personalStats, COUNTED_STATUSES, upsertEntries, listHistory, topInstructors, summary, getSyncState,
   syncUserGym, ensureHistory, syncStale,
 };

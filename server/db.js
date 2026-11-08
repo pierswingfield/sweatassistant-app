@@ -1,6 +1,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
+const { encryptV2, decryptV2, isV2 } = require('./crypto');
 
 const dbPath = process.env.DB_PATH || path.join(__dirname, 'sqlite.db');
 
@@ -32,7 +33,14 @@ db.exec(`
     profile_json TEXT,
     profile_synced_at TEXT,
     last_seen_at TEXT,
-    calendar_token TEXT
+    calendar_token TEXT,
+    -- JWT revocation (security audit part 2): bumped on password change, admin reset
+    -- and account deletion. A token whose tv claim differs is rejected. 0 = never
+    -- bumped, in which case pre-existing tokens with no tv claim stay valid.
+    token_version INTEGER NOT NULL DEFAULT 0,
+    -- Demo fixture account (server/scripts/seed-team-fixtures.js): looks like a member
+    -- but the server never contacts a gym for it and nobody can log in as it.
+    is_fixture INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS auto_bookings (
@@ -196,6 +204,13 @@ db.exec(`
     synced_at TEXT DEFAULT CURRENT_TIMESTAMP,
     duration_min INTEGER,
     location_address TEXT,
+    -- T-2: who wrote the row. 'server' = booking-sync.js read it from the gym; 'client' =
+    -- only the member's own client pushed it (POST /api/bookings/sync). Team projections
+    -- show server rows only. Default 'client' so an unmarked row is never shared.
+    origin TEXT NOT NULL DEFAULT 'client' CHECK (origin IN ('server', 'client')),
+    -- T-2: set when a started server row is kept although the gym's latest list omits it
+    -- (started, or late-cancelled). Teams show such a row only once class_history confirms it.
+    missing_since TEXT,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (gym_id) REFERENCES gyms(id),
     UNIQUE(user_id, gym_id, booking_id)
@@ -276,6 +291,21 @@ db.exec(`
     last_attempt_at TEXT,
     last_error TEXT,
     row_count INTEGER NOT NULL DEFAULT 0,
+    limited INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, gym_id)
+  );
+
+  -- T-B: when each (user, gym) booking_cache + waitlist_cache pair was last
+  -- refreshed by server/booking-sync.js (the ONLY writer of this table). Kept
+  -- apart from the cache rows because a gym with no upcoming classes has no row
+  -- to stamp, yet "Updated 3 h ago" still has to be answerable for it.
+  CREATE TABLE IF NOT EXISTS booking_sync_state (
+    user_id INTEGER NOT NULL,
+    gym_id TEXT NOT NULL,
+    last_synced_at TEXT,
+    last_attempt_at TEXT,
+    last_error TEXT,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     PRIMARY KEY (user_id, gym_id)
   );
@@ -432,7 +462,124 @@ db.exec(`
     FOREIGN KEY (gym_id) REFERENCES gyms(id),
     UNIQUE(user_id, gym_id)
   );
+
+  -- T-1 Teams (PLAN-teams.md §7.1). Read and written ONLY by server/teams.js.
+  -- Ids are random opaque strings, not sequences, so they reveal no counts.
+  -- The invite token is stored as its SHA-256 (hex, for lookup) plus an encrypted copy
+  -- (Captain "copy link"). Rotating replaces both, killing every old link.
+  CREATE TABLE IF NOT EXISTS teams (
+    id TEXT PRIMARY KEY,
+    invite_token_hash TEXT UNIQUE,
+    invite_token_enc TEXT,         -- AES-256-GCM copy (crypto.js) so a Captain can re-copy the link
+    invite_enabled INTEGER NOT NULL DEFAULT 1 CHECK (invite_enabled IN (0, 1)),
+    invite_rotated_at TEXT,
+    name TEXT NOT NULL,
+    emoji TEXT,
+    competition_enabled INTEGER NOT NULL DEFAULT 0 CHECK (competition_enabled IN (0, 1)),
+    weekly_goal INTEGER CHECK (weekly_goal IS NULL OR (weekly_goal BETWEEN 1 AND 224)),  -- D13 Team goal (Captain); NULL = none. 224 = 16 members x 14
+    created_by INTEGER,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+  );
+
+  -- member_ref is the per-Team opaque handle every payload uses; a user id never leaves.
+  CREATE TABLE IF NOT EXISTS team_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    team_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    member_ref TEXT NOT NULL,
+    is_captain INTEGER NOT NULL DEFAULT 0 CHECK (is_captain IN (0, 1)),
+    colour_index INTEGER NOT NULL,
+    share_json TEXT NOT NULL,      -- validated by server/team-sharing.js; missing key = private
+    paused_until TEXT,             -- ISO instant; NULL or past = not paused
+    pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),  -- per-member pin (max 2; teams.js enforces)
+    alerts_enabled INTEGER NOT NULL DEFAULT 0 CHECK (alerts_enabled IN (0, 1)),  -- T-5b per-Team pushes (§5.3: opt-in, off)
+    joined_at TEXT NOT NULL,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(team_id, user_id),
+    UNIQUE(team_id, member_ref),
+    UNIQUE(team_id, colour_index)
+  );
+  CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members(user_id);
+
+  -- share_json is the requester's consent, applied on approval. A blocked request keeps
+  -- status 'declined' (blocked looks like declined to the requester, §5.6).
+  CREATE TABLE IF NOT EXISTS team_join_requests (
+    id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'declined', 'withdrawn', 'expired')),
+    blocked INTEGER NOT NULL DEFAULT 0 CHECK (blocked IN (0, 1)),
+    share_json TEXT,
+    created_at TEXT NOT NULL,
+    decided_by INTEGER,
+    decided_at TEXT,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (decided_by) REFERENCES users(id) ON DELETE SET NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_team_requests_team ON team_join_requests(team_id, status);
+  CREATE INDEX IF NOT EXISTS idx_team_requests_user ON team_join_requests(user_id, created_at);
+  -- teams.js expireStale(): WHERE status = 'pending' AND created_at < ? on every Teams read.
+  CREATE INDEX IF NOT EXISTS idx_team_requests_status_created ON team_join_requests(status, created_at);
 `);
+
+// token_version arrived after prod's first DB: add it in place (PRAGMA-guarded, safe to re-run).
+if (!db.prepare('PRAGMA table_info(users)').all().some((col) => col.name === 'token_version')) {
+  db.exec('ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0');
+}
+if (!db.prepare('PRAGMA table_info(users)').all().some((col) => col.name === 'is_fixture')) {
+  db.exec('ALTER TABLE users ADD COLUMN is_fixture INTEGER NOT NULL DEFAULT 0');
+}
+
+// --- user_gyms.session_json encryption at rest (security audit part 2) -------
+// The column holds live gym access/refresh tokens. New writes are `s2:`-prefixed
+// AES-256-GCM ciphertext (crypto.js encryptV2, AAD-bound to this column); a legacy
+// plaintext value is JSON and starts with `{`, so the two are told apart by the
+// prefix and BOTH read fine. Every writer goes through upsertUserGym -> sealSession
+// and every reader through openSession, so nothing else needs to know the format.
+// AAD binds each ciphertext to its (user_id, gym_id) row, both immutable for the life
+// of a link, so a sealed value copied onto another row fails authentication.
+const sessionAad = (userId, gymId) => `dibs:user_gyms.session_json:v3:${userId}:${gymId}`;
+function sealSession(value, userId, gymId) {
+  if (value == null || value === '') return null;
+  return isV2(value) ? value : encryptV2(value, sessionAad(userId, gymId));
+}
+/** Plaintext JSON string for a stored value (legacy plaintext passes through); null if unreadable. */
+function openSession(stored, userId, gymId) {
+  if (!stored) return null;
+  if (!isV2(stored)) return stored;
+  try { return decryptV2(stored, sessionAad(userId, gymId)); } catch (_) { return null; }
+}
+function withOpenSession(row) {
+  return row ? { ...row, session_json: openSession(row.session_json, row.user_id, row.gym_id) } : row;
+}
+/**
+ * Idempotent: seals every plaintext session_json row; clears the vestigial plaintext users.jwt copy.
+ * Never throws: a row that cannot be sealed is logged and skipped (it keeps reading as legacy
+ * plaintext), so a bad row can never stop the server booting.
+ */
+function migrateSessionEncryption() {
+  let sealed = 0;
+  try {
+    const rows = db.prepare("SELECT id, user_id, gym_id, session_json FROM user_gyms WHERE session_json IS NOT NULL AND session_json != '' AND session_json NOT LIKE 's2:%'").all();
+    const upd = db.prepare('UPDATE user_gyms SET session_json = ? WHERE id = ?');
+    db.transaction(() => {
+      for (const r of rows) {
+        try { upd.run(sealSession(r.session_json, r.user_id, r.gym_id), r.id); sealed++; }
+        catch (err) { console.error(`[db] session_json sealing skipped for user_gyms.id=${r.id}: ${err.message}`); }
+      }
+      // users.jwt was a dual-written plaintext copy of the active gym token; nothing reads it.
+      db.prepare('UPDATE users SET jwt = NULL WHERE jwt IS NOT NULL').run();
+    })();
+  } catch (err) {
+    console.error(`[db] session_json sealing pass failed (continuing to boot): ${err.message}`);
+  }
+  return sealed;
+}
+migrateSessionEncryption();
 
 // Existing account links predate the per-account gym visibility switch.
 // Preserve their existing behavior when upgrading an established database.
@@ -441,6 +588,22 @@ if (!db.prepare('PRAGMA table_info(user_gyms)').all().some((col) => col.name ===
 }
 if (!db.prepare('PRAGMA table_info(user_gyms)').all().some((col) => col.name === 'account_enabled_at')) {
   db.exec('ALTER TABLE user_gyms ADD COLUMN account_enabled_at TEXT');
+}
+// T-5b (PLAN-teams.md §5.3 "opt-in per Team"): a DB created before the column existed.
+if (!db.prepare('PRAGMA table_info(team_members)').all().some((col) => col.name === 'alerts_enabled')) {
+  db.exec('ALTER TABLE team_members ADD COLUMN alerts_enabled INTEGER NOT NULL DEFAULT 0 CHECK (alerts_enabled IN (0, 1))');
+}
+// D13 Team goal (PLAN-teams.md §8.1 option B, owner 2026-11-06): a DB created before the column.
+if (!db.prepare('PRAGMA table_info(teams)').all().some((col) => col.name === 'weekly_goal')) {
+  db.exec('ALTER TABLE teams ADD COLUMN weekly_goal INTEGER CHECK (weekly_goal IS NULL OR (weekly_goal BETWEEN 1 AND 224))');
+}
+// T-2: booking_cache row origin. Rows written before this column existed are marked
+// 'client' (never shown to a Team) until the next server sync rewrites them.
+if (!db.prepare('PRAGMA table_info(booking_cache)').all().some((col) => col.name === 'origin')) {
+  db.exec("ALTER TABLE booking_cache ADD COLUMN origin TEXT NOT NULL DEFAULT 'client' CHECK (origin IN ('server', 'client'))");
+}
+if (!db.prepare('PRAGMA table_info(booking_cache)').all().some((col) => col.name === 'missing_since')) {
+  db.exec('ALTER TABLE booking_cache ADD COLUMN missing_since TEXT');
 }
 if (!db.prepare('PRAGMA table_info(user_gyms)').all().some((col) => col.name === 'account_enabled_queue_cutoff')) {
   db.exec('ALTER TABLE user_gyms ADD COLUMN account_enabled_queue_cutoff INTEGER');
@@ -505,6 +668,8 @@ applyPresentationOverrides();
 // the hash string so they can be raised later without invalidating existing rows.
 const nodeCrypto = require('crypto');
 const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 64 };
+
+const DUMMY_SALT = nodeCrypto.randomBytes(16);
 
 function hashPassword(password) {
   const salt = nodeCrypto.randomBytes(16);
@@ -688,6 +853,9 @@ const ACCOUNT_SCOPED_SETTING_KEYS = new Set([
   // A person chooses what the app calls them once; gym profiles are merely the
   // onboarding suggestion and must never change this account-level choice.
   'firstName',
+  // T-1 (PLAN-teams.md 5.8): the last name sits beside it. Teams show only its
+  // initial, and only when two members of a Team share a first name.
+  'lastName',
   // My Bookings view mode ('combined' | 'separate'). The tab is a MERGED
   // multi-gym list, so how it is laid out is the person's choice, not a gym's.
   'bookingsView',
@@ -912,7 +1080,7 @@ function mergeUserWithGym(user, gymId) {
   if (!user) return null;
   const ug = db.prepare('SELECT * FROM user_gyms WHERE user_id = ? AND gym_id = ?').get(user.id, gymId);
   let session = null;
-  if (ug && ug.session_json) { try { session = JSON.parse(ug.session_json); } catch (_) {} }
+  if (ug && ug.session_json) { try { session = JSON.parse(openSession(ug.session_json, user.id, gymId)); } catch (_) {} }
   return {
     ...user,
     // `|| null` so the vestigial empty-string placeholder a gym-less account
@@ -964,6 +1132,8 @@ module.exports = {
   listAdminAudit,
   // Direct access if needed
   db,
+  migrateSessionEncryption, // boot migration, exported for its test
+  sessionAad,
   migrateAutoUpgradeSettingsScope,
   migrateCalendarSettingsToAccountScope,
 
@@ -1006,7 +1176,7 @@ module.exports = {
     // properly is on the backlog.
     const result = db.prepare("INSERT INTO users (email, encrypted_password, priority) VALUES (?, '', 200)").run(email);
     const userId = result.lastInsertRowid;
-    this.setAccountPassword(userId, password);
+    this.setAccountPassword(userId, password, { revokeTokens: false }); // brand new: nothing to revoke
     return userId;
   },
 
@@ -1041,8 +1211,9 @@ module.exports = {
   // explicitly avoids a second, independent resolution landing on a different
   // gym than the one the login actually used.
   updateUserCredentials(userId, encryptedPassword, jwt, jwtExpiresAt, gymId = null) {
-    db.prepare('UPDATE users SET encrypted_password = ?, jwt = ?, jwt_expires_at = ? WHERE id = ?')
-      .run(encryptedPassword, jwt, jwtExpiresAt, userId);
+    // users.jwt is no longer written: it duplicated the gym token in plaintext (see migrateSessionEncryption).
+    db.prepare('UPDATE users SET encrypted_password = ?, jwt = NULL, jwt_expires_at = ? WHERE id = ?')
+      .run(encryptedPassword, jwtExpiresAt, userId);
     this.upsertUserGym(userId, gymId || resolveActiveGymId(userId), {
       encrypted_password: encryptedPassword,
       session_json: jwt ? JSON.stringify({ accessToken: jwt, expiresAt: jwtExpiresAt || null }) : null,
@@ -1052,8 +1223,8 @@ module.exports = {
     });
   },
   updateUserJWT(userId, jwt, jwtExpiresAt, gymId = null) {
-    db.prepare('UPDATE users SET jwt = ?, jwt_expires_at = ? WHERE id = ?')
-      .run(jwt, jwtExpiresAt, userId);
+    db.prepare('UPDATE users SET jwt = NULL, jwt_expires_at = ? WHERE id = ?')
+      .run(jwtExpiresAt, userId);
     this.upsertUserGym(userId, gymId || resolveActiveGymId(userId), {
       session_json: jwt ? JSON.stringify({ accessToken: jwt, expiresAt: jwtExpiresAt || null }) : null,
       ...(jwt ? { last_authenticated_at: new Date().toISOString() } : {}), // U1-9, as above
@@ -1078,8 +1249,8 @@ module.exports = {
     // Dual-write the vestigial users.* columns only when this IS the active gym,
     // so renewing a background gym can't overwrite the active one's token.
     if (gymId === resolveActiveGymId(userId)) {
-      db.prepare('UPDATE users SET jwt = ?, jwt_expires_at = ? WHERE id = ?')
-        .run(session ? session.accessToken : null, session ? (session.expiresAt || null) : null, userId);
+      db.prepare('UPDATE users SET jwt = NULL, jwt_expires_at = ? WHERE id = ?')
+        .run(session ? (session.expiresAt || null) : null, userId);
     }
   },
   getUserSession(userId, gymId) {
@@ -1087,7 +1258,7 @@ module.exports = {
     const link = this.getUserGym(userId, resolvedGym);
     if (link && link.session_json) {
       try {
-        const s = JSON.parse(link.session_json);
+        const s = JSON.parse(openSession(link.session_json));
         if (s && s.accessToken) return s;
       } catch (_) {}
     }
@@ -1664,7 +1835,13 @@ module.exports = {
   },
   deleteAllUserData(userId) {
     db.pragma('foreign_keys = ON');
-    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    // T-1 §7.5: hand over any Team this account is the last Captain of BEFORE the
+    // cascade removes its memberships. Lazy require: teams.js depends on this module.
+    // One transaction: a failed delete must not leave a handover applied.
+    db.transaction(() => {
+      require('./teams').beforeAccountDelete(userId);
+      db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    })();
   },
 
   // User lookups (for background notification jobs)
@@ -1691,8 +1868,20 @@ module.exports = {
    *   at a gym actually disappears. Defaults to just the gyms present in the
    *   payload, so a single-gym caller cannot wipe another gym's cache.
    */
-  replaceBookingCache(userId, bookings, scopeGymIds = null) {
+  /*
+   * T-2 options: `origin` ('server' only from booking-sync.js's own fetch; anything else
+   * is stored as 'client'); `serverBookingIds` (a Set of GYM-QUALIFIED `gymId:bookingId`
+   * keys for the server's own rows carried through a client merge, stored as 'server'.
+   * Bare ids collide across gyms: a client push to gym B must never inherit gym A's
+   * server origin); `retainStartedMs` keeps SERVER rows that started within that window
+   * and are absent from the payload (a gym's list drops a class once it starts). A kept
+   * row is stamped `missing_since`: it may equally have been late-cancelled, so the Team
+   * projection shows it only once class_history confirms it (PLAN-teams.md §7.2). The
+   * stamp clears when the gym lists the booking again.
+   */
+  replaceBookingCache(userId, bookings, scopeGymIds = null, { origin = 'client', serverBookingIds = null, retainStartedMs = 0, now = Date.now() } = {}) {
     const list = Array.isArray(bookings) ? bookings : [];
+    const baseOrigin = origin === 'server' ? 'server' : 'client';
     const rowsByGym = new Map();
     for (const b of list) {
       if (b.bookingId == null || !b.startAt) continue;
@@ -1705,18 +1894,35 @@ module.exports = {
       : [...rowsByGym.keys()];
 
     const del = db.prepare('DELETE FROM booking_cache WHERE user_id = ? AND gym_id = ?');
+    const delOne = db.prepare('DELETE FROM booking_cache WHERE id = ?');
+    const sel = db.prepare("SELECT id, booking_id, start_at, origin FROM booking_cache WHERE user_id = ? AND gym_id = ?");
     const ins = db.prepare(`
       INSERT OR REPLACE INTO booking_cache
-        (user_id, gym_id, booking_id, event_id, start_at, class_name, group_name, instructor_name, studio_name, location_name, slot_label, duration_min, location_address, synced_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        (user_id, gym_id, booking_id, event_id, start_at, class_name, group_name, instructor_name, studio_name, location_name, slot_label, duration_min, location_address, origin, synced_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `);
+    const markMissing = db.prepare('UPDATE booking_cache SET missing_since = COALESCE(missing_since, ?) WHERE id = ?');
+    const missingIso = new Date(now).toISOString();
+    const keepStarted = (row, incoming) => {
+      if (!(retainStartedMs > 0) || row.origin !== 'server' || incoming.has(String(row.booking_id))) return false;
+      const t = Date.parse(row.start_at);
+      return Number.isFinite(t) && t <= now && t > now - retainStartedMs;
+    };
     const tx = db.transaction((uid) => {
-      for (const gym of scope) del.run(uid, gym);
+      for (const gym of scope) {
+        if (!(retainStartedMs > 0)) { del.run(uid, gym); continue; }
+        const incoming = new Set((rowsByGym.get(gym) || []).map((b) => String(b.bookingId)));
+        for (const row of sel.all(uid, gym)) {
+          if (keepStarted(row, incoming)) markMissing.run(missingIso, row.id);
+          else delOne.run(row.id);
+        }
+      }
       for (const [gym, rows] of rowsByGym) {
         if (!scope.includes(gym)) continue; // not ours to write
         for (const b of rows) {
+          const rowOrigin = baseOrigin === 'server' || (serverBookingIds && serverBookingIds.has(`${gym}:${b.bookingId}`)) ? 'server' : 'client';
           ins.run(uid, gym, b.bookingId, b.eventId ?? null, b.startAt, b.className ?? null, b.groupName ?? null,
-            b.instructorName ?? null, b.studioName ?? null, b.locationName ?? null, String(b.slotLabel ?? ''), b.durationMin ?? null, b.locationAddress ?? null);
+            b.instructorName ?? null, b.studioName ?? null, b.locationName ?? null, String(b.slotLabel ?? ''), b.durationMin ?? null, b.locationAddress ?? null, rowOrigin);
         }
       }
     });
@@ -1776,6 +1982,32 @@ module.exports = {
     return db.prepare('SELECT * FROM booking_cache WHERE user_id = ? AND gym_id = ?')
       .all(userId, resolveActiveGymId(userId));
   },
+  // T-B: every (user, gym) link whose member has it switched on — the population
+  // of the universal background booking sync. Cross-user scanner: deliberately
+  // NOT scoped to an active gym (rule 2 of WP-D6).
+  getEnabledGymLinks() {
+    return db.prepare(`SELECT user_id, gym_id, status, relogin_suspended FROM user_gyms
+      WHERE account_enabled = 1 ORDER BY user_id ASC, gym_id ASC`).all();
+  },
+  getBookingSyncState(userId, gymId) {
+    return db.prepare('SELECT * FROM booking_sync_state WHERE user_id = ? AND gym_id = ?').get(userId, gymId) || null;
+  },
+  // Partial upsert: a field left undefined keeps its stored value.
+  setBookingSyncState(userId, gymId, { lastSyncedAt, lastAttemptAt, lastError } = {}) {
+    db.prepare(`INSERT INTO booking_sync_state (user_id, gym_id, last_synced_at, last_attempt_at, last_error)
+      VALUES (@u, @g, @s, @a, @e)
+      ON CONFLICT(user_id, gym_id) DO UPDATE SET
+        last_synced_at = CASE WHEN @hasS THEN @s ELSE last_synced_at END,
+        last_attempt_at = CASE WHEN @hasA THEN @a ELSE last_attempt_at END,
+        last_error = CASE WHEN @hasE THEN @e ELSE last_error END`).run({
+      u: userId, g: gymId,
+      s: lastSyncedAt ?? null, a: lastAttemptAt ?? null, e: lastError ?? null,
+      hasS: lastSyncedAt !== undefined ? 1 : 0, hasA: lastAttemptAt !== undefined ? 1 : 0, hasE: lastError !== undefined ? 1 : 0,
+    });
+  },
+  pruneWaitlistCache(beforeISO) {
+    db.prepare('DELETE FROM waitlist_cache WHERE start_at < ?').run(beforeISO);
+  },
   pruneBookingCache(beforeISO) {
     db.prepare('DELETE FROM booking_cache WHERE start_at < ?').run(beforeISO);
   },
@@ -1784,8 +2016,17 @@ module.exports = {
   wasNotificationSent(userId, key) {
     return !!db.prepare('SELECT 1 FROM sent_notifications WHERE user_id = ? AND dedupe_key = ?').get(userId, key);
   },
-  markNotificationSent(userId, key) {
-    db.prepare('INSERT OR IGNORE INTO sent_notifications (user_id, dedupe_key) VALUES (?, ?)').run(userId, key);
+  markNotificationSent(userId, key, sentAt = null) {
+    // T-5: an explicit sent_at (SQLite 'YYYY-MM-DD HH:MM:SS', UTC) lets a rate limit read
+    // the ledger on an injected clock; omitted, the column default applies as before.
+    if (sentAt) db.prepare('INSERT OR IGNORE INTO sent_notifications (user_id, dedupe_key, sent_at) VALUES (?, ?, ?)').run(userId, key, sentAt);
+    else db.prepare('INSERT OR IGNORE INTO sent_notifications (user_id, dedupe_key) VALUES (?, ?)').run(userId, key);
+  },
+  // T-5: how many ledger rows with this key prefix were written at or after `sinceSql`.
+  countNotificationsSince(userId, keyPrefix, sinceSql) {
+    const like = String(keyPrefix).replace(/[\\%_]/g, (c) => `\\${c}`) + '%';
+    return db.prepare("SELECT COUNT(*) c FROM sent_notifications WHERE user_id = ? AND dedupe_key LIKE ? ESCAPE '\\' AND sent_at >= ?")
+      .get(userId, like, sinceSql).c;
   },
   pruneSentNotifications(beforeISO) {
     db.prepare('DELETE FROM sent_notifications WHERE sent_at < ?').run(beforeISO);
@@ -1803,7 +2044,7 @@ module.exports = {
   getAllUsers() {
     const rows = db.prepare(`
       SELECT
-        u.id, u.email, u.created_at, u.last_seen_at,
+        u.id, u.email, u.created_at, u.last_seen_at, u.is_fixture,
         u.display_name AS legacy_display_name,
         u.priority AS legacy_priority,
         u.profile_synced_at AS legacy_profile_synced_at,
@@ -1819,7 +2060,7 @@ module.exports = {
         'SELECT display_name, priority, profile_synced_at, session_json FROM user_gyms WHERE user_id = ? AND gym_id = ?'
       ).get(r.id, gymId);
       let jwtExpiresAt = null;
-      if (ug && ug.session_json) { try { jwtExpiresAt = JSON.parse(ug.session_json).expiresAt || null; } catch (_) {} }
+      if (ug && ug.session_json) { try { jwtExpiresAt = JSON.parse(openSession(ug.session_json, r.id, gymId)).expiresAt || null; } catch (_) {} }
       return {
         id: r.id,
         email: r.email,
@@ -1856,7 +2097,7 @@ module.exports = {
     if (!base) return null;
     const ug = db.prepare('SELECT * FROM user_gyms WHERE user_id = ? AND gym_id = ?').get(userId, gymId);
     let jwtExpiresAt = null;
-    if (ug && ug.session_json) { try { jwtExpiresAt = JSON.parse(ug.session_json).expiresAt || null; } catch (_) {} }
+    if (ug && ug.session_json) { try { jwtExpiresAt = JSON.parse(openSession(ug.session_json, userId, gymId)).expiresAt || null; } catch (_) {} }
     const user = {
       ...base,
       display_name: ug ? ug.display_name : null,
@@ -1934,7 +2175,10 @@ module.exports = {
     }
   },
   deleteUser(userId) {
-    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    db.transaction(() => { // T-1 §7.5, as deleteAllUserData: handover + delete atomically
+      require('./teams').beforeAccountDelete(userId);
+      db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    })();
   },
 
   addPushSubscription(userId, subscription) {
@@ -1975,7 +2219,7 @@ module.exports = {
     const user = db.prepare('SELECT * FROM users WHERE calendar_token = ?').get(token);
     if (user) return mergeUserWithGym(user, resolveActiveGymId(user.id));
     // Migration fallback: a token issued before the feed became account-level.
-    const ug = db.prepare('SELECT * FROM user_gyms WHERE calendar_token = ?').get(token);
+    const ug = withOpenSession(db.prepare('SELECT * FROM user_gyms WHERE calendar_token = ?').get(token));
     if (!ug) return null;
     const legacy = db.prepare('SELECT * FROM users WHERE id = ?').get(ug.user_id);
     return mergeUserWithGym(legacy, ug.gym_id);
@@ -2129,7 +2373,7 @@ module.exports = {
     return db.prepare('SELECT * FROM gyms WHERE id = ?').get(gymId);
   },
   getUserGyms(userId) {
-    return db.prepare('SELECT * FROM user_gyms WHERE user_id = ? ORDER BY gym_id ASC').all(userId);
+    return db.prepare('SELECT * FROM user_gyms WHERE user_id = ? ORDER BY gym_id ASC').all(userId).map(withOpenSession);
   },
   // Gym links with secrets stripped (no encrypted_password/session_json) and gym
   // metadata joined in — safe to serialize in an API response. Used by the admin
@@ -2138,6 +2382,10 @@ module.exports = {
     return db.prepare(`
       SELECT ug.gym_id, g.name AS gym_name, g.provider, g.enabled AS gym_enabled,
              ug.display_name,
+             -- T-1: the gym profile's own name fields, so name capture never has to
+             -- guess where a multi-word display_name splits into first and last.
+             CASE WHEN json_valid(ug.profile_json) THEN COALESCE(json_extract(ug.profile_json, '$.first_name'), json_extract(ug.profile_json, '$.data.first_name')) END AS first_name,
+             CASE WHEN json_valid(ug.profile_json) THEN COALESCE(json_extract(ug.profile_json, '$.last_name'), json_extract(ug.profile_json, '$.data.last_name')) END AS last_name,
              ug.gym_email, ug.status, ug.priority, ug.account_enabled,
              (ug.calendar_token IS NOT NULL) AS calendar_enabled,
              ug.created_at, ug.updated_at, ug.last_authenticated_at,
@@ -2150,7 +2398,7 @@ module.exports = {
     `).all(userId);
   },
   getUserGym(userId, gymId) {
-    return db.prepare('SELECT * FROM user_gyms WHERE user_id = ? AND gym_id = ?').get(userId, gymId);
+    return withOpenSession(db.prepare('SELECT * FROM user_gyms WHERE user_id = ? AND gym_id = ?').get(userId, gymId));
   },
   setUserGymEnabled(userId, gymId, enabled, disabledAt = null) {
     return db.transaction(() => {
@@ -2231,7 +2479,7 @@ module.exports = {
         profile_synced_at = excluded.profile_synced_at, calendar_token = excluded.calendar_token,
         priority = excluded.priority, status = excluded.status,
         last_authenticated_at = excluded.last_authenticated_at, updated_at = CURRENT_TIMESTAMP
-    `).run(userId, gymId, merged.gym_email, merged.encrypted_password, merged.session_json, merged.display_name,
+    `).run(userId, gymId, merged.gym_email, merged.encrypted_password, sealSession(merged.session_json, userId, gymId), merged.display_name,
       merged.profile_json, merged.profile_synced_at, merged.calendar_token, merged.priority, merged.status,
       merged.last_authenticated_at);
   },
@@ -2252,21 +2500,45 @@ module.exports = {
   // scrypt with a per-user random salt. Stored as `scrypt$N$r$p$salt$hash`, all
   // hex, so the work factor travels with the hash and can be raised later without
   // invalidating existing ones. Verification is constant-time.
-  setAccountPassword(userId, password) {
+  setAccountPassword(userId, password, { revokeTokens = true } = {}) {
     if (!password || String(password).length < 8) {
       throw new Error('Password must be at least 8 characters.');
     }
-    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), userId);
+    db.prepare('UPDATE users SET password_hash = ?, token_version = token_version + ? WHERE id = ?').run(hashPassword(password), revokeTokens ? 1 : 0, userId);
+    // ^ every password change (self-service, admin reset) revokes all previously issued JWTs.
+  },
+
+  /** Dummy scrypt with the live parameters: keeps unknown-email logins as slow as real ones. */
+  burnPasswordCheck(password) {
+    nodeCrypto.scryptSync(String(password || ''), DUMMY_SALT, SCRYPT.keylen, { N: SCRYPT.N, r: SCRYPT.r, p: SCRYPT.p });
+  },
+  // --- JWT revocation (security audit part 2) ---
+  /** Current token_version, or null when the user no longer exists (deleted account). */
+  getTokenVersion(userId) {
+    const row = db.prepare('SELECT token_version FROM users WHERE id = ?').get(userId);
+    return row ? row.token_version : null;
+  },
+  /** Invalidate every JWT issued for this user so far; returns the new version. */
+  bumpTokenVersion(userId) {
+    db.prepare('UPDATE users SET token_version = token_version + 1 WHERE id = ?').run(userId);
+    return this.getTokenVersion(userId);
+  },
+
+  /** True for a demo fixture account (users.is_fixture). Never contacts a gym; cannot log in. */
+  isFixtureUser(userId) {
+    if (userId == null) return false;
+    const row = db.prepare('SELECT is_fixture FROM users WHERE id = ?').get(userId);
+    return !!(row && row.is_fixture);
   },
 
   hasAccountPassword(userId) {
-    const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(userId);
-    return !!(row && row.password_hash);
+    const row = db.prepare('SELECT password_hash, is_fixture FROM users WHERE id = ?').get(userId);
+    return !!(row && row.password_hash && !row.is_fixture);
   },
 
   verifyAccountPassword(userId, password) {
-    const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(userId);
-    if (!row || !row.password_hash || !password) return false;
+    const row = db.prepare('SELECT password_hash, is_fixture FROM users WHERE id = ?').get(userId);
+    if (!row || !row.password_hash || row.is_fixture || !password) return false;
     return verifyPassword(password, row.password_hash);
   },
 
@@ -2278,7 +2550,7 @@ module.exports = {
     const tx = db.transaction(() => {
       for (const table of ['auto_bookings', 'auto_upgrades', 'studio_preferences', 'settings',
                            'booking_cache', 'waitlist_cache', 'calendar_classes', 'guest_booking_groups',
-                           'class_history', 'class_history_sync', 'favourites']) {
+                           'class_history', 'class_history_sync', 'favourites', 'booking_sync_state']) {
         try { db.prepare(`DELETE FROM ${table} WHERE user_id = ? AND gym_id = ?`).run(userId, gymId); }
         catch (_) { /* table may predate its gym_id column on an old DB — skip */ }
       }

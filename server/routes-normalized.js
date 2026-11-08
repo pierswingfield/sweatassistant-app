@@ -64,8 +64,9 @@ const LAYOUT_STAMP_CEILING_MS = 7 * 24 * 60 * 60 * 1000;
 // which meant it silently stopped applying as write paths migrated to the
 // normalized routes — and never applied at all to MarianaTek, which never went
 // through the proxy. Debounced inside calendar.js; safe to call per mutation.
-function refreshCalendar(userId) {
-  try { calendar.scheduleRefresh(userId); } catch (_) {}
+// T-B review: only the gym the write went to is re-synced.
+function refreshCalendar(userId, gymId) {
+  try { calendar.scheduleRefresh(userId, undefined, gymId); } catch (_) {}
 }
 
 /**
@@ -356,8 +357,9 @@ router.post('/account/password', authenticateToken, (req, res) => {
     if (db.hasAccountPassword(req.userId) && !db.verifyAccountPassword(req.userId, currentPassword)) {
       return res.status(403).json({ message: 'Current password is incorrect' });
     }
-    db.setAccountPassword(req.userId, newPassword);
-    res.json({ ok: true });
+    db.setAccountPassword(req.userId, newPassword); // bumps token_version: every older JWT is now dead
+    // Keep THIS session alive with a token for the new version; other devices must log in again.
+    res.json({ ok: true, token: require('./auth').signUserToken(req.userId, req.email) });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -559,7 +561,7 @@ router.post('/book', authenticateToken, async (req, res) => {
       }
     }
     const result = await withRelogin(req.userId, session, (s) => provider.bookSlot(eventId, slotIds || [], s));
-    if (result && result.ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
+    if (result && result.ok) { refreshCalendar(req.userId, gymId); invalidateSchedule(gymId); }
     if (result && !result.ok && Number.isInteger(result.status) && result.status >= 400) return res.status(result.status).json(result);
     res.json(result);
   } catch (err) {
@@ -590,7 +592,7 @@ router.post('/book-guest', authenticateToken, async (req, res) => {
     const result = await withRelogin(req.userId, session, (s) => provider.bookGuestSlot(eventId, slotId ?? null, guestEmail, s));
     if (result && result.ok) {
       db.upsertGuestBookingGroup(req.userId, gymId, eventId, primary.bookingId, result.bookingId);
-      refreshCalendar(req.userId); invalidateSchedule(gymId);
+      refreshCalendar(req.userId, gymId); invalidateSchedule(gymId);
     }
     if (result && !result.ok && Number.isInteger(result.status) && result.status >= 400) return res.status(result.status).json(result);
     res.json(result);
@@ -666,7 +668,7 @@ router.post('/cancel', authenticateToken, async (req, res) => {
     if (result.ok) {
       // Server-side, so every cancel path (timetable, bookings, edit modal) is covered.
       try { db.stopAutoUpgradesForBooking(req.userId, gymId, bookingId); } catch (e) { console.error('[Cancel] stop monitor failed:', e.message); }
-      refreshCalendar(req.userId); invalidateSchedule(gymId);
+      refreshCalendar(req.userId, gymId); invalidateSchedule(gymId);
     }
     if (!result.ok) return res.status(409).json(result);
     res.json(result);
@@ -693,7 +695,7 @@ router.post('/waitlist/join', authenticateToken, async (req, res) => {
     if (!eventId) return res.status(400).json({ message: 'eventId is required' });
     const { gymId, provider, session } = resolveContext(req.userId);
     const ok = await provider.joinWaitlist(eventId, session);
-    if (ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
+    if (ok) { refreshCalendar(req.userId, gymId); invalidateSchedule(gymId); }
     res.json({ ok });
   } catch (err) {
     handleError(res, err);
@@ -707,7 +709,7 @@ router.post('/waitlist/leave', authenticateToken, async (req, res) => {
     if (!eventId) return res.status(400).json({ message: 'eventId is required' });
     const { gymId, provider, session } = resolveContext(req.userId);
     const ok = await provider.leaveWaitlist(eventId, session);
-    if (ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
+    if (ok) { refreshCalendar(req.userId, gymId); invalidateSchedule(gymId); }
     res.json({ ok });
   } catch (err) {
     handleError(res, err);
@@ -721,7 +723,7 @@ router.post('/swap', authenticateToken, async (req, res) => {
     if (!bookingId || !targetSlotId) return res.status(400).json({ message: 'bookingId and targetSlotId are required' });
     const { gymId, provider, session } = resolveContext(req.userId);
     const result = await withRelogin(req.userId, session, (s) => provider.swapSpots(bookingId, currentSlotId, targetSlotId, s));
-    if (result && result.ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
+    if (result && result.ok) { refreshCalendar(req.userId, gymId); invalidateSchedule(gymId); }
     res.json(result);
   } catch (err) {
     handleError(res, err);
@@ -751,6 +753,14 @@ router.get('/waitlists', authenticateToken, readLimiter, async (req, res) => {
   } catch (err) {
     handleError(res, err);
   }
+});
+
+// Private, account-level history habits. Caller IDs/gym filters never choose the scope.
+router.get('/personal-stats', authenticateToken, readLimiter, (req, res) => {
+  try {
+    res.set('Cache-Control', 'private, no-store');
+    res.json(classHistory.personalStats(req.userId, { zone: req.query.zone }));
+  } catch (err) { handleError(res, err); }
 });
 
 // GET /api/history?days=30&limit=200&top=5 — F-10-0: the member's class history for

@@ -1,0 +1,28 @@
+import { describe, it, expect, vi } from 'vitest';
+import { renderPersonalStats, volumeWeeks } from './personal-stats.js';
+import { gymsWithPreferredSlots, enableAutoUpgradeForGyms } from './onboarding-routing.js';
+import { COPY } from '../copy.js';
+const fixture = (extra={}) => ({ totalPastClasses: 1, streak: { weeks:1,atLeast:false }, partial:false,pending:false, coverage:[],volume:{points:Array.from({length:30},(_,i)=>({date:`2026-10-${String(i+1).padStart(2,'0')}`,count:i===29?1:0}))},patterns:{weekdays:[1,0,0,0,0,0,0],timeBins:[0,0,1,0,0,0],hours:Array.from({length:24},(_,i)=>i===8?1:0),gymMix:[{gymId:'a',count:1,percent:100}]},...extra });
+describe('private history chart presentation',()=>{
+ it('uses Team cards with accessible daily bars and no daily table',()=>{const el=document.createElement('div');renderPersonalStats(el,fixture());expect([...el.querySelectorAll('.tm-chart-title')].map(e=>e.textContent)).toEqual([COPY.home.statsTrainingVolume,'Busiest days','Gym mix','Busiest times']);expect(el.querySelectorAll('.personal-volume-day[tabindex]')).toHaveLength(30);expect(el.querySelector('table')).toBeNull();expect(el.querySelectorAll('.personal-stats-dots button')).toHaveLength(4);expect(el.querySelector('.tm-stat-tile').textContent).toContain(COPY.home.statsStreak);});
+ it('keeps a failed stats request quiet and preserves previously rendered stats on refresh failure', async()=>{window.matchMedia ||= () => ({matches:false,addEventListener(){},removeEventListener(){}});await import('./home.js');const {registry,mountWidget}=await import('./widget-registry.js');const widget=registry.get('stats'),el=document.createElement('section'),options={contextKey:'account',copy:{error:'Could not load',retry:'Retry'}};await mountWidget(el,{...widget,load:async()=>{throw new Error('network');}},{},options);expect(el.hidden).toBe(true);expect(el.querySelector('button')).toBeNull();await mountWidget(el,{...widget,load:async()=>fixture()},{},options);await mountWidget(el,{...widget,load:async()=>{throw new Error('network');}},{},options);expect(el.hidden).toBe(false);expect(el.textContent).toContain('1 week');expect(el.textContent).not.toContain('Retry');});
+ it('alternates bands only on Mondays across year and DST boundaries',()=>{for(const dates of [['2026-12-27','2026-12-28','2027-01-03','2027-01-04'],['2026-03-28','2026-03-29','2026-03-30']]) { const days=volumeWeeks(dates.map(date=>({date,count:0}))); for(let i=1;i<days.length;i++) expect(days[i].band!==days[i-1].band).toBe(days[i].monday); }});
+ it('keeps unavailable history quiet without inventing a zero',()=>{const el=document.createElement('div');renderPersonalStats(el,fixture({totalPastClasses:0,pending:true,coverage:[{state:'pending'}]}));expect(el.querySelector('.tm-stat-tile')).toBeNull();expect(el.textContent).not.toContain(COPY.home.statsImporting);expect(el.textContent).not.toContain(COPY.home.statsEmptyHistory);renderPersonalStats(el,fixture({totalPastClasses:0}));expect(el.textContent).toContain(COPY.home.statsEmptyHistory);});
+ it('shows only the streak and suppresses failed or disabled coverage notes',()=>{const el=document.createElement('div');renderPersonalStats(el,fixture({partial:true,streak:{weeks:1,atLeast:true},coverage:[{state:'failed'},{state:'disabled',limited:true}]}));expect(el.querySelector('.tm-stat-big').textContent).toBe('1 week');expect(el.querySelector('.tm-stat-label').textContent).toBe('streak');expect(el.querySelector('[data-stats-retry]')).toBeNull();expect(el.textContent).not.toContain(COPY.home.statsIncomplete);expect(el.textContent).not.toContain(COPY.home.statsDisabled);expect(el.querySelector('.personal-volume-readout')).toBeNull();});
+});
+describe('saved preferred slots gate onboarding enablement',()=>{
+ const links=[{gym_id:'a'},{gym_id:'b'},{gym_id:'off',account_enabled:0},{gym_id:'unsupported'}];const catalogue=[{id:'a'},{id:'b'},{id:'off'},{id:'unsupported',capabilities:{autoUpgrade:false}}];
+ it('rejects empty/row-only/failed/disabled/noneligible maps and prevents studio ID collision',()=>{expect(gymsWithPreferredSlots(links,catalogue,{a:{'1':{preferredRows:['front']}},b:{'1':{preferredSlots:['9']}},off:{'1':{preferredSlots:['9']}},unsupported:{'1':{preferredSlots:['9']}}})).toEqual(['b']);expect(gymsWithPreferredSlots(links,catalogue,{})).toEqual([]);});
+ it('persists only eligible gyms and reports rejected saves without inventing success',async()=>{const save=vi.fn().mockRejectedValue(new Error('fail'));const result=await enableAutoUpgradeForGyms(links,catalogue,save,['b']);expect(save).toHaveBeenCalledTimes(1);expect(save).toHaveBeenCalledWith({autoUpgradeEnabled:true},'b');expect(result).toEqual({enabledGymIds:[],failedGymIds:['b']});});
+});
+
+describe('saved favourites visibility uses saved state, independent of schedule',()=>{
+ it('hides confirmed global zero and keeps failed or not loaded gyms unknown',async()=>{
+   window.matchMedia ||= () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+   const {savedFavouritesVisibility}=await import('./home.js');
+   expect(savedFavouritesVisibility(['a','b'],{a:{items:[]},b:{items:[]}})).toBe('hidden');
+   expect(savedFavouritesVisibility(['a','b'],{a:{items:[]}})).toBe('unknown');
+   expect(savedFavouritesVisibility(['a','b'],{a:{items:[{id:'saved-no-schedule-match'}]}})).toBe('visible');
+   expect(savedFavouritesVisibility(['a'],{a:{items:[]},b:{items:[{id:'unlinked'}]}})).toBe('hidden');
+ });
+});

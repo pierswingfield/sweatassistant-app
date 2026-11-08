@@ -1,0 +1,18 @@
+{
+  "charts": {
+    "active": true,
+    "readout": "2026-10-10: 2 past classes",
+    "hasFocus": true
+  },
+  "focus": {
+    "focusPause": "true",
+    "blurPause": "false",
+    "active": false
+  },
+  "reduced": {
+    "role": "group",
+    "paused": "true",
+    "transform": "none",
+    "scrollable": true
+  }
+}

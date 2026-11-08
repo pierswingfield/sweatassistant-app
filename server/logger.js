@@ -31,8 +31,13 @@ function createLogger({ level = process.env.LOG_LEVEL, write = defaultWrite, bas
   return log;
 }
 
-// Calendar feed URLs carry a bearer-like token in the path.
-function scrubPath(p) { return p.replace(/^(\/api\/calendar\/)[^/]+(\.ics)$/, '$1:token$2'); }
+// Calendar feed URLs and Teams invite links (T-1) carry a bearer-like token in the path.
+function scrubPath(p) {
+  return p
+    .replace(/^(\/api\/calendar\/)[^/]+(\.ics)$/, '$1:token$2')
+    .replace(/^(\/api\/teams\/invite\/)[^/]+/, '$1:token')
+    .replace(/^(\/t\/)[^/]+/, '$1:token');
+}
 
 // Method, path (no query string), status, duration, userId when authenticated. Nothing else:
 // never bodies, headers or query strings. Static asset hits and health probes log at debug.

@@ -1,0 +1,278 @@
+[
+  {
+    "host": "app.dibs.fit",
+    "path": "/api/health",
+    "status": 200,
+    "cache": "private, no-store",
+    "edgeCache": "DYNAMIC",
+    "type": "application/json; charset=utf-8"
+  },
+  {
+    "host": "app.dibs.fit",
+    "path": "/api/config",
+    "status": 200,
+    "cache": "private, no-store",
+    "edgeCache": "DYNAMIC",
+    "type": "application/json; charset=utf-8"
+  },
+  {
+    "host": "app.dibs.fit",
+    "path": "/api/teams",
+    "status": 401,
+    "cache": "private, no-cache",
+    "edgeCache": "DYNAMIC",
+    "type": "application/json; charset=utf-8"
+  },
+  {
+    "host": "app.dibs.fit",
+    "path": "/api/admin/users",
+    "status": 401,
+    "cache": "private, no-store",
+    "edgeCache": "DYNAMIC",
+    "type": "application/json; charset=utf-8"
+  },
+  {
+    "host": "app.dibs.fit",
+    "path": "/api/not-real-migration",
+    "status": 404,
+    "cache": "private, no-cache",
+    "edgeCache": "DYNAMIC",
+    "type": "application/json; charset=utf-8"
+  },
+  {
+    "host": "app.dibs.fit",
+    "path": "/sw.js",
+    "status": 200,
+    "cache": "no-cache",
+    "edgeCache": "MISS",
+    "type": "application/javascript; charset=utf-8"
+  },
+  {
+    "host": "app.dibs.fit",
+    "path": "/manifest.json",
+    "status": 200,
+    "cache": "no-cache",
+    "edgeCache": "DYNAMIC",
+    "type": "application/manifest+json; charset=utf-8"
+  },
+  {
+    "host": "app.dibs.fit",
+    "path": "/assets/index-B8zMikuX.js",
+    "status": 200,
+    "sha256": "839d817c81872bf6c80ea07150762bdd1937e0f442f1b6b70db99ef9460d20ef"
+  },
+  {
+    "host": "app.dibs.fit",
+    "path": "/assets/index-BV8izOqU.css",
+    "status": 200,
+    "sha256": "f24a67aea2154c43311829e378d15bfcf3a6b35b6fe82b7d9eee4c1c01af0c17"
+  },
+  {
+    "host": "app.dibs.fit",
+    "path": "/teams",
+    "status": 200,
+    "cache": "no-cache",
+    "edgeCache": "DYNAMIC",
+    "type": "text/html; charset=utf-8"
+  },
+  {
+    "host": "app.dibs.fit",
+    "path": "/bookings",
+    "status": 200,
+    "cache": "no-cache",
+    "edgeCache": "DYNAMIC",
+    "type": "text/html; charset=utf-8"
+  },
+  {
+    "host": "app.dibs.fit",
+    "path": "/api/calendar/invalid-token-migration.ics",
+    "status": 410,
+    "cache": "private, no-cache",
+    "edgeCache": "DYNAMIC",
+    "type": "text/plain; charset=utf-8"
+  },
+  {
+    "host": "dev.dibs.fit",
+    "path": "/api/health",
+    "status": 200,
+    "cache": "private, no-store",
+    "edgeCache": "DYNAMIC",
+    "type": "application/json; charset=utf-8"
+  },
+  {
+    "host": "dev.dibs.fit",
+    "path": "/api/config",
+    "status": 200,
+    "cache": "private, no-store",
+    "edgeCache": "DYNAMIC",
+    "type": "application/json; charset=utf-8"
+  },
+  {
+    "host": "dev.dibs.fit",
+    "path": "/api/teams",
+    "status": 401,
+    "cache": "private, no-cache",
+    "edgeCache": "DYNAMIC",
+    "type": "application/json; charset=utf-8"
+  },
+  {
+    "host": "dev.dibs.fit",
+    "path": "/api/admin/users",
+    "status": 401,
+    "cache": "private, no-store",
+    "edgeCache": "DYNAMIC",
+    "type": "application/json; charset=utf-8"
+  },
+  {
+    "host": "dev.dibs.fit",
+    "path": "/api/not-real-migration",
+    "status": 404,
+    "cache": "private, no-cache",
+    "edgeCache": "DYNAMIC",
+    "type": "application/json; charset=utf-8"
+  },
+  {
+    "host": "dev.dibs.fit",
+    "path": "/sw.js",
+    "status": 200,
+    "cache": "no-cache",
+    "edgeCache": "REVALIDATED",
+    "type": "application/javascript; charset=utf-8"
+  },
+  {
+    "host": "dev.dibs.fit",
+    "path": "/manifest.json",
+    "status": 200,
+    "cache": "no-cache",
+    "edgeCache": "DYNAMIC",
+    "type": "application/manifest+json; charset=utf-8"
+  },
+  {
+    "host": "dev.dibs.fit",
+    "path": "/assets/index-B8zMikuX.js",
+    "status": 200,
+    "sha256": "839d817c81872bf6c80ea07150762bdd1937e0f442f1b6b70db99ef9460d20ef"
+  },
+  {
+    "host": "dev.dibs.fit",
+    "path": "/assets/index-BV8izOqU.css",
+    "status": 200,
+    "sha256": "f24a67aea2154c43311829e378d15bfcf3a6b35b6fe82b7d9eee4c1c01af0c17"
+  },
+  {
+    "host": "dev.dibs.fit",
+    "path": "/teams",
+    "status": 200,
+    "cache": "no-cache",
+    "edgeCache": "DYNAMIC",
+    "type": "text/html; charset=utf-8"
+  },
+  {
+    "host": "dev.dibs.fit",
+    "path": "/bookings",
+    "status": 200,
+    "cache": "no-cache",
+    "edgeCache": "DYNAMIC",
+    "type": "text/html; charset=utf-8"
+  },
+  {
+    "host": "dev.dibs.fit",
+    "path": "/api/calendar/invalid-token-migration.ics",
+    "status": 410,
+    "cache": "private, no-cache",
+    "edgeCache": "DYNAMIC",
+    "type": "text/plain; charset=utf-8"
+  },
+  {
+    "host": "experiment.dibs.fit",
+    "path": "/api/health",
+    "status": 200,
+    "cache": "private, no-store",
+    "edgeCache": "DYNAMIC",
+    "type": "application/json; charset=utf-8"
+  },
+  {
+    "host": "experiment.dibs.fit",
+    "path": "/api/config",
+    "status": 200,
+    "cache": "private, no-store",
+    "edgeCache": "DYNAMIC",
+    "type": "application/json; charset=utf-8"
+  },
+  {
+    "host": "experiment.dibs.fit",
+    "path": "/api/teams",
+    "status": 401,
+    "cache": "private, no-cache",
+    "edgeCache": "DYNAMIC",
+    "type": "application/json; charset=utf-8"
+  },
+  {
+    "host": "experiment.dibs.fit",
+    "path": "/api/admin/users",
+    "status": 401,
+    "cache": "private, no-store",
+    "edgeCache": "DYNAMIC",
+    "type": "application/json; charset=utf-8"
+  },
+  {
+    "host": "experiment.dibs.fit",
+    "path": "/api/not-real-migration",
+    "status": 404,
+    "cache": "private, no-cache",
+    "edgeCache": "DYNAMIC",
+    "type": "application/json; charset=utf-8"
+  },
+  {
+    "host": "experiment.dibs.fit",
+    "path": "/sw.js",
+    "status": 200,
+    "cache": "no-cache",
+    "edgeCache": "MISS",
+    "type": "application/javascript; charset=utf-8"
+  },
+  {
+    "host": "experiment.dibs.fit",
+    "path": "/manifest.json",
+    "status": 200,
+    "cache": "no-cache",
+    "edgeCache": "DYNAMIC",
+    "type": "application/manifest+json; charset=utf-8"
+  },
+  {
+    "host": "experiment.dibs.fit",
+    "path": "/assets/index-B8zMikuX.js",
+    "status": 200,
+    "sha256": "839d817c81872bf6c80ea07150762bdd1937e0f442f1b6b70db99ef9460d20ef"
+  },
+  {
+    "host": "experiment.dibs.fit",
+    "path": "/assets/index-BV8izOqU.css",
+    "status": 200,
+    "sha256": "f24a67aea2154c43311829e378d15bfcf3a6b35b6fe82b7d9eee4c1c01af0c17"
+  },
+  {
+    "host": "experiment.dibs.fit",
+    "path": "/teams",
+    "status": 200,
+    "cache": "no-cache",
+    "edgeCache": "DYNAMIC",
+    "type": "text/html; charset=utf-8"
+  },
+  {
+    "host": "experiment.dibs.fit",
+    "path": "/bookings",
+    "status": 200,
+    "cache": "no-cache",
+    "edgeCache": "DYNAMIC",
+    "type": "text/html; charset=utf-8"
+  },
+  {
+    "host": "experiment.dibs.fit",
+    "path": "/api/calendar/invalid-token-migration.ics",
+    "status": 410,
+    "cache": "private, no-cache",
+    "edgeCache": "DYNAMIC",
+    "type": "text/plain; charset=utf-8"
+  }
+]

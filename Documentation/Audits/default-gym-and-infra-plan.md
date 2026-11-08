@@ -1,5 +1,7 @@
 # DEFAULT_GYM_ID removal and infra rename (2026-10-07, names revised 2026-10-08)
 
+> Historical record: domains, host state and pending actions below describe the dated inspection/cutover. For current domains, branch and deployment workflow, use [current operations](../Operations/CURRENT.md). Do not execute this old runbook as a current deployment plan.
+
 Status: **code and infra FILES are done on branch `agent/psycle-naming-css-audit-f37e1a` (step 7). No host has been touched.**
 The host cutover below is a runbook for the user to approve and run (dev first, then prod).
 

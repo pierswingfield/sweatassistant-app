@@ -133,6 +133,7 @@
     .badge-pending { background: var(--accent-dim); color: var(--accent); }
     .badge-upgrades { background: rgba(90,171,110,0.15); color: var(--green); }
     .badge-zero { color: var(--text-muted); }
+    .badge-fixture { background: var(--surface-2); color: var(--text-muted); margin-left: 6px; vertical-align: 1px; }
 
     /* Inline priority editor */
     .priority-cell { display: flex; align-items: center; gap: 6px; }
@@ -353,12 +354,13 @@
           <th>Priority</th>
           <th>Auto-Books</th>
           <th>Upgrades</th>
+          <th>Teams</th>
           <th>Last seen</th>
           <th>Joined</th>
           <th></th>
         </tr>
       </thead>
-      <tbody id="user-tbody"><tr><td colspan="7" class="loading">Loading…</td></tr></tbody>
+      <tbody id="user-tbody"><tr><td colspan="8" class="loading">Loading…</td></tr></tbody>
     </table>
   </div>
 
@@ -542,13 +544,13 @@
 
   async function loadUsers() {
     const tbody = document.getElementById('user-tbody');
-    tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="loading">Loading…</td></tr>';
     try {
       const res = await apiFetch('/api/admin/users');
       const { users } = await res.json();
       renderUsers(users);
     } catch (e) {
-      if (adminToken) tbody.innerHTML = `<tr><td colspan="7" class="loading" style="color:var(--red)">${e.message}</td></tr>`;
+      if (adminToken) tbody.innerHTML = `<tr><td colspan="8" class="loading" style="color:var(--red)">${escHtml(e.message)}</td></tr>`;
     }
   }
 
@@ -559,13 +561,13 @@
     const totalPending = users.reduce((s, u) => s + (u.pending_bookings || 0), 0);
     const totalUpgrades = users.reduce((s, u) => s + (u.active_upgrades || 0), 0);
     statsEl.innerHTML = `
-      <div class="stat"><strong>${users.length}</strong> users</div>
-      <div class="stat"><strong>${totalPending}</strong> pending books</div>
-      <div class="stat"><strong>${totalUpgrades}</strong> active upgrades</div>
+      <div class="stat"><strong>${escHtml(users.length)}</strong> users</div>
+      <div class="stat"><strong>${escHtml(totalPending)}</strong> pending books</div>
+      <div class="stat"><strong>${escHtml(totalUpgrades)}</strong> active upgrades</div>
     `;
 
     if (users.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="loading">No users yet.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="loading">No users yet.</td></tr>';
       return;
     }
 
@@ -574,16 +576,16 @@
       const joined = u.created_at ? new Date(u.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
       const isVip = (u.priority || 100) < 100;
       const pendingBadge = u.pending_bookings > 0
-        ? `<span class="badge badge-pending">${u.pending_bookings}</span>`
+        ? `<span class="badge badge-pending">${escHtml(u.pending_bookings)}</span>`
         : `<span class="badge-zero">—</span>`;
       const upgradesBadge = u.active_upgrades > 0
-        ? `<span class="badge badge-upgrades">${u.active_upgrades}</span>`
+        ? `<span class="badge badge-upgrades">${escHtml(u.active_upgrades)}</span>`
         : `<span class="badge-zero">—</span>`;
       const seen = relativeTime(u.last_seen_at);
       const seenStale = u.last_seen_at && (Date.now() - new Date(u.last_seen_at).getTime()) > 14 * 864e5;
-      return `<tr data-id="${u.id}">
+      return `<tr data-id="${escHtml(u.id)}">
         <td>
-          <button class="name-btn" data-detail-id="${u.id}">${escHtml(name)}</button>
+          <button class="name-btn" data-detail-id="${escHtml(u.id)}">${escHtml(name)}</button>${u.is_fixture ? '<span class="badge badge-fixture" title="Demo fixture account: never contacts a gym">fixture</span>' : ''}
           <div class="email">${escHtml(u.email)}</div>
           ${reloginBadges(u.relogin_issues)}
         </td>
@@ -593,23 +595,24 @@
               type="number"
               min="1" max="999"
               class="priority-input${isVip ? ' priority-vip' : ''}"
-              value="${u.priority || 100}"
-              data-user-id="${u.id}"
-              data-original="${u.priority || 100}"
+              value="${escHtml(u.priority || 100)}"
+              data-user-id="${escHtml(u.id)}"
+              data-original="${escHtml(u.priority || 100)}"
               title="Lower = higher priority. Default 100."
             >
           </div>
         </td>
         <td>${pendingBadge}</td>
         <td>${upgradesBadge}</td>
+        <td>${u.team_count > 0 ? `<span class="badge">${escHtml(u.team_count)}</span>` : '<span class="badge-zero">—</span>'}</td>
         <td><span class="last-seen${seenStale ? ' stale' : ''}">${seen}</span></td>
         <td><span class="created">${joined}</span></td>
         <td>
-          <button class="btn reset-pw-btn" data-user-id="${u.id}" data-email="${escHtml(u.email)}"
+          <button class="btn reset-pw-btn" data-user-id="${escHtml(u.id)}" data-email="${escHtml(u.email)}"
                   title="Generate a new password for this account">
             Reset password
           </button>
-          <button class="btn btn-danger delete-btn" data-user-id="${u.id}" data-name="${escHtml(name)}" data-email="${escHtml(u.email)}">
+          <button class="btn btn-danger delete-btn" data-user-id="${escHtml(u.id)}" data-name="${escHtml(name)}" data-email="${escHtml(u.email)}">
             Delete
           </button>
         </td>
@@ -749,8 +752,8 @@
   function sectionOverview(d) {
     const p = d.profile, u = d.user;
     const rows = [
-      ['Priority', (u.priority || 100) < 100 ? `<span class="pill pill-accent">${u.priority} · VIP</span>` : (u.priority || 100)],
-      ['CodexFit ID', p.id ?? '—'],
+      ['Priority', (u.priority || 100) < 100 ? `<span class="pill pill-accent">${escHtml(u.priority)} · VIP</span>` : escHtml(u.priority || 100)],
+      ['CodexFit ID', escHtml(p.id ?? '—')],
       ['Phone', p.telephone ? escHtml(p.telephone) : '—'],
       ['Account created', fmtDate(p.createdAt) || '—'],
       ['Signed up here', fmtDate(u.created_at) || '—'],
@@ -758,7 +761,7 @@
       ['Profile cached', u.profile_synced_at ? `${relativeTime(u.profile_synced_at)}` : '<span class="pill pill-muted">never</span>'],
       ['Session valid until', fmtDateTime(u.jwt_expires_at) || '—'],
     ];
-    return section('Overview', `<dl class="kv-grid">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`);
+    return section('Overview', `<dl class="kv-grid">${rows.map(([k, v]) => `<dt>${escHtml(k)}</dt><dd>${v}</dd>`).join('')}</dl>`);
   }
 
   // C6-4: background relogin trouble, one pill per affected gym. Red = automatic
@@ -769,7 +772,7 @@
     return `<div class="relogin-issues" data-relogin-issues>${issues.map(i =>
       `<span class="pill ${i.suspended ? 'pill-red' : 'pill-muted'}" data-gym-id="${escHtml(i.gym_id)}"
         title="${i.suspended ? 'Automatic sign-in paused after repeated rejections. The user must re-link this gym.' : 'Consecutive failed background sign-ins'}${i.last_relogin_failure_at ? ' · last ' + escHtml(fmtDateTime(i.last_relogin_failure_at)) : ''}">
-        ${escHtml(i.gym_name)}: ${i.failures} relogin fail${i.failures === 1 ? '' : 's'}${i.suspended ? ' · paused' : ''}</span>`).join(' ')}</div>`;
+        ${escHtml(i.gym_name)}: ${escHtml(i.failures)} relogin fail${i.failures === 1 ? '' : 's'}${i.suspended ? ' · paused' : ''}</span>`).join(' ')}</div>`;
   }
 
   function sectionGyms(d) {
@@ -777,9 +780,9 @@
     if (!gyms.length) return section('Linked gyms', `<div class="empty">No gyms linked.</div>`, 0);
     const items = gyms.map(g => {
       const enabledPill = g.gym_enabled ? '<span class="pill pill-green">Enabled</span>' : '<span class="pill pill-muted">Disabled</span>';
-      const vip = g.priority < 100 ? ` · <span class="pill pill-accent">${g.priority} VIP</span>` : '';
+      const vip = g.priority < 100 ? ` · <span class="pill pill-accent">${escHtml(g.priority)} VIP</span>` : '';
       const relogin = g.relogin_failures > 0
-        ? `<div class="item-meta" data-relogin-detail><span class="pill ${g.relogin_suspended ? 'pill-red' : 'pill-muted'}">${g.relogin_failures} consecutive relogin failure${g.relogin_failures === 1 ? '' : 's'}${g.relogin_suspended ? ' · auto sign-in paused' : ''}</span>
+        ? `<div class="item-meta" data-relogin-detail><span class="pill ${g.relogin_suspended ? 'pill-red' : 'pill-muted'}">${escHtml(g.relogin_failures)} consecutive relogin failure${g.relogin_failures === 1 ? '' : 's'}${g.relogin_suspended ? ' · auto sign-in paused' : ''}</span>
             ${g.last_relogin_failure_at ? ` last ${fmtDateTime(g.last_relogin_failure_at)}` : ''}${g.last_relogin_error ? ` · ${escHtml(g.last_relogin_error)}` : ''}</div>`
         : '';
       return `<div class="item"><div class="item-head"><span class="item-title">${escHtml(g.gym_name)}</span>
@@ -798,12 +801,12 @@
     const weeks = w ? w.weeks : Math.max(1, Math.round(offset / 7));
     const label = describeWindow(offset, w && w.cutoffISO);
     const src = w && w.source ? `<span class="pill pill-muted">${escHtml(w.source)}</span>` : '';
-    const credits = w && w.extendedCredits ? ` · ${w.extendedCredits} advance-booking credit(s)` : '';
+    const credits = w && w.extendedCredits ? ` · ${escHtml(w.extendedCredits)} advance-booking credit(s)` : '';
     return section('Booking window',
       `<dl class="kv-grid">
-        <dt>Window</dt><dd>${weeks} week${weeks === 1 ? '' : 's'} ${src}</dd>
+        <dt>Window</dt><dd>${escHtml(weeks)} week${weeks === 1 ? '' : 's'} ${src}</dd>
         <dt>Detail</dt><dd>${escHtml(label)}${credits}</dd>
-        <dt>Offset</dt><dd>${offset} days</dd>
+        <dt>Offset</dt><dd>${escHtml(offset)} days</dd>
       </dl>`);
   }
 
@@ -828,7 +831,7 @@
       const count = c.count ?? c.quantity ?? 0;
       const expiry = c.expires_at || c.expiry_date;
       return `<div class="item"><div class="item-head"><span class="item-title">${escHtml(name)}</span>
-        <span class="pill ${count > 0 ? 'pill-green' : 'pill-muted'}">${count} left</span></div>
+        <span class="pill ${count > 0 ? 'pill-green' : 'pill-muted'}">${escHtml(count)} left</span></div>
         ${expiry ? `<div class="item-meta">Expires ${fmtDate(expiry)}</div>` : ''}</div>`;
     }).join('');
     return section('Credits', items, d.credits.length);
@@ -881,7 +884,7 @@
     const cls = a.status === 'pending' ? 'pill-accent' : (a.status === 'success' ? 'pill-green' : (a.status === 'failed' ? 'pill-red' : 'pill-muted'));
     const prefs = a.preferences || {};
     const slots = (prefs.preferredSlots || []).map((s, i) => `<span class="chip rank">${i + 1}: ${escHtml(String(s))}</span>`).join('');
-    const qty = prefs.requiredCount ? `<span class="chip">×${prefs.requiredCount}</span>` : '';
+    const qty = prefs.requiredCount ? `<span class="chip">×${escHtml(prefs.requiredCount)}</span>` : '';
     return `<div class="item">
       <div class="item-head"><span class="item-title">${escHtml(title)}</span><span class="pill ${cls}">${escHtml(a.status)}</span></div>
       <div class="item-sub">${escHtml(fmtDateTime(a.start_at) || '')}${a.instructor_name ? ' · ' + escHtml(a.instructor_name) : ''}</div>
@@ -1020,7 +1023,7 @@
   // ── Drawer helpers ──────────────────────────────────────────────────────────
 
   function section(title, inner, count) {
-    const badge = (count !== undefined) ? `<span class="count">${count}</span>` : '';
+    const badge = (count !== undefined) ? `<span class="count">${escHtml(count)}</span>` : '';
     return `<div class="section"><div class="section-title">${title}${badge}</div>${inner}</div>`;
   }
 
@@ -1043,7 +1046,7 @@
     const diff = Date.now() - dt.getTime();
     const min = Math.round(diff / 60000);
     if (min < 1) return 'just now';
-    if (min < 60) return `${min}m ago`;
+    if (min < 60) return `${escHtml(min)}m ago`;
     const hr = Math.round(min / 60);
     if (hr < 24) return `${hr}h ago`;
     const days = Math.round(hr / 24);
@@ -1070,7 +1073,7 @@
   }
 
   function escHtml(str) {
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
   // ── Event wiring ──────────────────────────────────────────────────────────

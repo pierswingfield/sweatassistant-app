@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mascot states</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="mock.css">
+<script src="chrome.js"></script>
+</head>
+<body data-nav="teams">
+<main class="page">
+  <h1 class="page-title">Team mascot</h1>
+  <p class="muted" style="padding:6px 8px 14px">The owner's new art (characters/), cropped to the figure with even padding and web-optimised as 320 px WebP copies (12–31 KB each) for these mock-ups only.</p>
+
+  <section class="card">
+    <div class="card-head"><h3 class="card-title">States</h3><span class="card-meta">§5.4</span></div>
+    <div class="mascot-strip">
+      <section class="card ms"><span class="mascot lg" style="--s:96px"><span class="disc"></span><svg class="ring" viewBox="0 0 96 96"><circle class="track" cx="48" cy="48" r="45"/></svg><img src="img/pose-bed.webp" alt=""></span><h3>Sleeping</h3><p class="cond">Before 05:00 or after 22:00, nothing in progress</p><p class="art"><span class="pill">bed</span></p></section>
+      <section class="card ms"><span class="mascot lg" style="--s:96px"><span class="disc"></span><svg class="ring" viewBox="0 0 96 96"><circle class="track" cx="48" cy="48" r="45"/></svg><img src="img/pose-stretch.webp" alt=""></span><h3>Resting</h3><p class="cond">No shared classes today</p><p class="art"><span class="pill">stretch / bed</span></p></section>
+      <section class="card ms"><span class="mascot lg" style="--s:96px"><span class="disc"></span><svg class="ring" viewBox="0 0 96 96"><circle class="track" cx="48" cy="48" r="45"/></svg><img src="img/pose-running.webp" alt=""></span><h3>Warming up</h3><p class="cond">Classes today, none started</p><p class="art"><span class="pill">droplet.gif / running</span></p></section>
+      <section class="card ms"><span class="mascot lg" style="--s:96px"><span class="disc"></span><svg class="ring" viewBox="0 0 96 96"><circle class="track" cx="48" cy="48" r="45"/><circle class="prog" cx="48" cy="48" r="45" stroke-dasharray="71 283"/></svg><img src="img/pose-skip.webp" alt=""></span><h3>Exercising</h3><p class="cond">At least one member in class now</p><p class="art"><span class="pill">Daily pose (below)</span></p></section>
+      <section class="card ms"><span class="mascot lg fit" style="--s:96px"><span class="disc"></span><svg class="ring" viewBox="0 0 96 96"><circle class="track" cx="48" cy="48" r="45"/><circle class="prog" cx="48" cy="48" r="45" stroke-dasharray="170 283"/></svg><img src="img/pose-stretch.webp" alt=""></span><h3>Cooling down</h3><p class="cond">Some classes done, more to come</p><p class="art"><span class="pill">stretch</span></p></section>
+      <section class="card ms"><span class="mascot lg" style="--s:96px"><span class="disc"></span><svg class="ring" viewBox="0 0 96 96"><circle class="track" cx="48" cy="48" r="45"/><circle class="prog" cx="48" cy="48" r="45" stroke-dasharray="283 283"/></svg><img src="img/pose-champion.webp" alt=""></span><h3>Champion</h3><p class="cond">Everything done today (1+ classes)</p><p class="art"><span class="pill">champion</span></p></section>
+    </div>
+  </section>
+
+  <section class="card" style="margin-top:16px">
+    <div class="card-head"><h3 class="card-title">Exercising poses</h3><span class="card-meta">mascot-poses.js registry</span></div>
+    <div class="pose-grid">
+      <div class="pose"><img src="img/pose-dumbbell.webp" alt=""><b>Dumbbell</b><small>Always · fallback</small></div>
+      <div class="pose"><img src="img/pose-running.webp" alt=""><b>Running</b><small>Always</small></div>
+      <div class="pose"><img src="img/pose-handstand.webp" alt=""><b>Handstand</b><small>Always</small></div>
+      <div class="pose"><img src="img/pose-skip.webp" alt=""><b>Skip</b><small>Always</small></div>
+      <div class="pose"><img src="img/pose-boxing.webp" alt=""><b>Boxing</b><small>Boxing class that day</small></div>
+      <div class="pose"><img src="img/pose-bike.webp" alt=""><b>Bike</b><small>Ride class that day</small></div>
+    </div>
+    <p class="muted xs" style="margin-top:10px">Not exercising poses: bed, stretch, champion, smoothie (unused so far; a candidate for Cooling down).</p>
+  </section>
+
+  <section class="card" style="margin-top:16px">
+    <div class="card-head"><h3 class="card-title">Daily rotation</h3><span class="card-meta">Tuesday Riders, this week</span></div>
+    <div class="rot">
+      <div class="d today"><span class="h">Wed</span><img src="img/pose-skip.webp" alt=""><div class="p">Skip</div><div class="c">Ride + Barre</div></div>
+      <div class="d"><span class="h">Thu</span><img src="img/pose-bike.webp" alt=""><div class="p">Bike</div><div class="c">Ride day</div></div>
+      <div class="d"><span class="h">Fri</span><img src="img/pose-boxing.webp" alt=""><div class="p">Boxing</div><div class="c">Boxing day</div></div>
+      <div class="d"><span class="h">Sat</span><img src="img/pose-handstand.webp" alt=""><div class="p">Handstand</div><div class="c">Barre only</div></div>
+      <div class="d"><span class="h">Sun</span><img src="img/pose-running.webp" alt=""><div class="p">Running</div><div class="c">Ride day</div></div>
+      <div class="d"><span class="h">Mon</span><img src="img/pose-dumbbell.webp" alt=""><div class="p">Dumbbell</div><div class="c">No ride or boxing</div></div>
+      <div class="d"><span class="h">Tue</span><img src="img/pose-bike.webp" alt=""><div class="p">Bike</div><div class="c">Ride day</div></div>
+    </div>
+    <div class="elig">
+      <div class="r"><img src="img/pose-bike.webp" alt=""><span><b>Bike</b> is only eligible on a day with a cycle/ride class.</span></div>
+      <div class="r"><img src="img/pose-boxing.webp" alt=""><span><b>Boxing</b> is only eligible on a day with a boxing class.</span></div>
+      <div class="r"><img src="img/pose-dumbbell.webp" alt=""><span>The pose is a hash of the Team and the date, so everyone in the Team sees the same one all day. If nothing is eligible: dumbbell.</span></div>
+    </div>
+  </section>
+
+  <section class="card" style="margin-top:16px">
+    <div class="card-head"><h3 class="card-title">Day-progress ring</h3></div>
+    <div class="row" style="gap:20px;flex-wrap:wrap;align-items:flex-start">
+      <div style="text-align:center;flex:1 1 140px"><span class="mascot lg" style="--s:96px;margin:0 auto 8px"><span class="disc"></span><svg class="ring" viewBox="0 0 96 96"><circle class="track" cx="48" cy="48" r="45"/><circle class="prog" cx="48" cy="48" r="45" stroke-dasharray="71 283"/></svg><img src="img/pose-skip.webp" alt=""></span><div class="card-sub">Team mascot</div><p class="muted xs">1 of 4 of the Team's classes today done: ring a quarter full.</p></div>
+      <div style="text-align:center;flex:1 1 140px"><span class="mascot lg" style="--s:96px;margin:0 auto 8px"><span class="disc"></span><svg class="ring" viewBox="0 0 96 96"><circle class="track" cx="48" cy="48" r="45"/><circle class="prog" cx="48" cy="48" r="45" stroke-dasharray="141 283"/></svg><img src="img/pose-bike.webp" alt=""></span><div class="card-sub">On one class's card</div><p class="muted xs">07:30–08:15 Ride 45, 23 min left: ring shows that class only.</p></div>
+      <div style="text-align:center;flex:1 1 140px"><span class="mascot lg" style="--s:96px;margin:0 auto 8px"><span class="disc"></span><svg class="ring" viewBox="0 0 96 96"><circle class="track" cx="48" cy="48" r="45"/><circle class="prog" cx="48" cy="48" r="45" stroke-dasharray="283 283"/></svg><img src="img/pose-champion.webp" alt=""></span><div class="card-sub">All done</div><p class="muted xs">Full ring, champion pose.</p></div>
+    </div>
+  </section>
+  <p class="note"><b>Art notes.</b> Boxing now uses the owner's boxing_alpha.png. Cooling down renders the stretch pose a little smaller so the whole image (mat and bottle) fits inside the ring. bike.png, dumbbell.png and droplet.gif in client/public are the older cuts.</p>
+</main>
+</body>
+</html>

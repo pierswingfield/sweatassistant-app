@@ -22,7 +22,7 @@ Treat each item as a **claim to check**, not an instruction to execute.
    bug in a real browser (see **Browser access** below):
    - Local mock: `npm run dev` (server :3000, client :5173), then log in as `dev@psycle.com` with
      any password.
-   - Live data: the dev twin `sweat-dev.wingfield.tech`. Any live gym write follows
+   - Live data: the dev twin `dev.dibs.fit`. Any live gym write follows
      [`LIVE_VERIFICATION_PLAYBOOK.md`](../LIVE_VERIFICATION_PLAYBOOK.md).
    - Capture evidence: a screenshot, the console error, and/or the network request and response.
 3. **Server-only items** (no UI surface): reproduce with a failing test, a request against the

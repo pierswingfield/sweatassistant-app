@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const cancelRebookPolicy = require('./cancel-rebook-policy');
 const db = require('./db');
+const { normaliseNameSettings, dropInvalidNameSettings } = require('./user-text');
 const { log, requestLogger } = require('./logger');
 const metrics = require('./metrics');
 const auth = require('./auth');
@@ -19,13 +20,21 @@ const { getProvider } = require('./providers');
 const gymOutbound = require('./gym-outbound');
 const poller = require('./poller');
 const { resolveSyncScope } = require('./booking-sync-scope');
+// T-2: members a Team can see the upcoming classes of are synced on the 2 h cadence (T-B).
+require('./booking-sync').setPriorityPredicate(() => require('./teams').priorityMemberIds());
+// T-5: Team pushes (join request, approval, a teammate booked a class you're in).
+require('./booking-sync').setNewBookingsListener((userId, gymId, rows) => require('./team-notify').newServerBookings(userId, gymId, rows));
+require('./teams').setEventListener((evt) => require('./team-notify').onTeamEvent(evt));
 const calendar = require('./calendar');
 const { normalizeCalendarPrefs, applyCalendarPatch } = require('./calendar-prefs');
 const { isRollingWeekly } = require('./providers/booking-window');
 const adminRouter = require('./admin');
 const normalizedRouter = require('./routes-normalized');
 const instructorPhotoRouter = require('./instructor-photo-routes');
+const teamsRoutes = require('./teams-routes');
+const teams = require('./teams');
 const config = require('./config');
+const { securityHeaders } = require('./security-headers');
 const competing = require('./competing-bookings');
 const { getGymConfig } = require('./gyms.config');
 
@@ -37,9 +46,18 @@ const { getGymConfig } = require('./gyms.config');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+// Account/API responses must never enter a shared edge cache.
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'private, no-store');
+  next();
+});
 // Behind the Cloudflare Tunnel every socket peer is cloudflared; without this every
 // per-IP limiter shares one bucket. Hop count, never `true` (see config.js).
 app.set('trust proxy', config.trustProxy);
+// Security audit part 1: nosniff, Referrer-Policy, frame-ancestors/XFO, Permissions-Policy,
+// COOP, CSP (per-response inline-script hashes) and production-only HSTS. Mounted first so
+// every response, including errors and static files, carries them.
+app.use(securityHeaders({ hsts: config.hsts, cspReportOnly: config.cspReportOnly }));
 
 // CORS allowlist. The PWA is served same-origin in production, so only the
 // configured public host (and localhost in dev) are permitted. Requests with no
@@ -109,7 +127,8 @@ const bookingMutationLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => req.userId ? String(req.userId) : ipKeyGenerator(req.ip),
   message: { message: 'Too many booking requests — please wait before retrying.' },
-  skip: (req) => process.env.NODE_ENV !== 'production',
+  // RATE_LIMIT_TEST_FORCE=1 turns it on in tests (as routes-normalized.js does).
+  skip: (req) => process.env.NODE_ENV !== 'production' && process.env.RATE_LIMIT_TEST_FORCE !== '1',
 });
 
 // Public calendar feed is keyed by IP (no userId — it's token-by-URL). Generous
@@ -209,6 +228,8 @@ app.get('/api/health', async (req, res) => {
     uptimeSec: Math.round(process.uptime()),
     scheduleCache: scheduleCacheStats,
     freshness: (() => { try { return require('./freshness').getStats(); } catch (_) { return null; } })(),
+    // T-B: universal background booking sync (cycles, users/gyms synced, skipped, failed).
+    bookingSync: (() => { try { return require('./booking-sync').getStats(); } catch (_) { return null; } })(),
     layoutCache: layoutCacheStats,
     instructorPhotoCache,
     nextReleaseAt: nextRelease,
@@ -243,6 +264,8 @@ app.get('/metrics', (req, res) => {
   let fs = { heartbeatChecks: 0, heartbeatFailures: 0 };
   try { fs = require('./freshness').getStats(); } catch (_) {}
   try { cs = require('./schedule-cache').getStats(); } catch (_) {}
+  let bs = { cycles: 0, usersSynced: 0, gymsSynced: 0, gymsFailed: 0, skipped: {} };
+  try { bs = require('./booking-sync').getStats(); } catch (_) {}
   let pending = 0;
   try { pending = db.db.prepare("SELECT COUNT(*) AS n FROM auto_bookings WHERE status = 'pending' AND executed_at IS NULL").get().n; } catch (_) {}
   const next = Date.parse(db.getKV('scheduler_next_release') || '');
@@ -261,6 +284,14 @@ app.get('/metrics', (req, res) => {
       [{ result: 'heartbeat_check' }, fs.heartbeatChecks || 0], [{ result: 'heartbeat_failure' }, fs.heartbeatFailures || 0],
       [{ result: 'unchanged_saved' }, cs.stampUnchanged || 0], [{ result: 'refetch_changed' }, cs.stampChanged || 0],
       [{ result: 'refetch_ceiling' }, cs.ceilingRefetches || 0]], 'counter'),
+    // T-B: background booking sync. Fixed result labels only; no gym/user dimension.
+    gauge('booking_sync_total', 'Background booking sync outcomes (cycles, accounts/gyms synced, failed, skipped by reason).', [
+      [{ result: 'cycle' }, bs.cycles || 0], [{ result: 'account_synced' }, bs.usersSynced || 0],
+      [{ result: 'gym_synced' }, bs.gymsSynced || 0], [{ result: 'gym_failed' }, bs.gymsFailed || 0],
+      [{ result: 'skipped_disabled' }, (bs.skipped && bs.skipped.disabled) || 0],
+      [{ result: 'skipped_throttled' }, (bs.skipped && bs.skipped.throttled) || 0],
+      [{ result: 'skipped_needs_relogin' }, (bs.skipped && bs.skipped.needsRelogin) || 0],
+      [{ result: 'skipped_force_limited' }, (bs.skipped && bs.skipped.forceLimited) || 0]], 'counter'),
     gauge('scheduler_pending_bookings', 'Pending auto-book queue entries (all users, all gyms).', [[{}, pending]]),
     gauge('scheduler_next_release_timestamp_seconds', 'Armed next auto-book release (unix seconds; 0 when idle).', [[{}, Number.isFinite(next) ? Math.round(next / 1000) : 0]]),
     gauge('service_heartbeat_age_seconds', 'Seconds since a background service last wrote its heartbeat (-1 = never).', beats),
@@ -297,7 +328,7 @@ const PUBLIC_DIR = process.env.PUBLIC_DIR || path.join(__dirname, 'public');
 
 // Cache the templated file keyed by path AND mtime: a rebuilt client (new hashed bundle names in
 // index.html) is served on the next request instead of after a process restart.
-function sendTemplated(filePath, res, contentType) {
+function sendTemplated(filePath, res, contentType, transform = null) {
   let mtimeMs;
   try {
     mtimeMs = fs.statSync(filePath).mtimeMs;
@@ -313,7 +344,8 @@ function sendTemplated(filePath, res, contentType) {
       return res.status(404).send('Not found');
     }
   }
-  const content = entry.text.replaceAll(APP_NAME_TOKEN, escapeForType(config.appName, contentType));
+  let content = entry.text.replaceAll(APP_NAME_TOKEN, escapeForType(config.appName, contentType));
+  if (transform) content = transform(content);
   // Always revalidate. Without an explicit header Cloudflare cached sw.js at
   // the edge for 4 h, so phones kept installing a worker that precached the
   // previous build's deleted chunks; its install failed and push never started.
@@ -373,6 +405,7 @@ app.use('/api/admin/login', adminLoginLimiter);
 app.use('/api/admin', adminRouter);
 app.use('/api', instructorPhotoRouter);
 app.use('/api', normalizedRouter);
+app.use('/api', teamsRoutes.router); // T-1 Teams
 
 // -------------------------------------------------------------
 // BFF AUTHENTICATION
@@ -407,6 +440,14 @@ app.post('/api/auth/signup', authLoginLimiter, async (req, res) => {
 
 app.get('/api/auth/status', authenticateToken, (req, res) => {
   res.json({ userId: req.userId, email: req.email });
+});
+
+// Single-use, 60 s ticket for the auto-book EventSource (replaces the session JWT in the URL).
+app.post('/api/auth/sse-ticket', authenticateToken, (req, res) => {
+  const minted = auth.mintSseTicket(req);
+  if (!minted) return res.status(503).json({ message: 'Too many open stream tickets, try again shortly.' });
+  res.set('Cache-Control', 'no-store');
+  res.json(minted);
 });
 
 app.delete('/api/auth/me', authenticateToken, (req, res) => {
@@ -466,7 +507,9 @@ app.post('/api/push/test/:type', authenticateToken, async (req, res) => {
 
 // Client-reported booking success → fan out a "Spot Booked" notification to all
 // devices (honours the user's scope preference: all bookings vs auto-book only).
-app.post('/api/notify/booking-success', authenticateToken, async (req, res) => {
+// bookingMutationLimiter: each call fans out a push to every device and schedules a
+// calendar refresh, so it shares the booking-write budget (Teams security review, low).
+app.post('/api/notify/booking-success', authenticateToken, bookingMutationLimiter, async (req, res) => {
   try {
     const { eventId, className, groupName, instructorName, startAt, slots, source, gymId: bodyGymId } = req.body;
     // C3-19: the booking's OWN gym names the push. A gym the account is not
@@ -480,7 +523,7 @@ app.post('/api/notify/booking-success', authenticateToken, async (req, res) => {
       gymId: bodyGymId || db.resolveActiveGymId(req.userId),
     });
     // Refresh the calendar feed shortly after a manual/quick booking.
-    try { calendar.scheduleRefresh(req.userId); } catch (_) {}
+    try { calendar.scheduleRefresh(req.userId, undefined, bodyGymId || db.resolveActiveGymId(req.userId)); } catch (_) {}
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -499,7 +542,10 @@ app.post('/api/bookings/sync', authenticateToken, (req, res) => {
     const { scope, skip } = resolveSyncScope(gymIds, userGyms);
     if (skip) return res.json({ success: true }); // nothing loaded: touch nothing
 
-    db.replaceBookingCache(
+    // T-B review: the background sync stays authoritative. A gym it synced in the
+    // last few minutes (or is syncing now) ignores the push; otherwise the rows are
+    // merged keeping the sync's enriched fields. Response contract unchanged.
+    require('./booking-sync').acceptClientBookings(
       req.userId,
       Array.isArray(bookings) ? bookings : [],
       scope,
@@ -933,6 +979,11 @@ app.put('/api/settings', authenticateToken, (req, res) => {
   try {
     // A PATCH of just the changed keys. The gym comes from `x-gym-id` context
     // and is only needed when the patch touches a gym-scoped key.
+    // T-1: firstName/lastName are shown to teammates, so they pass the shared
+    // person-name rule (server/user-text.js) and are stored normalised.
+    try { normaliseNameSettings(req.body); } catch (e) {
+      return res.status(400).json({ code: e.code, message: e.message });
+    }
     db.setUserSettings(req.userId, req.body);
     // Calendar prefs (includeTentative / alarm) live in settings — republish on change.
     try { if (req.body && req.body.calendar) calendar.regenerateSnapshot(req.userId); } catch (_) {}
@@ -967,6 +1018,9 @@ app.get('/api/calendar/:token.ics', calendarFeedLimiter, (req, res) => {
     }
     if (!snap || !snap.ics) return res.status(503).type('text/plain').send('Calendar not ready yet, try again shortly.');
 
+    // Set these before conditional delivery so 304 has the same privacy policy.
+    res.set('ETag', snap.etag);
+    res.set('Cache-Control', 'private, no-cache, max-age=0');
     if (req.headers['if-none-match'] && req.headers['if-none-match'] === snap.etag) {
       return res.status(304).end();
     }
@@ -974,7 +1028,6 @@ app.get('/api/calendar/:token.ics', calendarFeedLimiter, (req, res) => {
     res.set('Content-Type', 'text/calendar; charset=utf-8');
     res.set('Content-Disposition', 'inline; filename="sweat.ics"');
     res.set('ETag', snap.etag);
-    res.set('Cache-Control', 'no-cache, max-age=0');
     res.send(snap.ics);
   } catch (err) {
     res.status(500).type('text/plain').send('Error generating calendar.');
@@ -1143,6 +1196,8 @@ app.get('/api/config/export', authenticateToken, (req, res) => {
       gymSettings,
       studioPreferences,
       autoBookings: formattedBookings,
+      // T-1: the member's OWN per-Team share settings only, never other members' data.
+      teamSharing: teams.exportMyShares(req.userId),
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -1150,14 +1205,14 @@ app.get('/api/config/export', authenticateToken, (req, res) => {
 });
 
 app.post('/api/config/import', authenticateToken, (req, res) => {
-  const { accountSettings, gymSettings, studioPreferences, autoBookings } = req.body;
+  const { accountSettings, gymSettings, studioPreferences, autoBookings, teamSharing } = req.body;
   const skipped = []; // human-readable notes on anything not restored
   try {
     const linkedIds = db.getUserGyms(req.userId).map((g) => g.gym_id).filter(Boolean);
     if (accountSettings || Array.isArray(gymSettings)) {
       // New format: account keys, then each gym block onto ITS OWN gym.
       if (accountSettings && Object.keys(accountSettings).length) {
-        db.setUserSettings(req.userId, db.splitSettingsByScope(accountSettings).account);
+        db.setUserSettings(req.userId, dropInvalidNameSettings(db.splitSettingsByScope(accountSettings).account));
       }
       for (const block of (Array.isArray(gymSettings) ? gymSettings : [])) {
         if (!block || !block.gymId || !block.settings) continue;
@@ -1205,6 +1260,8 @@ app.post('/api/config/import', authenticateToken, (req, res) => {
         }
       });
     }
+    // T-1: only to Teams this account is still a member of; never joins or creates one.
+    if (Array.isArray(teamSharing)) skipped.push(...teams.importMyShares(req.userId, teamSharing).skipped);
     res.json({ success: true, skipped });
   } catch (err) {
     res.status(/no gym specified/i.test(err.message) ? 400 : 500).json({ message: err.message });
@@ -1219,11 +1276,33 @@ app.post('/api/config/import', authenticateToken, (req, res) => {
 // /settings[/:section]). ONLY those get index.html; this is an allowlist, never a
 // catch-all, so a mistyped /api/* can never come back as HTML. Keep in step with
 // client/src/url-state.js TAB_TO_PATH.
-const SPA_PATH_RE = /^\/(?:index\.html|timetable|bookings|auto-book|credits|settings(?:\/[a-z0-9][a-z0-9_-]{0,79})?)\/?$/i;
+const SPA_PATH_RE = /^\/(?:index\.html|timetable|bookings|auto-book|credits|teams(?:\/[A-Za-z0-9_-]{4,64})?|settings(?:\/[a-z0-9][a-z0-9_-]{0,79})?)\/?$/i;
 
 if (process.env.NODE_ENV === 'production') {
   app.get(SPA_PATH_RE, (req, res) => {
     sendTemplated(path.join(PUBLIC_DIR, 'index.html'), res, 'text/html');
+  });
+
+  // T-1 Teams invite link (PLAN-teams.md §2 principle 4, §7.4). The shell is served for
+  // ANY token, valid or not, and the page is byte-identical either way: the token is a
+  // secret, so the response must not reveal whether it works or which Team it names.
+  // Open Graph tags are generic because a chat unfurl is seen by everyone in the chat,
+  // not just the invitee. no-referrer keeps the token out of every third-party request
+  // the page makes. Client routing for /t/ is T-1 UI work (waits for mock-ups).
+  app.get('/t/:token', teamsRoutes.inviteIpLimiter, (req, res) => {
+    const invite = escapeForType(`You've been invited to a Team on ${config.appName}`, 'text/html');
+    const desc = escapeForType(`Open the link to see the invite in ${config.appName}.`, 'text/html');
+    const tags = `<meta property="og:title" content="${invite}">`
+      + `<meta property="og:description" content="${desc}">`
+      + '<meta property="og:type" content="website">'
+      + '<meta name="robots" content="noindex">'
+      + '<meta name="referrer" content="no-referrer">';
+    res.set('Referrer-Policy', 'no-referrer');
+    res.set('X-Robots-Tag', 'noindex');
+    sendTemplated(path.join(PUBLIC_DIR, 'index.html'), res, 'text/html', (html) => {
+      const titled = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${invite}</title>`);
+      return /<\/head>/i.test(titled) ? titled.replace(/<\/head>/i, `${tags}</head>`) : `${tags}${titled}`;
+    });
   });
 }
 

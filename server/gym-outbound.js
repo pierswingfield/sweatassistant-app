@@ -47,9 +47,51 @@ function isGymDisabled(gymId) {
   return false;
 }
 
-/** True when this account's link to the gym is switched off (by the member, or link status). */
+// Demo fixture accounts (users.is_fixture, server/scripts/seed-team-fixtures.js). Two
+// independent markers so a missed path still cannot reach a gym: the DB flag (every
+// call site that knows a user id goes through isOutboundBlocked) and this sentinel
+// access token stored as the fixture's gym session (the provider layer sees a token,
+// never a user id, so guardProvider and the adapters' request() refuse it).
+const FIXTURE_TOKEN = 'fixture-no-network';
+
+let fixtureStmt = null;
+function isFixtureUser(userId) {
+  if (userId == null) return false;
+  try {
+    if (!fixtureStmt) fixtureStmt = dbHandle().prepare('SELECT is_fixture FROM users WHERE id = ?');
+    const row = fixtureStmt.get(userId);
+    return !!(row && row.is_fixture);
+  } catch (_) { return false; }
+}
+
+/** True when a value (token, session, credentials, or args) carries the fixture sentinel. */
+function carriesFixtureToken(value, depth = 0) {
+  if (value === FIXTURE_TOKEN) return true;
+  if (!value || typeof value !== 'object' || depth > 3) return false;
+  for (const v of Array.isArray(value) ? value : Object.values(value)) {
+    if (carriesFixtureToken(v, depth + 1)) return true;
+  }
+  return false;
+}
+
+function fixtureError(gymId) {
+  const err = new Error('Fixture account: no provider calls are ever made for it.');
+  err.status = 409;
+  err.code = 'FIXTURE_ACCOUNT';
+  err.gymId = gymId;
+  err.gymDisabled = true; // existing handlers treat it like a gym that is switched off
+  return err;
+}
+
+/** Adapter-level backstop: throw before any network I/O when the token is the fixture's. */
+function assertNotFixtureToken(token, gymId) {
+  if (token === FIXTURE_TOKEN) throw fixtureError(gymId);
+}
+
+/** True when this account's link to the gym is switched off (by the member, or link status), or the account is a fixture. */
 function isLinkDisabled(userId, gymId) {
   if (userId == null || !gymId) return false;
+  if (isFixtureUser(userId)) return true;
   try {
     if (!linkStmt) linkStmt = dbHandle().prepare('SELECT status, account_enabled FROM user_gyms WHERE user_id = ? AND gym_id = ?');
     const row = linkStmt.get(userId, String(gymId));
@@ -108,14 +150,21 @@ function guardProvider(instance, gymId) {
       if (typeof value !== 'function' || typeof prop !== 'string' || PURE_MEMBERS.has(prop)) return value;
       // Registry/config disable needs no user; the member's own switch is read
       // from the request's gym context (db.runWithGymContext) when there is one.
-      if (!isGymDisabled(gymId) && !isLinkDisabled(contextUserId(), gymId)) return value;
-      return function blockedProviderCall() {
-        return Promise.reject(gymDisabledError(gymId));
+      if (isGymDisabled(gymId) || isLinkDisabled(contextUserId(), gymId)) {
+        return function blockedProviderCall() {
+          return Promise.reject(gymDisabledError(gymId));
+        };
+      }
+      // A fixture session/credential in the arguments: refuse before the adapter runs.
+      return function fixtureGuarded(...args) {
+        if (carriesFixtureToken(args)) return Promise.reject(fixtureError(gymId));
+        return value.apply(this, args);
       };
     },
   });
 }
 
 module.exports = {
+  FIXTURE_TOKEN, isFixtureUser, carriesFixtureToken, assertNotFixtureToken, fixtureError,
   isGymDisabled, isLinkDisabled, isOutboundBlocked, assertOutboundAllowed, gymDisabledError, guardProvider,
 };

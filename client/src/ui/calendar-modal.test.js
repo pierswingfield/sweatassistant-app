@@ -71,3 +71,17 @@ describe('onboarding calendar settings modal', () => {
     expect(document.body.querySelector('a[href*="calendar.google.com"]')).toBeNull();
   });
 });
+
+describe('calendar context', () => {
+  it('retains feed management in Settings, suppresses it only in setup, including rerenders', async () => {
+    const root = document.createElement('div'); document.body.appendChild(root);
+    vi.spyOn(api, 'getCalendarStatus').mockResolvedValue({ enabled: true, gyms: [], reminders: {} });
+    await renderCalendarSection(root);
+    expect(root.querySelector('[data-calendar-action="refresh"]')).not.toBeNull();
+    expect(root.querySelector('[data-calendar-action="disable"]')).not.toBeNull();
+    await renderCalendarSection(root, { context: 'onboarding' });
+    expect(root.querySelector('[data-calendar-action="refresh"]')).toBeNull();
+    expect(root.querySelector('[data-calendar-action="disable"]')).toBeNull();
+    expect(root.textContent).toContain('Changes in your calendar do not edit bookings.');
+  });
+});

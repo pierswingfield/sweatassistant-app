@@ -21,6 +21,11 @@ const DEFAULT_PREFS = {
   // for that gym. Minimal by design — no scope/timing sub-options, since
   // there's exactly one situation it fires for and no useful variant of it.
   providerThrottled: { enabled: true },
+  // T-5 Teams: "request approved" reaches someone who is not yet a member, so it has no
+  // Team page to be set on and stays an account switch (on: §5.6 "approved means a push").
+  // Join requests and "a teammate booked a class you're in" are per Team (T-5b,
+  // team_members.alerts_enabled, off by default, §5.3), checked by team-notify.js.
+  teamApproved: { enabled: true },
 };
 
 /**
@@ -213,6 +218,40 @@ function buildBookingWindow(ctx) {
   };
 }
 
+// ─── Teams (T-5) ─────────────────────────────────────────────────────────────
+// Lock screens are visible to others: no requester names, no locations, no spots, no
+// ids. Only a Team name the recipient belongs to and, for teamBooked, the booker's
+// Team display name and class time, which the recipient's Team page already shows.
+
+function teamLabel(name) {
+  const n = String(name || '').trim();
+  return n || 'Your Team';
+}
+
+function buildTeamRequest(ctx) {
+  const n = Math.max(1, Number(ctx.pending) || 1);
+  return {
+    title: teamLabel(ctx.teamName),
+    body: n === 1 ? 'Someone asked to join. Open the Team to approve or decline.'
+      : `${n} people are waiting to join. Open the Team to approve or decline.`,
+  };
+}
+
+function buildTeamApproved(ctx) {
+  return { title: "You're in", body: `Your request to join ${teamLabel(ctx.teamName)} was approved.` };
+}
+
+function buildTeamBooked(ctx) {
+  const when = formatDayTime(ctx.startAt, ctx.timeZone || zoneFor(ctx.gymId));
+  const what = groupToken(ctx.discipline, ctx.className);
+  const others = Math.max(0, Number(ctx.others) || 0);
+  const going = others > 0 ? ` ${others + 1} teammates are going.` : '';
+  return {
+    title: teamLabel(ctx.teamName),
+    body: `${ctx.bookerName || 'A teammate'} booked ${when} ${what}, a class you're in.${going}`,
+  };
+}
+
 // ─── Dispatch ────────────────────────────────────────────────────────────────
 
 // Send a notification of the given type, honouring the user's preferences.
@@ -245,10 +284,26 @@ async function notify(userId, type, ctx = {}) {
       if (!prefs.providerThrottled.enabled) return;
       built = buildProviderThrottled(ctx);
       break;
+    case 'teamRequest':
+      // Per-Team opt-in, checked by team-notify.js (the only caller).
+      built = buildTeamRequest(ctx);
+      break;
+    case 'teamApproved':
+      if (!prefs.teamApproved.enabled) return;
+      built = buildTeamApproved(ctx);
+      break;
+    case 'teamBooked':
+      // Per-Team opt-in, checked by team-notify.js (the only caller).
+      built = buildTeamBooked(ctx);
+      break;
     default:
       return;
   }
-  await pushService.sendNotification(userId, built.title, built.body, { type });
+  // T-5: a Team push deep-links to the Team page (a route only members can open).
+  const data = { type };
+  if (typeof ctx.url === 'string' && ctx.url.startsWith('/')) data.url = ctx.url;
+  await pushService.sendNotification(userId, built.title, built.body, data);
+  return built;
 }
 
 // ─── Debug samples (force-send, ignore prefs) ────────────────────────────────
@@ -270,6 +325,9 @@ function buildSample(type) {
     case 'bookingWindow-none': return buildBookingWindow({ gymId: sampleGymId, tip: "Don't forget to set up Auto-Book!" });
     case 'bookingWindow-nocredits': return buildBookingWindow({ gymId: sampleGymId, tip: '⚠️ You have 3 classes set to Auto-Book, but you don\'t have enough credits.' });
     case 'providerThrottled': return buildProviderThrottled({ gymId: sampleGymId });
+    case 'teamRequest': return buildTeamRequest({ teamName: 'Tuesday Riders', pending: 1 });
+    case 'teamApproved': return buildTeamApproved({ teamName: 'Tuesday Riders' });
+    case 'teamBooked': return buildTeamBooked({ ...base, discipline: 'RIDE', teamName: 'Tuesday Riders', bookerName: 'Ana', others: 1 });
     default: return null;
   }
 }
@@ -300,6 +358,9 @@ module.exports = {
   buildSample,
   buildGenericTest,
   sendGenericTest,
+  buildTeamRequest,
+  buildTeamApproved,
+  buildTeamBooked,
   // formatting helpers (used by the reminder engine)
   formatDayTime,
   formatTime,

@@ -4,12 +4,6 @@ import { chartCard, busiestDaysHtml, gymMixHtml, busiestTimesHtml } from './stat
 const C = COPY.home;
 export function personalStatsZone() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (_) { return 'UTC'; } }
 export function personalStatsKey(zone = personalStatsZone()) { return `/api/personal-stats?zone=${encodeURIComponent(zone)}`; }
-export function personalStatsNotes(data) {
-  const states = data.coverage || [];
-  return [data.pending && C.statsImporting, states.some(c => c.state === 'failed') && C.statsIncomplete,
-    states.some(c => c.state === 'stale') && C.statsStale, states.some(c => c.state === 'disabled') && C.statsDisabled,
-    states.some(c => c.limited) && C.statsLimited].filter(Boolean);
-}
 // Calendar keys are already in the viewer's zone. UTC arithmetic avoids DST-length days.
 export function volumeWeeks(points) {
   return points.map(p => {
@@ -22,14 +16,13 @@ function volumeChart(points) {
   const days = volumeWeeks(points), max = Math.max(1, ...days.map(p => p.count));
   const aria = days.map(p => `${p.date}: ${p.count} ${C.statsPastClasses}`).join(', ');
   const bars = days.map((p, i) => `<span class="tm-vbar personal-volume-day band-${p.band}" tabindex="0" aria-label="${esc(`${p.date}: ${p.count} ${C.statsPastClasses}`)}"><i style="height:${Math.max(p.count ? 6 : 2, Math.round(p.count / max * 100))}%"></i>${(p.monday && i >= 3 && i <= days.length - 4) ? `<span class="tm-vbar-lab">${esc(p.date.slice(5))}</span>` : ''}</span>`).join('');
-  return chartCard(C.statsTrainingVolume, '', `<div class="tm-vbars personal-volume-bars">${bars}</div><p class="personal-volume-readout" aria-live="polite"></p>`, aria, { interactive: true, period: C.statsLast30 });
+  return chartCard(C.statsTrainingVolume, '', `<div class="tm-vbars personal-volume-bars">${bars}</div>`, aria, { interactive: true, period: C.statsLast30 });
 }
-export function renderPersonalStats(el, data, { retry = () => {} } = {}) {
-  const notes = personalStatsNotes(data), weeks = data.streak?.weeks || 0;
+export function renderPersonalStats(el, data) {
+  const weeks = data.streak?.weeks || 0;
   const weekLabel = weeks === 1 ? C.statsWeekOne : formatCopyText(C.statsWeekMany, { count: weeks });
   const unresolvedZero = (data.pending || data.partial) && !data.totalPastClasses;
-  el.innerHTML = `${unresolvedZero ? '' : `<div class="tm-stat-tiles personal-stat-tiles"><div class="tm-stat-tile"><span class="tm-stat-big">${esc(data.streak?.atLeast ? formatCopyText(C.statsAtLeast,{weeks:weekLabel}) : weekLabel)}</span><span class="tm-stat-label">${esc(C.statsWeeklyStreak)}</span></div></div>`}${notes.length ? `<div class="personal-coverage" role="status">${notes.map(esc).join(' ')}${(data.coverage || []).some(c => c.state === 'failed') ? ` <button type="button" class="app-btn-mini" data-stats-retry>${esc(C.retry)}</button>` : ''}</div>` : ''}`;
-  el.querySelector('[data-stats-retry]')?.addEventListener('click', retry);
+  el.innerHTML = unresolvedZero ? '' : `<div class="tm-stat-tiles personal-stat-tiles"><div class="tm-stat-tile"><span class="tm-stat-big">${esc(weekLabel)}</span><span class="tm-stat-label">${esc(C.statsStreak)}</span></div></div>`;
   if (!data.totalPastClasses) {
     if (!unresolvedZero) { const p = document.createElement('p'); p.className = 'home-widget-empty'; p.textContent = C.statsEmptyHistory; el.append(p); }
     return;
@@ -46,8 +39,6 @@ export function renderPersonalStats(el, data, { retry = () => {} } = {}) {
   buttons.forEach((b, i) => b.addEventListener('click', () => { const slide = rail.children[i]; rail.scrollTo({ left: i * (slide.getBoundingClientRect().width + 10), behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }); }));
   rail.addEventListener('scroll', sync, { passive: true });
   rail.addEventListener('keydown', e => { if (e.target === rail && ['ArrowRight', 'ArrowLeft'].includes(e.key)) { e.preventDefault(); const current = buttons.findIndex(b => b.hasAttribute('aria-current')); buttons[Math.max(0, Math.min(buttons.length - 1, current + (e.key === 'ArrowRight' ? 1 : -1)))].click(); } });
-  const show = e => { const day = e.target.closest?.('.personal-volume-day'); if (day) rail.querySelector('.personal-volume-readout').textContent = day.getAttribute('aria-label'); };
-  rail.addEventListener('focusin', show); rail.addEventListener('pointerover', show);
   el.append(rail, dots); sync();
   if (typeof ResizeObserver !== 'undefined') { const observer = new ResizeObserver(() => { if (!rail.isConnected) observer.disconnect(); else sync(); }); observer.observe(rail); }
 }

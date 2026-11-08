@@ -180,6 +180,12 @@ export async function mountWidget(el, widget, ctx, { skeleton = () => '', copy =
       el.dataset.widgetStale = 'true';
       return;
     }
+    if (widget.hideOnError) {
+      el.hidden = true;
+      el.dataset.widgetState = 'error';
+      place('error');
+      return;
+    }
     el.hidden = false;
     el.dataset.widgetState = 'error';
     place('error');

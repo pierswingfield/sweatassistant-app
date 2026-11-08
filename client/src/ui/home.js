@@ -259,7 +259,7 @@ function scheduleStatsPoll(data, ctx) {
     if (!isCurrentHomeContext(ctx) || document.getElementById('app-panel-home')?.style.display === 'none' || account !== localStorage.getItem('appUserId')) { stopStatsPoll(); return; }
     statsPollCount++;
     try { await api.getPersonalStats(personalStatsZone(), { refresh: true }); if (isCurrentHomeContext(ctx)) renderHome(); }
-    catch (_) { /* stop after failure: Retry remains available */ }
+    catch (_) { /* stop after failure; the next Home load can refresh */ }
   }, Math.min(30000, 2500 * 2 ** statsPollCount));
 }
 if (typeof window !== 'undefined') {
@@ -267,12 +267,12 @@ if (typeof window !== 'undefined') {
   window.addEventListener('app:gyms-changed', stopStatsPoll);
 }
 registerWidget({
-  id: 'stats', order: 70, title: COPY.home.stats,
+  id: 'stats', order: 70, title: COPY.home.stats, hideOnError: true,
   cacheKeys() { return [personalStatsKey()]; },
   dataSignature(data) { const { generatedAt, ...stable } = data; return stable; },
   async load(ctx) { const data = await api.getPersonalStats(personalStatsZone()); scheduleStatsPoll(data, ctx); return data; },
   isEmpty: () => false,
-  render(el, data, ctx) { renderPersonalStats(el, data, { retry: async () => { stopStatsPoll(); try { await api.getPersonalStats(personalStatsZone(), { refresh: true }); } catch (_) {} if (isCurrentHomeContext(ctx)) renderHome(); } }); },
+  render(el, data) { renderPersonalStats(el, data); },
 });
 
 function guestCreditBalance(credits) {

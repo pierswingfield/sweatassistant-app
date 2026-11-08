@@ -13076,7 +13076,6 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container .tm-skeleton-footer { width: 45%; }
 @keyframes personal-skeleton { to { opacity: .45; } }
 #app-helper-container .home-book-invitation { margin: 0 0 17px; color: var(--text); font: 500 17px/1.5 var(--font-sans); max-width: 30ch; text-wrap: balance; }
-#app-helper-container .personal-coverage { font-size: 12px; line-height: 1.5; color: var(--text-secondary); padding: 10px 0; }
 @media (max-width: 359px) {
   #app-helper-container .tm-list-page-empty .tm-orb { width: 62px; height: 62px; }
   #app-helper-container .tm-list-page-empty .tm-orb .tm-mascot { --s: 62px !important; }
@@ -13093,13 +13092,10 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 
 /* Personal statistics reuse the Team tiles, charts and carousel. */
 #app-helper-container .personal-stat-tiles { grid-template-columns: minmax(0, 1fr); }
-#app-helper-container .personal-coverage { margin-top: 8px; }
 #app-helper-container .personal-volume-bars { gap: 0; }
 #app-helper-container .personal-volume-day { padding: 0 1px; }
 #app-helper-container .personal-volume-day.band-1 { background: color-mix(in srgb, var(--text) 5%, transparent); }
 #app-helper-container .personal-volume-day i { border-radius: 2px 2px 0 0; }
-#app-helper-container .personal-volume-readout { min-height: 1em; margin: 0; font-size: 11px; color: var(--text-secondary); }
-#app-helper-container .personal-stats-dots { gap: 0; margin-top: 0; }
-#app-helper-container .personal-stats-dots button { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+#app-helper-container .personal-stats-dots button { display: grid; place-items: center; width: 7px; height: 7px; padding: 0; border: 0; background: transparent; cursor: pointer; }
 #app-helper-container .personal-chart-period { font-size: 11px; color: var(--text-secondary); }
 #app-helper-container .personal-stats-carousel.has-edge-fade { -webkit-mask-image: none; mask-image: none; }

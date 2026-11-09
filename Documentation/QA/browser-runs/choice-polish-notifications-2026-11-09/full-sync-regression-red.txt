@@ -1,0 +1,19 @@
+[Push] Automatically generated and saved VAPID keypair in server database.
+[Push] No push subscriptions found for user 1. Skipping notification.
+PASS real reservation 401 and rejected refresh create exactly one incident and stop later reads
+PASS real reservation 401 with a valid refresh recovers without an incident
+[Push] No push subscriptions found for user 3. Skipping notification.
+PASS real reservation retry 401 creates one incident after successful renewal
+[BookingSync] jab-boxing failed for user 4: bookings: Gym connection changed during sync
+FAIL full sync rereads after its own successful renewal and records fresh bookings and waitlists: bookings: Gym connection changed during sync
+
+false !== true
+
+[BookingSync] jab-boxing failed for user 5: bookings: Gym connection changed during sync
+FAIL full sync restart is bounded when the connection keeps changing and cannot write a stale snapshot: at most one fresh-snapshot restart
+
+1 !== 2
+
+PASS real reservation 429 stays transient and keeps session
+PASS real reservation 503 stays transient and keeps session
+5/7 MarianaTek session rejection checks passed

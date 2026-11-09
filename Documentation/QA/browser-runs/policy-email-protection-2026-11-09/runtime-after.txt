@@ -1,0 +1,14 @@
+sweatassistant-experiment | Up 19 seconds | sweatassistant-experiment-sweatassistant-experiment | 100.86.226.52:3006->3000/tcp
+internal_health 200 {"status":"ok","time":"2026-11-09T15:56:46.229Z","uptimeSec":20,"scheduleCache":{"hits":0,"staleHits":0,"misses":0,"coalesced":0,"refreshes":0,"errors":0,"stampUnchanged":0,"stampChanged":0,"stampUnavailable":0,"ceilingRefetches":0,"entries":0,"inFlight":0,"hitRate":null},"freshness":{"heartbeatChecks":0,"heartbeatFailures":0},"bookingSync":{"cycles":0,"ticksSkipped":0,"usersSynced":0,"gymsSynced":0,"gymsFailed":0,"gymsSkipped":0,"skipped":{"disabled":0,"throttled":0,"needsRelogin":0,"forceLimited":0},"forceDeferred":0,"lastCycleAt":null,"lastCycleMs":null},"layoutCache":{"hits":0,"staleHits":0,"misses":0,"coalesced":0,"refreshes":0,"errors":0,"stampUnchanged":0,"stampChanged":0,"stampUnavailable":0,"ceilingRefetches":0,"entries":0,"inFlight":0,"hitRate":null},"instructorPhotoCache":{"hits":0,"misses":0,"coalesced":0,"generated":0,"failures":0,"upstreamMs":0,"upstreamRequests":0,"inFlight":0,"maxCacheBytes":524288000,"bytes":165500,"files":135,"maxBytes":524288000},"nextReleaseAt":null,"services":{"scheduler":{"healthy":true,"lastHeartbeatAgoSec":19,"staleAfterSec":180},"poller":{"healthy":true,"lastHeartbeatAgoSec":19,"staleAfterSec":180},"calendar":{"healthy":true,"lastHeartbeatAgoSec":19,"staleAfterSec":12600}}}
+{"integrity":[{"integrity_check":"ok"}],"users":{"n":12},"links":{"n":17}}
+node v22.23.4 arch arm64
+99537bffd8cf95e943b028dd1d27eb77cdba9aeee6d674bbbd8890902a483413 server/server.js
+a826120297efcaef9a729ce601e53884e0923446e0bb405e48dd8ed62da93cf0 server/public/index.html
+cd6985e180c80607b78d6a68f1dac5dee458679fa6d7bec143625d5824e2e0de server/public/policies/terms.html
+fcb473c4984c9aa748c3aadd2757a1b8b66b8f063b28c5edf6ed3cb8e1dad7a0 server/public/policies/privacy.html
+cd6985e180c80607b78d6a68f1dac5dee458679fa6d7bec143625d5824e2e0de server/public/policies/terms-2026-11-09.html
+fcb473c4984c9aa748c3aadd2757a1b8b66b8f063b28c5edf6ed3cb8e1dad7a0 server/public/policies/privacy-2026-11-09.html
+af4c5b2007b805118fd528a5d224475461ab11cd28b58b2367f6d0ebfa8c176c  .env
+322b8ddeb92234824c61281a026974f4e5adca2a2cb8721d426351f735519475  docker-compose.experiment.yml
+A /data
+running 0 {"3000/tcp":[{"HostIp":"100.86.226.52","HostPort":"3006"}]} edge sweatassistant-experiment_default 

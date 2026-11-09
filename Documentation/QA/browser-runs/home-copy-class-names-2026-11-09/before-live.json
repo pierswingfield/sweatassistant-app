@@ -1,0 +1,17 @@
+{
+  "health": [
+    {
+      "gym_id": "aarmy",
+      "status": "active"
+    },
+    {
+      "gym_id": "psycle-london",
+      "status": "active"
+    }
+  ],
+  "event": {
+    "status": 200,
+    "capture": "event221582-capture.json"
+  },
+  "body": "0\n0\nGood evening, Steve!\nFind a class\n\nYou have no classes booked! Why not choose a session?\n\nAarmy\nPsycle\nSee full timetable\n\u2192\nCredits & passes\n2 gyms\n0\nClass credits\n0\nClass credits\nYour stats\n0 weeks\nstreak\n\nYour training story starts with your first past class.\n\nYour trending instructors\n\nNo classes in the last 30 days.\n\nYour Teams\n\nTrain with friends: a Team shares who is doing which class, so you can book in together.\n\nCreate a Team\nHome\nTimetable\nBookings\nTeams\nST\nSteve\nNotification Preferences\n\u00d7\n"
+}

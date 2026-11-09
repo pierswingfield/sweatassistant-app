@@ -157,7 +157,7 @@ function resolveContext(userId) {
     // The app JWT itself is invalid (that case is a 403 — see
     // auth.js authenticateToken). `code` lets the client branch on that
     // distinction instead of treating every 401 as SA logout.
-    const err = new Error('No active session for this gym. Please log in.');
+    const err = require('./gym-connection').requireLogin(userId, gymId, 'session_expired');
     err.status = 401;
     err.code = 'GYM_SESSION_EXPIRED';
     err.gymId = gymId;
@@ -182,18 +182,13 @@ function resolveContext(userId) {
 // decline as "just needed a relogin." Giving those a status signal is a
 // separate, adapter-level change — see PROGRESS.md handoff.
 async function withRelogin(userId, session, fn) {
-  try {
-    const result = await fn(session);
-    if (result && result.status === 401) {
-      const newJwt = await triggerAutoRelogin(userId);
-      return fn({ ...session, accessToken: newJwt });
-    }
-    return result;
-  } catch (err) {
-    if (err.status !== 401) throw err;
-    const newJwt = await triggerAutoRelogin(userId);
-    return fn({ ...session, accessToken: newJwt });
-  }
+  let result;
+  try { result = await fn(session); }
+  catch (err) { if (err.status !== 401) throw err; result = { status: 401 }; }
+  if (result?.status !== 401) return result;
+  const gymId = db.resolveActiveGymId(userId);
+  const newJwt = await triggerAutoRelogin(userId, gymId);
+  return require('./gym-connection').retrySessionCall(userId, gymId, newJwt, () => fn({ ...session, accessToken: newJwt }));
 }
 
 function handleError(res, err) {
@@ -282,8 +277,14 @@ router.get('/gyms', (req, res) => {
 // No `activeGymId` any more, and no `POST /api/my-gyms/active` — both removed
 // in the active-gym audit's stage 4 (2026-09-15). There is no gym switcher:
 // every list is merged, and a "current gym" is not a concept this product has.
-router.get('/my-gyms', authenticateToken, readLimiter, (req, res) => {
+router.get('/my-gyms', authenticateToken, readLimiter, async (req, res) => {
   try {
+    await Promise.all(db.getUserGyms(req.userId).filter(g => g.account_enabled && g.status === 'active').map(async link => {
+      let session; try { session = JSON.parse(link.session_json || 'null'); } catch (_) {}
+      if (!session?.accessToken || (session.expiresAt && (typeof session.expiresAt === 'number' ? session.expiresAt : Date.parse(session.expiresAt)) <= Date.now())) {
+        try { await auth.triggerAutoRelogin(req.userId, link.gym_id); } catch (_) { /* classified by the ladder; transient failure preserves connection */ }
+      }
+    }));
     const linked = db.getUserGymsPublic(req.userId);
     res.json({ gyms: linked });
   } catch (err) {
@@ -324,7 +325,7 @@ router.patch('/my-gyms/:gymId/enabled', authenticateToken, async (req, res) => {
 router.post('/my-gyms/link', authenticateToken, async (req, res) => {
   const { gymId, email, password } = req.body || {};
   try {
-    const link = await auth.linkGymAccount(req.userId, gymId, email, password);
+    const link = await auth.linkGymAccount(req.userId, gymId, email, password, req.body.rememberLogin ?? false);
     refreshCalendarAfterGymSetChange(req.userId);
     // F-10-0: backfill class history for the gym just linked (or re-authenticated).
     // Fire-and-forget; syncUserGym never throws and records its own failures.
@@ -334,6 +335,11 @@ router.post('/my-gyms/link', authenticateToken, async (req, res) => {
     // A rejected gym credential is the user's problem to fix, not a server fault.
     res.status(400).json({ message: err.message });
   }
+});
+
+router.delete('/my-gyms/:gymId/saved-login', authenticateToken, (req, res) => {
+  if (!db.forgetGymLogin(req.userId, req.params.gymId)) return res.status(404).json({ message: 'Gym is not linked.' });
+  res.json({ gyms: db.getUserGymsPublic(req.userId) });
 });
 
 // DELETE /api/my-gyms/:gymId — unlink. The account survives (Decision D4).
@@ -772,6 +778,7 @@ router.get('/personal-stats', authenticateToken, readLimiter, (req, res) => {
 router.get('/history', authenticateToken, readLimiter, async (req, res) => {
   try {
     const gymId = resolveGymOnly(req.userId);
+    if (require('./gym-connection').unavailable(req.userId, gymId)) throw require('./gym-connection').expiredError(gymId);
     // Enabled gym: same session rules as every other route (401 for a dead one).
     // Disabled gym: the stored rows ARE the answer, and nothing is fetched.
     if (!gymOutbound.isOutboundBlocked(gymId, req.userId)) resolveContext(req.userId);
@@ -802,7 +809,7 @@ router.get('/profile', authenticateToken, readLimiter, async (req, res) => {
     // Stamped so the client never has to infer which gym this profile describes.
     // The booking window is derived from ITS cutoffs and saved as a gym-scoped
     // setting, so the answer has to travel with the data rather than be guessed.
-    res.json({ ...profile, gymId });
+    res.json({ ...require('./policies').withoutLoginDetails(profile), gymId });
   } catch (err) {
     handleError(res, err);
   }
@@ -973,6 +980,7 @@ router.get('/favourites', authenticateToken, readLimiter, async (req, res) => {
       return res.json({ gymId, native: true, favourites: slots.map(favouriteStore.makeFavourite) });
     }
     const gymId = resolveGymOnly(req.userId);
+    if (require('./gym-connection').unavailable(req.userId, gymId)) throw require('./gym-connection').expiredError(gymId);
     res.json({ gymId, native: false, favourites: db.listFavourites(req.userId, gymId).map(favouriteStore.makeFavourite) });
   } catch (err) {
     handleError(res, err);
@@ -985,6 +993,7 @@ router.put('/favourites', authenticateToken, extrasLimiter, async (req, res) => 
     const v = favouriteStore.validateSlot(req.body);
     if (!v.ok) return res.status(400).json({ message: v.error, code: 'INVALID_FAVOURITE' });
     const gymId = resolveGymOnly(req.userId);
+    if (require('./gym-connection').unavailable(req.userId, gymId)) throw require('./gym-connection').expiredError(gymId);
     if (hasNativeFavourites(gymId)) {
       const ctx = resolveContext(req.userId);
       await withRelogin(req.userId, ctx.session, (s) => ctx.provider.setFavourite(v.value, true, s));
@@ -1008,6 +1017,7 @@ router.delete('/favourites/:id', authenticateToken, extrasLimiter, async (req, r
     const slot = favouriteStore.parseIdentifier(req.params.id);
     if (!slot) return res.status(400).json({ message: 'Unrecognised favourite id.', code: 'INVALID_FAVOURITE' });
     const gymId = resolveGymOnly(req.userId);
+    if (require('./gym-connection').unavailable(req.userId, gymId)) throw require('./gym-connection').expiredError(gymId);
     if (hasNativeFavourites(gymId)) {
       const ctx = resolveContext(req.userId);
       await withRelogin(req.userId, ctx.session, (s) => ctx.provider.setFavourite(slot, false, s));

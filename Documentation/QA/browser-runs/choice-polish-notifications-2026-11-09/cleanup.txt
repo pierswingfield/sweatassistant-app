@@ -1,0 +1,5 @@
+Reset emulation and closed only the owned Chrome target.
+Stopped agent-owned listener on port 3106.
+Stopped agent-owned listener on port 5174.
+Stopped agent-owned listener on port 5176.
+Preexisting :3000 listener preserved: True

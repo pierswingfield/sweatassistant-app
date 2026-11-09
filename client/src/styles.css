@@ -9395,9 +9395,9 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
 @media (max-width: 768px) {
   #app-helper-container .app-wk-scroller { display: block; overflow: hidden; scroll-snap-type: none; touch-action: pan-y; }
 
-  /* Primary action stays reachable above the keyboard / home indicator. */
+  /* Password change keeps its existing action layout. Gym login submits scroll
+     after the Remember disclosure, so the keyboard cannot turn them into an overlay. */
 
-  .app-modal.app-page #app-link-gym-submit,
   .app-modal.app-page #app-pw-submit { position: sticky; bottom: 0; flex-shrink: 0; min-height: 48px; margin-top: 8px; }
 
   .app-ovl.app-page > .app-ovl-card {
@@ -13075,7 +13075,12 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container .tm-skeleton-card > div i:last-child { width: 55%; }
 #app-helper-container .tm-skeleton-footer { width: 45%; }
 @keyframes personal-skeleton { to { opacity: .45; } }
-#app-helper-container .home-book-invitation { margin: 0 0 17px; color: var(--text); font: 500 17px/1.5 var(--font-sans); max-width: 30ch; text-wrap: balance; }
+/* Supporting copy shares one compact-body hierarchy across Home cards. */
+#app-helper-container :is(.home-book-invitation, .home-widget-empty, .home-teams-empty p) {
+  color: var(--text-secondary);
+  font: 400 var(--text-sm)/1.4 var(--font-sans);
+}
+#app-helper-container .home-book-invitation { margin: 0 0 17px; }
 @media (max-width: 359px) {
   #app-helper-container .tm-list-page-empty .tm-orb { width: 62px; height: 62px; }
   #app-helper-container .tm-list-page-empty .tm-orb .tm-mascot { --s: 62px !important; }
@@ -13099,3 +13104,74 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container .personal-stats-dots button { display: grid; place-items: center; width: 7px; height: 7px; padding: 0; border: 0; background: transparent; cursor: pointer; }
 #app-helper-container .personal-chart-period { font-size: 11px; color: var(--text-secondary); }
 #app-helper-container .personal-stats-carousel.has-edge-fade { -webkit-mask-image: none; mask-image: none; }
+
+/* Explicit gym login choice and policy reading preserve the underlying form. */
+/* One choice treatment across signup, setup, first-gym and Settings forms. */
+:is(#app-helper-container, body) .app-choice-panel {
+  margin: var(--space-4) 0; padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border); border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  font-family: var(--font-sans); font-size: var(--text-sm); line-height: 1.5;
+  color: var(--text-secondary); text-align: left;
+  transition: border-color var(--dur-base) var(--ease-out), background var(--dur-base) var(--ease-out);
+}
+:is(#app-helper-container, body) .app-choice-panel:has(input:checked) {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+:is(#app-helper-container, body) .app-choice-panel input[type=checkbox] {
+  appearance: none; -webkit-appearance: none; position: relative;
+  width: 22px; height: 22px; min-height: 22px; flex: 0 0 22px; margin: 0;
+  border: 1.5px solid var(--border-strong); border-radius: 7px;
+  background: var(--surface); cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+:is(#app-helper-container, body) .app-choice-panel input[type=checkbox]:checked { background: var(--accent-fill); border-color: var(--accent-fill); }
+:is(#app-helper-container, body) .app-choice-panel input[type=checkbox]:checked::after {
+  content: ''; position: absolute; left: 7px; top: 3px; width: 5px; height: 10px;
+  border: solid var(--on-accent-fill); border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+:is(#app-helper-container, body) .app-choice-panel input:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+:is(#app-helper-container, body) .app-login-choice-label {
+  display: flex; align-items: center; gap: var(--space-3); min-height: var(--tap-min);
+  margin: -6px 0 0; cursor: pointer; color: var(--text);
+  font: 600 var(--text-base)/var(--lh-snug) var(--font-sans); text-transform: none; letter-spacing: normal;
+}
+:is(#app-helper-container, body) .app-gym-login-choice .app-choice-description {
+  margin: 0 0 var(--space-2) 34px; font: 400 var(--text-sm)/1.5 var(--font-sans); color: var(--text-secondary);
+}
+:is(#app-helper-container, body) .app-gym-login-choice .app-choice-detail {
+  margin: 0 0 0 34px; padding-top: var(--space-2); border-top: 1px solid var(--border);
+  font: 400 var(--text-xs)/1.5 var(--font-sans); color: var(--text-secondary);
+}
+:is(#app-helper-container, body) .app-policy-agreement { display: flex; gap: var(--space-3); align-items: flex-start; }
+:is(#app-helper-container, body) .app-policy-agreement input[type=checkbox] { margin-top: 2px; }
+:is(#app-helper-container, body) .app-policy-agreement label { display: inline; color: inherit; font: inherit; text-transform: none; letter-spacing: normal; cursor: pointer; }
+:is(#app-helper-container, body) .app-choice-panel a { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+@media (forced-colors: active) {
+  :is(#app-helper-container, body) .app-choice-panel input[type=checkbox] { appearance: auto; -webkit-appearance: auto; }
+  :is(#app-helper-container, body) .app-choice-panel input[type=checkbox]::after { display: none; }
+}
+.app-policy-modal .app-modal-content { width:min(850px,95vw); height:90vh; display:flex; flex-direction:column; }
+.app-policy-modal article { width:100%; flex:1; overflow:auto; min-height:0; padding:1rem; line-height:1.6; }
+.app-policy-modal table { border-collapse:collapse; width:100%; font-size:.85rem; }
+.app-policy-modal td,.app-policy-modal th { padding:.5rem; border:1px solid var(--border,#888); text-align:left; vertical-align:top; }
+.app-policy-modal h2 { margin:1rem 0; }
+/* Gym connections reuse the Home widget surface and heading; rows stay quiet. */
+.home-connections-list { list-style: none; padding: 0; margin: 0; }
+.home-connection-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); }
+.home-connection-row + .home-connection-row { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border); }
+.home-connection-mark { display: flex; align-items: center; justify-content: center; }
+.home-connection-name { display: block; font: 600 var(--text-md)/var(--lh-snug) var(--font-sans); color: var(--text); overflow-wrap: anywhere; }
+.home-connection-status { display: block; margin-top: var(--space-1); color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.4; }
+.home-connection-action { min-height: var(--tap-min); white-space: nowrap; }
+@media (max-width: 360px) {
+  .home-connection-row { grid-template-columns: 36px minmax(0, 1fr); }
+  .home-connection-action { grid-column: 2; justify-self: start; }
+}
+@media (max-width: 768px) {
+  .app-modal.app-page #app-link-gym-submit { position: static; min-height: 48px; margin-top: var(--space-2); }
+  #app-helper-container .app-gym-conn-inline-row.is-reconnecting { flex-wrap: wrap; gap: var(--space-3); }
+  #app-helper-container .app-gym-conn-inline-row.is-reconnecting .app-card-desc { flex: 1 0 100%; margin: 0; white-space: normal; overflow: visible; text-overflow: clip; }
+  #app-helper-container .app-gym-conn-inline-row.is-reconnecting .app-settings-btn-row { margin: 0; }
+}

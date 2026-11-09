@@ -1,3 +1,4 @@
+import { connectionEpoch, connectionStates, isGymAvailable, isAvailableLink, updateConnectionStates, noteUnavailable } from './gym-availability.js';
 import { debugLog } from './main.js';
 import { getDefaultGymId } from './gym-context.js';
 import { createLayoutCache, MAX_AGE_MS as LAYOUT_MAX_AGE_MS } from './layout-cache.js';
@@ -33,6 +34,7 @@ function publishOfflineSnapshot(name, snapshot) {
 async function loadGymRows(kind, gymId, fetchRows) {
   try {
     const rows = await fetchRows();
+    if (!isGymAvailable(gymId)) throw new Error('Gym needs login');
     setOfflineSnapshot(`${kind}:${gymId}`, rows);
     return { data: rows, gymId, loaded: true, complete: true };
   } catch (err) {
@@ -41,11 +43,13 @@ async function loadGymRows(kind, gymId, fetchRows) {
   }
 }
 async function gymFailureResult(kind, gymId) {
+  if (!isGymAvailable(gymId)) return { data: [], gymId, loaded: false, complete: true };
   const snap = await getOfflineSnapshot(`${kind}:${gymId}`);
   return { data: Array.isArray(snap?.data) ? snap.data : [], gymId, loaded: false, complete: !!snap };
 }
 
 async function withOfflineSnapshot(name, readLive, { persist = () => true } = {}) {
+  const startedEpoch = connectionEpoch();
   // A 401/403 must never revive old private data. Only the app's explicit
   // offline state permits a snapshot fallback.
   const fromSnapshot = async () => {
@@ -60,6 +64,7 @@ async function withOfflineSnapshot(name, readLive, { persist = () => true } = {}
   try {
     const data = await readLive();
     offlineSnapshotMeta.delete(name);
+    if (startedEpoch !== connectionEpoch() && name !== 'my-gyms') throw new Error('Gym connection changed during request');
     if (persist(data)) setOfflineSnapshot(name, data);
     return data;
   } catch (err) {
@@ -143,6 +148,9 @@ export function isLoggedIn() {
 
 // Global fetch wrapper with local auth and Cloudflare Zero Trust Access support
 export async function apiFetch(endpoint, options = {}) {
+  const requestEpoch = connectionEpoch();
+  const control = /\/api\/(my-gyms|auth|policies|settings)/.test(endpoint);
+  if (options.gymId && !control && !isGymAvailable(options.gymId)) throw new Error('Log in to this gym again.');
   let url = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   assertMutationNetworkAvailable(options.method, COPY.api.offlineMutationBlocked);
   
@@ -233,7 +241,10 @@ export async function apiFetch(endpoint, options = {}) {
     const decision = classifyAuthFailure(res.status, await peekJson(res), targetGym);
     if (decision.kind === 'gym') {
       console.warn(`[API] Gym "${decision.gymId || 'unknown'}" session expired — needs relogin.`);
-      window.dispatchEvent(new CustomEvent('app-gym-needs-relogin', { detail: { gymId: decision.gymId } }));
+      if (noteUnavailable(decision.gymId)) {
+        await clearApiCache();
+        window.dispatchEvent(new CustomEvent('app-gym-needs-relogin', { detail: { gymId: decision.gymId } }));
+      }
       return res;
     }
     console.warn('[API] Received 401. Session expired. Logging out.');
@@ -242,6 +253,7 @@ export async function apiFetch(endpoint, options = {}) {
     throw new Error(COPY.api.sessionExpired);
   }
 
+  if (!control && requestEpoch !== connectionEpoch()) throw new Error('Gym connection changed during request');
   return res;
 }
 
@@ -294,9 +306,11 @@ export const api = {
   // Create an app account — no gym involved (Decision D4). Returns
   // { user, needsGym } so the caller can route straight to "link a gym".
   async signup(email, password) {
+    // Versions match the policies shipped with this form; a stale client must review again.
+    const policies = { termsVersion: '2026-11-09', privacyVersion: '2026-11-09' };
     const res = await apiFetch('/api/auth/signup', {
       method: 'POST',
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email, password, policyAcceptance: { accepted: true, ...policies } })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Could not create account');
@@ -444,18 +458,38 @@ export const api = {
   // The gyms THIS account is linked to, plus which one is currently active.
   // `getGyms()` above is the public catalogue of everything configured; this is
   // the per-account view Settings → Your Gyms renders from.
-  async getMyGyms() {
-    return withOfflineSnapshot('my-gyms', async () => {
+  async getMyGyms({ refresh = false } = {}) {
+    const data = await withOfflineSnapshot('my-gyms', async () => {
+      if (refresh) {
+        const response = await apiFetch('/api/my-gyms', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Failed to load your gyms');
+        const fresh = await response.json();
+        const changed = updateConnectionStates(fresh.gyms);
+        if (changed) {
+          await clearApiCache();
+          window.dispatchEvent(new CustomEvent('app-gym-availability-changed'));
+        }
+        await setCached('/api/my-gyms', fresh);
+        return fresh;
+      }
       const result = await getCachedSWR('/api/my-gyms', {
         ttlMs: 300000,
         fetcher: async () => {
           const res = await apiFetch('/api/my-gyms');
           if (!res.ok) throw new Error('Failed to load your gyms');
+          const fresh = await res.clone().json();
+          if (updateConnectionStates(fresh.gyms)) {
+            await clearApiCache();
+            window.dispatchEvent(new CustomEvent('app-gym-availability-changed'));
+          }
           return res;
         },
       });
-      return result.data; // { gyms: [...], activeGymId }
+      return result.data;
     });
+    // A stale cache cannot undo a server failure already observed in this account.
+    const known = connectionStates();
+    return { ...data, gyms: (data?.gyms || []).map(g => isGymAvailable(g.gym_id) ? g : { ...g, status: known[g.gym_id].status }) };
   },
 
   // NOTE: `setActiveGym()` used to live here and is deliberately gone, along
@@ -465,13 +499,15 @@ export const api = {
 
   // Link a new gym, or re-authenticate one whose stored password went stale.
   // Same endpoint for both (see auth.linkGymAccount).
-  async linkGym(gymId, email, password) {
+  async linkGym(gymId, email, password, rememberLogin = false) {
     const res = await apiFetch('/api/my-gyms/link', {
       method: 'POST',
-      body: JSON.stringify({ gymId, email, password }),
+      body: JSON.stringify({ gymId, email, password, rememberLogin }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Could not link that gym');
+    updateConnectionStates(data.gyms);
+    await clearApiCache();
     // `getMyGyms()` is a five-minute SWR read that defines Home's capabilities
     // and the no-gym route. A successful mutation must invalidate it before
     // callers reload their gym context, otherwise a newly linked gym remains
@@ -496,6 +532,15 @@ export const api = {
     await invalidateApiCache('/api/auto-book');
     await invalidateApiCache('/api/auto-upgrade');
     await Promise.all(['metadata:', 'bookings', 'waitlists', 'studio-preferences'].map(deleteOfflineSnapshotsByPrefix));
+    return data;
+  },
+
+  async forgetGymLogin(gymId) {
+    const res = await apiFetch(`/api/my-gyms/${encodeURIComponent(gymId)}/saved-login`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Could not forget gym login');
+    await invalidateApiCache('/api/my-gyms');
+    await setOfflineSnapshot('my-gyms', data);
     return data;
   },
 
@@ -551,7 +596,7 @@ export const api = {
     }
 
     const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
-    const linked = (myGymsRes.gyms || []).filter(g => g.account_enabled !== 0 && g.account_enabled !== false);
+    const linked = (myGymsRes.gyms || []).filter(isAvailableLink);
 
     if (linked.length === 0) return [];
     if (linked.length <= 1) {
@@ -608,7 +653,7 @@ export const api = {
     const suffix = qs.toString() ? `?${qs}` : '';
 
     const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
-    const linked = (myGymsRes.gyms || []).filter(g => g.account_enabled !== 0 && g.account_enabled !== false);
+    const linked = (myGymsRes.gyms || []).filter(isAvailableLink);
     const idOf = (g) => g.gym_id || g.gymId || g.id;
     if (linked.length === 0) { onFlush?.({ events: [], pending: [], final: true, arrivedGyms: [] }); return []; }
 
@@ -697,7 +742,7 @@ export const api = {
     }
 
     const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
-    const linked = (myGymsRes.gyms || []).filter(g => g.account_enabled !== 0 && g.account_enabled !== false);
+    const linked = (myGymsRes.gyms || []).filter(isAvailableLink);
 
     // C3-10: a gym-less the app account (post-signup, or after unlinking
     // the last gym) is a legitimate state, not an error — the server would answer
@@ -933,7 +978,7 @@ export const api = {
     const load = async () => {
       debugLog('GET /api/bookings', 'network');
       const myGymsRes = gyms ? null : await this.getMyGyms();
-      const linked = (gyms || myGymsRes.gyms || []).filter(g => g.account_enabled !== 0 && g.account_enabled !== false);
+      const linked = (gyms || myGymsRes.gyms || []).filter(isAvailableLink);
       const readOne = async (gymId) => {
         const path = '/api/bookings';
         const key = `${path}?gymId=${encodeURIComponent(gymId)}`;
@@ -1010,7 +1055,7 @@ export const api = {
     return withOfflineSnapshot('waitlists', async () => {
     debugLog('GET /api/waitlists', 'network');
     const myGymsRes = gyms ? null : await this.getMyGyms();
-    const linked = (gyms || myGymsRes.gyms || []).filter(g => g.account_enabled !== 0 && g.account_enabled !== false);
+    const linked = (gyms || myGymsRes.gyms || []).filter(isAvailableLink);
     if (!linked.length && (gyms || myGymsRes?.gyms?.length)) return [];
     // Home passes cacheTtlMs so a repaint reuses the SWR row instead of a network call per render.
     const readCachedGym = async (gymId) => {
@@ -1084,7 +1129,7 @@ export const api = {
   // membership) must not disable booking on another gym's classes.
   async getEligibilityByGym({ gyms = null, loading = false } = {}) {
     const myGymsRes = gyms ? null : await this.getMyGyms().catch(() => ({ gyms: [] }));
-    const linked = (gyms || myGymsRes.gyms || []).filter(g => g.account_enabled !== 0 && g.account_enabled !== false);
+    const linked = (gyms || myGymsRes.gyms || []).filter(isAvailableLink);
     const entries = await Promise.all(
       linked.map(async (g) => {
         const gymId = g.gym_id || g.gymId || g.id;
@@ -1118,7 +1163,7 @@ export const api = {
   // keep failed membership data distinct from a confirmed no-membership answer.
   async getMembershipsByGym({ gyms = null, loading = false } = {}) {
     const myGymsRes = gyms ? null : await this.getMyGyms().catch(() => ({ gyms: [] }));
-    const linked = (gyms || myGymsRes.gyms || []).filter(g => g.account_enabled !== 0 && g.account_enabled !== false);
+    const linked = (gyms || myGymsRes.gyms || []).filter(isAvailableLink);
     const entries = await Promise.all(linked.map(async (g) => {
       const gymId = g.gym_id || g.gymId || g.id;
       try {
@@ -1196,7 +1241,7 @@ export const api = {
   // A missing key is "unknown", which credit-allowance.js answers permissively.
   async getCreditsByGym({ gyms = null, loading = false } = {}) {
     const myGymsRes = gyms ? null : await this.getMyGyms().catch(() => ({ gyms: [] }));
-    const linked = (gyms || myGymsRes.gyms || []).filter(g => g.account_enabled !== 0 && g.account_enabled !== false);
+    const linked = (gyms || myGymsRes.gyms || []).filter(isAvailableLink);
     const entries = await Promise.all(
       linked.map(async (g) => {
         const gymId = g.gym_id || g.gymId || g.id;
@@ -1398,7 +1443,7 @@ export const api = {
     }
     return withOfflineSnapshot('studio-preferences', async () => {
     const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
-    const linked = (myGymsRes.gyms || []).filter(g => g.account_enabled !== 0 && g.account_enabled !== false);
+    const linked = (myGymsRes.gyms || []).filter(isAvailableLink);
     if (!linked.length && myGymsRes.gyms?.length) return {};
     if (linked.length <= 1) {
       const gymId = linked[0]?.gym_id || linked[0]?.id;

@@ -1,0 +1,4 @@
+✅ server and client rules agree on every corpus row
+✅ the reported string reads "Lower (Focus)" and its group token is "TRAIN"
+✅ reported pipe prefix is removed in server-composed class names
+✅ a class that IS its discipline keeps its name (no blank cell)

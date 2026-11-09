@@ -1,0 +1,142 @@
+=== Deploy target: experiment (oracle:~/services/sweatassistant-experiment) ===
+[0/3] remote preflight (compose, writable layer, disk)
+--- writable-layer diff before recreate ---
+A /data
+--- filesystem capacity before build ---
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda1        96G   82G   15G  86% /
+[1/3] rsync
+[2/3] docker compose up -d --build
+ Image sweatassistant-experiment-sweatassistant-experiment Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 658B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 1.14kB done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/node:22.23.4-bookworm-slim
+#3 DONE 0.6s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [client-builder 1/6] FROM docker.io/library/node:22.23.4-bookworm-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d
+#5 resolve docker.io/library/node:22.23.4-bookworm-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d 0.0s done
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 transferring context: 666.67kB 0.0s done
+#6 DONE 0.1s
+
+#7 [client-builder 2/6] WORKDIR /app/client
+#7 CACHED
+
+#8 [client-builder 3/6] COPY client/package*.json ./
+#8 CACHED
+
+#9 [client-builder 4/6] RUN npm ci
+#9 CACHED
+
+#10 [stage-1 3/7] COPY server/package*.json ./server/
+#10 CACHED
+
+#11 [stage-1 2/7] WORKDIR /app
+#11 CACHED
+
+#12 [stage-1 4/7] RUN apt-get update  && apt-get install -y --no-install-recommends python3 make g++  && cd server && npm_config_python=/usr/bin/python3 npm ci --omit=dev  && apt-get purge -y --auto-remove python3 make g++  && rm -rf /var/lib/apt/lists/*
+#12 CACHED
+
+#13 [stage-1 5/7] COPY server/ ./server/
+#13 ...
+
+#14 [client-builder 5/6] COPY client/ ./
+#14 DONE 0.2s
+
+#13 [stage-1 5/7] COPY server/ ./server/
+#13 DONE 0.2s
+
+#15 [stage-1 6/7] COPY client/src ./client/src
+#15 DONE 0.3s
+
+#16 [client-builder 6/6] RUN npm run build
+#16 1.063 
+#16 1.063 > app-client@1.0.0 build
+#16 1.063 > vite build
+#16 1.063 
+#16 1.688 vite v5.4.21 building for production...
+#16 1.934 transforming...
+#16 5.164 ✓ 134 modules transformed.
+#16 5.495 rendering chunks...
+#16 5.924 [plugin:vite:reporter] [plugin vite:reporter] 
+#16 5.924 (!) /app/client/src/cache.js is dynamically imported by /app/client/src/main.js but also statically imported by /app/client/src/api.js, /app/client/src/main.js, /app/client/src/ui/booking-state.js, /app/client/src/ui/bookings.js, /app/client/src/ui/home.js, /app/client/src/ui/settings.js, /app/client/src/ui/timetable.js, dynamic import will not move module into another chunk.
+#16 5.924 
+#16 5.924 [plugin:vite:reporter] [plugin vite:reporter] 
+#16 5.924 (!) /app/client/src/ui/bookings.js is dynamically imported by /app/client/src/main.js, /app/client/src/main.js, /app/client/src/main.js, /app/client/src/main.js, /app/client/src/ui/booking-state.js, /app/client/src/ui/teams-dashboard.js but also statically imported by /app/client/src/ui/home.js, /app/client/src/ui/timetable.js, dynamic import will not move module into another chunk.
+#16 5.924 
+#16 5.924 [plugin:vite:reporter] [plugin vite:reporter] 
+#16 5.924 (!) /app/client/src/ui/settings.js is dynamically imported by /app/client/src/main.js, /app/client/src/main.js, /app/client/src/main.js, /app/client/src/ui/booking-chrome.js, /app/client/src/ui/home-connections.js, /app/client/src/ui/home.js, /app/client/src/ui/teams-dashboard.js but also statically imported by /app/client/src/ui/onboarding.js, /app/client/src/ui/timetable.js, dynamic import will not move module into another chunk.
+#16 5.924 
+#16 5.924 [plugin:vite:reporter] [plugin vite:reporter] 
+#16 5.924 (!) /app/client/src/ui/timetable-search-state.js is dynamically imported by /app/client/src/main.js but also statically imported by /app/client/src/ui/timetable-search-ui.js, /app/client/src/ui/timetable.js, dynamic import will not move module into another chunk.
+#16 5.924 
+#16 5.924 [plugin:vite:reporter] [plugin vite:reporter] 
+#16 5.924 (!) /app/client/src/ui/timetable.js is dynamically imported by /app/client/src/main.js, /app/client/src/main.js, /app/client/src/main.js, /app/client/src/main.js, /app/client/src/main.js, /app/client/src/main.js, /app/client/src/main.js, /app/client/src/ui/home.js, /app/client/src/ui/teams-dashboard.js, /app/client/src/ui/teams-dashboard.js, /app/client/src/ui/teams-dashboard.js but also statically imported by /app/client/src/ui/autobook.js, /app/client/src/ui/bookings.js, /app/client/src/ui/favourites-pane.js, /app/client/src/ui/settings.js, /app/client/src/ui/tooltips.js, dynamic import will not move module into another chunk.
+#16 5.924 
+#16 5.930 [plugin:vite:reporter] [plugin vite:reporter] 
+#16 5.930 (!) /app/client/src/ui/onboarding.js is dynamically imported by /app/client/src/ui/settings.js but also statically imported by /app/client/src/main.js, dynamic import will not move module into another chunk.
+#16 5.930 
+#16 5.982 computing gzip size...
+#16 6.016 dist/index.html                             68.43 kB │ gzip:  15.27 kB
+#16 6.016 dist/assets/index-CxGijMj4.css             432.90 kB │ gzip:  68.17 kB
+#16 6.017 dist/assets/home-teams-D2l5YhKY.js           1.22 kB │ gzip:   0.65 kB
+#16 6.017 dist/assets/teams-stats-model-DHq_uqoN.js    2.91 kB │ gzip:   1.45 kB
+#16 6.017 dist/assets/teams-join-B37dSDfw.js           4.04 kB │ gzip:   1.67 kB
+#16 6.017 dist/assets/teams-privacy-BAjFKIZs.js        4.27 kB │ gzip:   1.79 kB
+#16 6.018 dist/assets/teams-card-Cw7eSu7u.js           4.47 kB │ gzip:   1.92 kB
+#16 6.018 dist/assets/teams-create-BQ-lmxUr.js         8.20 kB │ gzip:   2.98 kB
+#16 6.018 dist/assets/share-sheet-Bu2aA1Xc.js          8.93 kB │ gzip:   3.57 kB
+#16 6.018 dist/assets/teams-D543orN_.js               12.77 kB │ gzip:   4.28 kB
+#16 6.018 dist/assets/autobook-Wf1QJfc_.js            16.09 kB │ gzip:   5.46 kB
+#16 6.019 dist/assets/teams-manage-9SCdT54W.js        18.94 kB │ gzip:   5.86 kB
+#16 6.019 dist/assets/credits-Nzofq4mn.js             20.01 kB │ gzip:   6.53 kB
+#16 6.019 dist/assets/teams-dashboard-D2aCRzLq.js     28.17 kB │ gzip:   9.47 kB
+#16 6.019 dist/assets/home-BDYZi7kT.js                41.09 kB │ gzip:  13.60 kB
+#16 6.019 dist/assets/index-Cj6AqYOE.js              744.49 kB │ gzip: 226.19 kB
+#16 6.020 
+#16 6.020 (!) Some chunks are larger than 500 kB after minification. Consider:
+#16 6.020 - Using dynamic import() to code-split the application
+#16 6.020 - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+#16 6.020 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+#16 6.020 ✓ built in 4.28s
+#16 DONE 6.2s
+
+#17 [stage-1 7/7] COPY --from=client-builder /app/client/dist ./server/public
+#17 DONE 0.1s
+
+#18 exporting to image
+#18 exporting layers
+#18 exporting layers 0.4s done
+#18 exporting manifest sha256:26dbf5811613e10c98fd4eeee9c717d444fe4e5e2ffa1ad627495c1ce253292d 0.0s done
+#18 exporting config sha256:fbec3cf8d372e048efa2bb17278b2f08fa27088666c36b3626adcbdcb3bd52e2 0.0s done
+#18 exporting attestation manifest sha256:3a481df957a5fb24889b95cdb1b5f5572b774f3b6ebef0b3d188fdf9f1c43013 0.0s done
+#18 exporting manifest list sha256:24fdf4be939a46234e9ca8647a12262ca094817723f9efd49ecdabe73e1a5c55 0.0s done
+#18 naming to docker.io/library/sweatassistant-experiment-sweatassistant-experiment:latest done
+#18 unpacking to docker.io/library/sweatassistant-experiment-sweatassistant-experiment:latest 0.1s done
+#18 DONE 0.7s
+
+#19 resolving provenance for metadata file
+#19 DONE 0.0s
+ Image sweatassistant-experiment-sweatassistant-experiment Built 
+ Container sweatassistant-experiment Recreate 
+ Container sweatassistant-experiment Recreated 
+ Container sweatassistant-experiment Starting 
+ Container sweatassistant-experiment Started 
+NAME                        IMAGE                                                 COMMAND                  SERVICE                     CREATED          STATUS                  PORTS
+sweatassistant-experiment   sweatassistant-experiment-sweatassistant-experiment   "docker-entrypoint.s…"   sweatassistant-experiment   13 seconds ago   Up Less than a second   100.86.226.52:3006->3000/tcp
+[3/3] verify patched runtime
+v22.23.4
+Done. Verify:  curl -s https://experiment.dibs.fit/api/health
+Also check the registry (~/.claude/skills/selfhost-deploy/references/registry.md) if ports or names changed.

@@ -1,0 +1,16 @@
+  ✓ states: resting, warming, exercising, cooling, champion, sleeping
+  ✓ night waits for unfinished Eastern classes, including the midnight and DST boundary
+  ✓ ring = progress through ALL the day's classes (a class in progress counts its elapsed share); cooling down renders smaller (fit)
+  ✓ exercising pose: deterministic per Team and date, rotates across dates and Teams
+  ✓ eligibility: bike only with a cycle/ride class, boxing only with a boxing class
+  ✓ pose fallback: dumbbell when no registry entry is eligible; every asset is a team- webp
+  ✓ pose date is the VIEWER's local date at midnight
+  ✓ a gym needing login disappears from Team classes and counts while membership and healthy gyms survive
+  ✓ today line inputs: total, done, first upcoming time; hottest needs two people
+  ✓ T9 upNext: soonest not-started class, any day, with no names or counts
+  ✓ solo line when one person is doing the next class; next-class hint when today is over
+  ✓ "today" is each class's own zone: a New York 21:00 class is today there, tomorrow in London
+  ✓ projection is pure input -> output and refuses a viewer who is not a member
+  ✓ multi-slot booking: one attendee with joined spots; booked beats waitlist and queue
+
+14/14 passed

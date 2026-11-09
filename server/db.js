@@ -534,6 +534,20 @@ if (!db.prepare('PRAGMA table_info(users)').all().some((col) => col.name === 'is
   db.exec('ALTER TABLE users ADD COLUMN is_fixture INTEGER NOT NULL DEFAULT 0');
 }
 
+// Optional gym login: additive migration, never recreate an existing database.
+for (const [table, columns] of Object.entries({
+  users: { terms_version: 'TEXT', privacy_version: 'TEXT', policy_accepted_at: 'TEXT' },
+  user_gyms: { remember_login: 'INTEGER NOT NULL DEFAULT 0', login_disclosure_version: 'TEXT', login_choice_at: 'TEXT', connection_revision: 'INTEGER NOT NULL DEFAULT 0', login_incident: 'TEXT', login_required_at: 'TEXT', login_required_reason: 'TEXT' },
+})) {
+  const existing = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name));
+  for (const [name, type] of Object.entries(columns)) if (!existing.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
+}
+db.exec(`CREATE TABLE IF NOT EXISTS gym_login_notifications (
+  incident TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  gym_id TEXT NOT NULL, attempted_at TEXT, delivered_at TEXT,
+  FOREIGN KEY(user_id,gym_id) REFERENCES user_gyms(user_id,gym_id) ON DELETE CASCADE
+)`);
+
 // --- user_gyms.session_json encryption at rest (security audit part 2) -------
 // The column holds live gym access/refresh tokens. New writes are `s2:`-prefixed
 // AES-256-GCM ciphertext (crypto.js encryptV2, AAD-bound to this column); a legacy
@@ -1240,7 +1254,7 @@ module.exports = {
   setGymSession(userId, gymId, session) {
     if (!gymId) throw new Error('setGymSession requires an explicit gymId');
     this.upsertUserGym(userId, gymId, {
-      session_json: session ? JSON.stringify(session) : null,
+      session_json: session ? JSON.stringify(require('./policies').sessionMaterial(session)) : null,
       // A new session means the stored credential was just proven against the
       // gym. Only stamped when a session is actually issued — clearing a session
       // (a failed renewal) must not look like a successful authentication.
@@ -1278,7 +1292,7 @@ module.exports = {
     if (!profile || typeof profile !== 'object') return;
     const targetGym = resolveGymStrict(userId, gymId, 'cacheUserProfile');
     const displayName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || null;
-    const profileJson = JSON.stringify(profile);
+    const profileJson = JSON.stringify(require('./policies').withoutLoginDetails(profile));
     const profileSyncedAt = new Date().toISOString();
     // The vestigial `users.*` dual-write only means anything for the ACTIVE gym
     // (same rule as setGymSession) — writing it for a background gym would show
@@ -1340,7 +1354,7 @@ module.exports = {
       SELECT ab.*, COALESCE(ug.priority, 100) AS priority
       FROM auto_bookings ab
       LEFT JOIN user_gyms ug ON ug.user_id = ab.user_id AND ug.gym_id = ab.gym_id
-      WHERE ab.status = 'pending' AND ab.executed_at IS NULL AND ug.account_enabled = 1
+      WHERE ab.status = 'pending' AND ab.executed_at IS NULL AND ug.account_enabled = 1 AND ug.status = 'active'
       ORDER BY priority ASC, ab.created_at ASC
     `).all();
   },
@@ -1485,18 +1499,18 @@ module.exports = {
 
   // Auto-upgrades
   getActiveAutoUpgrades() {
-    return db.prepare("SELECT au.* FROM auto_upgrades au JOIN user_gyms ug ON ug.user_id = au.user_id AND ug.gym_id = au.gym_id WHERE au.status = 'active' AND ug.account_enabled = 1").all();
+    return db.prepare("SELECT au.* FROM auto_upgrades au JOIN user_gyms ug ON ug.user_id = au.user_id AND ug.gym_id = au.gym_id WHERE au.status = 'active' AND ug.account_enabled = 1 AND ug.status = 'active'").all();
   },
   // C5-1: monitors the poller paused because the balance was empty. Cross-user
   // background scanner, so — like getActiveAutoUpgrades — it must NOT filter by
   // gym; the caller routes per row via row.gym_id.
   getPausedNoCreditsAutoUpgrades() {
-    return db.prepare("SELECT au.* FROM auto_upgrades au JOIN user_gyms ug ON ug.user_id = au.user_id AND ug.gym_id = au.gym_id WHERE au.status = 'paused_no_credits' AND ug.account_enabled = 1").all();
+    return db.prepare("SELECT au.* FROM auto_upgrades au JOIN user_gyms ug ON ug.user_id = au.user_id AND ug.gym_id = au.gym_id WHERE au.status = 'paused_no_credits' AND ug.account_enabled = 1 AND ug.status = 'active'").all();
   },
   // Monitors paused because the gym's polling switch is off. Background scanner:
   // no gym filter, the caller routes per row.
   getPausedDisabledAutoUpgrades() {
-    return db.prepare("SELECT au.* FROM auto_upgrades au JOIN user_gyms ug ON ug.user_id = au.user_id AND ug.gym_id = au.gym_id WHERE au.status = 'paused_disabled' AND ug.account_enabled = 1").all();
+    return db.prepare("SELECT au.* FROM auto_upgrades au JOIN user_gyms ug ON ug.user_id = au.user_id AND ug.gym_id = au.gym_id WHERE au.status = 'paused_disabled' AND ug.account_enabled = 1 AND ug.status = 'active'").all();
   },
   getUserAutoUpgrades(userId, gymId = undefined) {
     if (gymId === 'all') {
@@ -1986,7 +2000,7 @@ module.exports = {
   // of the universal background booking sync. Cross-user scanner: deliberately
   // NOT scoped to an active gym (rule 2 of WP-D6).
   getEnabledGymLinks() {
-    return db.prepare(`SELECT user_id, gym_id, status, relogin_suspended FROM user_gyms
+    return db.prepare(`SELECT user_id, gym_id, status, relogin_suspended, account_enabled, connection_revision FROM user_gyms
       WHERE account_enabled = 1 ORDER BY user_id ASC, gym_id ASC`).all();
   },
   getBookingSyncState(userId, gymId) {
@@ -2386,7 +2400,10 @@ module.exports = {
              -- guess where a multi-word display_name splits into first and last.
              CASE WHEN json_valid(ug.profile_json) THEN COALESCE(json_extract(ug.profile_json, '$.first_name'), json_extract(ug.profile_json, '$.data.first_name')) END AS first_name,
              CASE WHEN json_valid(ug.profile_json) THEN COALESCE(json_extract(ug.profile_json, '$.last_name'), json_extract(ug.profile_json, '$.data.last_name')) END AS last_name,
-             ug.gym_email, ug.status, ug.priority, ug.account_enabled,
+             ug.gym_email, ug.status, ug.priority, ug.account_enabled, ug.remember_login, ug.connection_revision, ug.login_incident, ug.login_required_at, ug.login_required_reason,
+             (ug.encrypted_password IS NOT NULL AND ug.gym_email IS NOT NULL) AS has_saved_login,
+             (SELECT COUNT(*) FROM auto_bookings ab WHERE ab.user_id = ug.user_id AND ab.gym_id = ug.gym_id AND ab.status = 'pending') AS paused_booking_count,
+             (SELECT COUNT(*) FROM auto_upgrades au WHERE au.user_id = ug.user_id AND au.gym_id = ug.gym_id AND au.status = 'active') AS paused_upgrade_count,
              (ug.calendar_token IS NOT NULL) AS calendar_enabled,
              ug.created_at, ug.updated_at, ug.last_authenticated_at,
              ug.relogin_failures, ug.relogin_rejections, ug.relogin_suspended,
@@ -2424,6 +2441,67 @@ module.exports = {
   },
   isUserGymEnabled(userId, gymId) {
     return !!db.prepare('SELECT 1 FROM user_gyms WHERE user_id = ? AND gym_id = ? AND account_enabled = 1').get(userId, gymId);
+  },
+  recordPolicyAcceptance(userId, acceptance) {
+    const { TERMS_VERSION, PRIVACY_VERSION } = require('./policies');
+    db.prepare('UPDATE users SET terms_version = ?, privacy_version = ?, policy_accepted_at = ? WHERE id = ?')
+      .run(TERMS_VERSION, PRIVACY_VERSION, new Date().toISOString(), userId);
+  },
+  forgetGymLogin(userId, gymId) {
+    db.prepare("UPDATE users SET encrypted_password = '' WHERE id = ?").run(userId);
+    return db.prepare(`UPDATE user_gyms SET gym_email = NULL, encrypted_password = NULL, remember_login = 0,
+      login_choice_at = ?, connection_revision = connection_revision + 1 WHERE user_id = ? AND gym_id = ?`)
+      .run(new Date().toISOString(), userId, gymId).changes > 0;
+  },
+  commitGymLogin(userId, gymId, fields, rememberLogin, expectedRevision) {
+    return db.transaction(() => {
+      const current = this.getUserGym(userId, gymId);
+      if ((current?.connection_revision ?? null) !== expectedRevision) return false;
+      this.upsertUserGym(userId, gymId, fields);
+      db.prepare(`UPDATE user_gyms SET remember_login = ?, login_disclosure_version = ?, login_choice_at = ?,
+        connection_revision = connection_revision + 1, login_incident = NULL, login_required_at = NULL,
+        login_required_reason = NULL WHERE user_id = ? AND gym_id = ?`)
+        .run(rememberLogin ? 1 : 0, require('./policies').DISCLOSURE_VERSION, new Date().toISOString(), userId, gymId);
+      this.clearReloginFailures(userId, gymId);
+      return true;
+    })();
+  },
+  commitGymRenewal(userId, gymId, session, expectedRevision) {
+    return db.transaction(() => {
+      const current = this.getUserGym(userId, gymId);
+      if (!current || current.connection_revision !== expectedRevision || current.status !== 'active') return false;
+      this.setGymSession(userId, gymId, require('./policies').sessionMaterial(session));
+      db.prepare('UPDATE user_gyms SET connection_revision = connection_revision + 1 WHERE user_id = ? AND gym_id = ?').run(userId, gymId);
+      this.clearReloginFailures(userId, gymId);
+      return true;
+    })();
+  },
+  requireGymLogin(userId, gymId, reason, expectedRevision = null) {
+    return db.transaction(() => {
+      const link = this.getUserGym(userId, gymId);
+      if (!link || link.login_incident || (expectedRevision !== null && link.connection_revision !== expectedRevision)) return false;
+      const incident = nodeCrypto.randomUUID();
+      db.prepare('INSERT INTO gym_disabled_intervals(user_id,gym_id,disabled_at) VALUES(?,?,?)').run(userId, gymId, new Date().toISOString());
+      const now = new Date().toISOString();
+      db.prepare(`UPDATE user_gyms SET status = 'needs_relogin', session_json = NULL,
+        login_incident = ?, login_required_at = ?, login_required_reason = ?, relogin_suspended = 1,
+        connection_revision = connection_revision + 1 WHERE user_id = ? AND gym_id = ?`).run(incident, now, reason, userId, gymId);
+      db.prepare('INSERT INTO gym_login_notifications(incident,user_id,gym_id) VALUES(?,?,?)').run(incident, userId, gymId);
+      return true;
+    })();
+  },
+  finishGymReconnect(userId, gymId, revision) {
+    return db.transaction(() => {
+      const link = this.getUserGym(userId, gymId);
+      if (!link || link.connection_revision !== revision || link.status !== 'syncing') return false;
+      db.prepare("UPDATE user_gyms SET status = 'active' WHERE user_id = ? AND gym_id = ?").run(userId, gymId);
+      const cutoff = db.prepare('SELECT COALESCE(MAX(id),0) AS n FROM auto_bookings WHERE user_id = ? AND gym_id = ?').get(userId, gymId).n;
+      db.prepare('UPDATE gym_disabled_intervals SET enabled_at = ?, queue_cutoff = ? WHERE user_id = ? AND gym_id = ? AND enabled_at IS NULL').run(new Date().toISOString(), cutoff, userId, gymId);
+      return true;
+    })();
+  },
+  isUserGymAvailable(userId, gymId) {
+    return !!db.prepare("SELECT 1 FROM user_gyms WHERE user_id = ? AND gym_id = ? AND account_enabled = 1 AND status = 'active'").get(userId, gymId);
   },
   // Flag a link's health (WP-D7): 'active' | 'needs_relogin' | 'disabled'.
   // Set to 'needs_relogin' when session renewal fails, so the UI can prompt for a

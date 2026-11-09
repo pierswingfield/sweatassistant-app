@@ -1,0 +1,57 @@
+# Privacy Policy
+
+**Version 2026-11-09. Published 9 November 2026.**
+
+## Who is responsible
+
+Dibs operates in the United Kingdom at dibs.fit and app.dibs.fit. Privacy contact: **privacy@dibs.fit**. This notice covers Dibs; gyms and services you use separately have their own notices.
+
+## What we collect and why
+
+| Information | Purpose and UK GDPR basis |
+|---|---|
+| Dibs email, password hash, name and account/settings records | Create and secure your account and provide the service you request: contract. |
+| Linked gym sessions; gym login email and encrypted password only if you choose to remember them; provider profile, membership/credit and class information | Connect to your chosen gym, show your account and bookings, keep history and run enabled booking/sync features: contract. |
+| Bookings, waitlists, class history, favourite classes/spots, automation instructions and outcomes | Provide your timetable, booking assistance, reminders and activity views: contract. These records come from you and linked gym/provider APIs. |
+| Team memberships and sharing choices; information you choose to share | Provide optional Team features you request: contract. You control participation and per-Team visibility.  |
+| Push subscription/device routing details and calendar tokens | Deliver optional notifications and private calendar feeds you request: contract; browser permission is also required for push. |
+| Technical/security logs, request metadata and support messages | Protect accounts, investigate faults and respond to support: legitimate interests in running a secure, reliable service. Legal obligations apply where retention/disclosure is required by law. |
+| Landing visits/clicks, page/referrer host, broad device/country and campaign information | Understand use of the landing page: legitimate interests in understanding and improving the site. |
+
+Account credentials enable sign-in; gym access details enable a connection. Other features are optional. Without necessary information we cannot provide that feature. Dibs sign-in is separate from gym sign-in.
+
+## Credentials and access
+
+Your Dibs password is a salted scrypt hash. “Remember your gym login” starts unticked on every gym login. Without it, your login inputs are used only to authenticate; Dibs retains encrypted provider session/refresh material, not reusable gym login email/password. If selected, Dibs saves your gym login details only after successful authentication. You can remove saved login details in Settings without disconnecting the gym or ending its working session. Syncing and automation pause when a gym needs a new login. Provider profile contact information is not used as a replacement login identifier. Gym passwords and provider sessions use AES-256-GCM encryption with a server key outside the database. **The server can decrypt them** to renew access and run background features. The operator can access account information; control of the server and key permits decryption. Other database information is not necessarily encrypted.
+
+The public service uses HTTPS. Security cannot eliminate breach risk. Never send passwords in support messages.
+
+## Who receives information
+
+We send relevant credentials, sessions and requests to the gyms/providers you connect. Their rules govern their own processing. Oracle Cloud hosts the live app and its database. Cloudflare provides DNS, tunnel, network security and delivery services, access controls and email routing; it may also process network and security metadata for its own purposes. Encrypted backups support recovery: they can be restored by an operator with the appropriate keys and are not end-to-end encrypted. Browser push services route enabled notifications. Calendar providers receive the contents of feeds you subscribe to. For supported credit purchases, Dibs displays saved payment-method details such as card brand, last four digits and expiry, and sends the selected payment-method identifier to the gym provider to request payment. The gym and its payment provider handle the charge; the final payment steps have not been verified live.
+
+Team members see information allowed by your sharing settings. The joining screen initially selects gyms, upcoming classes, waitlists, activity and recent classes; spots, Auto-Book queue and competition start off. Review these choices. Counts may remain visible when class details are hidden. Sharing reveals times/locations. Changing settings cannot recall screenshots or exports.
+
+Anyone with a private calendar URL can read its feed. Keep it secret and regenerate it if exposed. We may disclose necessary information for legal obligations or claims.
+
+**International processing:** The live app and database are hosted in London. Cloudflare operates a global network and information may be processed outside the UK; other providers you use may also process information internationally. Cloudflare publishes a data processing addendum with standard contractual clauses and a UK transfer addendum for qualifying transfers, but their application to this service and the complete destinations and safeguards have not yet been established. Contact privacy@dibs.fit for the information currently available.
+
+## Device storage and landing analytics
+
+Local storage holds sign-in/preferences, IndexedDB caches account data, and service-worker caches support offline operation. Uninstalling does not delete your server account.
+
+Landing analytics do not set an analytics cookie. The server derives a daily-changing identifier from the IP address, user agent and secret; the analytics table stores that identifier rather than the raw IP or user agent. This is pseudonymous, not guaranteed anonymous. Network/security providers may separately process IP addresses. You can object to this measurement by contacting privacy@dibs.fit.
+
+## Retention and choices
+
+Account and class-history records remain until you delete your account or unlink the relevant gym; there is currently no automatic deletion solely for inactivity. The 30-day Team recent-class view limits visibility, not storage. Unlinking deletes that gym's credentials, sessions and gym-scoped data from the live database. Settings also offers account deletion. This does not cancel gym bookings or delete provider-held records. Landing events are scheduled for deletion after 13 months.
+
+Security logs and support correspondence may be retained to investigate problems, protect the service or deal with legal matters; a fixed retention period has not yet been established. Deleted information can remain in recovery backups and other copies after deletion from the live database. The app database backup job is configured to prune local copies after 14 days and remote copies after 30 days; this is a rotation target, not a guarantee covering failed jobs, other backups or restored copies. We cannot yet give a reliable deletion deadline for every copy.
+
+## Your rights and contact
+
+You can request access, correction, deletion, restriction and portability, subject to applicable conditions. **You can object to processing based on legitimate interests**, including landing analytics; contact **privacy@dibs.fit**. Any consent can be withdrawn without affecting earlier lawful use. You can disable optional features, change Team sharing, revoke browser push permission and regenerate calendar links.
+
+Automation follows your booking instructions and may affect gym credits or charges; you can remove queued instructions and check outcomes with the gym. It is not a guarantee of acceptance by the gym.
+
+Contact us about concerns or rights. You can complain to the [Information Commissioner's Office](https://ico.org.uk/make-a-complaint/). We will date updates and explain material changes before new uses begin.

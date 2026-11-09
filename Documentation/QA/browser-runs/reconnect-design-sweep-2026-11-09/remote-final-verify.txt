@@ -1,0 +1,8 @@
+sweatassistant-experiment | sweatassistant-experiment-sweatassistant-experiment | Up 25 seconds | 100.86.226.52:3006->3000/tcp
+image=sha256:179647fb1bc234496c7e145eebcff0e1af7c4553ca41d4607c1c206095cb9362 restart=0 status=running
+linux/arm64
+v22.23.4
+af4c5b2007b805118fd528a5d224475461ab11cd28b58b2367f6d0ebfa8c176c  .env
+322b8ddeb92234824c61281a026974f4e5adca2a2cb8721d426351f735519475  docker-compose.experiment.yml
+A /data
+{"status":200,"body":{"status":"ok","time":"2026-11-09T19:18:23.489Z","uptimeSec":26,"scheduleCache":{"hits":0,"staleHits":0,"misses":1,"coalesced":0,"refreshes":0,"errors":0,"stampUnchanged":0,"stampChanged":0,"stampUnavailable":0,"ceilingRefetches":0,"entries":0,"inFlight":1,"hitRate":0},"freshness":{"heartbeatChecks":0,"heartbeatFailures":0},"bookingSync":{"cycles":0,"ticksSkipped":0,"usersSynced":0,"gymsSynced":0,"gymsFailed":0,"gymsSkipped":0,"skipped":{"disabled":0,"throttled":0,"needsRelogin":0,"forceLimited":0},"forceDeferred":0,"lastCycleAt":null,"lastCycleMs":null},"layoutCache":{"hits":0,"staleHits":0,"misses":0,"coalesced":0,"refreshes":0,"errors":0,"stampUnchanged":0,"stampChanged":0,"stampUnavailable":0,"ceilingRefetches":0,"entries":0,"inFlight":0,"hitRate":null},"instructorPhotoCache":{"hits":0,"misses":0,"coalesced":0,"generated":0,"failures":0,"upstreamMs":0,"upstreamRequests":0,"inFlight":0,"maxCacheBytes":524288000,"bytes":177464,"files":141,"maxBytes":524288000},"nextReleaseAt":null,"services":{"scheduler":{"healthy":true,"lastHeartbeatAgoSec":25,"staleAfterSec":180},"poller":{"healthy":true,"lastHeartbeatAgoSec":23,"staleAfterSec":180},"calendar":{"healthy":true,"lastHeartbeatAgoSec":25,"staleAfterSec":12600}}}}

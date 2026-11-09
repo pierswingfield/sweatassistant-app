@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Settings reauthentication initially unticked",
+    "pass": true
+  },
+  {
+    "name": "Settings uses the shared choice card",
+    "pass": true
+  },
+  {
+    "name": "Settings remembered disclosure has both policy links",
+    "pass": true
+  }
+]

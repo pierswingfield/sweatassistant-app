@@ -8,7 +8,7 @@ vi.mock('./home.js', () => ({ renderHome: vi.fn() }));
 vi.mock('./settings', () => ({ openManageSpotMapsModal: vi.fn() }));
 vi.mock('./calendar-section.js', () => ({ openCalendarSettingsModal: calendarModal }));
 vi.mock('./teams-ui.js', () => ({ teamAvatar: () => '<span data-team-avatar></span>' }));
-vi.mock('./gym-logo-strip.js', () => ({ startGymLogoDiscovery: vi.fn() }));
+vi.mock('./gym-logo-strip.js', () => ({ startGymLogoDiscovery: vi.fn(), setGymLogoDiscoveryVisible: vi.fn() }));
 import { resumeOnboarding, startOnboarding } from './onboarding.js';
 import { appConfig } from '../config.js';
 

@@ -1,0 +1,51 @@
+
+> app-client@1.0.0 test
+> vitest run --run src/ui/cards.test.js
+
+
+ RUN  v4.1.11 /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client
+
+ ❯ src/ui/cards.test.js (13 tests | 2 failed) 27ms
+     × removes decorative leading separators, including after the discipline 3ms
+     × preserves meaningful initial punctuation and internal separators 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/ui/cards.test.js > cleanClassName (U1-11) > removes decorative leading separators, including after the discipline
+AssertionError: expected '| Lagree & Free Shake (Signature 50)' to be 'Lagree & Free Shake (Signature 50)' // Object.is equality
+
+Expected: "Lagree & Free Shake (Signature 50)"
+Received: "| Lagree & Free Shake (Signature 50)"
+
+ ❯ src/ui/cards.test.js:34:85
+     32|
+     33|   it('removes decorative leading separators, including after the disci…
+     34|     expect(cleanClassName('LAGREE | Lagree & Free Shake (Signature 50)…
+       |                                                                                     ^
+     35|     expect(cleanClassName('\u00a0 | | – \u2003| Signature 45', 'Ride')…
+     36|     expect(cleanClassName('Ride｜ | Signature 45', 'Ride')).toBe('Signa…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/ui/cards.test.js > cleanClassName (U1-11) > preserves meaningful initial punctuation and internal separators
+AssertionError: expected '| “Flow” | Focus' to be '“Flow” | Focus' // Object.is equality
+
+Expected: "“Flow” | Focus"
+Received: "| “Flow” | Focus"
+
+ ❯ src/ui/cards.test.js:45:53
+     43|     }
+     44|     expect(cleanClassName('Ride: #1 Challenge', 'Ride')).toBe('#1 Chal…
+     45|     expect(cleanClassName(' | “Flow” | Focus', '')).toBe('“Flow” | Foc…
+       |                                                     ^
+     46|   });
+     47|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 11 passed (13)
+   Start at  22:13:00
+   Duration  675ms (transform 54ms, setup 0ms, import 71ms, tests 27ms, environment 489ms)
+

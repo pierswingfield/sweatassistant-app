@@ -78,7 +78,7 @@ function toInstant(iso, zone) {
 function viewerAttendance(m, now, zoneFor = () => 'UTC') {
   const out = new Set();
   if (!m) return out;
-  const enabled = new Set((m.links || []).filter((l) => l && (l.account_enabled === 1 || l.account_enabled === true)).map((l) => l.gym_id));
+  const enabled = new Set((m.links || []).filter((l) => l && (l.account_enabled === 1 || l.account_enabled === true) && (!l.status || l.status === 'active')).map((l) => l.gym_id));
   const excluded = new Set();
   const confirmed = new Set();
   for (const h of m.history || []) {
@@ -190,7 +190,7 @@ function projectTeam(input) {
     const share = sharing.resolveShare(m.share);
     const paused = isPausedAt(m.pausedUntil, now);
     nameOf.set(m.memberRef, m.name);
-    const enabledGyms = new Set((m.links || []).filter((l) => l && (l.account_enabled === 1 || l.account_enabled === true)).map((l) => l.gym_id));
+    const enabledGyms = new Set((m.links || []).filter((l) => l && (l.account_enabled === 1 || l.account_enabled === true) && (!l.status || l.status === 'active')).map((l) => l.gym_id));
     const gymOk = (gymId) => !paused && !!gymId && sharesGym(share, gymId) && enabledGyms.has(gymId);
     const visible = (gymId) => viewerGyms.has(gymId);
 

@@ -16,7 +16,8 @@ const { spawnSync } = require('child_process');
 if (!process.env.ENCRYPTION_KEY) {
   process.env.ENCRYPTION_KEY = require('crypto').randomBytes(32).toString('hex');
 }
-process.env.DB_PATH = process.env.DB_PATH || ':memory:';
+// Never inherit a running app's DB_PATH into destructive test fixtures.
+process.env.DB_PATH = ':memory:';
 
 const files = readdirSync(__dirname)
   .filter((f) => f.startsWith('test-') && f.endsWith('.js'))

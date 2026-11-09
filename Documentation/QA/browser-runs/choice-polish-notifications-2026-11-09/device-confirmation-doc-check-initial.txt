@@ -1,0 +1,1 @@
+An initial whole-document whitespace assertion found existing trailing whitespace elsewhere in the Server Management changelog. No unrelated whitespace was edited. Verification was narrowed to the updated confirmation paragraphs; repository git diff --check remained clean.

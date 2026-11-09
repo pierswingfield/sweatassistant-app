@@ -1,0 +1,13 @@
+
+> app-client@1.0.0 test
+> vitest run --run src/ui/cards.test.js
+
+
+ RUN  v4.1.11 /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client
+
+
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Start at  22:13:44
+   Duration  693ms (transform 61ms, setup 0ms, import 82ms, tests 25ms, environment 504ms)
+

@@ -1,0 +1,4 @@
+locator.waitFor: Timeout 6000ms exceeded.
+Call log:
+[2m  - waiting for locator('#app-nogym-remember') to be visible[22m
+

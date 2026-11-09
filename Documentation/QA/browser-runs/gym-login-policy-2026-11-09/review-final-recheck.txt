@@ -1,0 +1,70 @@
+[Push] Automatically generated and saved VAPID keypair in server database.
+[Push] No push subscriptions found for user 1. Skipping notification.
+{"ts":"2026-11-09T00:57:56.197Z","level":"error","msg":"relogin failed","component":"poller","userId":1,"err":"Log in to this gym again. Its data and automation are paused."}
+PASS poller records one incident when the renewed session is rejected and stops further renewal
+[Push] No push subscriptions found for user 2. Skipping notification.
+PASS booking sync records one incident for a rejected retried session and stops further renewal
+[Scheduler] No release time resolvable for event current-retry-3 at gym jab-boxing — skipping.
+[Push] No push subscriptions found for user 3. Skipping notification.
+[Scheduler] Running booking worker for User 3, Event current-retry-3. Needs 1 total places.
+[Scheduler] Live available slots for event current-retry-3: [ 'only' ]
+[Scheduler] Event current-retry-3: planning to attempt slots in order: [only]
+[Scheduler] Attempting to book fallback slot only for event current-retry-3...
+{"ts":"2026-11-09T00:57:56.256Z","level":"info","msg":"booking got 401, attempting relogin and retry","component":"scheduler","userId":3,"gymId":"jab-boxing"}
+[Push] No push subscriptions found for user 3. Skipping notification.
+PASS scheduler pauses the real queue and creates one incident when its current renewed session is rejected
+PASS poller preserves renewed session on post-renewal 429
+PASS booking sync preserves renewed session on post-renewal 429
+PASS poller preserves renewed session on post-renewal 503
+PASS booking sync preserves renewed session on post-renewal 503
+{"ts":"2026-11-09T00:57:56.396Z","level":"error","msg":"relogin failed","component":"poller","userId":8,"err":"Log in to this gym again. Its data and automation are paused."}
+PASS poller: late retried 401 cannot invalidate a newer manual-login
+{"ts":"2026-11-09T00:57:56.424Z","level":"error","msg":"relogin failed","component":"poller","userId":9,"err":"Log in to this gym again. Its data and automation are paused."}
+PASS poller: late retried 401 cannot invalidate a newer session-only-write
+PASS sync: late retried 401 cannot invalidate a newer manual-login
+PASS sync: late retried 401 cannot invalidate a newer session-only-write
+[Scheduler] No release time resolvable for event retry-event-14 at gym jab-boxing — skipping.
+[Push] No push subscriptions found for user 12. Skipping notification.
+[Scheduler] Running booking worker for User 12, Event retry-event-14. Needs 1 total places.
+[Scheduler] Live available slots for event retry-event-14: [ 'only' ]
+[Scheduler] Event retry-event-14: planning to attempt slots in order: [only]
+[Scheduler] Attempting to book fallback slot only for event retry-event-14...
+{"ts":"2026-11-09T00:57:56.507Z","level":"info","msg":"booking got 401, attempting relogin and retry","component":"scheduler","userId":12,"gymId":"jab-boxing"}
+PASS scheduler: late retried 401 cannot invalidate a newer manual-login
+[Scheduler] No release time resolvable for event retry-event-16 at gym jab-boxing — skipping.
+[Push] No push subscriptions found for user 13. Skipping notification.
+[Scheduler] Running booking worker for User 13, Event retry-event-16. Needs 1 total places.
+[Scheduler] Live available slots for event retry-event-16: [ 'only' ]
+[Scheduler] Event retry-event-16: planning to attempt slots in order: [only]
+[Scheduler] Attempting to book fallback slot only for event retry-event-16...
+{"ts":"2026-11-09T00:57:56.535Z","level":"info","msg":"booking got 401, attempting relogin and retry","component":"scheduler","userId":13,"gymId":"jab-boxing"}
+PASS scheduler: late retried 401 cannot invalidate a newer session-only-write
+{"ts":"2026-11-09T00:57:56.562Z","level":"info","msg":"auto-upgrade booking got 401, attempting relogin and retry","component":"poller","userId":14,"gymId":"jab-boxing"}
+[Push] No push subscriptions found for user 14. Skipping notification.
+PASS upgrade-book: final returned 401 creates one incident and never repeats renewal
+{"ts":"2026-11-09T00:57:56.589Z","level":"info","msg":"auto-upgrade booking got 401, attempting relogin and retry","component":"poller","userId":15,"gymId":"jab-boxing"}
+[Push] No push subscriptions found for user 15. Skipping notification.
+PASS upgrade-book: final thrown 401 creates one incident and never repeats renewal
+{"ts":"2026-11-09T00:57:56.644Z","level":"info","msg":"auto-upgrade booking got 401, attempting relogin and retry","component":"poller","userId":17,"gymId":"jab-boxing"}
+PASS upgrade-book: successful mutations run once, including a successful existing retry
+{"ts":"2026-11-09T00:57:56.670Z","level":"info","msg":"auto-upgrade booking got 401, attempting relogin and retry","component":"poller","userId":18,"gymId":"jab-boxing"}
+PASS upgrade-book: post-renewal 429 keeps the session and makes no extra attempt
+{"ts":"2026-11-09T00:57:56.697Z","level":"info","msg":"auto-upgrade booking got 401, attempting relogin and retry","component":"poller","userId":19,"gymId":"jab-boxing"}
+PASS upgrade-book: post-renewal 503 keeps the session and makes no extra attempt
+{"ts":"2026-11-09T00:57:56.724Z","level":"info","msg":"auto-upgrade booking got 401, attempting relogin and retry","component":"poller","userId":20,"gymId":"jab-boxing"}
+PASS upgrade-book: thrown post-renewal outage remains transient
+{"ts":"2026-11-09T00:57:56.752Z","level":"info","msg":"auto-upgrade booking got 401, attempting relogin and retry","component":"poller","userId":21,"gymId":"jab-boxing"}
+PASS upgrade-book: stale rejection preserves newer manual-login
+{"ts":"2026-11-09T00:57:56.779Z","level":"info","msg":"auto-upgrade booking got 401, attempting relogin and retry","component":"poller","userId":22,"gymId":"jab-boxing"}
+PASS upgrade-book: stale rejection preserves newer session-only-write
+[Push] No push subscriptions found for user 23. Skipping notification.
+PASS upgrade-swap: final returned 401 creates one incident and never repeats renewal
+[Push] No push subscriptions found for user 24. Skipping notification.
+PASS upgrade-swap: final thrown 401 creates one incident and never repeats renewal
+PASS upgrade-swap: successful mutations run once, including a successful existing retry
+PASS upgrade-swap: post-renewal 429 keeps the session and makes no extra attempt
+PASS upgrade-swap: post-renewal 503 keeps the session and makes no extra attempt
+PASS upgrade-swap: thrown post-renewal outage remains transient
+PASS upgrade-swap: stale rejection preserves newer manual-login
+PASS upgrade-swap: stale rejection preserves newer session-only-write
+29/29 gym-retry-state checks passed

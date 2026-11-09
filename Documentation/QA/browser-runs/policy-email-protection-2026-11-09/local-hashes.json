@@ -1,0 +1,26 @@
+[
+  {
+    "file": "server/server.js",
+    "sha256": "99537bffd8cf95e943b028dd1d27eb77cdba9aeee6d674bbbd8890902a483413"
+  },
+  {
+    "file": "client/dist/index.html",
+    "sha256": "a826120297efcaef9a729ce601e53884e0923446e0bb405e48dd8ed62da93cf0"
+  },
+  {
+    "file": "client/dist/policies/terms.html",
+    "sha256": "cd6985e180c80607b78d6a68f1dac5dee458679fa6d7bec143625d5824e2e0de"
+  },
+  {
+    "file": "client/dist/policies/privacy.html",
+    "sha256": "fcb473c4984c9aa748c3aadd2757a1b8b66b8f063b28c5edf6ed3cb8e1dad7a0"
+  },
+  {
+    "file": "client/dist/policies/terms-2026-11-09.html",
+    "sha256": "cd6985e180c80607b78d6a68f1dac5dee458679fa6d7bec143625d5824e2e0de"
+  },
+  {
+    "file": "client/dist/policies/privacy-2026-11-09.html",
+    "sha256": "fcb473c4984c9aa748c3aadd2757a1b8b66b8f063b28c5edf6ed3cb8e1dad7a0"
+  }
+]

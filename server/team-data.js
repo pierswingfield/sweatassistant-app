@@ -34,7 +34,7 @@ function rowsForUsers(userIds, { now = Date.now() } = {}) {
   const ph = placeholders(ids.length);
   const sinceTs = now - HISTORY_WINDOW_MS;
   const sources = {
-    links: db.prepare(`SELECT user_id, gym_id, account_enabled FROM user_gyms WHERE user_id IN (${ph})`).all(...ids),
+    links: db.prepare(`SELECT user_id, gym_id, account_enabled, status FROM user_gyms WHERE user_id IN (${ph})`).all(...ids),
     // Only rows the server's own sync wrote: a client push alone never reaches a Team.
     bookings: db.prepare(`SELECT user_id, gym_id, booking_id, event_id, start_at, class_name, group_name, instructor_name,
       studio_name, location_name, slot_label, duration_min, origin, missing_since FROM booking_cache
@@ -56,8 +56,8 @@ function rowsForUsers(userIds, { now = Date.now() } = {}) {
 }
 
 /** Every gym the viewer has linked, enabled or paused (§4: paused counts as linked). */
-function linkedGymIds(userId) {
-  return db.prepare('SELECT gym_id FROM user_gyms WHERE user_id = ?').all(userId).map((r) => r.gym_id);
+function linkedGymIds(userId, { available = false } = {}) {
+  return db.prepare(`SELECT gym_id FROM user_gyms WHERE user_id = ? ${available ? "AND status NOT IN ('needs_relogin','syncing')" : ''}`).all(userId).map((r) => r.gym_id);
 }
 
 module.exports = { rowsForUsers, linkedGymIds, HISTORY_WINDOW_MS };

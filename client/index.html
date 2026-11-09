@@ -138,6 +138,7 @@
           <label for="app-signup-confirm" data-copy-text="static.confirmPassword">Confirm password</label>
           <input type="password" id="app-signup-confirm" placeholder="••••••••" data-copy-placeholder="static.passwordPlaceholder" autocomplete="new-password">
         </div>
+        <div class="app-policy-agreement app-choice-panel"><input type="checkbox" id="app-signup-policy" required aria-labelledby="app-signup-policy-label"><span id="app-signup-policy-label"><label for="app-signup-policy">I agree to the</label> <a href="/policies/terms.html" data-policy-link>Terms and Conditions</a> <label for="app-signup-policy">and acknowledge the</label> <a href="/policies/privacy.html" data-policy-link>Privacy Policy</a>.</span></div>
         <div id="app-signup-error" class="app-login-error" style="display:none;"></div>
         <button type="submit" id="app-signup-submit-btn" class="app-btn-primary">
           <span data-copy-text="auth.createAccountButton">Create Account</span>
@@ -567,9 +568,9 @@
                   <p class="app-card-desc"><span data-app-name>__APP_NAME__</span> brings your connected gyms, bookings and preferred spots together. Auto-Book tries when classes open, Auto-Upgrade watches for better spots, and Teams helps you plan with friends.</p>
                   <p class="app-card-desc">An independent companion for your gyms. Booking rules, availability and cancellation policies are set by each studio.</p>
                 </section>
-                <section class="app-settings-card app-about-privacy">
+                <section class="app-settings-card app-about-privacy"><p><a href="/policies/terms.html" data-policy-link>Terms and Conditions</a> · <a href="/policies/privacy.html" data-policy-link>Privacy Policy</a></p>
                   <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z"/><path d="m8 12 3 3 5-6"/></svg>Privacy &amp; data</h4>
-                  <p class="app-card-desc">Your <span data-app-name>__APP_NAME__</span> account is separate from your gym logins. Gym passwords and sessions are encrypted at rest and decrypted on our server for syncing and booking. You control Team sharing. Delete your account and live data from Account settings.</p>
+                  <p class="app-card-desc">Your <span data-app-name>__APP_NAME__</span> account is separate from your gym logins. Gym sessions and any login details you choose to save are encrypted at rest and decrypted on our server for syncing and booking. You control Team sharing. Delete your account and live data from Account settings.</p>
                   <button type="button" class="app-btn" data-about-account>Account settings</button>
                 </section>
               </div>

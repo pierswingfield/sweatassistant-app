@@ -1,0 +1,6 @@
+A /data
+linux/arm64
+af4c5b2007b805118fd528a5d224475461ab11cd28b58b2367f6d0ebfa8c176c  .env
+322b8ddeb92234824c61281a026974f4e5adca2a2cb8721d426351f735519475  docker-compose.experiment.yml
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda1        96G   82G   15G  85% /

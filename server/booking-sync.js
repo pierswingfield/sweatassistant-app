@@ -109,6 +109,7 @@ function getStats() { return { ...stats, skipped: { ...stats.skipped } }; }
 
 // ── Fetch + enrich ───────────────────────────────────────────────────────────
 async function listWithRelogin(userId, gymId, method) {
+  gymOutbound.assertOutboundAllowed(gymId, userId);
   const provider = getProvider(gymId);
   const session = db.getUserSession(userId, gymId);
   if (!session || !session.accessToken) throw new Error(`no session for ${gymId}`);
@@ -117,7 +118,7 @@ async function listWithRelogin(userId, gymId, method) {
   } catch (err) {
     if (!err || err.status !== 401) throw err;
     const jwt = await auth.triggerAutoRelogin(userId, gymId);
-    return provider[method]({ ...session, accessToken: jwt });
+    return require('./gym-connection').retrySessionCall(userId, gymId, jwt, () => provider[method]({ ...session, accessToken: jwt }));
   }
 }
 
@@ -216,7 +217,14 @@ function syncUserGym(userId, gymId, { force = false } = {}) {
   return entry.promise;
 }
 
-async function fetchAndStore(userId, gymId) {
+async function fetchAndStore(userId, gymId, allowRestart = true) {
+  const revision = db.getUserGym(userId, gymId)?.connection_revision;
+  const assertCurrent = () => { if (db.getUserGym(userId, gymId)?.connection_revision !== revision || require('./gym-connection').unavailable(userId, gymId)) throw Object.assign(new Error('Gym connection changed during sync'), { code: 'GYM_CONNECTION_CHANGED' }); };
+  // A successful renewal advances the revision too. Discard that read and
+  // restart once from the now-current connection, retaining the write fence.
+  // Repeated changes, manual reconnects still syncing, and incidents stop here.
+  const canRestart = (err) => allowRestart && err.code === 'GYM_CONNECTION_CHANGED'
+    && db.isUserGymAvailable(userId, gymId) && !isGymRateLimited(gymId);
   const startedAt = new Date().toISOString();
   db.setBookingSyncState(userId, gymId, { lastAttemptAt: startedAt });
   const errors = [];
@@ -224,6 +232,7 @@ async function fetchAndStore(userId, gymId) {
   let waitlists = null;
   try {
     bookings = await bookingRowsFor(userId, gymId);
+    assertCurrent();
     const listening = !!newBookingsListener;
     const prevState = listening ? db.getBookingSyncState(userId, gymId) : null;
     const firstSync = !(prevState && prevState.last_synced_at);
@@ -246,15 +255,22 @@ async function fetchAndStore(userId, gymId) {
           .catch((err) => console.error(`[BookingSync] new-booking listener failed for user ${userId}:`, err && err.message));
       }
     }
-  } catch (err) { noteThrottleError(gymId, err); errors.push(`bookings: ${err.message}`); }
+  } catch (err) {
+    if (canRestart(err)) return fetchAndStore(userId, gymId, false);
+    noteThrottleError(gymId, err); errors.push(`bookings: ${err.message}`);
+  }
   // A gym that just failed (or got throttled) is not asked again in this pass;
   // its stored waitlist rows stay as they were.
   if (!errors.length && isGymRateLimited(gymId)) errors.push('waitlists: gym throttled mid-sync');
   if (!errors.length) {
     try {
       waitlists = await waitlistRowsFor(userId, gymId);
+      assertCurrent();
       db.replaceWaitlistCache(userId, waitlists, [gymId]);
-    } catch (err) { noteThrottleError(gymId, err); errors.push(`waitlists: ${err.message}`); }
+    } catch (err) {
+      if (canRestart(err)) return fetchAndStore(userId, gymId, false);
+      noteThrottleError(gymId, err); errors.push(`waitlists: ${err.message}`);
+    }
   }
   const ok = errors.length === 0;
   db.setBookingSyncState(userId, gymId, ok
@@ -320,6 +336,13 @@ function takeForcedSlot(userId, gymId, now = clock()) {
 /** Fetch one (user, gym) unless skipped; true when anything was stored. */
 async function syncLink(userId, link, { force = false } = {}) {
   const gymId = link.gym_id;
+  if (link.status === 'syncing' && link.account_enabled && !isGymRateLimited(gymId)) {
+    return require('./gym-connection').withRecovery(userId, gymId, async () => {
+      const result = await syncUserGym(userId, gymId, { force });
+      if (result.ok) db.finishGymReconnect(userId, gymId, link.connection_revision);
+      return !!result.ok;
+    });
+  }
   const reason = skipReason(userId, gymId, link);
   if (reason) { stats.gymsSkipped++; stats.skipped[reason]++; return false; }
   if (force && !takeForcedSlot(userId, gymId)) {
@@ -379,6 +402,7 @@ let running = null;
  * `boot: true` (the first pass after start) staggers each lane's start.
  */
 function runCycle(opts = {}) {
+  require('./gym-connection').deliverPending().catch(() => {});
   if (running) { stats.ticksSkipped++; return running; }
   running = (async () => {
     const started = Date.now();

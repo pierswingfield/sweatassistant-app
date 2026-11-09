@@ -1,0 +1,86 @@
+{
+  "checks": [
+    {
+      "name": "Live Home uses registered Home card and section heading",
+      "pass": true
+    },
+    {
+      "name": "Old warning copy and separate banner are absent",
+      "pass": true
+    },
+    {
+      "name": "Mobile live Home has no horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "Reconnect action names its gym for assistive technology",
+      "pass": true
+    },
+    {
+      "name": "Live desktop reconnect card sits in existing left column",
+      "pass": true
+    },
+    {
+      "name": "Live reconnect opens matching dialog",
+      "pass": true
+    },
+    {
+      "name": "Live remember choice initially unchecked",
+      "pass": true
+    },
+    {
+      "name": "Live focused reduced viewport has normal-flow submit without Remember overlap",
+      "pass": true
+    },
+    {
+      "name": "Live Remember checkbox is visible and reachable",
+      "pass": true
+    },
+    {
+      "name": "Live submit and policy links are reachable without overlay",
+      "pass": true
+    },
+    {
+      "name": "Policy reader opens from reduced viewport",
+      "pass": true
+    },
+    {
+      "name": "Policy reader returns with remembered choice intact",
+      "pass": true
+    },
+    {
+      "name": "Live needs-login Settings has only connection card",
+      "pass": true
+    },
+    {
+      "name": "Exact formerly overlapping status paragraph is removed",
+      "pass": true
+    },
+    {
+      "name": "Only connection actions remain and gym preferences are absent",
+      "pass": true
+    },
+    {
+      "name": "Small live Settings label is fully readable",
+      "pass": true
+    },
+    {
+      "name": "Small live login badge fits on one line",
+      "pass": true
+    },
+    {
+      "name": "Small live Settings connection card has no horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "Live reload keeps connection-only Settings",
+      "pass": true
+    },
+    {
+      "name": "No deployed page errors",
+      "pass": true,
+      "detail": []
+    }
+  ],
+  "errors": []
+}

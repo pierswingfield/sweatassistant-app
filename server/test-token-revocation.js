@@ -81,7 +81,7 @@ async function run() {
   assert.strictEqual((await json('GET', '/api/auth/status', adminToken)).status, 403, 'admin token is not a user token');
 
   // 7. SSE tickets: single-use, short-lived, and the ticket (not the JWT) opens the stream.
-  const sign = await json('POST', '/api/auth/signup', null, { email: 'sse@example.com', password: 'sse-password-3' });
+  const sign = await json('POST', '/api/auth/signup', null, { policyAcceptance: require('./policies').CURRENT_ACCEPTANCE, email: 'sse@example.com', password: 'sse-password-3' });
   const ut = sign.body.token;
   assert.strictEqual((await json('POST', '/api/auth/sse-ticket', null)).status, 401, 'minting needs auth');
   const tk = await json('POST', '/api/auth/sse-ticket', ut);
@@ -101,11 +101,11 @@ async function run() {
   assert.strictEqual(await open(`token=${ut}`), 403, 'revoked JWT rejected on the SSE legacy path');
 
   // 7b. A ticket minted before a password change dies with the change; a user cannot hoard tickets.
-  const sign2 = await json('POST', '/api/auth/signup', null, { email: 'sse2@example.com', password: 'sse-password-5' });
+  const sign2 = await json('POST', '/api/auth/signup', null, { policyAcceptance: require('./policies').CURRENT_ACCEPTANCE, email: 'sse2@example.com', password: 'sse-password-5' });
   const tkOld = await json('POST', '/api/auth/sse-ticket', sign2.body.token);
   const chg2 = await json('POST', '/api/account/password', sign2.body.token, { currentPassword: 'sse-password-5', newPassword: 'sse-password-6' });
   assert.strictEqual(await open(`ticket=${tkOld.body.ticket}`), 403, 'ticket minted before a password change is rejected');
-  const sign3 = await json('POST', '/api/auth/signup', null, { email: 'sse3@example.com', password: 'sse-password-7' });
+  const sign3 = await json('POST', '/api/auth/signup', null, { policyAcceptance: require('./policies').CURRENT_ACCEPTANCE, email: 'sse3@example.com', password: 'sse-password-7' });
   let last;
   for (let i = 0; i < 11; i++) last = await json('POST', '/api/auth/sse-ticket', sign3.body.token);
   assert.strictEqual(last.status, 503, 'per-user ticket cap (10) stops one account filling the table');

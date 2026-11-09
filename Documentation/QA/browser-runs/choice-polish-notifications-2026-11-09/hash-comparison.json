@@ -1,0 +1,12 @@
+{
+  "source": {
+    "pass": true,
+    "count": 7,
+    "mismatches": []
+  },
+  "asset": {
+    "pass": true,
+    "count": 15,
+    "mismatches": []
+  }
+}

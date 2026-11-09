@@ -1,0 +1,111 @@
+{
+  "checks": [
+    {
+      "name": "home-single-mobile-light: no horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "Single unavailable gym has one reconnect CTA and healthy Home widgets",
+      "pass": true
+    },
+    {
+      "name": "home-single-desktop-dark: no horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "Reconnect card is first in existing desktop left column",
+      "pass": true
+    },
+    {
+      "name": "home-all-mobile-dark: no horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "All gyms unavailable retains per-gym actions and no healthy-data cards",
+      "pass": true
+    },
+    {
+      "name": "home-long-mobile-light: no horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "Long/multiple gym labels remain inside their rows",
+      "pass": true
+    },
+    {
+      "name": "Every pending login has its own 44px action",
+      "pass": false
+    },
+    {
+      "name": "home-multiple-desktop-light: no horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "home-all-mobile-light: no horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "Reconnect action opens matching gym dialog",
+      "pass": true
+    },
+    {
+      "name": "Email and password have associated labels",
+      "pass": true
+    },
+    {
+      "name": "Remember disclosure retains two policy links",
+      "pass": true
+    },
+    {
+      "name": "Submit is normal flow while focused in reduced viewport",
+      "pass": true
+    },
+    {
+      "name": "Submit never overlays Remember panel",
+      "pass": true,
+      "detail": {
+        "pass": true,
+        "choiceBottom": 576,
+        "submitTop": 592
+      }
+    },
+    {
+      "name": "Remember checkbox reachable in reduced viewport",
+      "pass": true
+    },
+    {
+      "name": "Submit reachable without covering policy links",
+      "pass": true
+    },
+    {
+      "name": "Shared shell uses one visible-viewport height and offset",
+      "pass": true
+    },
+    {
+      "name": "Landscape submit reachable",
+      "pass": true
+    },
+    {
+      "name": "Closing restores background scroll and removes viewport variables",
+      "pass": false
+    },
+    {
+      "name": "Coordinator renders only connection card without the exact noisy copy",
+      "pass": true
+    },
+    {
+      "name": "Healthy settings restored after status recovery",
+      "pass": true
+    },
+    {
+      "name": "Repeated state updates return to connection-only",
+      "pass": true
+    },
+    {
+      "name": "No page errors",
+      "pass": true,
+      "detail": []
+    }
+  ],
+  "errors": []
+}

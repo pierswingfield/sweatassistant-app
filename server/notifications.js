@@ -12,6 +12,7 @@ const zoneFor = (gymId) => zoneOfGym(gymId);
 
 // Default notification preferences. Stored per-user under settings.notifications.
 const DEFAULT_PREFS = {
+  gymLoginRequired: { enabled: true },
   booking: { enabled: true, scope: 'all' },          // scope: 'all' | 'autobook'
   upgrade: { enabled: true },
   creditWarning: { enabled: true },
@@ -259,6 +260,10 @@ async function notify(userId, type, ctx = {}) {
   const prefs = getPrefs(userId);
   let built;
   switch (type) {
+    case 'gymLoginRequired':
+      if (!prefs.gymLoginRequired.enabled) return;
+      built = { title: `Log in to ${gymShortName(ctx.gymId)} again`, body: `Syncing, Auto-Book and Auto-Upgrade are paused for ${getGymConfig(ctx.gymId)?.name || gymShortName(ctx.gymId)}.` };
+      break;
     case 'booking':
       if (!prefs.booking.enabled) return;
       if (prefs.booking.scope === 'autobook' && ctx.source !== 'autobook') return;
@@ -301,8 +306,9 @@ async function notify(userId, type, ctx = {}) {
   }
   // T-5: a Team push deep-links to the Team page (a route only members can open).
   const data = { type };
+  if (ctx.incident) data.tag = `gym-login-${ctx.incident}`;
   if (typeof ctx.url === 'string' && ctx.url.startsWith('/')) data.url = ctx.url;
-  await pushService.sendNotification(userId, built.title, built.body, data);
+  await pushService.sendNotification(userId, built.title, built.body, data, { retryFailures: type === 'gymLoginRequired' });
   return built;
 }
 
@@ -314,6 +320,10 @@ function buildSample(type) {
   const soon = DateTime.now().setZone(zoneFor(sampleGymId)).plus({ days: 1 }).set({ hour: 6, minute: 30, second: 0 }).toISO();
   const base = { startAt: soon, groupName: 'RIDE', className: 'Signature 45', instructorName: 'Aanya Smith', slots: [5], slot: 5, gymId: sampleGymId };
   switch (type) {
+    case 'gymLoginRequired':
+      if (!prefs.gymLoginRequired.enabled) return;
+      built = { title: `Log in to ${gymShortName(ctx.gymId)} again`, body: `Syncing, Auto-Book and Auto-Upgrade are paused for ${getGymConfig(ctx.gymId)?.name || gymShortName(ctx.gymId)}.` };
+      break;
     case 'booking': return buildBooking(base);
     case 'upgrade': return buildUpgrade({ ...base, keptOriginal: false });
     case 'upgrade-cutoff': return buildUpgrade({ ...base, keptOriginal: true });

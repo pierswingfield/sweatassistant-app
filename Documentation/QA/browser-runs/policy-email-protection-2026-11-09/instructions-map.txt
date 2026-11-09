@@ -1,0 +1,11 @@
+### Mandatory Requirements
+1. **Target Experiment Only:** Deploy exclusively to the experiment environment using `./deploy.sh --experiment` (`experiment.dibs.fit`) [AGENTS.md].
+2. **Verify First & After:** Confirm basis in a real browser (CDP `127.0.0.1:9222` or Claude for Chrome) *before* changing code, and re-verify after [AGENT_PROTOCOL.md].
+3. **HTML Sanitization:** Any server/provider text injected into HTML must use `escapeHtml` (`client/src/escape-html.js`) [AGENTS.md Security Audit].
+4. **Test Suite:** Ensure `npm test` passes cleanly (`TESTING.md`).
+
+### Verification & Deployment Hazards
+1. **Wrong Target / Prod Leak:** Accidentally deploying to production or master (`./deploy.sh --prod` requires typed confirmation) [AGENTS.md].
+2. **CSP Violations:** Injecting unhashed inline scripts or disallowed resources violates the enforced Content-Security-Policy (`server/security-headers.js`).
+3. **Unescaped Markup:** Omitting `escapeHtml` introduces XSS vulnerabilities, which will fail `server/test-no-unsafe-markup.js` [AGENTS.md].
+4. **Browser Bypass:** Using curl, jsdom, or headless browsers instead of the user's real Chrome violates mandatory protocol and misses DOM/rendering faults [AGENT_PROTOCOL.md, TESTING.md].

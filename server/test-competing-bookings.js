@@ -257,7 +257,7 @@ async function http() {
   // A separate class at a clear time is clean, and other users never see or trigger warnings.
   r = await add({ eventId: 1003, gymId: 'psycle-london', startAt: t(24 * 60), durationMin: 45 });
   assert.deepStrictEqual((await json(r)).warnings, []);
-  const other = await json(await post('/api/auth/signup', { email: `other-${Date.now()}@test.local`, password: 'a-real-password' }));
+  const other = await json(await post('/api/auth/signup', { policyAcceptance: require('./policies').CURRENT_ACCEPTANCE, email: `other-${Date.now()}@test.local`, password: 'a-real-password' }));
   assert.deepStrictEqual(await json(await get('/api/auto-book?gymId=all', other.token)).catch(() => []), [], 'no leakage');
   console.log('✅ Non-conflicting entry is clean; other accounts are unaffected.');
 
@@ -324,6 +324,27 @@ async function http() {
   list = await json(await get('/api/auto-book?gymId=jab-boxing', token));
   assert.strictEqual(list.find(x => x.id === cappedId).preferences.requiredCount, 1, 'failed edit leaves the saved count untouched');
   console.log('✅ Auto-Book count updates persist valid multi-spot values and preserve capped entries on refusal.');
+
+  // Availability applies to both cached bookings and queued conflicts. Seed the
+  // stored projection directly: there are no provider writes in this scenario.
+  const fixture = new (require('better-sqlite3'))(DB_PATH);
+  try {
+    const uid = fixture.prepare('SELECT id FROM users WHERE email = ?').get('dev@psycle.com').id;
+    const start = t(20 * 24 * 60);
+    for (const [gym, label] of [['psycle-london', 'unavailable'], ['jab-boxing', 'available']]) {
+      fixture.prepare('INSERT INTO booking_cache(user_id,gym_id,booking_id,event_id,start_at,duration_min,class_name) VALUES(?,?,?,?,?,?,?)')
+        .run(uid,gym,`review-booked-${label}`,`review-booked-${label}`,start,60,`${label} booked conflict`);
+      fixture.prepare('INSERT INTO auto_bookings(user_id,gym_id,event_id,start_at,duration_min,class_name,preferences) VALUES(?,?,?,?,?,?,?)')
+        .run(uid,gym,`review-queued-${label}`,start,60,`${label} queued conflict`,'{}');
+    }
+    fixture.prepare("UPDATE user_gyms SET status = 'needs_relogin' WHERE user_id = ? AND gym_id = ?").run(uid,'psycle-london');
+    const result = await json(await chk({gymId:'jab-boxing',eventId:'review-overlap-target',startAt:start}));
+    assert.deepStrictEqual(result.warnings.map(w => w.code).sort(), ['OVERLAP_BOOKED','OVERLAP_QUEUED']);
+    assert.ok(result.warnings.every(w => w.with.gymId === 'jab-boxing'), 'unavailable booked AND queue rows excluded');
+    assert.deepStrictEqual(result.warnings.map(w => w.with.className).sort(), ['available booked conflict','available queued conflict']);
+    console.log('✅ Overlap HTTP projection excludes unavailable booked/queue rows and retains both available conflicts.');
+  } finally { fixture.close(); }
+
 }
 
 (async () => {

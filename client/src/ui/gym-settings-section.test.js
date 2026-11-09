@@ -88,19 +88,34 @@ describe('renderGymSettingsSection', () => {
     expect(onSettingChange).toHaveBeenCalledWith('autoUpgradeEnabled', false, enabled);
   });
 
-  it('surfaces a relogin state and applies the gym accent without hiding settings', () => {
+  it('shows only connection actions during relogin and restores saved settings afterwards', () => {
     const root = document.createElement('div');
     renderGymSettingsSection(root, {
       gym: { ...baseGym, status: 'needs_relogin', theme: { primary: '#123456' } },
       settings: {}, calendar: {},
     });
 
-    expect(root.textContent).toContain('Re-authentication needed');
-    expect(root.textContent).toContain('Reconnect this gym');
+    expect(root.textContent).toContain('Login needed');
+    expect(root.querySelectorAll('.app-settings-card')).toHaveLength(1);
+    expect(root.querySelector('.app-settings-card h4').textContent).toBe('Connection');
+    expect(root.querySelector('[data-gym-enabled]')).toBeNull();
+    expect(root.querySelector('[data-gym-setting]')).toBeNull();
+    expect(root.textContent).not.toMatch(/entries preserved|Syncing and automation|Calendar entries are temporarily|Your gym bookings still exist/);
+    expect(root.querySelector('.app-gym-settings-warning')).toBeNull();
     // The gym's theme-aware token wins, with the raw config hex as the fallback
     // inside the var() — a gym without a token block still gets its brand colour.
     expect(root.style.getPropertyValue('--gym-settings-accent'))
       .toBe('var(--gym-test-gym-ink, #123456)');
     expect(root.querySelector('[data-gym-action="reauth"]')).not.toBeNull();
+    const settings = { autoUpgradeEnabled: false, autoUpgradeByDefault: true };
+    renderGymSettingsSection(root, { gym: baseGym, settings, credits: [{ count: 7 }] });
+    expect(root.querySelectorAll('.app-settings-card')).toHaveLength(6);
+    expect(root.querySelector('[data-gym-enabled]')).not.toBeNull();
+    expect(root.querySelector('[data-gym-setting="autoUpgradeEnabled"]').checked).toBe(false);
+    expect(root.querySelector('[data-gym-setting="autoUpgradeByDefault"]').checked).toBe(true);
+    expect(root.textContent).toContain('7 credits available');
+    renderGymSettingsSection(root, { gym: { ...baseGym, status: 'needs_relogin' }, settings });
+    expect(root.querySelectorAll('.app-settings-card')).toHaveLength(1);
+    expect(settings).toEqual({ autoUpgradeEnabled: false, autoUpgradeByDefault: true });
   });
 });

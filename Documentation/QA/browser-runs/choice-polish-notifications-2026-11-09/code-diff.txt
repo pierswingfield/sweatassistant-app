@@ -1,0 +1,486 @@
+diff --git a/client/index.html b/client/index.html
+index a2967d9..772cf14 100644
+--- a/client/index.html
++++ b/client/index.html
+@@ -138,6 +138,7 @@
+           <label for="app-signup-confirm" data-copy-text="static.confirmPassword">Confirm password</label>
+           <input type="password" id="app-signup-confirm" placeholder="••••••••" data-copy-placeholder="static.passwordPlaceholder" autocomplete="new-password">
+         </div>
++        <div class="app-policy-agreement app-choice-panel"><input type="checkbox" id="app-signup-policy" required aria-labelledby="app-signup-policy-label"><span id="app-signup-policy-label"><label for="app-signup-policy">I agree to the</label> <a href="/policies/terms.html" data-policy-link>Terms and Conditions</a> <label for="app-signup-policy">and acknowledge the</label> <a href="/policies/privacy.html" data-policy-link>Privacy Policy</a>.</span></div>
+         <div id="app-signup-error" class="app-login-error" style="display:none;"></div>
+         <button type="submit" id="app-signup-submit-btn" class="app-btn-primary">
+           <span data-copy-text="auth.createAccountButton">Create Account</span>
+@@ -567,9 +568,9 @@
+                   <p class="app-card-desc"><span data-app-name>__APP_NAME__</span> brings your connected gyms, bookings and preferred spots together. Auto-Book tries when classes open, Auto-Upgrade watches for better spots, and Teams helps you plan with friends.</p>
+                   <p class="app-card-desc">An independent companion for your gyms. Booking rules, availability and cancellation policies are set by each studio.</p>
+                 </section>
+-                <section class="app-settings-card app-about-privacy">
++                <section class="app-settings-card app-about-privacy"><p><a href="/policies/terms.html" data-policy-link>Terms and Conditions</a> · <a href="/policies/privacy.html" data-policy-link>Privacy Policy</a></p>
+                   <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z"/><path d="m8 12 3 3 5-6"/></svg>Privacy &amp; data</h4>
+-                  <p class="app-card-desc">Your <span data-app-name>__APP_NAME__</span> account is separate from your gym logins. Gym passwords and sessions are encrypted at rest and decrypted on our server for syncing and booking. You control Team sharing. Delete your account and live data from Account settings.</p>
++                  <p class="app-card-desc">Your <span data-app-name>__APP_NAME__</span> account is separate from your gym logins. Gym sessions and any login details you choose to save are encrypted at rest and decrypted on our server for syncing and booking. You control Team sharing. Delete your account and live data from Account settings.</p>
+                   <button type="button" class="app-btn" data-about-account>Account settings</button>
+                 </section>
+               </div>
+diff --git a/client/src/styles.css b/client/src/styles.css
+index 1007fa2..a34ed24 100644
+--- a/client/src/styles.css
++++ b/client/src/styles.css
+@@ -13099,3 +13099,58 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
+ #app-helper-container .personal-stats-dots button { display: grid; place-items: center; width: 7px; height: 7px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+ #app-helper-container .personal-chart-period { font-size: 11px; color: var(--text-secondary); }
+ #app-helper-container .personal-stats-carousel.has-edge-fade { -webkit-mask-image: none; mask-image: none; }
++
++/* Explicit gym login choice and policy reading preserve the underlying form. */
++/* One choice treatment across signup, setup, first-gym and Settings forms. */
++:is(#app-helper-container, body) .app-choice-panel {
++  margin: var(--space-4) 0; padding: var(--space-3) var(--space-4);
++  border: 1px solid var(--border); border-radius: var(--radius-control);
++  background: color-mix(in srgb, var(--surface) 82%, transparent);
++  font-family: var(--font-sans); font-size: var(--text-sm); line-height: 1.5;
++  color: var(--text-secondary); text-align: left;
++  transition: border-color var(--dur-base) var(--ease-out), background var(--dur-base) var(--ease-out);
++}
++:is(#app-helper-container, body) .app-choice-panel:has(input:checked) {
++  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
++  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
++}
++:is(#app-helper-container, body) .app-choice-panel input[type=checkbox] {
++  appearance: none; -webkit-appearance: none; position: relative;
++  width: 22px; height: 22px; min-height: 22px; flex: 0 0 22px; margin: 0;
++  border: 1.5px solid var(--border-strong); border-radius: 7px;
++  background: var(--surface); cursor: pointer;
++  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
++}
++:is(#app-helper-container, body) .app-choice-panel input[type=checkbox]:checked { background: var(--accent-fill); border-color: var(--accent-fill); }
++:is(#app-helper-container, body) .app-choice-panel input[type=checkbox]:checked::after {
++  content: ''; position: absolute; left: 7px; top: 3px; width: 5px; height: 10px;
++  border: solid var(--on-accent-fill); border-width: 0 2px 2px 0; transform: rotate(45deg);
++}
++:is(#app-helper-container, body) .app-choice-panel input:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
++:is(#app-helper-container, body) .app-login-choice-label {
++  display: flex; align-items: center; gap: var(--space-3); min-height: var(--tap-min);
++  margin: -6px 0 0; cursor: pointer; color: var(--text);
++  font: 600 var(--text-base)/var(--lh-snug) var(--font-sans); text-transform: none; letter-spacing: normal;
++}
++:is(#app-helper-container, body) .app-gym-login-choice .app-choice-description {
++  margin: 0 0 var(--space-2) 34px; font: 400 var(--text-sm)/1.5 var(--font-sans); color: var(--text-secondary);
++}
++:is(#app-helper-container, body) .app-gym-login-choice .app-choice-detail {
++  margin: 0 0 0 34px; padding-top: var(--space-2); border-top: 1px solid var(--border);
++  font: 400 var(--text-xs)/1.5 var(--font-sans); color: var(--text-secondary);
++}
++:is(#app-helper-container, body) .app-policy-agreement { display: flex; gap: var(--space-3); align-items: flex-start; }
++:is(#app-helper-container, body) .app-policy-agreement input[type=checkbox] { margin-top: 2px; }
++:is(#app-helper-container, body) .app-policy-agreement label { display: inline; color: inherit; font: inherit; text-transform: none; letter-spacing: normal; cursor: pointer; }
++:is(#app-helper-container, body) .app-choice-panel a { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
++@media (forced-colors: active) {
++  :is(#app-helper-container, body) .app-choice-panel input[type=checkbox] { appearance: auto; -webkit-appearance: auto; }
++  :is(#app-helper-container, body) .app-choice-panel input[type=checkbox]::after { display: none; }
++}
++.app-policy-modal .app-modal-content { width:min(850px,95vw); height:90vh; display:flex; flex-direction:column; }
++.app-policy-modal article { width:100%; flex:1; overflow:auto; min-height:0; padding:1rem; line-height:1.6; }
++.app-policy-modal table { border-collapse:collapse; width:100%; font-size:.85rem; }
++.app-policy-modal td,.app-policy-modal th { padding:.5rem; border:1px solid var(--border,#888); text-align:left; vertical-align:top; }
++.app-policy-modal h2 { margin:1rem 0; }
++.app-reconnect-warning { margin:0 0 1rem; padding:1rem; border:1px solid var(--warning,#b9791b); border-radius:16px; background:var(--bg-card); }
++.app-reconnect-warning li { margin:.7rem 0; }
+diff --git a/client/src/ui/gym-logo-strip.js b/client/src/ui/gym-logo-strip.js
+index 198bc1b..19539ed 100644
+--- a/client/src/ui/gym-logo-strip.js
++++ b/client/src/ui/gym-logo-strip.js
+@@ -9,7 +9,7 @@ export async function startGymLogoDiscovery(strip) {
+   const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+   let explicitPause = false, hovering = false, focused = false, animation = null;
+   const update = () => {
+-    const paused = explicitPause || hovering || focused || motion.matches;
++    const paused = explicitPause || hovering || focused || motion.matches || strip.inert || strip.hidden;
+     strip.dataset.paused = String(paused);
+     strip.setAttribute('role', motion.matches ? 'group' : 'button');
+     if (motion.matches) strip.removeAttribute('aria-pressed');
+@@ -30,8 +30,55 @@ export async function startGymLogoDiscovery(strip) {
+     }
+   });
+   motion.addEventListener?.('change', update);
++  strip.addEventListener('gym-logo-visibility', update);
+   await Promise.all([...strip.querySelectorAll('img')].map((img) => img.decode?.().catch(() => {})));
+   const distance = sets[0].getBoundingClientRect().width;
+   if (distance > 0) animation = track.animate([{ transform: 'translateX(0)' }, { transform: `translateX(-${distance}px)` }], { duration: distance / 16 * 1000, iterations: Infinity, easing: 'linear' });
+   update();
+ }
++
++// Fade discovery away once the member has chosen a studio. The form moves with
++// a transform after reflow; rapid selection changes cancel the old exit safely.
++const visibilityRuns = new WeakMap();
++export function setGymLogoDiscoveryVisible(strip, visible, { anchor, focusTarget, animate = true } = {}) {
++  if (!strip) return;
++  const previous = visibilityRuns.get(strip);
++  previous?.animation?.cancel();
++  previous?.movement?.cancel();
++  const run = {};
++  visibilityRuns.set(strip, run);
++  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
++  const style = getComputedStyle(strip);
++  const duration = (token, fallback) => { const value = style.getPropertyValue(token).trim(); return value ? parseFloat(value) * (value.endsWith('ms') ? 1 : 1000) : fallback; };
++  const easing = style.getPropertyValue('--ease-out').trim() || 'ease-out';
++  const moveForm = (before) => {
++    if (!anchor || !animate || reduce) return;
++    const shift = before - anchor.getBoundingClientRect().top;
++    if (shift) run.movement = anchor.animate([{ transform: `translateY(${shift}px)` }, { transform: 'translateY(0)' }], {
++      duration: duration('--dur-slow', 240), easing,
++    });
++  };
++  if (!visible && strip.contains(document.activeElement)) focusTarget?.focus({ preventScroll: true });
++  strip.inert = !visible;
++  if (visible) strip.removeAttribute('aria-hidden');
++  else strip.setAttribute('aria-hidden', 'true');
++  if (visible) {
++    const before = anchor?.getBoundingClientRect().top;
++    const wasHidden = strip.hidden;
++    strip.hidden = false;
++    strip.dispatchEvent(new Event('gym-logo-visibility'));
++    if (wasHidden) moveForm(before);
++    if (animate && !reduce) run.animation = strip.animate([{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: duration('--dur-base', 180), easing });
++    return;
++  }
++  strip.dispatchEvent(new Event('gym-logo-visibility'));
++  const hide = () => {
++    if (visibilityRuns.get(strip) !== run) return;
++    const before = anchor?.getBoundingClientRect().top;
++    strip.hidden = true;
++    moveForm(before);
++  };
++  if (!animate || reduce || strip.hidden) return hide();
++  run.animation = strip.animate([{ opacity: 1, transform: 'translateY(0)' }, { opacity: 0, transform: 'translateY(-6px)' }], { duration: duration('--dur-base', 180), easing, fill: 'forwards' });
++  run.animation.finished.then(hide, () => {});
++}
+diff --git a/client/src/ui/gym-logo-strip.test.js b/client/src/ui/gym-logo-strip.test.js
+index 7c9f984..7a11542 100644
+--- a/client/src/ui/gym-logo-strip.test.js
++++ b/client/src/ui/gym-logo-strip.test.js
+@@ -1,5 +1,5 @@
+ import { describe, it, expect, vi } from 'vitest';
+-import { startGymLogoDiscovery } from './gym-logo-strip.js';
++import { startGymLogoDiscovery, setGymLogoDiscoveryVisible } from './gym-logo-strip.js';
+ describe('continuous studio marquee',()=>{
+  it('keeps a decoded linear infinite animation and persistent keyboard/pointer pause on one node',async()=>{
+    window.matchMedia=()=>({matches:false,addEventListener(){}});
+@@ -12,3 +12,35 @@ describe('continuous studio marquee',()=>{
+    await startGymLogoDiscovery(el);expect(animate).toHaveBeenCalledTimes(1);el.remove();
+  });
+ });
++
++describe('studio selection visibility', () => {
++  const setup = (reduced = false) => {
++    window.matchMedia = () => ({ matches: reduced, addEventListener() {} });
++    document.body.innerHTML = '<div tabindex="0" id="strip"></div><select id="gym"><option>Studio</option></select><div id="form"></div>';
++    const strip = document.getElementById('strip');
++    const animations = [];
++    strip.animate = vi.fn(() => {
++      let finish, reject;
++      const animation = { finished: new Promise((a, b) => { finish = a; reject = b; }), cancel: vi.fn(() => reject(new Error('cancelled'))), finish: () => finish() };
++      animations.push(animation); return animation;
++    });
++    return { strip, animations, select: document.getElementById('gym') };
++  };
++  it('removes an exiting strip from interaction immediately and hides it after the fade', async () => {
++    const { strip, animations, select } = setup();
++    strip.focus(); setGymLogoDiscoveryVisible(strip, false, { focusTarget: select });
++    expect(document.activeElement).toBe(select); expect(strip.inert).toBe(true); expect(strip.getAttribute('aria-hidden')).toBe('true');
++    expect(strip.hidden).toBe(false); animations[0].finish(); await Promise.resolve(); expect(strip.hidden).toBe(true);
++  });
++  it('a rapid deselection cancels the old exit and restores discoverability', async () => {
++    const { strip, animations } = setup();
++    setGymLogoDiscoveryVisible(strip, false); setGymLogoDiscoveryVisible(strip, true);
++    animations[0].finish(); await Promise.resolve();
++    expect(animations[0].cancel).toHaveBeenCalled(); expect(strip.hidden).toBe(false); expect(strip.inert).toBe(false); expect(strip.hasAttribute('aria-hidden')).toBe(false);
++  });
++  it('reduced motion hides and restores synchronously without travel or fade', () => {
++    const { strip } = setup(true);
++    setGymLogoDiscoveryVisible(strip, false); expect(strip.hidden).toBe(true);
++    setGymLogoDiscoveryVisible(strip, true); expect(strip.hidden).toBe(false); expect(strip.inert).toBe(false); expect(strip.animate).not.toHaveBeenCalled();
++  });
++});
+diff --git a/client/src/ui/onboarding.js b/client/src/ui/onboarding.js
+index 427c36f..5e5f6fd 100644
+--- a/client/src/ui/onboarding.js
++++ b/client/src/ui/onboarding.js
+@@ -1,3 +1,4 @@
++import { gymLoginChoiceHtml, bindGymLoginChoice } from './gym-login-choice.js';
+ // first-run onboarding flow.
+ //
+ // Runs before login on first launch and guides the user through:
+@@ -23,7 +24,7 @@ import { setupGuideHtml } from './setup-guide.js';
+ import { escapeHtml, gymLogoBanner } from './cards';
+ import { enableAutoUpgradeForGyms, gymsWithPreferredSlots, gymsWithAutoUpgradeOn, getPostLoginDestination as choosePostLoginDestination, detectInstallContext, shouldOfferInstall } from './onboarding-routing.js';
+ import { cleanNameField, onboardingNameSuggestion } from './name-capture.js';
+-import { startGymLogoDiscovery } from './gym-logo-strip.js';
++import { startGymLogoDiscovery, setGymLogoDiscoveryVisible } from './gym-logo-strip.js';
+ 
+ const COMPLETE_KEY = 'appOnboardingComplete';
+ const STEP_KEY = 'appOnboardingStep';
+@@ -620,6 +621,7 @@ function stepGyms() {
+             <div>
+               <label class="onb-select-label" for="app-onb-gym-password">${COPY.onboarding.gymPassword}</label>
+               <input class="onb-email-input" type="password" id="app-onb-gym-password" placeholder="${COPY.onboarding.gymPasswordPlaceholder}" autocomplete="section-gym current-password">
++              ${gymLoginChoiceHtml('app-onb-gym-remember')}
+             </div>
+             <div id="app-onb-gym-error" class="app-login-error" style="display:none;margin-top:4px;"></div>
+             <button type="button" id="app-onb-gym-submit" class="app-btn-primary onb-submit-button"><span>${escapeHtml(submitLabel(null))}</span></button>
+@@ -658,6 +660,7 @@ function stepGyms() {
+       const newStrip = sheet.querySelector('.app-onb-gym-logos');
+       if (stableLogoStrip) newStrip.replaceWith(stableLogoStrip);
+       else { stableLogoStrip = newStrip; startGymLogoDiscovery(stableLogoStrip); }
++      setGymLogoDiscoveryVisible(stableLogoStrip, !hasLinked || addingAnother, { animate: false });
+       const addAnotherBtn = sheet.querySelector('#app-onb-add-another');
+       if (addAnotherBtn) addAnotherBtn.addEventListener('click', () => { addingAnother = true; render(); });
+ 
+@@ -671,11 +674,15 @@ function stepGyms() {
+         skipBtn.addEventListener('click', resolve);
+       }
+ 
++      bindGymLoginChoice(sheet);
+       const submitBtn = sheet.querySelector('#app-onb-gym-submit');
+       const gymSel = sheet.querySelector('#app-onb-gym-select');
+       if (gymSel && submitBtn) gymSel.addEventListener('change', () => {
+         const fields = sheet.querySelector('.app-onb-credentials');
+         fields.hidden = !gymSel.value;
++        setGymLogoDiscoveryVisible(stableLogoStrip, !gymSel.value, {
++          anchor: sheet.querySelector('.app-onb-link-form'), focusTarget: gymSel,
++        });
+         submitBtn.querySelector('span').textContent = submitLabel(gymSel.value);
+       });
+       if (submitBtn) {
+@@ -700,7 +707,8 @@ function stepGyms() {
+           submitBtn.querySelector('span').textContent = COPY.onboarding.connecting;
+ 
+           try {
+-            await api.linkGym(gymId, email, password);
++            await api.linkGym(gymId, email, password, sheet.querySelector('[data-remember-gym-login]').checked);
++            emailInput.value = ''; passInput.value = '';
+             showToast(COPY.notifications.gymConnectedToast, 'success');
+             await loadData();
+             addingAnother = false;
+diff --git a/server/notifications.js b/server/notifications.js
+index 5703a7c..b99a1fb 100644
+--- a/server/notifications.js
++++ b/server/notifications.js
+@@ -12,6 +12,7 @@ const zoneFor = (gymId) => zoneOfGym(gymId);
+ 
+ // Default notification preferences. Stored per-user under settings.notifications.
+ const DEFAULT_PREFS = {
++  gymLoginRequired: { enabled: true },
+   booking: { enabled: true, scope: 'all' },          // scope: 'all' | 'autobook'
+   upgrade: { enabled: true },
+   creditWarning: { enabled: true },
+@@ -259,6 +260,10 @@ async function notify(userId, type, ctx = {}) {
+   const prefs = getPrefs(userId);
+   let built;
+   switch (type) {
++    case 'gymLoginRequired':
++      if (!prefs.gymLoginRequired.enabled) return;
++      built = { title: `Log in to ${gymShortName(ctx.gymId)} again`, body: `Syncing, Auto-Book and Auto-Upgrade are paused for ${getGymConfig(ctx.gymId)?.name || gymShortName(ctx.gymId)}.` };
++      break;
+     case 'booking':
+       if (!prefs.booking.enabled) return;
+       if (prefs.booking.scope === 'autobook' && ctx.source !== 'autobook') return;
+@@ -301,8 +306,9 @@ async function notify(userId, type, ctx = {}) {
+   }
+   // T-5: a Team push deep-links to the Team page (a route only members can open).
+   const data = { type };
++  if (ctx.incident) data.tag = `gym-login-${ctx.incident}`;
+   if (typeof ctx.url === 'string' && ctx.url.startsWith('/')) data.url = ctx.url;
+-  await pushService.sendNotification(userId, built.title, built.body, data);
++  await pushService.sendNotification(userId, built.title, built.body, data, { retryFailures: type === 'gymLoginRequired' });
+   return built;
+ }
+ 
+@@ -314,6 +320,10 @@ function buildSample(type) {
+   const soon = DateTime.now().setZone(zoneFor(sampleGymId)).plus({ days: 1 }).set({ hour: 6, minute: 30, second: 0 }).toISO();
+   const base = { startAt: soon, groupName: 'RIDE', className: 'Signature 45', instructorName: 'Aanya Smith', slots: [5], slot: 5, gymId: sampleGymId };
+   switch (type) {
++    case 'gymLoginRequired':
++      if (!prefs.gymLoginRequired.enabled) return;
++      built = { title: `Log in to ${gymShortName(ctx.gymId)} again`, body: `Syncing, Auto-Book and Auto-Upgrade are paused for ${getGymConfig(ctx.gymId)?.name || gymShortName(ctx.gymId)}.` };
++      break;
+     case 'booking': return buildBooking(base);
+     case 'upgrade': return buildUpgrade({ ...base, keptOriginal: false });
+     case 'upgrade-cutoff': return buildUpgrade({ ...base, keptOriginal: true });
+diff --git a/server/providers/marianatek.js b/server/providers/marianatek.js
+index 7655ac1..29f22a8 100644
+--- a/server/providers/marianatek.js
++++ b/server/providers/marianatek.js
+@@ -84,7 +84,9 @@ function classListWindow(params = {}) {
+   };
+ }
+ 
+-function classListError(message, res) {
++// Keep HTTP status on normalized-read failures so callers can renew 401s and
++// distinguish transient failures without parsing provider error messages.
++function responseError(message, res) {
+   const err = new Error(message);
+   err.status = res && res.status;
+   const ra = res && res.headers && typeof res.headers.get === 'function' ? Number(res.headers.get('retry-after')) : NaN;
+@@ -127,7 +129,7 @@ class MarianaTekProvider extends GymProvider {
+       if (seen.has(path)) throw new Error('Repeated reservation pagination link');
+       seen.add(path);
+       const res = await this.request(path, { token: session.accessToken });
+-      if (!res.ok) throw new Error(`listReservations failed: ${res.status}`);
++      if (!res.ok) throw responseError(`listReservations failed: ${res.status}`, res);
+       const data = await res.json();
+       if (!Array.isArray(data.results)) throw new Error('Invalid reservation page');
+       rows.push(...data.results);
+@@ -156,7 +158,7 @@ class MarianaTekProvider extends GymProvider {
+     let page = 1;
+     while (page <= 60) {
+       const res = await this.request(`/me/reservations?is_upcoming=true&page_size=100&page=${page}`, { token: session.accessToken });
+-      if (!res.ok) throw new Error('Cannot verify reservation region');
++      if (!res.ok) throw responseError('Cannot verify reservation region', res);
+       const data = await res.json();
+       const row = (data.results || []).find(r => String(r.id) === String(bookingId));
+       if (row) {
+@@ -339,7 +341,7 @@ class MarianaTekProvider extends GymProvider {
+       // platform as if it were one gym's identity.
+       const gymName = (this.gym && this.gym.shortName) || 'The gym';
+       if (response.status === 200) {
+-        throw new Error(`${gymName} rejected your login: incorrect email/password (login page re-rendered instead of redirecting).`);
++        throw Object.assign(new Error(`${gymName} rejected your login.`), { code: 'GYM_CREDENTIAL_REJECTED', status: 401 });
+       }
+       throw new Error(`${gymName} login failed: could not obtain an authorization code (last status ${response.status}).`);
+     }
+@@ -397,7 +399,7 @@ class MarianaTekProvider extends GymProvider {
+         const { session: fresh } = await this.login(credentials);
+         return fresh;
+       }
+-      throw new Error('No refresh token and no stored credentials — MarianaTek needs a re-link.');
++      throw Object.assign(new Error('Gym session expired; log in again.'), { code: 'GYM_AUTH_REQUIRED' });
+     }
+     const res = await fetch(`${this.gym.oauthBaseUrl}/token/`, {
+       method: 'POST',
+@@ -416,12 +418,13 @@ class MarianaTekProvider extends GymProvider {
+       // commoner than having no token at all — so it descends the same ladder
+       // rather than surfacing as an unrecoverable error while we hold working
+       // credentials.
++      if (![400,401,403].includes(res.status)) throw Object.assign(new Error(`Gym refresh unavailable (${res.status})`), { status: res.status });
+       if (credentials && credentials.email && credentials.password) {
+         console.log(`[MarianaTek] Refresh rejected (${why}); falling back to a full re-login.`);
+         const { session: fresh } = await this.login(credentials);
+         return fresh;
+       }
+-      throw new Error(`MarianaTek refresh failed: ${why}`);
++      throw Object.assign(new Error('Gym session refresh rejected; log in again.'), { code: 'GYM_AUTH_REQUIRED', status: res.status });
+     }
+     const data = await res.json();
+     return {
+@@ -436,7 +439,7 @@ class MarianaTekProvider extends GymProvider {
+   /** GET /me/account -> normalized profile. */
+   async getProfile(session) {
+     const res = await this.request('/me/account', { token: session.accessToken });
+-    if (!res.ok) throw new Error(`getProfile failed: ${res.status}`);
++    if (!res.ok) throw responseError(`getProfile failed: ${res.status}`, res);
+     const a = await res.json();
+     return makeProfile({
+       id: a.id,
+@@ -463,7 +466,7 @@ class MarianaTekProvider extends GymProvider {
+   /** GET /me/credits -> raw credit packages (empty array if none/not applicable). */
+   async getCredits(session) {
+     const res = await this.request('/me/credits', { token: session.accessToken });
+-    if (!res.ok) throw new Error(`getCredits failed: ${res.status}`);
++    if (!res.ok) throw responseError(`getCredits failed: ${res.status}`, res);
+     const data = await res.json();
+     // Normalised like CodexFit's (the client's credit arithmetic reads `count`), raw fields kept.
+     return (data.results || []).map((c) => ({
+@@ -564,7 +567,7 @@ class MarianaTekProvider extends GymProvider {
+       qs.set('page', String(params.page));
+ 
+       const res = await this.classListRequest(`/classes?${qs}`, session);
+-      if (!res.ok) throw classListError(`fetchTimetable failed: ${res.status}`, res);
++      if (!res.ok) throw responseError(`fetchTimetable failed: ${res.status}`, res);
+       const data = await res.json();
+       return (data.results || []).map((c) => this.mapClassToEvent(c));
+     }
+@@ -698,7 +701,7 @@ class MarianaTekProvider extends GymProvider {
+     const getPage = async (path) => {
+       const res = await this.classListRequest(path, session);
+       if (!res.ok) {
+-        const err = classListError(`fetchTimetable failed: ${res.status}`, res);
++        const err = responseError(`fetchTimetable failed: ${res.status}`, res);
+         noteThrottleError(this.gymId, err);
+         throw err;
+       }
+@@ -711,7 +714,7 @@ class MarianaTekProvider extends GymProvider {
+ 
+     if (Number.isFinite(pages) && pages > 1) {
+       if (pages > CLASS_LIST_MAX_PAGES) {
+-        throw classListError(`fetchTimetable: class list has ${pages} pages, exceeds the ${CLASS_LIST_MAX_PAGES}-page safety cap; narrow the date window`, { status: 502 });
++        throw responseError(`fetchTimetable: class list has ${pages} pages, exceeds the ${CLASS_LIST_MAX_PAGES}-page safety cap; narrow the date window`, { status: 502 });
+       }
+       const rowsByPage = new Array(pages + 1);
+       rowsByPage[1] = firstRows;
+@@ -746,12 +749,12 @@ class MarianaTekProvider extends GymProvider {
+         const u = new URL(nextLink, this.gym.apiBaseUrl);
+         path = `${u.pathname.replace(/^\/api\/customer\/v1/, '')}${u.search}`;
+       } catch (_) {
+-        throw classListError('fetchTimetable: unparseable next link; refusing to return a truncated list', { status: 502 });
++        throw responseError('fetchTimetable: unparseable next link; refusing to return a truncated list', { status: 502 });
+       }
+       data = await getPage(path);
+       if (Array.isArray(data.results)) all.push(...data.results);
+     }
+-    throw classListError(`fetchTimetable: exceeds the ${CLASS_LIST_MAX_PAGES}-page safety cap`, { status: 502 });
++    throw responseError(`fetchTimetable: exceeds the ${CLASS_LIST_MAX_PAGES}-page safety cap`, { status: 502 });
+   }
+ 
+   /**
+@@ -763,7 +766,7 @@ class MarianaTekProvider extends GymProvider {
+     const res = session
+       ? await this.request(`/classes/${eventId}`, { token: session.accessToken, timeoutMs })
+       : await this.publicRequest(`/classes/${eventId}`);
+-    if (!res.ok) throw new Error(`fetchEventDetails failed: ${res.status}`);
++    if (!res.ok) throw responseError(`fetchEventDetails failed: ${res.status}`, res);
+     const c = await res.json();
+     if (!this.isClassInScope(c)) {
+       throw new Error('Class is outside this gym’s configured regions');
+@@ -1236,7 +1239,7 @@ class MarianaTekProvider extends GymProvider {
+   async getCancelPenalty(bookingId, session) {
+     await this.assertReservationInScope(bookingId, session);
+     const res = await this.request(`/me/reservations/${bookingId}/cancel_penalty`, { token: session.accessToken });
+-    if (!res.ok) throw new Error(`getCancelPenalty failed: ${res.status}`);
++    if (!res.ok) throw responseError(`getCancelPenalty failed: ${res.status}`, res);
+     const data = await res.json();
+     return classifyCancelPenalty(data);
+   }
+@@ -1386,7 +1389,7 @@ class MarianaTekProvider extends GymProvider {
+    */
+   async getMilestones(session) {
+     const res = await this.request('/me/achievements', { token: session.accessToken });
+-    if (!res.ok) throw new Error(`getMilestones failed: ${res.status}`);
++    if (!res.ok) throw responseError(`getMilestones failed: ${res.status}`, res);
+     const data = await res.json().catch(() => ({}));
+     const attendedTotal = data && data.classes_completed;
+     if (!Number.isInteger(attendedTotal) || attendedTotal < 0) {
+diff --git a/server/test-notification-gym-naming.js b/server/test-notification-gym-naming.js
+index 8da4473..97e8456 100644
+--- a/server/test-notification-gym-naming.js
++++ b/server/test-notification-gym-naming.js
+@@ -90,6 +90,20 @@ for (const { type, ctx } of CASES) {
+   });
+ }
+ 
++for (const gymId of ['psycle-london', 'jab-boxing', 'aarmy']) {
++  check(`gymLoginRequired: body independently names ${gymId} and preserves incident tag`, async () => {
++    installSpy();
++    try {
++      const uid = makeUser();
++      await notifications.notify(uid, 'gymLoginRequired', { gymId, incident: 'same-incident', url: '/?reconnect=' + gymId });
++      assert.ok(captured);
++      assert.ok(captured.body.includes(require('./gyms.config').getGymConfig(gymId).name), captured.body);
++      assert.equal(captured.data.tag, 'gym-login-same-incident');
++      assert.equal(captured.data.type, 'gymLoginRequired');
++    } finally { restoreSpy(); }
++  });
++}
++
+ (async () => {
+   let failed = 0;
+   console.log('\n🧪 C3-5: notification gym naming\n');

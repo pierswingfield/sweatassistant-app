@@ -66,7 +66,7 @@ async function gymProviderCall(userId, gymId, method, ...args) {
   } catch (err) {
     if (err.status !== 401) throw err;
     const newJwt = await triggerAutoRelogin(userId, gymId);
-    return run(newJwt);
+    return require('./gym-connection').retrySessionCall(userId, gymId, newJwt, () => run(newJwt));
   }
 }
 

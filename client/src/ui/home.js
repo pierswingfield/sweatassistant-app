@@ -1,3 +1,4 @@
+import { homeConnectionsWidget } from './home-connections.js';
 import { personalStatsZone, personalStatsKey, renderPersonalStats } from './personal-stats.js';
 // Home tab: a page of independent widgets (F-10-1).
 // Framework lives in widget-registry.js; this file registers the widgets and paints the page.
@@ -11,7 +12,7 @@ import { greetingText } from './name-capture.js';
 import { getTotalCredits, isMetered } from './credit-allowance.js';
 import { canForGym, getGymShortName, getLinkedGyms, getAllLinkedGyms } from '../gym-context.js';
 import { readCached } from '../cache.js';
-import { cleanClassName, gymLogoPlate, gymSquareChip, icon, sparklesIcon } from './cards.js';
+import { escapeHtml, cleanClassName, gymLogoPlate, gymSquareChip, icon, sparklesIcon } from './cards.js';
 import { buildTimetableUrl } from '../url-state.js';
 import { navigate } from '../router.js';
 import { DateTime } from 'luxon';
@@ -22,6 +23,8 @@ import { formatInZone, formatOpensIn, getClassReleaseTime, zoneFor } from '../li
 import { instructorAvatar } from './tooltips.js';
 import { safeImageUrl } from './safe-url.js';
 import { indexFavourites, isFavouriteIn } from '../favourites.js';
+
+registerWidget(homeConnectionsWidget);
 
 const goTo = (tabId) => (window.switchTab ? window.switchTab(tabId) : null);
 
@@ -244,7 +247,8 @@ function attendanceTile(row, ctx) {
 
 // The activity total spans every linked gym, switched-off ones included (their
 // stored history); every other widget sees only the enabled gyms in ctx.gyms.
-const statsGyms = (ctx) => (Array.isArray(ctx.allGyms) ? ctx.allGyms : (Array.isArray(ctx.gyms) ? ctx.gyms : []));
+const connectedLinks = (gyms) => (gyms || []).filter(g => !['needs_relogin', 'syncing'].includes(g.status));
+const statsGyms = (ctx) => connectedLinks(Array.isArray(ctx.allGyms) ? ctx.allGyms : (Array.isArray(ctx.gyms) ? ctx.gyms : []));
 
 // Pending imports get a bounded, account-owned follow-up; ordinary Home paints use SWR.
 let statsPoll = null, statsPollCount = 0, statsPollAccount = '';
@@ -710,7 +714,7 @@ async function loadHomeFavourites(ctx) {
   const [{ cache }, timetable] = await Promise.all([
     import('../main.js'), import('./timetable.js'),
   ]);
-  const gymIds = uniqueGymIds(ctx.allGyms || gyms);
+  const gymIds = uniqueGymIds(connectedLinks(ctx.allGyms || gyms));
   const settled = await Promise.allSettled(gymIds.map((gymId) => api.getFavourites(gymId, { loading: true })));
   const favouritesByGym = { ...(cache.favouritesByGym || {}) };
   const decisionByGym = { ...favouritesByGym };
@@ -845,7 +849,7 @@ const favouriteCard = renderHomeFavouriteCard;
 
 registerWidget({
   id: 'favourites', order: 50, title: (data) => data ? COPY.home.favourites : '',
-  cacheKeys(ctx) { return uniqueGymIds(ctx.allGyms || ctx.gyms).map((id) => gymCacheKey('/api/favourites', id)); },
+  cacheKeys(ctx) { return uniqueGymIds(connectedLinks(ctx.allGyms || ctx.gyms)).map((id) => gymCacheKey('/api/favourites', id)); },
   async load(ctx) { return loadHomeFavourites(ctx); },
   // Event objects alone do not change when a release instant passes. Include
   // the time-derived status/action so a foreground refresh moves Auto-Book to
@@ -964,7 +968,7 @@ let renderRun = 0;
 // (order >= HOME_ORDER_LAST, e.g. the no-Team "Create a Team" card) leaves its column for
 // a tail row under BOTH columns (owner: "the bottom of the other widgets"), at its
 // column's width.
-const HOME_LEFT_COLUMN_ORDER = ['upcoming', 'teams', 'book', 'stats'];
+const HOME_LEFT_COLUMN_ORDER = ['connections', 'upcoming', 'teams', 'book', 'stats'];
 const HOME_RIGHT_COLUMN_ORDER = ['credits', 'favourites', 'top-instructors'];
 
 /** Pure: [{ id, order }] (effective registry orders) -> { mobile, left, right, tail } id lists. */
@@ -1066,6 +1070,7 @@ export async function renderHome() {
   if (!host) return;
   const run = ++renderRun;
   const gyms = getLinkedGyms();
+  const unavailable = getAllLinkedGyms().filter(g => ['needs_relogin', 'syncing'].includes(g.status));
   const contextKey = homeContextKey(gyms);
   const previousKey = host.dataset.homeContextKey || '';
   if (previousKey !== contextKey) {
@@ -1077,9 +1082,9 @@ export async function renderHome() {
   try { settings = await api.getSettings(); } catch (_) { /* neutral greeting */ }
   if (run !== renderRun) return;
   paintHomeGreeting(settings);
-  if (Array.isArray(gyms) && gyms.length === 0) { renderConnectGym(host); return; }
+  if (gyms.length === 0 && unavailable.length === 0) { renderConnectGym(host); return; }
   const ctx = { gyms, allGyms: getAllLinkedGyms(), navigate: goTo, openGymSettings, contextKey };
-  const widgets = registry.list(ctx);
+  const widgets = registry.list(ctx).filter(widget => gyms.length > 0 || widget.id === 'connections');
   const skeleton = () => renderCardSkeletons(1, COPY.home.loadingWidget);
   // syncHomeDesktopFlow nests sections inside columns; include those mounted
   // sections so a refresh moves/reuses them instead of appending duplicates.

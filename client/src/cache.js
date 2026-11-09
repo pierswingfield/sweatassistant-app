@@ -1,3 +1,4 @@
+import { connectionEpoch } from './gym-availability.js';
 // IndexedDB-based read-through cache for API GET responses
 // Uses the same 'app-cache' DB as timetable.js but version 2, adding an 'api-responses' store.
 // Raw IndexedDB (no idb library) — matches pattern in timetable.js.
@@ -188,9 +189,11 @@ function snapshotKey(name) {
 
 export async function setOfflineSnapshot(name, data) {
   const key = snapshotKey(name);
+  const epoch = connectionEpoch();
   if (!key) return;
   try {
     const db = await openDB();
+    if (epoch !== connectionEpoch()) { db.close(); return; }
     const tx = db.transaction(SNAPSHOT_STORE, 'readwrite');
     tx.objectStore(SNAPSHOT_STORE).put({ data: sanitiseOfflineSnapshot(data), savedAt: Date.now() }, key);
     await new Promise((resolve, reject) => {
@@ -410,6 +413,8 @@ export async function readCached(endpoint) {
  */
 export async function clearApiCache() {
   clearVersion += 1;
+  // Timetable's IDB-unavailable fallback must also retire on connection changes.
+  for (let i = localStorage.length - 1; i >= 0; i--) { const key = localStorage.key(i); if (/^appUnifiedCache(?:Events|Meta|Time)(?::|$)/.test(key || '')) localStorage.removeItem(key); }
   await idbClearStore();
 }
 

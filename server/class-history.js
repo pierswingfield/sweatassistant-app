@@ -185,7 +185,7 @@ async function pull(userId, gymId, sinceDate, onCoverage) {
   } catch (err) {
     if (!err || err.status !== 401) throw err;
     const newJwt = await triggerAutoRelogin(userId, gymId);
-    return provider.listBookingHistory({ ...session, accessToken: newJwt }, opts);
+    return require('./gym-connection').retrySessionCall(userId, gymId, newJwt, () => provider.listBookingHistory({ ...session, accessToken: newJwt }, opts));
   }
 }
 
@@ -250,7 +250,7 @@ async function syncStale({ maxAgeMs = DEFAULT_MAX_AGE_MS } = {}) {
   const links = db.db.prepare(`
     SELECT ug.user_id, ug.gym_id FROM user_gyms ug
     LEFT JOIN class_history_sync s ON s.user_id = ug.user_id AND s.gym_id = ug.gym_id
-    WHERE ug.relogin_suspended = 0 AND ug.status != 'disabled' AND ug.account_enabled = 1
+    WHERE ug.relogin_suspended = 0 AND ug.status = 'active' AND ug.account_enabled = 1 AND ug.status = 'active'
       AND (s.last_synced_at IS NULL OR s.last_synced_at < ?)
   `).all(new Date(Date.now() - maxAgeMs).toISOString());
   let done = 0;
@@ -337,7 +337,7 @@ function personalStats(userId, { zone, now = Date.now(), refresh = true } = {}) 
   const rows = db.db.prepare(`
     SELECT h.gym_id, h.booking_id, h.event_id, h.status, h.start_at, h.time_zone, h.duration_min
     FROM class_history h JOIN user_gyms ug ON ug.user_id = h.user_id AND ug.gym_id = h.gym_id
-    WHERE h.user_id = ? AND h.status IN ('attended', 'unconfirmed') AND h.start_ts < ?
+    WHERE h.user_id = ? AND ug.status = 'active' AND h.status IN ('attended', 'unconfirmed') AND h.start_ts < ?
     ORDER BY h.start_ts, h.booking_id
   `).iterate(userId, now);
   const entries = (function* () { for (const r of rows) yield { gymId: r.gym_id, ...rowToEntry(r) }; })();

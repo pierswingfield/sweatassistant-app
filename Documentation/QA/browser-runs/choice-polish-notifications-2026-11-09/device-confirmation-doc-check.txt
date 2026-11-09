@@ -1,0 +1,1 @@
+PASS: git diff --check; confirmation paragraphs verified in all 5 documents, including physical-UI scope limits and no new trailing whitespace; superseded pending-delivery statements removed from the 3 project records.

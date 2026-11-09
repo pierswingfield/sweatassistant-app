@@ -1,0 +1,19 @@
+[Push] Automatically generated and saved VAPID keypair in server database.
+
+🧪 C3-5: notification gym naming
+
+  ✓ booking: names Psycle for a psycle-london context, never JAB
+  ✓ booking: names JAB for a jab-boxing context, never Psycle
+  ✓ upgrade: names Psycle for a psycle-london context, never JAB
+  ✓ upgrade: names JAB for a jab-boxing context, never Psycle
+  ✓ creditWarning: names Psycle for a psycle-london context, never JAB
+  ✓ creditWarning: names JAB for a jab-boxing context, never Psycle
+  ✓ cancellationReminder: names Psycle for a psycle-london context, never JAB
+  ✓ cancellationReminder: names JAB for a jab-boxing context, never Psycle
+  ✓ bookingWindow: names Psycle for a psycle-london context, never JAB
+  ✓ bookingWindow: names JAB for a jab-boxing context, never Psycle
+  ✓ gymLoginRequired: body independently names psycle-london and preserves incident tag
+  ✓ gymLoginRequired: body independently names jab-boxing and preserves incident tag
+  ✓ gymLoginRequired: body independently names aarmy and preserves incident tag
+
+🎉 13/13 notification gym-naming checks passed.

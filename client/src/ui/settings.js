@@ -1,3 +1,4 @@
+import { gymLoginChoiceHtml, bindGymLoginChoice } from './gym-login-choice.js';
 import { MASCOT } from './teams-ui.js';
 import { api, apiFetch } from '../api';
 import { loadSpotMapGyms } from './spot-map-loading.js';
@@ -1276,6 +1277,7 @@ function gymModal() {
   const body = document.getElementById('app-gym-modal-body');
   const title = document.getElementById('app-gym-modal-title');
   const close = () => {
+    body.querySelectorAll('#app-link-gym-password, #app-link-gym-email').forEach(input => { input.value = ''; });
     // Mobile page: pop its history entry (guard skipped, the work is done). Desktop: as before.
     if (closeNavPage(modal)) return;
     modal.classList.remove('show');
@@ -1619,13 +1621,13 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
     const config = catalogue.find(g => g.id === gymId) || {};
     const gym = { ...config, ...link, id: gymId, capabilities: { ...(config.capabilities || {}), ...(link.capabilities || {}) } };
     const [settings, membership, credits] = await Promise.all([
-      api.getSettings(gymId),
-      api.getMembership(gymId).catch(() => undefined), // undefined = unknown, null = confirmed none
-      api.getNormalizedCredits(gymId).catch(() => undefined),
+      link.status === 'needs_relogin' ? {} : api.getSettings(gymId),
+      link.status === 'needs_relogin' ? undefined : api.getMembership(gymId).catch(() => undefined), // undefined = unknown
+      link.status === 'needs_relogin' ? undefined : api.getNormalizedCredits(gymId).catch(() => undefined),
     ]);
     const bookingWindowText = describeBookingWindow(getBookingOffset(settings), null);
 
-    const rerender = () => renderGymSettingsSection(gymId).catch(err => debugConsole('[Settings] Gym section refresh failed:', err.message));
+    const rerender = () => renderGymSettingsSection(gymId, container).catch(err => debugConsole('[Settings] Gym section refresh failed:', err.message));
     renderGymSettingsSectionView(container, {
       logoHtml: gymLogoBanner(gymId, { settings: true }),
       gym,
@@ -1670,6 +1672,18 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
         }
       },
       onAction: async (action, button) => {
+        if (action === 'forget-login') {
+          const modal = gymModal();
+          modal.title.textContent = COPY.settings.forgetGymLoginTitle;
+          modal.body.innerHTML = `<p>${escapeHtml(appConfig.appName)} will remove your saved gym login details and keep your current session. You’ll need to log in again occasionally. Auto-Book, Auto-Upgrade and syncing will pause for this gym when its session expires.</p><div class="app-settings-btn-row"><button class="app-btn" data-keep-login>Keep saved login</button><button class="app-btn variant-danger" data-forget-login>Forget gym login</button></div><p data-forget-error role="alert"></p>`;
+          modal.open({ id: 'forget-gym-login', back: true });
+          modal.body.querySelector('[data-keep-login]').onclick = modal.close;
+          modal.body.querySelector('[data-forget-login]').onclick = async () => {
+            try { await api.forgetGymLogin(gymId); modal.close(); await renderGymsCard(); }
+            catch (err) { modal.body.querySelector('[data-forget-error]').textContent = err.message; }
+          };
+          return;
+        }
         if (action === 'reauth') return openLinkGymModal(gymId, link);
         if (action === 'spot-maps') return openManageSpotMapsModal({ gymId });
         if (action === 'profile') return openProfileExplorerModal(gymId, gym.name || link.gym_name);
@@ -1719,7 +1733,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
 // One modal for both "add a gym" and "re-authenticate an existing one" — they are
 // the same operation server-side (prove the credential, then store it), so making
 // them two dialogs would just be two things to keep in step.
-function openLinkGymModal(gymId, existing, addable = []) {
+export function openLinkGymModal(gymId, existing, addable = []) {
   const { body, title, open, close } = gymModal();
   const isReauth = !!gymId;
   title.textContent = isReauth
@@ -1739,12 +1753,13 @@ function openLinkGymModal(gymId, existing, addable = []) {
       <select id="app-link-gym-id" class="app-select set-gym-select">
         ${addable.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join('')}
       </select>`}
-    <label class="app-setting-label set-gym-label"><span>${COPY.settings.email}</span></label>
+    <label for="app-link-gym-email" class="app-setting-label set-gym-label"><span>${COPY.settings.email}</span></label>
     <input id="app-link-gym-email" type="email" class="app-input set-gym-select" autocomplete="username"
            placeholder="${COPY.static.exampleEmail}">
-    <label class="app-setting-label set-gym-label"><span>${COPY.settings.password}</span></label>
+    <label for="app-link-gym-password" class="app-setting-label set-gym-label"><span>${COPY.settings.password}</span></label>
     <input id="app-link-gym-password" type="password" class="app-input set-gym-password" autocomplete="current-password"
           >
+    ${gymLoginChoiceHtml('app-link-gym-remember')}
     <div id="app-link-gym-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
     <button class="app-btn primary set-gym-submit" id="app-link-gym-submit">
       ${isReauth ? COPY.settings.reauthenticate : COPY.settings.link}
@@ -1757,6 +1772,7 @@ function openLinkGymModal(gymId, existing, addable = []) {
   body.querySelector('#app-link-gym-id')?.addEventListener('change', (e) => {
     body.querySelector('#app-link-gym-logo').innerHTML = gymLogoBanner(e.target.value);
   });
+  bindGymLoginChoice(body);
   const errEl = body.querySelector('#app-link-gym-error');
   const submit = body.querySelector('#app-link-gym-submit');
   submit.onclick = async () => {
@@ -1772,7 +1788,9 @@ function openLinkGymModal(gymId, existing, addable = []) {
     submit.disabled = true;
     submit.textContent = COPY.settings.checking;
     try {
-      await api.linkGym(targetGym, email, password);
+      await api.linkGym(targetGym, email, password, body.querySelector('[data-remember-gym-login]').checked);
+      body.querySelector('#app-link-gym-password').value = '';
+      body.querySelector('#app-link-gym-email').value = '';
       showToast(isReauth ? COPY.settings.reauthenticated : COPY.settings.gymLinked, 'success');
       close();
       // C3-1: a newly linked gym must appear in the header badges and pass

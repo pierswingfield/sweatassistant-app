@@ -10,7 +10,7 @@ function nextAction() { const current = context.getStore(); if (current) current
 function beforeRequest(gymId, method) {
   const current = context.getStore();
   if (!current || current.gymId !== gymId || !['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return;
-  if (!current.issued && (isClosing(current.userId, gymId) || !db.isUserGymEnabled(current.userId, gymId))) {
+  if (!current.issued && (isClosing(current.userId, gymId) || !db.isUserGymAvailable(current.userId, gymId))) {
     const error = new Error('Gym was turned off before the provider mutation');
     error.code = 'GYM_DISABLED';
     throw error;
@@ -21,7 +21,7 @@ const key = (userId, gymId) => `${userId}:${gymId}`;
 function begin(userId, gymId) {
   const k = key(userId, gymId);
   const state = states.get(k) || { active: 0, closing: false, waiters: [] };
-  if (state.closing || !db.isUserGymEnabled(userId, gymId)) return null;
+  if (state.closing || !db.isUserGymAvailable(userId, gymId)) return null;
   state.active++;
   states.set(k, state);
   let released = false;

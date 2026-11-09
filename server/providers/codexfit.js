@@ -245,7 +245,7 @@ class CodexFitProvider extends GymProvider {
       // credentials" that reads as if the whole app is broken.
       const gymName = (this.gym && this.gym.shortName) || 'The gym';
       const reason = errorData.message || `login failed with status ${res.status}`;
-      throw new Error(`${gymName} rejected your login: ${reason}`);
+      throw Object.assign(new Error(`${gymName} rejected your login: ${reason}`), { status: res.status, code: [400,401,403,422].includes(res.status) ? 'GYM_CREDENTIAL_REJECTED' : 'GYM_PROVIDER_UNAVAILABLE' });
     }
 
     const data = await res.json(); // { access_token, user: { ... } }
@@ -280,6 +280,7 @@ class CodexFitProvider extends GymProvider {
    * option is a full re-login with stored credentials.
    */
   async refreshSession(_session, credentials) {
+    if (!credentials?.email || !credentials?.password) throw Object.assign(new Error('Gym session expired; log in again.'), { code: 'GYM_AUTH_REQUIRED' });
     const { session } = await this.login(credentials);
     return session;
   }

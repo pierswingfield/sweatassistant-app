@@ -84,7 +84,9 @@ function classListWindow(params = {}) {
   };
 }
 
-function classListError(message, res) {
+// Keep HTTP status on normalized-read failures so callers can renew 401s and
+// distinguish transient failures without parsing provider error messages.
+function responseError(message, res) {
   const err = new Error(message);
   err.status = res && res.status;
   const ra = res && res.headers && typeof res.headers.get === 'function' ? Number(res.headers.get('retry-after')) : NaN;
@@ -127,7 +129,7 @@ class MarianaTekProvider extends GymProvider {
       if (seen.has(path)) throw new Error('Repeated reservation pagination link');
       seen.add(path);
       const res = await this.request(path, { token: session.accessToken });
-      if (!res.ok) throw new Error(`listReservations failed: ${res.status}`);
+      if (!res.ok) throw responseError(`listReservations failed: ${res.status}`, res);
       const data = await res.json();
       if (!Array.isArray(data.results)) throw new Error('Invalid reservation page');
       rows.push(...data.results);
@@ -156,7 +158,7 @@ class MarianaTekProvider extends GymProvider {
     let page = 1;
     while (page <= 60) {
       const res = await this.request(`/me/reservations?is_upcoming=true&page_size=100&page=${page}`, { token: session.accessToken });
-      if (!res.ok) throw new Error('Cannot verify reservation region');
+      if (!res.ok) throw responseError('Cannot verify reservation region', res);
       const data = await res.json();
       const row = (data.results || []).find(r => String(r.id) === String(bookingId));
       if (row) {
@@ -339,7 +341,7 @@ class MarianaTekProvider extends GymProvider {
       // platform as if it were one gym's identity.
       const gymName = (this.gym && this.gym.shortName) || 'The gym';
       if (response.status === 200) {
-        throw new Error(`${gymName} rejected your login: incorrect email/password (login page re-rendered instead of redirecting).`);
+        throw Object.assign(new Error(`${gymName} rejected your login.`), { code: 'GYM_CREDENTIAL_REJECTED', status: 401 });
       }
       throw new Error(`${gymName} login failed: could not obtain an authorization code (last status ${response.status}).`);
     }
@@ -397,7 +399,7 @@ class MarianaTekProvider extends GymProvider {
         const { session: fresh } = await this.login(credentials);
         return fresh;
       }
-      throw new Error('No refresh token and no stored credentials — MarianaTek needs a re-link.');
+      throw Object.assign(new Error('Gym session expired; log in again.'), { code: 'GYM_AUTH_REQUIRED' });
     }
     const res = await fetch(`${this.gym.oauthBaseUrl}/token/`, {
       method: 'POST',
@@ -416,12 +418,13 @@ class MarianaTekProvider extends GymProvider {
       // commoner than having no token at all — so it descends the same ladder
       // rather than surfacing as an unrecoverable error while we hold working
       // credentials.
+      if (![400,401,403].includes(res.status)) throw Object.assign(new Error(`Gym refresh unavailable (${res.status})`), { status: res.status });
       if (credentials && credentials.email && credentials.password) {
         console.log(`[MarianaTek] Refresh rejected (${why}); falling back to a full re-login.`);
         const { session: fresh } = await this.login(credentials);
         return fresh;
       }
-      throw new Error(`MarianaTek refresh failed: ${why}`);
+      throw Object.assign(new Error('Gym session refresh rejected; log in again.'), { code: 'GYM_AUTH_REQUIRED', status: res.status });
     }
     const data = await res.json();
     return {
@@ -436,7 +439,7 @@ class MarianaTekProvider extends GymProvider {
   /** GET /me/account -> normalized profile. */
   async getProfile(session) {
     const res = await this.request('/me/account', { token: session.accessToken });
-    if (!res.ok) throw new Error(`getProfile failed: ${res.status}`);
+    if (!res.ok) throw responseError(`getProfile failed: ${res.status}`, res);
     const a = await res.json();
     return makeProfile({
       id: a.id,
@@ -463,7 +466,7 @@ class MarianaTekProvider extends GymProvider {
   /** GET /me/credits -> raw credit packages (empty array if none/not applicable). */
   async getCredits(session) {
     const res = await this.request('/me/credits', { token: session.accessToken });
-    if (!res.ok) throw new Error(`getCredits failed: ${res.status}`);
+    if (!res.ok) throw responseError(`getCredits failed: ${res.status}`, res);
     const data = await res.json();
     // Normalised like CodexFit's (the client's credit arithmetic reads `count`), raw fields kept.
     return (data.results || []).map((c) => ({
@@ -564,7 +567,7 @@ class MarianaTekProvider extends GymProvider {
       qs.set('page', String(params.page));
 
       const res = await this.classListRequest(`/classes?${qs}`, session);
-      if (!res.ok) throw classListError(`fetchTimetable failed: ${res.status}`, res);
+      if (!res.ok) throw responseError(`fetchTimetable failed: ${res.status}`, res);
       const data = await res.json();
       return (data.results || []).map((c) => this.mapClassToEvent(c));
     }
@@ -698,7 +701,7 @@ class MarianaTekProvider extends GymProvider {
     const getPage = async (path) => {
       const res = await this.classListRequest(path, session);
       if (!res.ok) {
-        const err = classListError(`fetchTimetable failed: ${res.status}`, res);
+        const err = responseError(`fetchTimetable failed: ${res.status}`, res);
         noteThrottleError(this.gymId, err);
         throw err;
       }
@@ -711,7 +714,7 @@ class MarianaTekProvider extends GymProvider {
 
     if (Number.isFinite(pages) && pages > 1) {
       if (pages > CLASS_LIST_MAX_PAGES) {
-        throw classListError(`fetchTimetable: class list has ${pages} pages, exceeds the ${CLASS_LIST_MAX_PAGES}-page safety cap; narrow the date window`, { status: 502 });
+        throw responseError(`fetchTimetable: class list has ${pages} pages, exceeds the ${CLASS_LIST_MAX_PAGES}-page safety cap; narrow the date window`, { status: 502 });
       }
       const rowsByPage = new Array(pages + 1);
       rowsByPage[1] = firstRows;
@@ -746,12 +749,12 @@ class MarianaTekProvider extends GymProvider {
         const u = new URL(nextLink, this.gym.apiBaseUrl);
         path = `${u.pathname.replace(/^\/api\/customer\/v1/, '')}${u.search}`;
       } catch (_) {
-        throw classListError('fetchTimetable: unparseable next link; refusing to return a truncated list', { status: 502 });
+        throw responseError('fetchTimetable: unparseable next link; refusing to return a truncated list', { status: 502 });
       }
       data = await getPage(path);
       if (Array.isArray(data.results)) all.push(...data.results);
     }
-    throw classListError(`fetchTimetable: exceeds the ${CLASS_LIST_MAX_PAGES}-page safety cap`, { status: 502 });
+    throw responseError(`fetchTimetable: exceeds the ${CLASS_LIST_MAX_PAGES}-page safety cap`, { status: 502 });
   }
 
   /**
@@ -763,7 +766,7 @@ class MarianaTekProvider extends GymProvider {
     const res = session
       ? await this.request(`/classes/${eventId}`, { token: session.accessToken, timeoutMs })
       : await this.publicRequest(`/classes/${eventId}`);
-    if (!res.ok) throw new Error(`fetchEventDetails failed: ${res.status}`);
+    if (!res.ok) throw responseError(`fetchEventDetails failed: ${res.status}`, res);
     const c = await res.json();
     if (!this.isClassInScope(c)) {
       throw new Error('Class is outside this gym’s configured regions');
@@ -1236,7 +1239,7 @@ class MarianaTekProvider extends GymProvider {
   async getCancelPenalty(bookingId, session) {
     await this.assertReservationInScope(bookingId, session);
     const res = await this.request(`/me/reservations/${bookingId}/cancel_penalty`, { token: session.accessToken });
-    if (!res.ok) throw new Error(`getCancelPenalty failed: ${res.status}`);
+    if (!res.ok) throw responseError(`getCancelPenalty failed: ${res.status}`, res);
     const data = await res.json();
     return classifyCancelPenalty(data);
   }
@@ -1386,7 +1389,7 @@ class MarianaTekProvider extends GymProvider {
    */
   async getMilestones(session) {
     const res = await this.request('/me/achievements', { token: session.accessToken });
-    if (!res.ok) throw new Error(`getMilestones failed: ${res.status}`);
+    if (!res.ok) throw responseError(`getMilestones failed: ${res.status}`, res);
     const data = await res.json().catch(() => ({}));
     const attendedTotal = data && data.classes_completed;
     if (!Number.isInteger(attendedTotal) || attendedTotal < 0) {

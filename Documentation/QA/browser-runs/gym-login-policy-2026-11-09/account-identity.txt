@@ -1,0 +1,23 @@
+
+🧪 Account identity + gym linking (WP-C2 slice 1b)
+
+✅ an account with no app password cannot log in, and the gym is never asked
+✅ an unknown email is rejected, creates nothing, and never reaches a gym
+✅ an app login authenticates locally, WITHOUT touching the gym
+✅ a wrong password is rejected and does NOT fall back to the gym
+✅ changing the app password stops the old one working
+✅ linkGymAccount stores credentials only after the provider accepts them
+✅ a rejected credential does not overwrite a working link
+✅ re-authenticating preserves priority tier and calendar token
+✅ linking refuses an unknown or not-yet-enabled gym
+✅ two gyms can be linked; each resolves via request context, not a stored choice
+✅ unlinking Psycle leaves a working JAB-only account (the D4 scenario, end to end)
+✅ signup creates an account with a password and NO gym linked
+✅ a signed-up account can log in before it has any gym
+✅ signup rejects a duplicate email, a bad address, and a short password
+✅ signup then link produces exactly the same shape as a migrated account
+✅ the gym-login recovery surface is gone, not merely unrouted
+✅ resetGymCredentials clears every credential but keeps the links
+
+🎉 17/17 identity checks passed.
+

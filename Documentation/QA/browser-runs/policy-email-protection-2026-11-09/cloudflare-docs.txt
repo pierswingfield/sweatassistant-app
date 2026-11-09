@@ -1,0 +1,5 @@
+Yes, the `Cache-Control: no-transform` header prevents Email Address Obfuscation from running. 
+
+Additionally, wrapping HTML content or email addresses between `<!--email_off-->` and `<!--/email_off-->` comments is officially supported to prevent obfuscation.
+
+Source: [Cloudflare Email Address Obfuscation Documentation](https://developers.cloudflare.com/waf/tools/scrape-shield/email-address-obfuscation/)

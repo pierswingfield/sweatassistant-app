@@ -15,7 +15,8 @@ self.addEventListener('push', (event) => {
       body: notification.body || '',
       icon: notification.icon || '/icons/icon-192.png',
       badge: notification.badge || '/icons/icon-192.png',
-      data: notification.data || {}
+      data: notification.data || {},
+      ...(notification.tag ? { tag: notification.tag } : {})
     };
     // T-5: Team pushes collapse per Team on the lock screen (one notification each).
     const teamPath = teamPathOf(options.data);

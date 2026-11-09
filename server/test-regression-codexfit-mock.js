@@ -125,7 +125,7 @@ async function run() {
 
     // An app account can be created with no gym at all.
     const email = `sa-signup-${Date.now()}@test.local`;
-    const signup = await post('/api/auth/signup', { email, password: 'a-real-password' });
+    const signup = await post('/api/auth/signup', { policyAcceptance: require('./policies').CURRENT_ACCEPTANCE, email, password: 'a-real-password' });
     const signupData = await signup.json();
     assert.strictEqual(signup.status, 200, `signup failed: ${JSON.stringify(signupData)}`);
     assert.ok(signupData.token, 'signup issues a session immediately');
@@ -145,7 +145,7 @@ async function run() {
     assert.strictEqual(ttBody.code, 'NO_GYM_LINKED', 'with a code the client can branch on');
 
     // Duplicate signup is refused.
-    assert.strictEqual((await post('/api/auth/signup', { email, password: 'another-one' })).status, 400);
+    assert.strictEqual((await post('/api/auth/signup', { policyAcceptance: require('./policies').CURRENT_ACCEPTANCE, email, password: 'another-one' })).status, 400);
 
     // Recovery endpoints were removed with the gym-login mechanism — assert they
     // are actually gone rather than silently reachable.
@@ -513,7 +513,7 @@ async function run() {
     const victimEmail = `reset-target-${Date.now()}@test.local`;
     await fetch(`${BASE}/api/auth/signup`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: victimEmail, password: 'original-password' }),
+      body: JSON.stringify({ email: victimEmail, password: 'original-password', policyAcceptance: require('./policies').CURRENT_ACCEPTANCE }),
     });
     const users = await (await fetch(`${BASE}/api/admin/users`, asAdmin())).json();
     const target = (users.users || users).find(u => u.email === victimEmail);

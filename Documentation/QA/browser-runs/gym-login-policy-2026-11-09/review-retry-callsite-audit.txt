@@ -1,0 +1,71 @@
+server/scheduler.js:248:      const newJwt = await triggerAutoRelogin(userId, gymId);
+server/scheduler.js-249-      res = await require('./gym-connection').retrySessionCall(userId, gymId, newJwt, () => runFetch(newJwt));
+server/scheduler.js-250-    } catch (err) {
+server/scheduler.js-251-      log.error('relogin failed during api fetch', { component: 'scheduler', userId, err });
+server/scheduler.js-252-      // Login incidents own the deduplicated notification; outages are transient.
+--
+server/scheduler.js:333:    const newJwt = await triggerAutoRelogin(userId, gymId);
+server/scheduler.js-334-    session = { accessToken: newJwt };
+server/scheduler.js-335-    result = await require('./gym-connection').retrySessionCall(userId, gymId, newJwt, () => provider.bookSlot(eventId, [targetSlot], session));
+server/scheduler.js-336-  }
+server/scheduler.js-337-  return result;
+--
+server/booking-sync.js:120:    const jwt = await auth.triggerAutoRelogin(userId, gymId);
+server/booking-sync.js-121-    return require('./gym-connection').retrySessionCall(userId, gymId, jwt, () => provider[method]({ ...session, accessToken: jwt }));
+server/booking-sync.js-122-  }
+server/booking-sync.js-123-}
+server/booking-sync.js-124-
+--
+server/admin.js:68:    const newJwt = await triggerAutoRelogin(userId, gymId);
+server/admin.js-69-    return require('./gym-connection').retrySessionCall(userId, gymId, newJwt, () => run(newJwt));
+server/admin.js-70-  }
+server/admin.js-71-}
+server/admin.js-72-
+--
+server/routes-normalized.js:190:  const newJwt = await triggerAutoRelogin(userId, gymId);
+server/routes-normalized.js-191-  return require('./gym-connection').retrySessionCall(userId, gymId, newJwt, () => fn({ ...session, accessToken: newJwt }));
+server/routes-normalized.js-192-}
+server/routes-normalized.js-193-
+server/routes-normalized.js-194-function handleError(res, err) {
+--
+server/routes-normalized.js:285:        try { await auth.triggerAutoRelogin(req.userId, link.gym_id); } catch (_) { /* classified by the ladder; transient failure preserves connection */ }
+server/routes-normalized.js-286-      }
+server/routes-normalized.js-287-    }));
+server/routes-normalized.js-288-    const linked = db.getUserGymsPublic(req.userId);
+server/routes-normalized.js-289-    res.json({ gyms: linked });
+--
+server/poller.js:65:      const newJwt = await triggerAutoRelogin(userId, gymId);
+server/poller.js-66-      res = await require('./gym-connection').retrySessionCall(userId, gymId, newJwt, () => runFetch(newJwt));
+server/poller.js-67-    } catch (err) {
+server/poller.js-68-      log.error('relogin failed', { component: 'poller', userId, err });
+server/poller.js-69-      // A definitive failure is notified once by gym-connection's persistent incident.
+--
+server/poller.js:104:    const newJwt = await triggerAutoRelogin(userId, gymId);
+server/poller.js-105-    result = await require('./gym-connection').retrySessionCall(userId, gymId, newJwt, () => provider.swapSpots(bookingId, currentSlotId, targetSlot, { ...session, accessToken: newJwt }));
+server/poller.js-106-  }
+server/poller.js-107-  return result;
+server/poller.js-108-}
+--
+server/poller.js:119:    const newJwt = await triggerAutoRelogin(userId, gymId);
+server/poller.js-120-    session = { accessToken: newJwt };
+server/poller.js-121-    result = await require('./gym-connection').retrySessionCall(userId, gymId, newJwt, () => provider.bookSlot(eventId, [targetSlot], session));
+server/poller.js-122-  }
+server/poller.js-123-  return result;
+--
+server/poller.js:1231:    const newJwt = await triggerAutoRelogin(userId, gymId);
+server/poller.js-1232-    return require('./gym-connection').retrySessionCall(userId, gymId, newJwt, () => provider.listBookings({ ...session, accessToken: newJwt }));
+server/poller.js-1233-  }
+server/poller.js-1234-}
+server/poller.js-1235-const bookingCacheRowsFor = (userId, gymId) => bookingSync.bookingRowsFor(userId, gymId);
+--
+server/calendar.js:146:    const newJwt = await triggerAutoRelogin(userId, gymId);
+server/calendar.js-147-    session = { accessToken: newJwt };
+server/calendar.js-148-    return require('./gym-connection').retrySessionCall(userId, gymId, newJwt, () => getProvider(gymId)[method](session));
+server/calendar.js-149-  }
+server/calendar.js-150-}
+--
+server/class-history.js:187:    const newJwt = await triggerAutoRelogin(userId, gymId);
+server/class-history.js-188-    return require('./gym-connection').retrySessionCall(userId, gymId, newJwt, () => provider.listBookingHistory({ ...session, accessToken: newJwt }, opts));
+server/class-history.js-189-  }
+server/class-history.js-190-}
+server/class-history.js-191-

@@ -111,7 +111,7 @@ function contextUserId() {
 
 /** The one question every outbound path asks. */
 function isOutboundBlocked(gymId, userId = null) {
-  return isGymDisabled(gymId) || isLinkDisabled(userId, gymId);
+  return isGymDisabled(gymId) || isLinkDisabled(userId, gymId) || require('./gym-connection').unavailable(userId, gymId);
 }
 
 function gymDisabledError(gymId) {
@@ -124,7 +124,8 @@ function gymDisabledError(gymId) {
 }
 
 function assertOutboundAllowed(gymId, userId = null) {
-  if (isOutboundBlocked(gymId, userId)) throw gymDisabledError(gymId);
+  if (isGymDisabled(gymId) || isLinkDisabled(userId, gymId)) throw gymDisabledError(gymId);
+  if (require('./gym-connection').unavailable(userId, gymId)) throw require('./gym-connection').expiredError(gymId);
 }
 
 // Adapter members that never touch the network and stay usable for a disabled
@@ -158,6 +159,7 @@ function guardProvider(instance, gymId) {
       // A fixture session/credential in the arguments: refuse before the adapter runs.
       return function fixtureGuarded(...args) {
         if (carriesFixtureToken(args)) return Promise.reject(fixtureError(gymId));
+        if (require('./gym-connection').unavailable(contextUserId(), gymId)) return Promise.reject(require('./gym-connection').expiredError(gymId));
         return value.apply(this, args);
       };
     },

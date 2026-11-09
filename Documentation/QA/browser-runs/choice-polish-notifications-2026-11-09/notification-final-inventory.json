@@ -1,0 +1,68 @@
+{
+  "at": "2026-11-09T17:10:56.384Z",
+  "user": {
+    "id": 12,
+    "email": "test3@piersj.com"
+  },
+  "normalCadenceHours": 6,
+  "preference": {
+    "enabled": true
+  },
+  "subscriptions": [
+    {
+      "host": "web.push.apple.com"
+    }
+  ],
+  "links": [
+    {
+      "gymId": "aarmy",
+      "status": "needs_relogin",
+      "rememberLogin": 0,
+      "hasSavedLogin": false,
+      "hasSession": false,
+      "incident": "f244992e-ec19-411a-8898-4ced6aa2df01",
+      "reason": "session_expired",
+      "sync": {
+        "user_id": 12,
+        "gym_id": "aarmy",
+        "last_synced_at": "2026-11-09T17:09:46.561Z",
+        "last_attempt_at": "2026-11-09T17:09:47.789Z",
+        "last_error": "bookings: Log in to this gym again. Its data and automation are paused."
+      },
+      "bookings": 0,
+      "waitlists": 0,
+      "notifications": [
+        {
+          "incident": "f244992e-ec19-411a-8898-4ced6aa2df01",
+          "attempted_at": "2026-11-09T17:09:48.754Z",
+          "delivered_at": "2026-11-09T17:09:49.150Z"
+        }
+      ]
+    },
+    {
+      "gymId": "psycle-london",
+      "status": "needs_relogin",
+      "rememberLogin": 0,
+      "hasSavedLogin": false,
+      "hasSession": false,
+      "incident": "a6a8b27e-f2ae-49d9-ac3a-95b001e8c017",
+      "reason": "session_expired",
+      "sync": {
+        "user_id": 12,
+        "gym_id": "psycle-london",
+        "last_synced_at": "2026-11-09T15:58:12.038Z",
+        "last_attempt_at": "2026-11-09T16:50:32.420Z",
+        "last_error": "bookings: Log in to this gym again. Its data and automation are paused."
+      },
+      "bookings": 0,
+      "waitlists": 0,
+      "notifications": [
+        {
+          "incident": "a6a8b27e-f2ae-49d9-ac3a-95b001e8c017",
+          "attempted_at": "2026-11-09T16:50:32.869Z",
+          "delivered_at": "2026-11-09T16:50:33.265Z"
+        }
+      ]
+    }
+  ]
+}

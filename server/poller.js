@@ -36,6 +36,7 @@ const claimedSlots = new Set();
 // PATH, not a URL — the provider prepends its gym's base, which is the whole
 // point (an absolute URL would bypass it and pin every gym to Psycle's host).
 async function fetchFromGym(userId, gymId, path, options = {}) {
+  gymOutbound.assertOutboundAllowed(gymId, userId);
   // The ROW's gym session — NOT db.getUserById(userId).jwt, which resolves the
   // user's ACTIVE gym (db.resolveActiveGymId) and is wrong for a background
   // call site processing a gym the user isn't currently looking at (C3-12).
@@ -62,10 +63,10 @@ async function fetchFromGym(userId, gymId, path, options = {}) {
   if (res.status === 401) {
     try {
       const newJwt = await triggerAutoRelogin(userId, gymId);
-      res = await runFetch(newJwt);
+      res = await require('./gym-connection').retrySessionCall(userId, gymId, newJwt, () => runFetch(newJwt));
     } catch (err) {
       log.error('relogin failed', { component: 'poller', userId, err });
-      pushService.sendNotification(userId, 'Session Expired ⚠️', 'Failed to renew session. Auto-upgrade paused.');
+      // A definitive failure is notified once by gym-connection's persistent incident.
       throw err;
     }
   }
@@ -93,6 +94,7 @@ async function apiCancelBooking(userId, gymId, bookingId) {
 // Atomic spot swap with the same 401→relogin→retry ladder as bookSlotWithRelogin.
 // Only reachable for gyms whose capabilities declare `atomicSwap`.
 async function swapSpotsWithRelogin(userId, gymId, bookingId, currentSlotId, targetSlot) {
+  gymOutbound.assertOutboundAllowed(gymId, userId);
   // The ROW's gym session — see fetchFromGym's note above (C3-12).
   let session = db.getUserSession(userId, gymId);
   if (!session || !session.accessToken) throw new Error('User has no active session. Please log in.');
@@ -100,12 +102,13 @@ async function swapSpotsWithRelogin(userId, gymId, bookingId, currentSlotId, tar
   let result = await provider.swapSpots(bookingId, currentSlotId, targetSlot, session);
   if (result && result.status === 401) {
     const newJwt = await triggerAutoRelogin(userId, gymId);
-    result = await provider.swapSpots(bookingId, currentSlotId, targetSlot, { ...session, accessToken: newJwt });
+    result = await require('./gym-connection').retrySessionCall(userId, gymId, newJwt, () => provider.swapSpots(bookingId, currentSlotId, targetSlot, { ...session, accessToken: newJwt }));
   }
   return result;
 }
 
 async function bookSlotWithRelogin(userId, gymId, eventId, targetSlot) {
+  gymOutbound.assertOutboundAllowed(gymId, userId);
   // The ROW's gym session — see fetchFromGym's note above (C3-12).
   let session = db.getUserSession(userId, gymId);
   if (!session || !session.accessToken) throw new Error('User has no active session. Please log in.');
@@ -115,7 +118,7 @@ async function bookSlotWithRelogin(userId, gymId, eventId, targetSlot) {
     log.info('auto-upgrade booking got 401, attempting relogin and retry', { component: 'poller', userId, gymId });
     const newJwt = await triggerAutoRelogin(userId, gymId);
     session = { accessToken: newJwt };
-    result = await provider.bookSlot(eventId, [targetSlot], session);
+    result = await require('./gym-connection').retrySessionCall(userId, gymId, newJwt, () => provider.bookSlot(eventId, [targetSlot], session));
   }
   return result;
 }
@@ -692,7 +695,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
 }
 
 async function attemptUpgradeSlotInner(upgrade, isCutoffMode) {
-  if (!db.isUserGymEnabled(upgrade.user_id, upgrade.gym_id)) return;
+  if (!db.isUserGymAvailable(upgrade.user_id, upgrade.gym_id)) return;
   // Group monitors (several reservations) are planned and moved together.
   const groupMembers = db.getAutoUpgradeMembers(upgrade.id);
   if (groupMembers.length > 1) return attemptGroupUpgrade(upgrade, groupMembers, isCutoffMode);
@@ -705,7 +708,7 @@ async function attemptUpgradeSlotInner(upgrade, isCutoffMode) {
   const mutationGate = require('./gym-mutation-gate');
   let releaseMutation = null;
   const acquireMutation = () => {
-    if (mutationGate.isClosing(userId, gymId) || !db.isUserGymEnabled(userId, gymId)) return false;
+    if (mutationGate.isClosing(userId, gymId) || !db.isUserGymAvailable(userId, gymId)) return false;
     if (!releaseMutation) releaseMutation = mutationGate.begin(userId, gymId);
     return !!releaseMutation;
   };
@@ -1226,7 +1229,7 @@ async function listBookingsWithRelogin(userId, gymId) {
   } catch (err) {
     if (err && err.status !== 401) throw err;
     const newJwt = await triggerAutoRelogin(userId, gymId);
-    return provider.listBookings({ ...session, accessToken: newJwt });
+    return require('./gym-connection').retrySessionCall(userId, gymId, newJwt, () => provider.listBookings({ ...session, accessToken: newJwt }));
   }
 }
 const bookingCacheRowsFor = (userId, gymId) => bookingSync.bookingRowsFor(userId, gymId);
@@ -1238,7 +1241,7 @@ function checkCancellationReminders() {
   const cached = db.getAllBookingCache();
   for (const bk of cached) {
     try {
-      if (!db.isUserGymEnabled(bk.user_id, bk.gym_id)) continue;
+      if (!db.isUserGymAvailable(bk.user_id, bk.gym_id)) continue;
       const prefs = notifications.getPrefs(bk.user_id);
       if (!prefs.cancellationReminder.enabled) continue;
 
@@ -1387,5 +1390,7 @@ module.exports = {
   refreshBookingCaches,
   bookingCacheRowsFor,
   fetchFromGym,
-  listBookingsWithRelogin
+  listBookingsWithRelogin,
+  swapSpotsWithRelogin,
+  bookSlotWithRelogin
 };

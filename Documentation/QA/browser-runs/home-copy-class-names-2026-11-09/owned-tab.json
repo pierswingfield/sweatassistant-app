@@ -1,0 +1,9 @@
+{
+   "description": "",
+   "devtoolsFrontendUrl": "https://chrome-devtools-frontend.appspot.com/serve_rev/@060bedfb508f73250e93aeb9ca8149b3958995d8/inspector.html?ws=127.0.0.1:9222/devtools/page/081F4DA8F42FADAA6D76D1E48ADDAF70",
+   "id": "081F4DA8F42FADAA6D76D1E48ADDAF70",
+   "title": "",
+   "type": "page",
+   "url": "about:blank",
+   "webSocketDebuggerUrl": "ws://127.0.0.1:9222/devtools/page/081F4DA8F42FADAA6D76D1E48ADDAF70"
+}

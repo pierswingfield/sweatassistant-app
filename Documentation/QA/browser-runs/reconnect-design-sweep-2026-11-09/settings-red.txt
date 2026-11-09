@@ -1,0 +1,41 @@
+
+> app-pwa@1.0.0 test:client
+> npm run test --prefix client ui/gym-settings-section.test.js
+
+
+> app-client@1.0.0 test
+> vitest run ui/gym-settings-section.test.js
+
+
+ RUN  v4.1.11 /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client
+
+ ❯ src/ui/gym-settings-section.test.js (6 tests | 1 failed) 72ms
+     × shows only connection actions during relogin and restores saved settings afterwards 7ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/ui/gym-settings-section.test.js > renderGymSettingsSection > shows only connection actions during relogin and restores saved settings afterwards
+AssertionError: expected …(6) to have a length of 1 but got 6
+
+- Expected
++ Received
+
+- 1
++ 6
+
+ ❯ src/ui/gym-settings-section.test.js:99:57
+     97|
+     98|     expect(root.textContent).toContain('Re-authentication needed');
+     99|     expect(root.querySelectorAll('.app-settings-card')).toHaveLength(1…
+       |                                                         ^
+    100|     expect(root.querySelector('.app-settings-card h4').textContent).to…
+    101|     expect(root.querySelector('[data-gym-enabled]')).toBeNull();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 5 passed (6)
+   Start at  19:04:50
+   Duration  736ms (transform 65ms, setup 0ms, import 90ms, tests 72ms, environment 493ms)
+

@@ -26,7 +26,7 @@ function initWebPush() {
 
 const vapidPublicKey = initWebPush();
 
-async function sendNotification(userId, title, body, data = {}) {
+async function sendNotification(userId, title, body, data = {}, { retryFailures = false } = {}) {
   const subscriptions = db.getPushSubscriptions(userId);
   if (subscriptions.length === 0) {
     console.log(`[Push] No push subscriptions found for user ${userId}. Skipping notification.`);
@@ -39,12 +39,14 @@ async function sendNotification(userId, title, body, data = {}) {
       body,
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
-      data
+      data,
+      ...(data.tag ? { tag: data.tag } : {})
     }
   });
 
   console.log(`[Push] Attempting to send push notification to ${subscriptions.length} clients for user ${userId}...`);
 
+  let failed = false;
   const promises = subscriptions.map(async (subRow) => {
     try {
       const subscription = JSON.parse(subRow.subscription);
@@ -60,12 +62,14 @@ async function sendNotification(userId, title, body, data = {}) {
           console.error('[Push] Error deleting expired subscription:', dbErr);
         }
       } else {
-        console.error('[Push] Error sending web push notification:', err);
+        failed = true;
+        console.error('[Push] Error sending web push notification:', err.statusCode || 'transport failure');
       }
     }
   });
 
   await Promise.allSettled(promises);
+  if (retryFailures && failed) throw new Error('Push delivery temporarily unavailable');
 }
 
 module.exports = {

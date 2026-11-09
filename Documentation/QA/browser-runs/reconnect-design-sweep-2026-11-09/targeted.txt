@@ -1,0 +1,17 @@
+
+> app-pwa@1.0.0 test:client
+> npm run test --prefix client ui/gym-settings-section.test.js ui/home-connections.test.js
+
+
+> app-client@1.0.0 test
+> vitest run ui/gym-settings-section.test.js ui/home-connections.test.js
+
+
+ RUN  v4.1.11 /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client
+
+
+ Test Files  2 passed (2)
+      Tests  9 passed (9)
+   Start at  19:05:57
+   Duration  840ms (transform 117ms, setup 0ms, import 169ms, tests 116ms, environment 1.17s)
+

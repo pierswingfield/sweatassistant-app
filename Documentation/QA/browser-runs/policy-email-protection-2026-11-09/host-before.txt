@@ -1,0 +1,31 @@
+sweatassistant-experiment | sweatassistant-experiment-sweatassistant-experiment | 100.86.226.52:3006->3000/tcp
+sweatassistant-dev | sweatassistant-dev-sweatassistant-dev | 100.86.226.52:3005->3000/tcp
+sweatassistant | sweatassistant-sweatassistant | 3000/tcp
+dibs-landing | dibs-landing-dibs-landing | 80/tcp
+beeper-api-proxy | alpine/socat | 
+beeperbox | ghcr.io/hamr0/beeperbox:latest | 23375/tcp, 127.0.0.1:6080->6080/tcp, 100.86.226.52:23374->23374/tcp, 23380/tcp
+mcp-gateway | mcp-gateway:local | 100.86.226.52:8005->8005/tcp, 127.0.0.1:8005->8005/tcp
+hermes | hermes-agent-harnesses:local | 
+docker-socket-proxy | tecnativa/docker-socket-proxy:latest | 2375/tcp
+transformer-company | transformer-company-transformer-company | 80/tcp
+lcsw-practice-room | lcsw-practice-room:latest | 3000/tcp
+cli-proxy-api | eceasy/cli-proxy-api:latest | 127.0.0.1:8317->8317/tcp, 100.86.226.52:8317->8317/tcp, 127.0.0.1:51121-51130->51121-51130/tcp
+myfitnesspal-mcp | myfitnesspal-mcp:local | 8484/tcp
+myfitnesspal-ha-sync | myfitnesspal-mcp:local | 8484/tcp
+cloudcli | cloudcli:local | 3001/tcp
+aiometadata | 6bdb7482c9e8 | 3232/tcp
+aiostreams | ghcr.io/viren070/aiostreams:2026.10.23.1609-nightly | 3000/tcp
+litellm-proxy | fbe28229d2d0 | 100.86.226.52:4000->4000/tcp, 127.0.0.1:4000->4000/tcp
+geopulse-postgres | imresamu/postgis:17-3.5-alpine | 5432/tcp
+geopulse-ui | tess1o/geopulse-ui:2.0.0 | 80/tcp, 8080/tcp
+geopulse-backend | tess1o/geopulse-backend:2.0.0-native | 8080/tcp
+portainer_agent | portainer/agent:latest | 100.86.226.52:9001->9001/tcp
+litellm-db | postgres:16-alpine | 127.0.0.1:5432->5432/tcp
+litellm-redis | redis:7-alpine | 6379/tcp
+cloudflared | cloudflare/cloudflared:latest | 
+gcp-spend-guard | gcp-spend-guard:local | 
+google-workspace-google-workspace-mcp-1 | google-workspace-google-workspace-mcp | 100.86.226.52:8000->8000/tcp, 127.0.0.1:8000->8000/tcp
+pwlistmanager | pwlistmanager-pwlistmanager | 0.0.0.0:5050->5050/tcp, [::]:5050->5050/tcp
+wyoming-whisper | rhasspy/wyoming-whisper:latest | 100.86.226.52:10300->10300/tcp
+aiometadata_redis | redis:latest | 6379/tcp
+wyoming-fish-tts | wyoming-fish-tts-wyoming-fish-tts | 100.86.226.52:10400->10400/tcp

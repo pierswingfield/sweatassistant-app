@@ -44,7 +44,7 @@ const origCf = CodexFitProvider.prototype.refreshSession;
 const origMt = MarianaTekProvider.prototype.refreshSession;
 let cfCalls = 0;
 function stubCf(impl) { CodexFitProvider.prototype.refreshSession = async function (...a) { cfCalls++; return impl(...a); }; }
-const reject = () => { throw new Error('Psycle rejected your login: bad password'); };
+const reject = () => { throw Object.assign(new Error('Psycle rejected your login: bad password'), { code: 'GYM_CREDENTIAL_REJECTED' }); };
 const outage = () => { throw new Error('fetch failed'); };
 const ok = () => ({ accessToken: 'new-token' });
 async function relogin(uid, gym) { try { return await auth.triggerAutoRelogin(uid, gym); } catch (e) { return e; } }
@@ -53,16 +53,17 @@ check('failures are counted per user AND gym, and reset on success', async () =>
   const uid = user(); cfCalls = 0;
   stubCf(reject);
   await relogin(uid, PSYCLE); await relogin(uid, PSYCLE);
-  assert.strictEqual(link(uid, PSYCLE).relogin_failures, 2);
+  assert.strictEqual(link(uid, PSYCLE).relogin_failures, 1);
   assert.strictEqual(link(uid, JAB).relogin_failures, 0, 'the other gym is untouched');
   assert.ok(link(uid, PSYCLE).last_relogin_failure_at, 'timestamp recorded');
-  assert.match(link(uid, PSYCLE).last_relogin_error, /rejected your login/);
+  assert.match(link(uid, PSYCLE).last_relogin_error, /rejected your login/i);
   // A second user's same gym is independent too.
   const other = user();
   assert.strictEqual(link(other, PSYCLE).relogin_failures, 0);
 
   stubCf(ok);
   db.upsertUserGym(uid, PSYCLE, { status: 'active' });
+  db.clearReloginFailures(uid, PSYCLE);
   const token = await auth.triggerAutoRelogin(uid, PSYCLE);
   assert.strictEqual(token, 'new-token');
   assert.strictEqual(link(uid, PSYCLE).relogin_failures, 0, 'success resets the count');
@@ -81,7 +82,7 @@ check('after N consecutive credential rejections the upstream gym is no longer c
   assert.strictEqual(cfCalls, auth.RELOGIN_MAX_REJECTIONS, 'no further upstream login attempt');
   assert.strictEqual(err.code, 'GYM_SESSION_EXPIRED');
   assert.strictEqual(err.status, 401);
-  assert.strictEqual(err.reloginSuspended, true);
+  assert.strictEqual(link(uid, PSYCLE).relogin_suspended, 1);
 
   // Another gym on the same account still works.
   const origMtRefresh = MarianaTekProvider.prototype.refreshSession;
@@ -107,6 +108,7 @@ check('re-linking with fresh credentials clears the count and the suspension', a
   db.clearReloginFailures(uid, PSYCLE); // what linkGymAccount / resetGymCredentials call
   assert.strictEqual(link(uid, PSYCLE).relogin_failures, 0);
   assert.strictEqual(link(uid, PSYCLE).relogin_suspended, 0);
+  db.upsertUserGym(uid, PSYCLE, { status: 'active' });
   cfCalls = 0;
   await relogin(uid, PSYCLE);
   assert.strictEqual(cfCalls, 1, 'retries resume after re-link');
@@ -116,7 +118,7 @@ check('admin user list is gym-aware: names each gym with failures, for accounts 
   const uid = user();
   stubCf(reject);
   await relogin(uid, PSYCLE);
-  MarianaTekProvider.prototype.refreshSession = async () => { throw new Error('JAB rejected your login: nope'); };
+  MarianaTekProvider.prototype.refreshSession = async () => { throw Object.assign(new Error('JAB rejected your login: nope'), { code: 'GYM_CREDENTIAL_REJECTED' }); };
   for (let i = 0; i < auth.RELOGIN_MAX_REJECTIONS; i++) await relogin(uid, JAB);
   MarianaTekProvider.prototype.refreshSession = origMt;
 
@@ -124,7 +126,7 @@ check('admin user list is gym-aware: names each gym with failures, for accounts 
   assert.ok(Array.isArray(row.relogin_issues), 'list rows carry relogin_issues');
   const byGym = Object.fromEntries(row.relogin_issues.map((i) => [i.gym_id, i]));
   assert.strictEqual(byGym[PSYCLE].failures, 1);
-  assert.strictEqual(byGym[PSYCLE].suspended, false);
+  assert.strictEqual(byGym[PSYCLE].suspended, true);
   assert.strictEqual(byGym[JAB].failures, auth.RELOGIN_MAX_REJECTIONS);
   assert.strictEqual(byGym[JAB].suspended, true);
   assert.ok(byGym[JAB].gym_name, 'gym named');

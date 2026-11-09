@@ -49,7 +49,7 @@ const WINDOW_EVENT_DURATION_MIN = 15;
  * stay unchanged and simply resolve to whichever gym the current pass is on.
  */
 function linkedGymIds(userId) {
-  try { return (db.getUserGyms(userId) || []).filter((g) => g.account_enabled).map((g) => g.gym_id).filter(Boolean); }
+  try { return (db.getUserGyms(userId) || []).filter((g) => g.account_enabled && g.status === 'active').map((g) => g.gym_id).filter(Boolean); }
   catch (_) { return []; }
 }
 
@@ -145,7 +145,7 @@ async function listWithRelogin(userId, method, explicitGymId) {
     console.log(`[Calendar] ${method} got 401 for user ${userId} (${gymId}) — attempting relogin and retry.`);
     const newJwt = await triggerAutoRelogin(userId, gymId);
     session = { accessToken: newJwt };
-    return getProvider(gymId)[method](session);
+    return require('./gym-connection').retrySessionCall(userId, gymId, newJwt, () => getProvider(gymId)[method](session));
   }
 }
 

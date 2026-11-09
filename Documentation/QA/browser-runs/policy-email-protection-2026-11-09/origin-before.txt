@@ -1,0 +1,2 @@
+{"p":"terms","email":1,"cfemail":false}
+{"p":"privacy","email":4,"cfemail":false}

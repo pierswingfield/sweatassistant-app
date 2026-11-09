@@ -1,0 +1,3 @@
+AARMY_JSON {"label":"rejected access with original refresh","result":{"ok":false,"bookings":[],"waitlists":null,"error":"bookings: Gym connection changed during sync"},"status":"active","reason":null,"incident":null,"hasSession":true,"trace":[{"kind":"provider-http","host":"aarmy.marianatek.com","path":"/api/customer/v1/me/reservations","status":401,"method":"GET"},{"kind":"provider-http","host":"aarmy.marianatek.com","path":"/o/token/","status":200,"method":"POST"},{"kind":"provider-http","host":"aarmy.marianatek.com","path":"/api/customer/v1/me/reservations","status":200,"method":"GET"}],"outbox":[],"pass":false}
+[BookingSync] aarmy failed for user 12: bookings: Gym connection changed during sync
+Aarmy rejection/notification feedback loop failed

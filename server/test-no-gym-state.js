@@ -38,7 +38,7 @@ async function run() {
   // 1. Login never creates an account or bootstraps a gym.
   const ghost = await send('POST', '/api/auth/login', { email: 'ghost@test.local', password: 'whatever-123' });
   assert.strictEqual(ghost.status, 401, 'unknown email: rejected');
-  const again = await send('POST', '/api/auth/signup', { email: 'ghost@test.local', password: 'whatever-123' });
+  const again = await send('POST', '/api/auth/signup', { policyAcceptance: require('./policies').CURRENT_ACCEPTANCE, email: 'ghost@test.local', password: 'whatever-123' });
   assert.strictEqual(again.status, 200, 'and it was NOT created by the failed login, so signup still succeeds');
   const token = again.body.token;
   assert.strictEqual(again.body.needsGym, true);

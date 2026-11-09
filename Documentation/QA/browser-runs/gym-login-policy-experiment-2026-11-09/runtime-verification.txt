@@ -1,0 +1,39 @@
+Experiment deployment verification, 2026-11-09 (UTC)
+Source branch feat/optional-gym-login-policy; base HEAD 43592ebb7feb84c4e9a676c122909e5fe632ecda (working tree uncommitted).
+
+$ ssh oracle 'docker ps --filter name=^/sweatassistant-experiment$ --format ...'
+sweatassistant-experiment | sweatassistant-experiment-sweatassistant-experiment | Up 26 seconds at first post-deploy inspection | 100.86.226.52:3006->3000/tcp
+
+$ ssh oracle 'docker inspect sweatassistant-experiment --format restart/image/networks'
+restarts=0 image=sha256:a591f3db4484359a1bf8de7e9e1c01e249cb027c551783638e62329eb9c0ced5
+networks=edge and sweatassistant-experiment_default
+
+$ ssh oracle 'docker diff sweatassistant-experiment'
+A /data
+
+$ ssh oracle 'docker exec sweatassistant-experiment node --version; docker exec sweatassistant-experiment uname -m'
+v22.23.4
+aarch64
+
+$ ssh oracle 'docker exec sweatassistant-experiment node -e fetch(local health)'
+HTTP 200; JSON status=ok; scheduler, poller, calendar healthy.
+
+$ ssh oracle 'sqlite3 ~/services/sweatassistant-experiment/data/app.db "PRAGMA integrity_check; SELECT users,links"'
+ok
+11|16
+
+The same DB backup has integrity `ok`, 11 users and 16 links. `user_gyms` has `remember_login` and `connection_revision`; `users` has `terms_version`, `privacy_version`, and `policy_accepted_at`.
+
+$ ssh oracle 'compare env/compose with rollback snapshots'
+.env and docker-compose.experiment.yml SHA-256 values match their pre-deploy snapshots.
+
+$ sha256sum local build and policy assets; ssh oracle 'sha256sum container assets'
+JS index-DGg65AF8.js: 119d660668063762b8c09e2a1e78beccbbddb12fe7502e5c70017cd5039033ca (match)
+CSS index-FKaj34Qe.css: 5e5c1f4aa2315930aacd84e2abd6436a3ff0ef00773b20046c4ef81413e7cb30 (match)
+Terms: b94d2dc449f9da990ca0fd9a8e1bd4f590124616585d5777f42d21d74321a6fb (match)
+Privacy: 45abebfcfbaf564683f46b12f03729246996a57d0804a5ff762efc6f701c892f (match)
+
+$ curl -sS -o /dev/null -w 'public_health_http=%{http_code}' https://experiment.dibs.fit/api/health
+public_health_http=200
+
+Docker build output: Vite transformed 133 modules and built in 3.67 s. Existing mixed dynamic/static import and >500 kB chunk warnings were printed. The deploy script verified Node v22.23.4.

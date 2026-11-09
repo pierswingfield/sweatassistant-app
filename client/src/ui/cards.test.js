@@ -30,6 +30,21 @@ describe('cleanClassName (U1-11)', () => {
     expect(cleanClassName('Full Body - Fast', 'Ride')).toBe('Full Body - Fast');
   });
 
+  it('removes decorative leading separators, including after the discipline', () => {
+    expect(cleanClassName('LAGREE | Lagree & Free Shake (Signature 50)', 'Lagree')).toBe('Lagree & Free Shake (Signature 50)');
+    expect(cleanClassName('\u00a0 | | – \u2003| Signature 45', 'Ride')).toBe('Signature 45');
+    expect(cleanClassName('Ride｜ | Signature 45', 'Ride')).toBe('Signature 45');
+    expect(cleanClassName('Ride - | — Signature 45', 'Ride')).toBe('Signature 45');
+  });
+
+  it('preserves meaningful initial punctuation and internal separators', () => {
+    for (const name of ['#1 Ride', '“Flow” & Focus', '(Members) Flow', '-5 Challenge', 'Ride | Flow', 'Core - Lower', 'A: B']) {
+      expect(cleanClassName(name)).toBe(name);
+    }
+    expect(cleanClassName('Ride: #1 Challenge', 'Ride')).toBe('#1 Challenge');
+    expect(cleanClassName(' | “Flow” | Focus', '')).toBe('“Flow” | Focus');
+  });
+
   it('never blanks a name or leaves a bare number', () => {
     expect(cleanClassName('BOXING', 'BOXING')).toBe('Boxing');
     expect(cleanClassName('Barre 55', 'Barre')).toBe('Barre 55');

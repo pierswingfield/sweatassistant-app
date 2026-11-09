@@ -1,0 +1,2 @@
+Unavailable gym: true
+Cross-gym overlap warnings: [{"code":"OVERLAP_BOOKED","severity":"warning","with":{"source":"booked","id":null,"gymId":"psycle-london","eventId":"e1","className":"Hidden class","startAt":"2026-11-10T00:43:15.555Z","durationMin":60,"groupName":null,"instructorName":null,"instructorImageUrl":null,"locationName":null,"studioName":null},"crossGym":true,"message":"Overlaps a class you have booked: Hidden class, Tue 10 Nov 00:43."}]

@@ -1,0 +1,9 @@
+[Push] Automatically generated and saved VAPID keypair in server database.
+[Push] No push subscriptions found for user 1. Skipping notification.
+PASS real reservation 401 and rejected refresh create exactly one incident and stop later reads
+PASS real reservation 401 with a valid refresh recovers without an incident
+[Push] No push subscriptions found for user 3. Skipping notification.
+PASS real reservation retry 401 creates one incident after successful renewal
+PASS real reservation 429 stays transient and keeps session
+PASS real reservation 503 stays transient and keeps session
+5/5 MarianaTek session rejection checks passed

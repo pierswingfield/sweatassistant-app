@@ -1,3 +1,4 @@
+import { isAvailableLink } from './gym-availability.js';
 import { loadWordmarkSprites } from './gym-logo-sprite.js';
 import { COPY } from './copy.js';
 // Per-gym capabilities, theming and labels (WP-D14).
@@ -211,7 +212,7 @@ export function getDefaultGymId() {
 }
 
 export function getLinkedGyms() {
-  return linkedGyms.filter((g) => g.account_enabled !== 0 && g.account_enabled !== false);
+  return linkedGyms.filter(isAvailableLink);
 }
 
 export function getAllLinkedGyms() { return linkedGyms; }

@@ -570,7 +570,7 @@ function client(base) {
   };
   const signup = async (first) => {
     const email = `${first.toLowerCase()}-${crypto.randomBytes(3).toString('hex')}@test.local`;
-    const r = await call('POST', '/api/auth/signup', null, { email, password: 'password123' });
+    const r = await call('POST', '/api/auth/signup', null, { policyAcceptance: require('./policies').CURRENT_ACCEPTANCE, email, password: 'password123' });
     assert.ok(r.body && r.body.token, `signup failed: ${r.text}`);
     await call('PUT', '/api/settings', r.body.token, { firstName: first });
     return { token: r.body.token, email };

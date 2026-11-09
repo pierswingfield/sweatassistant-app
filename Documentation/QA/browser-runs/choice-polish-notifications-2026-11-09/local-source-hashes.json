@@ -1,0 +1,9 @@
+{
+  "client/src/styles.css": "9a6ae3afb624a47a05ba1cc5b64b12a0c478b1c16b3211efc6aea1b9776262a9",
+  "client/src/ui/gym-login-choice.js": "6a17d21eb9ad6a0811cc06036199a9ee86971b4d3e9fbc9d277d289ac1868557",
+  "client/src/ui/gym-logo-strip.js": "2043b2a6595c60879f598cc30f2511a36f0ab1a82db69d63a8cd8e4041dea157",
+  "client/src/ui/onboarding.js": "ff37736c3ba750cbd362196e2cadb05fa41f9e0225676bc18a0135a61f663b88",
+  "server/providers/marianatek.js": "ecbb537f3ba4261a077eb2a20cddab3ed76d0632e904d4cb43a60b1fe331df9f",
+  "server/notifications.js": "0b72d3b2b567e5c6d77db6ee443a0f358e53043dcc45d7fb3ea201415fff72d5",
+  "server/booking-sync.js": "6f177509b2d44cfaa7eb6e60fae493c92e090425b7d1f831ebd06f8f0620f2af"
+}

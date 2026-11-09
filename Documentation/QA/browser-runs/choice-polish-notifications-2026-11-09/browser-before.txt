@@ -1,0 +1,32 @@
+signup {
+  text: 'I agree to the Terms and Conditions and acknowledge the Privacy Policy.',
+  font: 'Inter, -apple-system, "system-ui", "Segoe UI", Roboto, sans-serif',
+  label: 'Inter, -apple-system, "system-ui", "Segoe UI", Roboto, sans-serif',
+  checked: false
+}
+Welcome to Dibs
+
+I’m your boutique fitness concierge!
+
+Auto-Book
+Books your favourite spots the moment booking opens.
+Auto-Upgrade
+Checks for a better spot 24/7 and upgrades you.
+Calendar Sync
+Google and Apple Calendar stay up to date automatically.
+Smart notifications
+Plan ahead and avoid cancellation penalties.
+Teams
+Share plans with friends in a private group and book in together.
+
+Works with a growing list of boutique fitness studios.
+
+Get started
+Home
+Timetable
+Bookings
+Teams
+ME
+Account
+Notification Preferences
+×

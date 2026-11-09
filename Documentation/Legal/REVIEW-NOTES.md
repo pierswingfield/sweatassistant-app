@@ -1,5 +1,7 @@
 # Legal draft review and publication decisions
 
+**Owner decision, 9 November 2026:** the existing Terms and Privacy documents are approved for the app publication requested in this work. Canonical approved copies now live in [TERMS.md](TERMS.md) and [PRIVACY.md](PRIVACY.md), with public/versioned pages included in the optional-login branch. The approval supersedes the release blockers below for this implementation; historical research and unresolved factual qualifications are retained. Publication is local source preparation, not a deployment or a legal-compliance finding. The only substantive wording changes describe optional saved gym credentials, session storage, forgetting, and paused reconnection; see the [implementation receipt](../QA/browser-runs/gym-login-policy-2026-11-09/README.md).
+
 Updated 8 November 2026. The drafts contain no outstanding bracketed drafting placeholders and remain unpublished. They are not a legal opinion or an assurance of enforceability. No acceptance/consent UI has been added. The user requested omission of the operator identity and address and of Google from the user-facing notices; these omissions remain material publication blockers, not evidence that disclosure is unnecessary.
 
 ## Decisions before publication

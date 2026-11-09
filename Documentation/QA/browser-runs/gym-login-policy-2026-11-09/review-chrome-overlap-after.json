@@ -1,0 +1,9 @@
+{
+  "id": 7,
+  "result": {
+    "result": {
+      "type": "string",
+      "value": "{\"status\":200,\"warnings\":[{\"code\":\"OVERLAP_BOOKED\",\"className\":\"Available booked review\",\"gymId\":\"jab-boxing\"}],\"persistentWarning\":\"Log in to your gym again\\n\\nSome gym data is unavailable. Syncing, Auto-Book and Auto-Upgrade are paused for these gyms. Your gym bookings still exist and can be managed directly with the gym.\\n\\nPsycle London\\nLog in again\",\"loggedIn\":true}"
+    }
+  }
+}

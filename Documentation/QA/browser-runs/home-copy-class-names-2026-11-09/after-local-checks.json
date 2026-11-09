@@ -1,0 +1,186 @@
+{
+  "checks": [
+    {
+      "name": "320 light: supporting paragraphs use compact body hierarchy and stats omits empty story text",
+      "pass": true,
+      "detail": {
+        "metrics": [
+          {
+            "text": "You have no classes booked! Why not choose a session?",
+            "size": "13px",
+            "weight": "400",
+            "color": "rgb(101, 91, 76)",
+            "line": "18.2px",
+            "overflow": false
+          },
+          {
+            "text": "No classes in the last 30 days.",
+            "size": "13px",
+            "weight": "400",
+            "color": "rgb(101, 91, 76)",
+            "line": "18.2px",
+            "overflow": false
+          },
+          {
+            "text": "Train with friends: a Team shares who is doing which class, so you can book in together.",
+            "size": "13px",
+            "weight": "400",
+            "color": "rgb(101, 91, 76)",
+            "line": "18.2px",
+            "overflow": false
+          }
+        ],
+        "statsCheck": {
+          "big": "0 weeks",
+          "label": "streak",
+          "hasEmpty": false,
+          "hasStoryText": false
+        }
+      }
+    },
+    {
+      "name": "320 light: readable paragraphs and no horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "390 dark: supporting paragraphs use compact body hierarchy and stats omits empty story text",
+      "pass": true,
+      "detail": {
+        "metrics": [
+          {
+            "text": "You have no classes booked! Why not choose a session?",
+            "size": "13px",
+            "weight": "400",
+            "color": "rgb(185, 174, 159)",
+            "line": "18.2px",
+            "overflow": false
+          },
+          {
+            "text": "No classes in the last 30 days.",
+            "size": "13px",
+            "weight": "400",
+            "color": "rgb(185, 174, 159)",
+            "line": "18.2px",
+            "overflow": false
+          },
+          {
+            "text": "Train with friends: a Team shares who is doing which class, so you can book in together.",
+            "size": "13px",
+            "weight": "400",
+            "color": "rgb(185, 174, 159)",
+            "line": "18.2px",
+            "overflow": false
+          }
+        ],
+        "statsCheck": {
+          "big": "0 weeks",
+          "label": "streak",
+          "hasEmpty": false,
+          "hasStoryText": false
+        }
+      }
+    },
+    {
+      "name": "390 dark: readable paragraphs and no horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "1280 light: supporting paragraphs use compact body hierarchy and stats omits empty story text",
+      "pass": true,
+      "detail": {
+        "metrics": [
+          {
+            "text": "You have no classes booked! Why not choose a session?",
+            "size": "13px",
+            "weight": "400",
+            "color": "rgb(101, 91, 76)",
+            "line": "18.2px",
+            "overflow": false
+          },
+          {
+            "text": "No classes in the last 30 days.",
+            "size": "13px",
+            "weight": "400",
+            "color": "rgb(101, 91, 76)",
+            "line": "18.2px",
+            "overflow": false
+          },
+          {
+            "text": "Train with friends: a Team shares who is doing which class, so you can book in together.",
+            "size": "13px",
+            "weight": "400",
+            "color": "rgb(101, 91, 76)",
+            "line": "18.2px",
+            "overflow": false
+          }
+        ],
+        "statsCheck": {
+          "big": "0 weeks",
+          "label": "streak",
+          "hasEmpty": false,
+          "hasStoryText": false
+        }
+      }
+    },
+    {
+      "name": "1280 light: readable paragraphs and no horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "1280 dark: supporting paragraphs use compact body hierarchy and stats omits empty story text",
+      "pass": true,
+      "detail": {
+        "metrics": [
+          {
+            "text": "You have no classes booked! Why not choose a session?",
+            "size": "13px",
+            "weight": "400",
+            "color": "rgb(185, 174, 159)",
+            "line": "18.2px",
+            "overflow": false
+          },
+          {
+            "text": "No classes in the last 30 days.",
+            "size": "13px",
+            "weight": "400",
+            "color": "rgb(185, 174, 159)",
+            "line": "18.2px",
+            "overflow": false
+          },
+          {
+            "text": "Train with friends: a Team shares who is doing which class, so you can book in together.",
+            "size": "13px",
+            "weight": "400",
+            "color": "rgb(185, 174, 159)",
+            "line": "18.2px",
+            "overflow": false
+          }
+        ],
+        "statsCheck": {
+          "big": "0 weeks",
+          "label": "streak",
+          "hasEmpty": false,
+          "hasStoryText": false
+        }
+      }
+    },
+    {
+      "name": "1280 dark: readable paragraphs and no horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "Shared display strips leading pipe after discipline",
+      "pass": true,
+      "detail": {
+        "raw": "Ride: | Signature 45",
+        "display": "Signature 45"
+      }
+    },
+    {
+      "name": "No page errors",
+      "pass": true,
+      "detail": []
+    }
+  ],
+  "errors": []
+}

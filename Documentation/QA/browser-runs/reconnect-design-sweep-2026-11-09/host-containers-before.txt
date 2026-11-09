@@ -1,0 +1,31 @@
+sweatassistant-experiment | sweatassistant-experiment-sweatassistant-experiment | Up 2 hours | 100.86.226.52:3006->3000/tcp
+sweatassistant-dev | sweatassistant-dev-sweatassistant-dev | Up 28 hours | 100.86.226.52:3005->3000/tcp
+sweatassistant | sweatassistant-sweatassistant | Up 46 hours | 3000/tcp
+dibs-landing | dibs-landing-dibs-landing | Up 2 days | 80/tcp
+beeper-api-proxy | alpine/socat | Up 2 days | 
+beeperbox | ghcr.io/hamr0/beeperbox:latest | Up 3 days (healthy) | 23375/tcp, 127.0.0.1:6080->6080/tcp, 100.86.226.52:23374->23374/tcp, 23380/tcp
+mcp-gateway | mcp-gateway:local | Up 3 days | 100.86.226.52:8005->8005/tcp, 127.0.0.1:8005->8005/tcp
+hermes | hermes-agent-harnesses:local | Up 2 days | 
+docker-socket-proxy | tecnativa/docker-socket-proxy:latest | Up 4 days | 2375/tcp
+transformer-company | transformer-company-transformer-company | Up 4 days | 80/tcp
+lcsw-practice-room | lcsw-practice-room:latest | Up 6 days (healthy) | 3000/tcp
+cli-proxy-api | eceasy/cli-proxy-api:latest | Up 3 days | 127.0.0.1:8317->8317/tcp, 100.86.226.52:8317->8317/tcp, 127.0.0.1:51121-51130->51121-51130/tcp
+myfitnesspal-mcp | myfitnesspal-mcp:local | Up 3 days | 8484/tcp
+myfitnesspal-ha-sync | myfitnesspal-mcp:local | Up 2 weeks | 8484/tcp
+cloudcli | cloudcli:local | Up 10 days | 3001/tcp
+aiometadata | 6bdb7482c9e8 | Up 2 weeks (healthy) | 3232/tcp
+aiostreams | ghcr.io/viren070/aiostreams:2026.10.23.1609-nightly | Up 2 weeks (healthy) | 3000/tcp
+litellm-proxy | fbe28229d2d0 | Up 27 minutes | 100.86.226.52:4000->4000/tcp, 127.0.0.1:4000->4000/tcp
+geopulse-postgres | imresamu/postgis:17-3.5-alpine | Up 2 weeks (healthy) | 5432/tcp
+geopulse-ui | tess1o/geopulse-ui:2.0.0 | Up 2 weeks | 80/tcp, 8080/tcp
+geopulse-backend | tess1o/geopulse-backend:2.0.0-native | Up 2 weeks (healthy) | 8080/tcp
+portainer_agent | portainer/agent:latest | Up 2 weeks | 100.86.226.52:9001->9001/tcp
+litellm-db | postgres:16-alpine | Up 2 weeks | 127.0.0.1:5432->5432/tcp
+litellm-redis | redis:7-alpine | Up 2 weeks | 6379/tcp
+cloudflared | cloudflare/cloudflared:latest | Up 2 weeks | 
+gcp-spend-guard | gcp-spend-guard:local | Up 2 weeks | 
+google-workspace-google-workspace-mcp-1 | google-workspace-google-workspace-mcp | Up 2 weeks (healthy) | 100.86.226.52:8000->8000/tcp, 127.0.0.1:8000->8000/tcp
+pwlistmanager | pwlistmanager-pwlistmanager | Up 2 weeks (healthy) | 0.0.0.0:5050->5050/tcp, [::]:5050->5050/tcp
+wyoming-whisper | rhasspy/wyoming-whisper:latest | Up 2 weeks (healthy) | 100.86.226.52:10300->10300/tcp
+aiometadata_redis | redis:latest | Up 2 weeks (healthy) | 6379/tcp
+wyoming-fish-tts | wyoming-fish-tts-wyoming-fish-tts | Up 2 weeks | 100.86.226.52:10400->10400/tcp

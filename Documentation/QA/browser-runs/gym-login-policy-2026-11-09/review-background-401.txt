@@ -1,0 +1,14 @@
+[Push] Automatically generated and saved VAPID keypair in server database.
+TypeError: adapter.isMockUser is not a function
+    at Object.fetchFromGym (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/poller.js:46:15)
+    at [stdin]:4:87
+    at [stdin]:4:270
+    at runScriptInThisContext (node:internal/vm:209:10)
+    at node:internal/process/execution:446:12
+    at [stdin]-wrapper:6:24
+    at runScriptInContext (node:internal/process/execution:444:60)
+    at evalFunction (node:internal/process/execution:279:30)
+    at evalTypeScript (node:internal/process/execution:291:3)
+    at node:internal/main/eval_stdin:53:5
+[Push] Automatically generated and saved VAPID keypair in server database.
+Provider requests: 4 renewals: 2 gym status: active incident: null

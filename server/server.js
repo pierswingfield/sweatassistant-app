@@ -384,7 +384,10 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(PUBLIC_DIR, {
     setHeaders: (res, filePath) => {
       const rel = path.relative(PUBLIC_DIR, filePath).split(path.sep).join('/');
-      res.setHeader('Cache-Control', rel.startsWith('assets/') ? 'public, max-age=31536000, immutable' : 'no-cache');
+      // Policy readers import <main> without executing injected scripts. Keep
+      // Cloudflare from replacing contact links with decoder-dependent markup.
+      const isPolicy = /^policies\/(terms|privacy)(-\d{4}-\d{2}-\d{2})?\.html$/.test(rel);
+      res.setHeader('Cache-Control', isPolicy ? 'no-cache, no-transform' : rel.startsWith('assets/') ? 'public, max-age=31536000, immutable' : 'no-cache');
     },
   }));
 }
@@ -424,10 +427,15 @@ app.post('/api/auth/login', authLoginLimiter, async (req, res) => {
 
 // Create an app account (Decision D4) — no gym involved. Shares the
 // login limiter: both are unauthenticated credential endpoints on the same IP.
+app.get('/api/policies', (req, res) => {
+  const { TERMS_VERSION, PRIVACY_VERSION } = require('./policies');
+  res.json({ termsVersion: TERMS_VERSION, privacyVersion: PRIVACY_VERSION });
+});
+
 app.post('/api/auth/signup', authLoginLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   try {
-    res.json(await auth.handleSignup(email, password));
+    res.json(await auth.handleSignup(email, password, req.body?.policyAcceptance));
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -534,7 +542,7 @@ app.post('/api/notify/booking-success', authenticateToken, bookingMutationLimite
 app.post('/api/bookings/sync', authenticateToken, (req, res) => {
   try {
     const { bookings, gymIds } = req.body;
-    const userGyms = db.getUserGyms(req.userId).filter((g) => g.account_enabled).map((g) => g.gym_id);
+    const userGyms = db.getUserGyms(req.userId).filter((g) => g.account_enabled && g.status === 'active').map((g) => g.gym_id);
 
     // If gymIds is provided, use it (only for gyms that actually loaded).
     // Otherwise fall back to legacy behavior (all user's gyms).
@@ -566,7 +574,7 @@ app.post('/api/bookings/sync', authenticateToken, (req, res) => {
 // detector (competing-bookings.js) wants. Cross-gym on purpose; own user only.
 function competingContextFor(userId) {
   return {
-    queued: db.getPendingAutoBookingsAllGyms(userId).filter(r => db.isUserGymEnabled(userId, r.gym_id)).map(r => ({
+    queued: db.getPendingAutoBookingsAllGyms(userId).filter(r => db.isUserGymAvailable(userId, r.gym_id)).map(r => ({
       id: r.id, gymId: r.gym_id, eventId: r.event_id, startAt: r.start_at,
       durationMin: r.duration_min, className: r.class_name,
       groupName: r.group_name, instructorName: r.instructor_name,
@@ -574,7 +582,7 @@ function competingContextFor(userId) {
     })),
     // booking_cache is client/poller-synced, so it can lag the gym slightly:
     // fine for a warning, which is all it feeds.
-    booked: db.getBookingCacheAllGyms(userId).map(r => ({
+    booked: db.getBookingCacheAllGyms(userId).filter(r => db.isUserGymAvailable(userId, r.gym_id)).map(r => ({
       gymId: r.gym_id, eventId: r.event_id, startAt: r.start_at,
       durationMin: r.duration_min, className: r.class_name,
       groupName: r.group_name, instructorName: r.instructor_name,
@@ -617,7 +625,7 @@ app.get('/api/auto-book', authenticateToken, (req, res) => {
     const historyCutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
     let keptHistory = 0;
     const bookings = db.getUserAutoBookings(req.userId, gymId).filter(b => {
-      if (!db.isUserGymEnabled(req.userId, b.gym_id)) return false;
+      if (!db.isUserGymAvailable(req.userId, b.gym_id)) return false;
       if (!b.executed_at) return true;
       const t = Date.parse(b.executed_at);
       if (Number.isFinite(t) && t < historyCutoff) return false;
@@ -787,13 +795,13 @@ app.put('/api/auto-book/:id', authenticateToken, async (req, res) => {
       });
     }
     if (!entry) return res.status(404).json({ code: 'AUTO_BOOK_NOT_FOUND', message: 'Auto-Book entry not found.' });
-    if (!db.isUserGymEnabled(req.userId, entry.gym_id)) return res.status(409).json({ code: 'GYM_DISABLED', message: 'This gym is turned off in Settings.' });
+    if (!db.isUserGymAvailable(req.userId, entry.gym_id)) return res.status(409).json({ code: 'GYM_DISABLED', message: 'This gym is turned off in Settings.' });
     gymOutbound.assertOutboundAllowed(entry.gym_id, req.userId); // disabled gym/link: 409, no provider call
     const guestEligibility = await validateScheduledGuestEligibility({
       provider: getProvider(entry.gym_id), eventId: entry.event_id, session: db.getUserSession(req.userId, entry.gym_id) || undefined,
       guestCount: normalizedPreferences.guests.length,
     });
-    if (!db.isUserGymEnabled(req.userId, entry.gym_id)) return res.status(409).json({ code: 'GYM_DISABLED', message: 'This gym is turned off in Settings.' });
+    if (!db.isUserGymAvailable(req.userId, entry.gym_id)) return res.status(409).json({ code: 'GYM_DISABLED', message: 'This gym is turned off in Settings.' });
     db.saveAutoBookingWithStudioDraft({
       mode: 'edit', id, userId: req.userId, gymId: entry.gym_id, eventId: entry.event_id,
       preferences: normalizedPreferences, participants: participantsForPreferences(normalizedPreferences),
@@ -810,7 +818,7 @@ app.delete('/api/auto-book/:id', authenticateToken, (req, res) => {
   try {
     const entry = db.getUserAutoBookings(req.userId, 'all').find(row => Number(row.id) === id);
     if (!entry) return res.status(404).json({ code: 'AUTO_BOOK_NOT_FOUND', message: 'Auto-Book entry not found.' });
-    if (!db.isUserGymEnabled(req.userId, entry.gym_id)) return res.status(409).json({ code: 'GYM_DISABLED', message: 'This gym is turned off in Settings.' });
+    if (!db.isUserGymAvailable(req.userId, entry.gym_id)) return res.status(409).json({ code: 'GYM_DISABLED', message: 'This gym is turned off in Settings.' });
     db.deleteAutoBooking(id, req.userId);
     // This may have been the only entry the wake clock was armed for (layer I).
     scheduler.rearm();
@@ -827,7 +835,7 @@ app.delete('/api/auto-book/:id', authenticateToken, (req, res) => {
 app.get('/api/auto-upgrade', authenticateToken, (req, res) => {
   try {
     const gymId = req.query.gymId || (req.headers['x-gym-id'] ? undefined : 'all');
-    const upgrades = db.getUserAutoUpgrades(req.userId, gymId).filter(u => db.isUserGymEnabled(req.userId, u.gym_id));
+    const upgrades = db.getUserAutoUpgrades(req.userId, gymId).filter(u => db.isUserGymAvailable(req.userId, u.gym_id));
     const formatted = upgrades.map(u => ({
       ...u,
       preferences: JSON.parse(u.preferences),
@@ -937,7 +945,7 @@ app.put('/api/auto-upgrade/:id', authenticateToken, (req, res) => {
   try {
     const entry = db.getUserAutoUpgrades(req.userId, 'all').find(row => Number(row.id) === id);
     if (!entry) return res.status(404).json({ code: 'AUTO_UPGRADE_NOT_FOUND', message: 'Auto-Upgrade entry not found.' });
-    if (!db.isUserGymEnabled(req.userId, entry.gym_id)) return res.status(409).json({ code: 'GYM_DISABLED', message: 'This gym is turned off in Settings.' });
+    if (!db.isUserGymAvailable(req.userId, entry.gym_id)) return res.status(409).json({ code: 'GYM_DISABLED', message: 'This gym is turned off in Settings.' });
     // Reset cutoffAttempted so the new prefs get a fresh attempt window
     const cleanPrefs = { ...preferences, cutoffAttempted: false };
     db.updateAutoUpgrade(id, req.userId, 'active', 'Preferences updated. Monitoring...', { preferences: cleanPrefs, bookingId: bookingId ?? undefined });
@@ -952,7 +960,7 @@ app.delete('/api/auto-upgrade/:id', authenticateToken, (req, res) => {
   try {
     const entry = db.getUserAutoUpgrades(req.userId, 'all').find(row => Number(row.id) === id);
     if (!entry) return res.status(404).json({ code: 'AUTO_UPGRADE_NOT_FOUND', message: 'Auto-Upgrade entry not found.' });
-    if (!db.isUserGymEnabled(req.userId, entry.gym_id)) return res.status(409).json({ code: 'GYM_DISABLED', message: 'This gym is turned off in Settings.' });
+    if (!db.isUserGymAvailable(req.userId, entry.gym_id)) return res.status(409).json({ code: 'GYM_DISABLED', message: 'This gym is turned off in Settings.' });
     db.deleteAutoUpgrade(id, req.userId);
     res.json({ success: true });
   } catch (err) {

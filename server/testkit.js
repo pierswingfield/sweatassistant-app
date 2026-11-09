@@ -20,6 +20,7 @@ function createUser(db, email, encryptedPassword, gymId = FIXTURE_GYM_ID) {
     .run(email, encryptedPassword);
   const userId = result.lastInsertRowid;
   db.upsertUserGym(userId, gymId, { gym_email: email, encrypted_password: encryptedPassword, priority: 200 });
+  db.db.prepare('UPDATE user_gyms SET remember_login = 1 WHERE user_id = ? AND gym_id = ?').run(userId, gymId);
   return userId;
 }
 

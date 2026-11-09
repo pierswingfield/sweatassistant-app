@@ -58,7 +58,7 @@ async function handleLogin(email, password) {
     if (user) {
       userId = user.id;
       if (db.isGymLinked(userId, devGym.id)) {
-        db.updateUserCredentials(userId, encryptedPassword, devToken, jwtExpiresAt, devGym.id);
+        db.setGymSession(userId, devGym.id, { accessToken: devToken, expiresAt: jwtExpiresAt });
       }
     } else {
       // The bypass never checks a local password (any password logs in), so the
@@ -181,6 +181,10 @@ function withGymContext(req, res, next) {
   // attendance total is the one other exception: it answers a switched-off gym
   // from stored class history only (routes-normalized.js), never the provider.
   const settingsRequest = /^\/api\/(?:settings|attendance-totals)(?:\?|$)/.test(req.originalUrl || '');
+  const connectionSettingsRequest = /^\/api\/settings(?:\?|$)/.test(req.originalUrl || '');
+  if (!connectionSettingsRequest && require('./gym-connection').unavailable(req.userId, requested)) {
+    return res.status(401).json({ code: 'GYM_SESSION_EXPIRED', gymId: requested, message: 'Log in to this gym again.' });
+  }
   if (!settingsRequest && !db.isUserGymEnabled(req.userId, requested)) {
     return res.status(409).json({ code: 'GYM_DISABLED', message: 'This gym is turned off in Settings.' });
   }
@@ -287,102 +291,53 @@ function authenticateTokenSSE(req, res, next) {
 // password retried every minute by the scheduler/poller/calendar is how an
 // upstream lockout happens. Only credential REJECTIONS count — a provider
 // outage never suspends retries. Cleared by a successful renewal or a re-link.
-const RELOGIN_MAX_REJECTIONS = 3;
-const isCredentialRejection = (err) => /rejected your login|incorrect email\/password|invalid credentials/i.test((err && err.message) || '');
+const RELOGIN_MAX_REJECTIONS = 1;
 
 // Renew a gym session when the stored one is rejected (401 Unauthorized).
+const renewalFlights = new Map();
 async function triggerAutoRelogin(userId, gymId = null) {
-  // `gymId` is explicit for background callers (WP-D7). The scheduler, poller and
-  // calendar cron all process rows that may belong to a gym the user is NOT
-  // currently looking at; resolving the active gym here would renew the wrong
-  // session and leave the row's own gym permanently expired. Request-path callers
-  // omit it and get the active gym, which is what they want.
-  const targetGymId = gymId || db.resolveActiveGymId(userId);
-  // A disabled gym (or link) is never contacted, and a refusal here is not a
-  // renewal FAILURE: no counters, no needs_relogin flag, the session is kept.
+  const target = gymId || db.resolveActiveGymId(userId);
+  const key = `${userId}:${target}`;
+  if (renewalFlights.has(key)) return renewalFlights.get(key);
+  const work = renewGymSession(userId, target).finally(() => renewalFlights.delete(key));
+  renewalFlights.set(key, work);
+  return work;
+}
+async function renewGymSession(userId, targetGymId) {
+  const connection = require('./gym-connection');
   gymOutbound.assertOutboundAllowed(targetGymId, userId);
-  const gymName = (db.getGym(targetGymId) || {}).name || targetGymId;
-  log.info('relogin: session expired, attempting renewal', { userId, gymId: targetGymId });
-
   const link = db.getUserGym(userId, targetGymId);
-  if (!link) {
-    throw new Error(`Account is not linked to gym "${targetGymId}".`);
-  }
-
+  if (!link) throw new Error('Gym is not linked.');
+  if (link.status === 'needs_relogin' || link.relogin_suspended) throw connection.expiredError(targetGymId);
   let session = null;
   try { session = link.session_json ? JSON.parse(link.session_json) : null; } catch (_) {}
-
-  // Credentials for the ladder's re-login rung. `gym_email` is the address proven
-  // against THIS gym (WP-D5) — deliberately not users.email, which is the the app
-  // Assistant identity and may be a different address entirely.
   let credentials = null;
-  if (link.gym_email && link.encrypted_password) {
-    try {
-      credentials = { email: link.gym_email, password: decrypt(link.encrypted_password) };
-    } catch (err) {
-      console.warn(`[Auth] Could not decrypt stored credential for user ${userId} at ${targetGymId}:`, err.message);
-    }
+  if (link.remember_login && link.gym_email && link.encrypted_password) {
+    try { credentials = { email: link.gym_email, password: decrypt(link.encrypted_password) }; } catch (_) {}
   }
-
-  if (!session && !credentials) {
-    db.setUserGymStatus(userId, targetGymId, 'needs_relogin');
-    // C1-2: carry the same status/code/gymId a route-level "no session" 401
-    // carries (routes-normalized.js resolveContext), so a relogin that fails
-    // mid-request surfaces to the client as a per-gym signal instead of an
-    // opaque 500 that the 401 handler never even sees.
-    const err = new Error(`No stored credential for ${gymName}. Please re-link the gym.`);
-    err.status = 401;
-    err.code = 'GYM_SESSION_EXPIRED';
-    err.gymId = targetGymId;
-    throw err;
-  }
-
-  // C6-4: suspended after repeated rejections — fail fast without contacting the gym.
-  if (link.relogin_suspended) {
-    const err = new Error(`Automatic sign-in to ${gymName} is paused after repeated failures. Please log in to that gym again.`);
-    err.status = 401;
-    err.code = 'GYM_SESSION_EXPIRED';
-    err.gymId = targetGymId;
-    err.reloginSuspended = true;
-    throw err;
-  }
-
   try {
-    // The adapter owns the ladder — refresh token first where the platform has
-    // one (MarianaTek), straight to re-login where it does not (CodexFit). The
-    // caller deliberately does not know which, and must not: branching on the
-    // platform here is how "MarianaTek as an extension of CodexFit" creeps back.
     const renewed = await getProvider(targetGymId).refreshSession(session, credentials);
-    if (!renewed || !renewed.accessToken) {
-      throw new Error('Provider returned no access token');
+    if (!renewed?.accessToken) throw Object.assign(new Error('Provider returned no session'), { code: 'GYM_AUTH_REQUIRED' });
+    if (!db.commitGymRenewal(userId, targetGymId, renewed, link.connection_revision)) {
+      const current = db.getUserSession(userId, targetGymId);
+      if (current?.accessToken && db.getUserGym(userId, targetGymId)?.status === 'active') return current.accessToken;
+      throw connection.expiredError(targetGymId);
     }
-    db.setGymSession(userId, targetGymId, renewed);
-    db.setUserGymStatus(userId, targetGymId, 'active');
-    db.clearReloginFailures(userId, targetGymId);
-    log.info('relogin: session renewed', { userId, gymId: targetGymId });
     return renewed.accessToken;
   } catch (err) {
-    log.error('relogin: session renewal failed', { userId, gymId: targetGymId, err });
-    // Clear the dead session so callers stop retrying it in a loop, and flag the
-    // link so the UI can prompt a re-link. The link itself SURVIVES: unlinking on
-    // a transient provider outage would cost the user their queue, spot maps and
-    // calendar token (Decision D4 — the account outlives the gym).
-    db.setGymSession(userId, targetGymId, null);
-    db.setUserGymStatus(userId, targetGymId, 'needs_relogin');
-    const counters = db.recordReloginFailure(userId, targetGymId, {
-      rejected: isCredentialRejection(err),
-      error: err.message,
-      maxRejections: RELOGIN_MAX_REJECTIONS,
-    });
-    if (counters && counters.relogin_suspended) {
-      log.warn('relogin: suspended after repeated credential rejections', { userId, gymId: targetGymId, rejections: counters.relogin_rejections });
+    if (err.code === 'GYM_SESSION_EXPIRED') throw err;
+    const latest = db.getUserGym(userId, targetGymId);
+    if (latest?.connection_revision !== link.connection_revision) {
+      const current = db.getUserSession(userId, targetGymId);
+      if (current?.accessToken && latest.status === 'active') return current.accessToken;
+      throw connection.expiredError(targetGymId);
     }
-    const relErr = new Error(`Could not renew your ${gymName} session. Please log in to that gym again.`);
-    relErr.status = 401;
-    relErr.code = 'GYM_SESSION_EXPIRED';
-    relErr.gymId = targetGymId;
-    throw relErr;
-  }
+    db.recordReloginFailure(userId, targetGymId, { rejected: err.code === 'GYM_CREDENTIAL_REJECTED', error: err.code === 'GYM_CREDENTIAL_REJECTED' ? 'Gym rejected your login' : 'Session renewal unavailable', maxRejections: RELOGIN_MAX_REJECTIONS });
+    // Adapters classify definitive auth failure; outages/429 never discard a session.
+    const definitive = err.code === 'GYM_AUTH_REQUIRED' || err.code === 'GYM_CREDENTIAL_REJECTED';
+    if (!definitive) throw err;
+    throw connection.requireLogin(userId, targetGymId, err.code === 'GYM_CREDENTIAL_REJECTED' ? 'login_rejected' : 'session_expired', link.connection_revision);
+  } finally { credentials = null; }
 }
 
 // --- the app account signup (Decision D4) ---------------------------
@@ -391,7 +346,8 @@ async function triggerAutoRelogin(userId, gymId = null) {
 // an account could only be born by logging into CodexFit, which is precisely
 // what made the account die with the membership. Gyms are linked afterwards
 // via linkGymAccount().
-async function handleSignup(email, password) {
+async function handleSignup(email, password, acceptance) {
+  require('./policies').validateAcceptance(acceptance);
   const clean = String(email || '').trim().toLowerCase();
   if (!clean || !clean.includes('@')) throw new Error('A valid email address is required');
   if (!password || String(password).length < 8) {
@@ -404,7 +360,11 @@ async function handleSignup(email, password) {
     throw new Error('An account with that email already exists. Try logging in.');
   }
 
-  const userId = db.createAccount(clean, password);
+  const userId = db.db.transaction(() => {
+    const id = db.createAccount(clean, password);
+    db.recordPolicyAcceptance(id, acceptance);
+    return id;
+  })();
   const localToken = signUserToken(userId, clean);
   return {
     token: localToken,
@@ -445,7 +405,10 @@ async function handleSignup(email, password) {
 //
 // Credentials are only ever stored AFTER the provider accepts them, so a failed
 // attempt cannot overwrite a working link.
-async function linkGymAccount(userId, gymId, email, password) {
+async function linkGymAccount(userId, gymId, email, password, rememberLogin = false) {
+  if (typeof rememberLogin !== 'boolean') throw new Error('rememberLogin must be a boolean');
+  const existingLink = db.getUserGym(userId, gymId);
+  const revision = existingLink?.connection_revision ?? null;
   if (!gymId || !email || !password) {
     throw new Error('gymId, email and password are required');
   }
@@ -454,23 +417,23 @@ async function linkGymAccount(userId, gymId, email, password) {
   if (!gym.enabled) throw new Error(`Gym "${gymId}" is not available yet.`);
 
   const provider = getProvider(gymId);
-  const { session, profile } = await provider.login({ email, password });
+  const { session, profile } = await require('./gym-connection').withRecovery(userId, gymId, () => provider.login({ email, password }));
   if (!session || !session.accessToken) {
     throw new Error('Gym login did not return a session');
   }
 
-  const existingLink = db.getUserGym(userId, gymId);
-  db.upsertUserGym(userId, gymId, {
+  const recovering = existingLink && existingLink.status !== 'active';
+  const committed = db.commitGymLogin(userId, gymId, {
     // Store the email alongside the password — both were just proven against this
     // gym, and without it nothing can re-authenticate unattended for any account
     // whose gym login differs from its the app login (WP-D5). Lower-cased
     // (as handleSignup does for the SA email) so a re-link differing only in case
     // updates the link rather than reading as a different identity.
-    gym_email: String(email).trim().toLowerCase(),
-    encrypted_password: encrypt(password),
-    session_json: JSON.stringify(session),
+    gym_email: rememberLogin ? String(email).trim().toLowerCase() : null,
+    encrypted_password: rememberLogin ? encrypt(password) : null,
+    session_json: JSON.stringify(require('./policies').sessionMaterial(session)),
     display_name: profile && [profile.firstName, profile.lastName].filter(Boolean).join(' ') || null,
-    profile_json: profile && profile.raw ? JSON.stringify(profile.raw) : null,
+    profile_json: profile && profile.raw ? JSON.stringify(require('./policies').withoutLoginDetails(profile.raw)) : null,
     profile_synced_at: new Date().toISOString(),
     // The credential was just proven against the gym — this is the one place
     // (with setGymSession) that may stamp it. Surfaced in Settings as the
@@ -480,9 +443,16 @@ async function linkGymAccount(userId, gymId, email, password) {
     // re-authenticating must not silently demote someone or break their feed URL.
     priority: existingLink ? existingLink.priority : 200,
     calendar_token: existingLink ? existingLink.calendar_token : null,
-    status: 'active',
-  });
-  db.clearReloginFailures(userId, gymId); // fresh credential just proven (C6-4)
+    status: recovering ? 'syncing' : 'active',
+  }, rememberLogin, revision);
+  if (!committed) throw new Error('Gym connection changed while signing in. Please try again.');
+  if (recovering) {
+    const result = await require('./gym-connection').withRecovery(userId, gymId, () => require('./booking-sync').syncUserGym(userId, gymId, { force: true }));
+    if (!result.ok) throw new Error('Gym login succeeded. Fresh syncing is still pending; your gym remains paused.');
+    const current = db.getUserGym(userId, gymId);
+    db.finishGymReconnect(userId, gymId, current.connection_revision);
+    require('./calendar').regenerateSnapshot(userId);
+  }
   return db.getUserGymsPublic(userId).find((g) => g.gym_id === gymId);
 }
 

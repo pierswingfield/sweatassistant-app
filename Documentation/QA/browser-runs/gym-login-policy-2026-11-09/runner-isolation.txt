@@ -1,0 +1,4 @@
+  isolation                  PASS  DB_PATH=:memory:
+
+🎉 1/1 server suites passed.
+PASS: actual runner source overrides inherited application DB_PATH before running fixtures.

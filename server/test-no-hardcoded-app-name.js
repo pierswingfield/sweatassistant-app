@@ -7,7 +7,8 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const ALLOWED = new Set(['server/config.js']);
+// Published legal documents are approved wording with their own fixed trading name.
+const ALLOWED = new Set(['server/config.js', ...['terms','privacy'].flatMap(name => [`client/public/policies/${name}.html`, `client/public/policies/${name}-2026-11-09.html`])]);
 const SKIP_DIR = new Set(['node_modules', 'dist', 'public', 'fixtures', '.git', 'scripts']);
 
 function* walk(dir) {

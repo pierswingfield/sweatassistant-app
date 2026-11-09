@@ -1,0 +1,2152 @@
+
+> app-pwa@1.0.0 test:client
+> npm run test --prefix client
+
+
+> app-client@1.0.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client
+
+ ❯ src/copy.test.js (8 tests | 1 failed) 244ms
+     × keeps fixed toast wording in the copy catalog across client modules 11ms
+ ❯ src/cache.test.js (12 tests | 1 failed) 5582ms
+     × clears a cached linked-gym response after linking 5006ms
+ ❯ src/gym-availability.test.js (7 tests | 1 failed) 59ms
+     × starts unticked on each render and uses the exact unchecked notice 38ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/cache.test.js > linked-gym cache invalidation > clears a cached linked-gym response after linking
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/cache.test.js:142:3
+    140|   }
+    141|
+    142|   it('clears a cached linked-gym response after linking', async () => {
+       |   ^
+    143|     await expectMutationToClearMyGyms(() => api.linkGym('jab-boxing', …
+    144|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/copy.test.js > copy catalog audit > keeps fixed toast wording in the copy catalog across client modules
+AssertionError: src/ui/settings.js: fixed textContent copy: expected 'import { gymLoginChoiceHtml, bindGymL…' not to match /\.textContent\s*=\s*(['"])(?=[A-Za-z]…/
+
+- Expected:
+/\.textContent\s*=\s*(['"])(?=[A-Za-z][^\n]{2,})[^'"\n]+\1/
+
++ Received:
+"import { gymLoginChoiceHtml, bindGymLoginChoice } from './gym-login-choice.js';
+import { MASCOT } from './teams-ui.js';
+import { api, apiFetch } from '../api';
+import { loadSpotMapGyms } from './spot-map-loading.js';
+import { mapRemovalWarning } from './spot-map-usage.js';
+import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole, loadGymContext, refreshUserData, updateDebugTerminalVisibility, getIsOffline } from '../main';
+import { getBookingOffset, describeBookingWindow } from '../lib';
+import { renderStudioFloorPlan } from './spotmap';
+import { currentRoute, navigate, pathFor } from '../router.js';
+import { openSpotSetup } from './spot-setup.js';
+import { isScrollBusy } from './scroll-state.js';
+import { cacheGet, resetTimetableForGymChange, rowGroupsForStudio, mobileRotationForStudio, frontForStudio } from './timetable';
+import { clearApiCache, invalidateApiCache, accountScopedKey } from '../cache.js';
+import { renderGymSettingsSection as renderGymSettingsSectionView } from './gym-settings-section.js';
+import { renderCalendarSection } from './calendar-section.js';
+import { getLinkedGyms, getAllLinkedGyms, getGymShortName } from '../gym-context.js';
+import { icon, gymSquareChip, gymBrand, gymLogoBanner, escapeHtml } from './cards.js';
+import { createRenderGuard, reconcileKeyed, lastAuthLabel, connectionHealth } from './gym-connections.js';
+import { COPY, formatCopyText } from '../copy.js';
+import { renderCardSkeletons, renderFloorPlanSkeleton, renderPanelSkeleton } from './loading-skeleton.js';
+import { appConfig } from '../config.js';
+import { openPage as openNavPage, closePage as closeNavPage, isMobile } from './modal-nav.js';
+import { initFavouritesPane, renderFavouritesPane } from './favourites-pane.js';
+import { cleanNameField, inferNames } from './name-capture.js';
+
+let loadedProfile = null;
+let activeSpotEditorOverlay = null;
+let closeSpotMapManager = null;
+let activeSpotManager = null; // mobile: the open Manage Spot Maps page, so re-entry reloads it in place
+let loadedProfileGymId = null;
+
+// ─── Profile Explorer — Unified Implementation ─────────────────────────────
+
+let editMode = false;
+let konamiProgress = 0;
+let explorerModalOpen = false;
+let changeLog = []; // module-level — persists across saves, reset on modal open
+
+// Konami code sequence: ↑↑↓↓←→←→BA + Enter (uses e.code)
+const KONAMI = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','KeyB','KeyA','Enter'];
+
+// Section schema definition — categorizes known fields
+const SECTION_DEFS = [
+  {
+    title: COPY.profileExplorer.sectionBasicInfo,
+    emoji: '👤',
+    paths: ['id', 'first_name', 'last_name', 'email', 'username', 'dob', 'telephone', 'referral_code', 'verified', 'created_at']
+  },
+  {
+    title: COPY.profileExplorer.sectionAccountPayments,
+    emoji: '💳',
+    paths: ['stripe_id', 'card_brand', 'card_last_four', 'has_purchased', 'opt_ins', 'policies']
+  },
+  {
+    title: COPY.profileExplorer.sectionMetafieldsPreferences,
+    emoji: '⚙️',
+    // Special: all metafields.* except metafields.public.bookmarks
+    // Built dynamically in buildSections()
+  },
+  {
+    title: COPY.profileExplorer.sectionBookingStats,
+    emoji: '📊',
+    paths: ['stats.total_bookings', 'stats.total_unique_bookings', 'stats.total_unique_bookings_attended', 'stats.credits_remaining', 'stats.total_attended_minutes', 'booking_cutoff', 'extended_cutoff']
+  },
+  {
+    title: COPY.profileExplorer.sectionAvailableCredits,
+    emoji: '🎟️',
+    paths: ['available_credits']  // array — rendered as cards, read-only
+  },
+  {
+    title: COPY.profileExplorer.sectionSubscriptions,
+    emoji: '🔄',
+    paths: ['subscriptions', 'subscription_statuses']  // arrays — rendered as cards, read-only
+  },
+];
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function getByPath(obj, path) {
+  return path.split('.').reduce((acc, part) => acc && acc[part] !== undefined ? acc[part] : undefined, obj);
+}
+
+function setByPath(obj, path, value) {
+  const parts = path.split('.');
+  let current = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (!current[parts[i]] || typeof current[parts[i]] !== 'object') current[parts[i]] = {};
+    current = current[parts[i]];
+  }
+  current[parts[parts.length - 1]] = value;
+}
+
+function humanizeKey(key) {
+  return key.replace(/_/g, ' ').replace(/\\b\\w/g, l => l.toUpperCase());
+}
+
+function isScalar(val) {
+  return val === null || val === undefined || typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean';
+}
+
+function formatVal(val) {
+  if (val === null || val === undefined) return '<span class=\"set-null-text\">null</span>';
+  if (typeof val === 'object') {
+    return `<pre class=\"set-json-box\">${escapeHtml(JSON.stringify(val, null, 2))}</pre>`;
+  }
+  if (typeof val === 'boolean') {
+    return val ? '<span class=\"set-bool-true\">true</span>' : '<span class=\"set-bool-false\">false</span>';
+  }
+  return `<span class=\"set-value-text\">${escapeHtml(String(val))}</span>`;
+}
+
+// ─── Special Section Renderers ──────────────────────────────────────────────
+
+function renderCreditsHtml(credits) {
+  if (!credits || credits.length === 0) return `<div class=\"set-credits-empty\">${COPY.profileExplorer.noActiveCredits}</div>`;
+  return credits.map(c => `
+    <div class=\"set-credit-row\">
+      <div class=\"set-credit-stack\">
+        <strong class=\"set-credit-name\">${escapeHtml(c.credit_type?.name || COPY.profileExplorer.unknown)}</strong>
+        <span class=\"set-credit-handle\">${formatCopyText(COPY.profileExplorer.creditHandle, { handle: escapeHtml(c.credit_type?.handle || '—') })}</span>
+      </div>
+      <span class=\"set-credit-badge\">${formatCopyText(COPY.profileExplorer.creditsLeft, { count: escapeHtml(c.count) })}</span>
+    </div>
+  `).join('');
+}
+
+function renderSubsHtml(subs, statuses) {
+  const allSubs = [...(subs || []), ...(statuses || [])];
+  if (allSubs.length === 0) return `<div class=\"set-credits-empty\">${COPY.profileExplorer.noPlans}</div>`;
+  return allSubs.map(s => {
+    const status = s.status || 'inactive';
+    const isCancelled = status === 'cancelled';
+    const statusBg = isCancelled ? 'color-mix(in srgb, var(--danger) 15%, transparent)' : 'color-mix(in srgb, var(--success) 15%, transparent)';
+    const statusBorder = isCancelled ? 'color-mix(in srgb, var(--danger) 30%, transparent)' : 'color-mix(in srgb, var(--success) 30%, transparent)';
+    const statusColor = isCancelled ? 'var(--danger)' : 'var(--success)';
+    return `
+      <div class=\"set-studio-row\">
+        <div class=\"set-studio-stack\">
+          <span class=\"set-studio-name\">${escapeHtml(s.name || '—')}</span>
+          <span class=\"set-credit-handle\">${formatCopyText(COPY.profileExplorer.planHandle, { handle: escapeHtml(s.handle || '—') })}</span>
+        </div>
+        <span style=\"background:${statusBg};border:1px solid ${statusBorder};color:${statusColor};border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;\">${escapeHtml(status)}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+// ─── buildSections — Build categorized section array from profile ───────────
+
+function buildSections(profile) {
+  const consumedPaths = new Set();
+  const sections = [];
+
+  SECTION_DEFS.forEach(def => {
+    if (def.title === 'Metafields & Preferences') {
+      const subFields = [];
+      const metafields = profile.metafields;
+      if (metafields && typeof metafields === 'object') {
+        Object.keys(metafields).forEach(key => {
+          if (key === 'public' && typeof metafields.public === 'object') {
+            Object.keys(metafields.public).forEach(subKey => {
+              if (subKey === 'bookmarks') return;
+              const path = `metafields.public.${subKey}`;
+              consumedPaths.add(path);
+              subFields.push({ key: subKey, path, value: getByPath(profile, path), editable: isScalar(metafields.public[subKey]) });
+            });
+          } else {
+            const path = `metafields.${key}`;
+            consumedPaths.add(path);
+            subFields.push({ key, path, value: metafields[key], editable: isScalar(metafields[key]) });
+          }
+        });
+      }
+      sections.push({ title: def.title, emoji: def.emoji, fields: subFields, isSpecial: false });
+    } else if (def.title === 'Available Credits' || def.title === 'Subscriptions & Plans') {
+      def.paths.forEach(p => consumedPaths.add(p));
+      const vals = def.paths.map(p => ({ path: p, value: getByPath(profile, p) }));
+      sections.push({ title: def.title, emoji: def.emoji, fields: vals, isSpecial: true });
+    } else {
+      const subFields = [];
+      def.paths.forEach(path => {
+        consumedPaths.add(path);
+        const val = getByPath(profile, path);
+        subFields.push({ key: path.split('.').pop(), path, value: val, editable: isScalar(val) });
+      });
+      sections.push({ title: def.title, emoji: def.emoji, fields: subFields, isSpecial: false });
+    }
+  });
+
+  // Build the \"Other\" section — top-level keys not consumed
+  const otherFields = [];
+  const topKeys = Object.keys(profile);
+  topKeys.forEach(key => {
+    if (key === 'metafields' || key === 'stats') {
+      // Check sub-keys
+      const subObj = profile[key];
+      if (subObj && typeof subObj === 'object') {
+        Object.keys(subObj).forEach(subKey => {
+          const path = `${key}.${subKey}`;
+          if (!consumedPaths.has(path)) {
+            otherFields.push({ key: path, path, value: getByPath(profile, path), editable: isScalar(getByPath(profile, path)) });
+          }
+        });
+      }
+    } else {
+      // Check if any path starting with this key is consumed
+      const consumed = Array.from(consumedPaths).some(cp => cp === key || cp.startsWith(key + '.'));
+      if (!consumed) {
+        otherFields.push({ key, path: key, value: profile[key], editable: isScalar(profile[key]) });
+      }
+    }
+  });
+
+  if (otherFields.length > 0) {
+    sections.push({ title: COPY.profileExplorer.sectionOther, emoji: '📦', fields: otherFields, isSpecial: false });
+  }
+
+  return sections;
+}
+
+// ─── Modal Functions ────────────────────────────────────────────────────────
+
+async function openProfileExplorerModal(gymId = null, gymName = null) {
+  const modal = document.getElementById('app-profile-explorer-modal');
+  const body = document.getElementById('app-profile-explorer-body');
+  if (!modal || !body) return;
+
+  // Reset state
+  editMode = false;
+  konamiProgress = 0;
+  explorerModalOpen = true;
+  changeLog = [];
+  loadedProfileGymId = gymId;
+  const title = document.getElementById('app-profile-explorer-title');
+  if (title) title.textContent = gymName ? formatCopyText(COPY.profileExplorer.gymTitle, { gymName }) : COPY.profileExplorer.title;
+
+  // Show loading state — use .show class for opacity transition (matches booking/debug modal convention)
+  openNavPage(modal, {
+    id: 'profile-explorer', closeFooter: true,
+    // Mobile close paths (X / Esc / back) bypass the desktop handlers, so reset state and
+    // honour the unsaved-edit check here too.
+    canClose: () => {
+      if (!editMode) return true;
+      const b = document.getElementById('app-profile-explorer-body');
+      const save = b && b.querySelector('.app-profile-save-btn');
+      return !(save && save.style.display !== 'none') || confirm(COPY.settings.discardUnsaved);
+    },
+    onClose: () => { explorerModalOpen = false; editMode = false; konamiProgress = 0; },
+  });
+  body.innerHTML = renderPanelSkeleton(COPY.profileExplorer.loading, 6);
+
+  // Set up close handlers
+  setupExplorerModalClose(modal);
+
+  // Set up konami listener (scoped to modal open)
+  setupExplorerKonamiListener();
+
+  try {
+    // The Profile Explorer exists to show the gym's OWN payload, so it reads
+    // `.raw` deliberately — that is the thing it is a viewer for. It falls back
+    // to the normalized fields when a provider exposes no raw blob.
+    const res = await api.getNormalizedProfile(gymId);
+    loadedProfile = res.raw || res;
+    renderExplorerBody(body);
+  } catch (err) {
+    body.innerHTML = `<div class=\"app-card-error\">${formatCopyText(COPY.settings.profileLoadFailed, { error: escapeHtml(err.message) })}</div>`;
+  }
+}
+
+function setupExplorerModalClose(modal) {
+  const closeBtn = document.getElementById('app-profile-explorer-close');
+  const overlay = modal.querySelector('.app-modal-overlay');
+  const closer = () => {
+    modal.classList.remove('show');
+    setTimeout(() => { modal.style.display = 'none'; }, 300);
+    explorerModalOpen = false;
+    editMode = false;
+    konamiProgress = 0;
+  };
+  if (closeBtn && !closeBtn.dataset.listener) {
+    closeBtn.dataset.listener = 'true';
+    closeBtn.addEventListener('click', closer);
+  }
+  if (overlay && !overlay.dataset.listener) {
+    overlay.dataset.listener = 'true';
+    overlay.addEventListener('click', closer);
+  }
+}
+
+function setupExplorerKonamiListener() {
+  if (document.body.dataset.explorerKonamiAttached) return;
+  document.body.dataset.explorerKonamiAttached = 'true';
+  document.addEventListener('keydown', (e) => {
+    if (!explorerModalOpen) {
+      konamiProgress = 0;
+      return;
+    }
+    if (e.code === KONAMI[konamiProgress]) {
+      konamiProgress++;
+      if (konamiProgress === KONAMI.length) {
+        konamiProgress = 0;
+        toggleEditMode();
+      }
+    } else {
+      konamiProgress = e.code === KONAMI[0] ? 1 : 0;
+    }
+  });
+}
+
+function toggleEditMode() {
+  if (!loadedProfile) return;
+  if (editMode) {
+    // Exiting edit mode — check for unsaved changes
+    const body = document.getElementById('app-profile-explorer-body');
+    const hasChanges = body.querySelector('.app-profile-save-btn') && body.querySelector('.app-profile-save-btn').style.display !== 'none';
+    if (hasChanges) {
+      if (!confirm(COPY.settings.discardUnsaved)) return;
+    }
+  }
+  editMode = !editMode;
+  const body = document.getElementById('app-profile-explorer-body');
+  renderExplorerBody(body);
+  if (editMode) {
+    showToast(COPY.settings.editEnabled, 'info');
+  } else {
+    showToast(COPY.settings.editDisabled, 'info');
+  }
+}
+
+// ─── Render Functions ───────────────────────────────────────────────────────
+
+function renderExplorerBody(body) {
+  if (!loadedProfile) {
+    body.innerHTML = `<div class=\"app-card-error\">${COPY.profileExplorer.dataUnavailable}</div>`;
+    return;
+  }
+
+  const sections = buildSections(loadedProfile);
+  let html = '';
+
+  // Edit mode banner
+  if (editMode) {
+    html += `<div class=\"set-edit-banner\">
+      <span class=\"set-banner-title\">${COPY.profileExplorer.editBanner}</span>
+      <span class=\"set-banner-action\">${COPY.profileExplorer.exitEdit}</span>
+    </div>`;
+  }
+
+  // Render each section as an accordion
+  sections.forEach((section, idx) => {
+    const isSpecial = section.title === 'Available Credits' || section.title === 'Subscriptions & Plans';
+    html += renderSectionAccordion(section, idx, isSpecial);
+  });
+
+  // Change log (only in edit mode)
+  if (editMode) {
+    const logEntriesHtml = renderLogEntriesHtml();
+    html += `
+      <div class=\"app-profile-log-panel set-changelog-panel\">
+        <div class=\"app-profile-section-header set-changelog-header\" id=\"app-explorer-log-header\">
+          <span class=\"set-changelog-title\">${COPY.profileExplorer.changeLog} <span class=\"set-changelog-count\" id=\"app-explorer-log-count\">(${changeLog.length})</span></span>
+          <span class=\"app-accordion-arrow set-accordion-arrow\" id=\"app-explorer-log-arrow\">▲</span>
+        </div>
+        <div class=\"set-changelog-body\" id=\"app-explorer-log-container\">
+          ${logEntriesHtml}
+        </div>
+      </div>
+    `;
+    // Save Changes button
+    html += `<button id=\"app-profile-save-btn\" class=\"app-btn\" style=\"width:100%;margin-top:12px;background:color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 40%, transparent);color:var(--feat-autoupgrade);font-weight:700;display:none;\">${COPY.profileExplorer.saveChanges}</button>`;
+  }
+
+  body.innerHTML = html;
+
+  // Attach accordion toggles
+  body.querySelectorAll('.app-profile-section').forEach(sec => {
+    const header = sec.querySelector('.app-profile-section-header');
+    const content = sec.querySelector('.app-profile-section-content');
+    const arrow = sec.querySelector('.app-accordion-arrow');
+    if (header) {
+      header.addEventListener('click', () => {
+        const closed = content.style.display === 'none';
+        content.style.display = closed ? 'block' : 'none';
+        if (arrow) {
+          arrow.style.transform = closed ? 'rotate(180deg)' : 'rotate(0deg)';
+          arrow.textContent = closed ? '▲' : '▼';
+        }
+      });
+    }
+  });
+
+  // Log toggle
+  const logHeader = document.getElementById('app-explorer-log-header');
+  if (logHeader) {
+    const logContainer = document.getElementById('app-explorer-log-container');
+    const logArrow = document.getElementById('app-explorer-log-arrow');
+    logHeader.addEventListener('click', () => {
+      const closed = logContainer.style.display === 'none';
+      logContainer.style.display = closed ? 'block' : 'none';
+      if (logArrow) {
+        logArrow.style.transform = closed ? 'rotate(180deg)' : 'rotate(0deg)';
+        logArrow.textContent = closed ? '▲' : '▼';
+      }
+    });
+  }
+
+  // In edit mode: attach input change listeners + save button
+  if (editMode) {
+    setupEditListeners(body);
+  }
+}
+
+function renderSectionAccordion(section, idx, isSpecial) {
+  let contentHtml = '';
+
+  if (section.title === 'Available Credits') {
+    contentHtml = renderCreditsHtml(getByPath(loadedProfile, 'available_credits'));
+  } else if (section.title === 'Subscriptions & Plans') {
+    contentHtml = renderSubsHtml(getByPath(loadedProfile, 'subscriptions'), getByPath(loadedProfile, 'subscription_statuses'));
+  } else {
+    // Regular key-value rows
+    contentHtml = '<div class=\"set-field-stack\">';
+    section.fields.forEach(field => {
+      const label = humanizeKey(field.key);
+      if (editMode && field.editable) {
+        const isBool = typeof field.value === 'boolean';
+        let inputHtml;
+        if (isBool) {
+          inputHtml = `<input type=\"checkbox\" class=\"app-profile-edit-input set-field-checkbox\" data-path=\"${escapeHtml(field.path)}\" ${field.value ? 'checked' : ''}>`;
+        } else {
+          const val = field.value !== null && field.value !== undefined ? String(field.value) : '';
+          inputHtml = `<input type=\"text\" class=\"app-profile-edit-input set-field-input\" data-path=\"${escapeHtml(field.path)}\" value=\"${escapeHtml(val)}\" placeholder=\"${field.value === null ? 'null' : ''}\">`;
+        }
+        contentHtml += `
+          <div class=\"app-profile-field-row set-field-row\" data-path=\"${escapeHtml(field.path)}\">
+            <span class=\"set-field-label\">${escapeHtml(label)}</span>
+            ${inputHtml}
+          </div>
+        `;
+      } else {
+        contentHtml += `
+          <div class=\"set-field-group\">
+            <span class=\"set-field-sublabel\">${escapeHtml(label)}</span>
+            <div class=\"set-field-value\">${formatVal(field.value)}</div>
+          </div>
+        `;
+      }
+    });
+    contentHtml += '</div>';
+  }
+
+  // For special sections in edit mode, add a read-only badge
+  let titleSuffix = '';
+  if (editMode && isSpecial) {
+    titleSuffix = ` <span class=\"set-field-readonly\">${COPY.profileExplorer.readOnly}</span>`;
+  }
+
+  return `
+    <div class=\"app-profile-section set-profile-section\">
+      <div class=\"app-profile-section-header set-section-header\">
+        <span class=\"set-changelog-title\">${section.emoji} ${section.title}${titleSuffix}</span>
+        <span class=\"app-accordion-arrow set-accordion-arrow\">▼</span>
+      </div>
+      <div class=\"app-profile-section-content\" style=\"display:none;padding:14px;background:var(--surface-inset);border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent);\">
+        ${contentHtml}
+      </div>
+    </div>
+  `;
+}
+
+function setupEditListeners(body) {
+  const saveBtn = document.getElementById('app-profile-save-btn');
+  if (!saveBtn) return;
+
+  const originalProfile = JSON.parse(JSON.stringify(loadedProfile));
+
+  const checkChanges = () => {
+    let hasChanges = false;
+    body.querySelectorAll('.app-profile-edit-input').forEach(input => {
+      const path = input.getAttribute('data-path');
+      const origVal = getByPath(originalProfile, path);
+      let curVal;
+      if (input.type === 'checkbox') {
+        curVal = input.checked;
+      } else {
+        const raw = input.value;
+        if (raw === '' && input.placeholder === 'null') curVal = null;
+        else curVal = raw;
+      }
+      if (String(curVal) !== String(origVal)) {
+        hasChanges = true;
+      }
+    });
+    saveBtn.style.display = hasChanges ? 'block' : 'none';
+  };
+
+  body.querySelectorAll('.app-profile-edit-input').forEach(input => {
+    input.addEventListener('input', checkChanges);
+    input.addEventListener('change', checkChanges);
+  });
+
+  saveBtn.addEventListener('click', () => saveProfileChanges(body, originalProfile));
+}
+
+// Render log entries HTML from the module-level changeLog (used by renderExplorerBody and saveProfileChanges)
+function renderLogEntriesHtml() {
+  if (changeLog.length === 0) {
+    return `<div class=\"set-changes-empty\">${COPY.profileExplorer.noChanges}</div>`;
+  }
+  const reversed = [...changeLog].reverse();
+  return reversed.map(e => {
+    const ts = e.timestamp.toLocaleTimeString('en-GB', { hour12: false });
+    const oldS = e.oldValue == null ? 'null' : String(e.oldValue);
+    const newS = e.newValue == null ? 'null' : String(e.newValue);
+    const icon = e.status === 'verified' ? '✅' : e.status === 'sent' ? '⚠️' : e.status === 'failed' ? '❌' : '🔙';
+    const color = e.status === 'verified' ? 'var(--success)' : e.status === 'sent' ? 'var(--warning)' : e.status === 'failed' ? 'var(--danger)' : 'var(--text-secondary)';
+    return `<div class=\"set-change-row\">
+      <span class=\"set-change-time\">${ts}</span>
+      <span class=\"set-change-path\">${escapeHtml(e.fieldPath)}</span>
+      <span class=\"set-change-desc\">${escapeHtml(oldS)} → <span class=\"set-change-new\">${escapeHtml(newS)}</span></span>
+      <span style=\"color:${color};\">${icon}</span>
+    </div>`;
+  }).join('');
+}
+
+// Update the log container + count in the DOM without re-rendering the whole body
+function updateLogInPlace() {
+  const logContainer = document.getElementById('app-explorer-log-container');
+  const logCount = document.getElementById('app-explorer-log-count');
+  if (logContainer) logContainer.innerHTML = renderLogEntriesHtml();
+  if (logCount) logCount.textContent = `(${changeLog.length})`;
+}
+
+async function saveProfileChanges(body, originalProfile) {
+  const saveBtn = document.getElementById('app-profile-save-btn');
+  if (!saveBtn) return;
+
+  // Collect changed fields
+  const changes = [];
+  body.querySelectorAll('.app-profile-edit-input').forEach(input => {
+    const path = input.getAttribute('data-path');
+    const origVal = getByPath(originalProfile, path);
+    let newVal;
+    if (input.type === 'checkbox') {
+      newVal = input.checked;
+    } else {
+      const raw = input.value;
+      if (raw === '' && input.placeholder === 'null') newVal = null;
+      else {
+        // Try to preserve number type
+        const num = Number(raw);
+        if (!isNaN(num) && raw.trim() !== '' && typeof origVal === 'number') newVal = num;
+        else newVal = raw;
+      }
+    }
+    if (String(newVal) !== String(origVal)) {
+      changes.push({ path, oldValue: origVal, newValue: newVal });
+    }
+  });
+
+  if (changes.length === 0) {
+    showToast(COPY.settings.noChanges, 'info');
+    return;
+  }
+
+  // Build the updated profile payload
+  const payload = JSON.parse(JSON.stringify(loadedProfile));
+  changes.forEach(c => setByPath(payload, c.path, c.newValue));
+
+  // Disable save button, show spinner
+  saveBtn.disabled = true;
+  saveBtn.textContent = `⏳ ${COPY.static.savingDots}`;
+
+  // Add entries to the module-level change log (persists across saves)
+  const newEntries = changes.map(c => ({
+    timestamp: new Date(),
+    fieldPath: c.path,
+    oldValue: c.oldValue,
+    newValue: c.newValue,
+    status: 'sent'
+  }));
+  changeLog.push(...newEntries);
+  updateLogInPlace();
+
+  try {
+    // Send the update
+    await api.updateProfileFields(payload, loadedProfileGymId);
+
+    // Re-fetch to verify
+    try {
+        const refetched = await api.getNormalizedProfile(loadedProfileGymId);
+      const refetchedProfile = refetched.raw || refetched;
+
+      // Verify each new entry and update input values in-place
+      newEntries.forEach(entry => {
+        const verifiedVal = getByPath(refetchedProfile, entry.fieldPath);
+        if (String(verifiedVal) === String(entry.newValue)) {
+          entry.status = 'verified';
+          setByPath(loadedProfile, entry.fieldPath, entry.newValue);
+          setByPath(originalProfile, entry.fieldPath, entry.newValue); // update baseline for future change detection
+        } else {
+          entry.status = 'reverted';
+          setByPath(loadedProfile, entry.fieldPath, verifiedVal);
+          setByPath(originalProfile, entry.fieldPath, verifiedVal); // update baseline to actual persisted value
+        }
+
+        // Update the input element in-place to reflect verified/reverted value
+        const input = body.querySelector(`.app-profile-edit-input[data-path=\"${CSS.escape(String(entry.fieldPath))}\"]`);
+        if (input) {
+          if (input.type === 'checkbox') {
+            input.checked = verifiedVal === true;
+          } else {
+            const pv = verifiedVal !== null && verifiedVal !== undefined ? String(verifiedVal) : '';
+            input.value = pv;
+            input.placeholder = verifiedVal === null ? 'null' : '';
+          }
+        }
+      });
+
+      updateLogInPlace();
+      showToast(COPY.settings.profileSaved, 'success');
+
+    } catch (verifyErr) {
+      // Verification fetch failed — changes were sent but not verified
+      newEntries.forEach(entry => { entry.status = 'sent'; });
+      updateLogInPlace();
+      showToast(formatCopyText(COPY.settings.profileVerificationFailed, { error: verifyErr.message }), 'warning');
+    }
+
+  } catch (err) {
+    newEntries.forEach(entry => { entry.status = 'failed'; });
+    updateLogInPlace();
+    showToast(formatCopyText(COPY.settings.profileSaveFailed, { error: err.message }), 'error');
+  }
+
+  saveBtn.disabled = false;
+  saveBtn.textContent = `💾 ${COPY.bookings.saveChanges}`;
+  saveBtn.style.display = 'none';
+}
+
+export async function openManageSpotMapsModal(options = {}) {
+  // Mobile: the manager is a page that stays open beneath its editor child. Re-entry
+  // (after a save or remove) refreshes the list in place instead of closing/reopening,
+  // which would fight the history stack.
+  if (isMobile() && activeSpotManager?.overlay.isConnected) return activeSpotManager.reload();
+  closeSpotMapManager?.();
+  activeSpotEditorOverlay?.remove();
+  activeSpotEditorOverlay = null;
+  const zIndex = options.zIndex ?? 2000;
+  const onDone = options.onDone ?? null;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'app-manage-spotmaps-overlay';
+  overlay.className = 'app-ovl';
+  overlay.style.cssText = `position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:${zIndex};display:flex;align-items:center;justify-content:center;padding:16px;`;
+
+  const modal = document.createElement('div');
+  modal.className = 'app-ovl-card';
+  modal.style.cssText = 'background:var(--bg);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);border-radius:16px;width:100%;max-width:500px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;';
+
+  const header = document.createElement('div');
+  header.className = 'app-ovl-header';
+  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;';
+  header.innerHTML = `<h3 class=\"set-modal-title\" data-nav-title>${COPY.spotMaps.preferredSpotMaps}</h3><button class=\"set-modal-close\" data-nav-close id=\"manage-modal-close\" aria-label=\"${COPY.credits.closeModal}\">×</button>`;
+
+  const body = document.createElement('div');
+  body.className = 'app-ovl-body';
+  body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
+  body.innerHTML = renderCardSkeletons(4, COPY.spotMaps.loadingStudios);
+
+  const loadingHtml = body.innerHTML;
+  modal.appendChild(header);
+  modal.appendChild(body);
+
+  const refreshOnGymChange = () => {
+    if (isMobile() && activeSpotManager?.overlay === overlay) { load(); return; }
+    activeSpotEditorOverlay?.remove();
+    activeSpotEditorOverlay = null;
+    close();
+    openManageSpotMapsModal(options);
+  };
+  let loadGeneration = 0;
+  let waitingTimer;
+  const retryTimers = new Set();
+  const cleanup = () => {
+    loadGeneration++;
+    clearTimeout(waitingTimer);
+    retryTimers.forEach(clearTimeout);
+    retryTimers.clear();
+    window.removeEventListener('app:gyms-changed', refreshOnGymChange);
+    if (closeSpotMapManager === close) closeSpotMapManager = null;
+    if (activeSpotManager?.overlay === overlay) activeSpotManager = null;
+  };
+  const close = () => {
+    if (closeNavPage(overlay)) return; // mobile: pops the page; onClose below cleans up
+    cleanup();
+    overlay.remove();
+  };
+  closeSpotMapManager = close;
+
+  if (onDone) {
+    const footer = document.createElement('div');
+    footer.style.cssText = 'padding:12px 16px;border-top:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;';
+    const doneBtn = document.createElement('button');
+    doneBtn.className = 'app-btn-primary';
+    doneBtn.style.cssText = 'width:100%;';
+    doneBtn.textContent = COPY.settings.done;
+    doneBtn.addEventListener('click', () => { close(); onDone(); });
+    footer.appendChild(doneBtn);
+    modal.appendChild(footer);
+  }
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  header.querySelector('#manage-modal-close').onclick = close;
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  window.addEventListener('app:gyms-changed', refreshOnGymChange);
+  // Mobile page (X). Drill-down editor children are opened on top of it.
+  openNavPage(overlay, { id: 'spot-maps', remove: true, onClose: cleanup });
+  if (isMobile()) activeSpotManager = { overlay, reload: () => load() };
+
+  const load = async () => {
+    const generation = ++loadGeneration;
+    clearTimeout(waitingTimer);
+    retryTimers.forEach(clearTimeout);
+    retryTimers.clear();
+    body.innerHTML = `<p class=\"set-studios-wait\" role=\"status\" aria-live=\"polite\" hidden></p><div class=\"set-studios-gyms\">${loadingHtml}</div>`;
+    const waiting = body.querySelector('.set-studios-wait');
+    const list = body.querySelector('.set-studios-gyms');
+    const current = () => generation === loadGeneration && overlay.isConnected;
+    waitingTimer = setTimeout(() => {
+      if (!current()) return;
+      waiting.textContent = COPY.spotMaps.stillWaiting;
+      waiting.hidden = false;
+    }, 5000);
+    try {
+      const linkedRes = await api.getMyGyms();
+      if (!current()) return;
+      const linkedGyms = (linkedRes.gyms || linkedRes || []).filter(gym =>
+        gym.account_enabled !== 0 && gym.account_enabled !== false &&
+        (!options.gymId || (gym.gym_id || gym.gymId || gym.id) === options.gymId));
+      options.gymNames = Object.fromEntries(linkedGyms.map(gym => [
+        gym.gym_id || gym.gymId || gym.id, gym.gym_name || gym.name || gym.id,
+      ]));
+      list.innerHTML = '';
+      if (!linkedGyms.length) list.innerHTML = `<p class=\"app-card-desc\">${COPY.onboarding.connectGymForSpotMaps}</p>`;
+      const sections = new Map(linkedGyms.map(gym => {
+        const gymId = gym.gym_id || gym.gymId || gym.id;
+        const section = document.createElement('section');
+        section.className = 'set-studios-gym';
+        section.dataset.gymId = gymId;
+        section.setAttribute('aria-label', options.gymNames[gymId]);
+        section.innerHTML = `<h4>${escapeHtml(options.gymNames[gymId])}</h4>${loadingHtml}`;
+        list.appendChild(section);
+        return [gymId, section];
+      }));
+      const renderResult = ({ gymId, metadata, preferences, error }) => {
+        if (!current()) return;
+        const section = sections.get(gymId);
+        if (error) {
+          section.innerHTML = `<h4>${escapeHtml(options.gymNames[gymId])}</h4><p class=\"app-card-error\" role=\"status\">${formatCopyText(COPY.settings.studiosLoadFailed, { error: escapeHtml(error.message) })}</p><button type=\"button\" class=\"app-btn\">${COPY.teams.retry}</button>`;
+          section.querySelector('button').addEventListener('click', async () => {
+            section.innerHTML = loadingHtml;
+            const timer = setTimeout(() => {
+              if (current()) section.insertAdjacentHTML('afterbegin', `<p role=\"status\">${COPY.spotMaps.stillWaiting}</p>`);
+            }, 5000);
+            retryTimers.add(timer);
+            await loadSpotMapGyms(linkedGyms.filter(gym => (gym.gym_id || gym.gymId || gym.id) === gymId), api, { onResult: renderResult });
+            clearTimeout(timer);
+            retryTimers.delete(timer);
+          });
+          return;
+        }
+        renderManageSpotMapsModal(preferences, metadata.studios || [], metadata.locations || [], section, close, null, { ...options, gymId });
+      };
+      await loadSpotMapGyms(linkedGyms, api, { onResult: renderResult });
+    } catch (error) {
+      if (current()) {
+        list.innerHTML = `<p class=\"app-card-error\" role=\"status\">${formatCopyText(COPY.settings.studiosLoadFailed, { error: escapeHtml(error.message) })}</p><button type=\"button\" class=\"app-btn\">${COPY.teams.retry}</button>`;
+        list.querySelector('button').addEventListener('click', () => load());
+      }
+    } finally {
+      if (current()) { clearTimeout(waitingTimer); waiting.hidden = true; waiting.textContent = ''; }
+    }
+  };
+  load();
+}
+
+function renderManageSpotMapsModal(prefs, studios, locations, container, onClose, activeStudioIds, options = {}) {
+  const locMap = {};
+  locations.forEach(loc => {
+    locMap[String(loc.id)] = loc.name;
+    if (loc.gymId) locMap[`${loc.gymId}:${loc.id}`] = loc.name;
+  });
+
+  const hasActiveFilter = activeStudioIds && activeStudioIds.size > 0;
+
+  const grouped = new Map();
+  studios.forEach(studio => {
+    // `hasLayout` on the normalized shape; the raw CodexFit list embedded the
+    // layout itself. MarianaTek has no studios endpoint to embed one on, so it
+    // derives this from whether the class is pick-a-spot.
+    const hasMap = studio.hasLayout ?? (studio.layout?.slots?.length > 0);
+    if (!hasMap) return; // only studios with seat maps
+    if (hasActiveFilter && !activeStudioIds.has(String(studio.id))) return; // exclude defunct studios
+    const locId = studio.locationId ?? studio.location_id;
+    const locName = (studio.gymId && locMap[`${studio.gymId}:${locId}`]) || locMap[String(locId)] || COPY.static.unknownLocation;
+    const gymId = studio.gymId || options.gymId || '';
+    const gymName = options.gymNames?.[gymId] || studio.gymName || gymId || COPY.gymSettings.genericGym;
+    const key = `${gymId}:${locName}`;
+    if (!grouped.has(key)) grouped.set(key, { gymId, gymName, locName, studios: [] });
+    grouped.get(key).studios.push(studio);
+  });
+
+  const sortedGroups = [...grouped.values()].sort((a, b) => a.gymName.localeCompare(b.gymName) || a.locName.localeCompare(b.locName));
+  container.innerHTML = '';
+
+  if (sortedGroups.length === 0) {
+    const noData = studios.length === 0;
+    container.innerHTML = `<div class=\"set-seatmaps-empty\"><div class=\"set-seatmaps-emoji\">🗺️</div><p class=\"set-seatmaps-title\">${noData ? COPY.spotMaps.noTimetableData : COPY.spotMaps.noSeatMaps}</p><p class=\"set-seatmaps-help\">${noData ? COPY.spotMaps.loadTimetableFirst : COPY.spotMaps.noSeatLayouts}</p></div>`;
+    return;
+  }
+
+  let previousGym = null;
+  sortedGroups.forEach(({ gymId, gymName, locName, studios: locationStudios }) => {
+    const thisGym = `${gymId}:${gymName}`;
+    if (thisGym !== previousGym) {
+      const gymHeader = document.createElement('h4');
+      gymHeader.className = 'app-spm-gym';
+      // Logo is shown on mobile only (CSS); the name stays for desktop and screen readers.
+      gymHeader.innerHTML = `${gymId ? gymLogoBanner(gymId) : ''}<span class=\"app-spm-gym-name\"></span>`;
+      gymHeader.querySelector('.app-spm-gym-name').textContent = gymName;
+      gymHeader.style.cssText = 'margin:8px 0 2px;font-size:14px;font-weight:700;color:var(--text);';
+      container.appendChild(gymHeader);
+      previousGym = thisGym;
+    }
+    const locSection = document.createElement('div');
+    locSection.style.cssText = 'margin:0 0 14px 12px;border-left:2px solid var(--border);padding-left:10px;';
+
+    const locHeader = document.createElement('div');
+    locHeader.className = 'app-spm-loc';
+    locHeader.style.cssText = 'font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;padding:8px 0 6px 0;cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;';
+    const chevron = document.createElement('span');
+    chevron.textContent = '▼';
+    chevron.style.cssText = 'transition:transform 0.2s;';
+    locHeader.innerHTML = `<span>${escapeHtml(locName)}</span>`;
+    locHeader.appendChild(chevron);
+
+    const studioList = document.createElement('div');
+    studioList.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
+
+    locationStudios.forEach(studio => {
+      const studioPrefs = (studio.gymId && prefs[`${studio.gymId}:${studio.id}`]) || prefs[studio.id];
+      const hasPrefs = studioPrefs && (studioPrefs.preferredSlots?.length > 0 || studioPrefs.preferredRows?.length > 0);
+
+      const row = document.createElement('div');
+      row.className = 'app-spm-row';
+      row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:color-mix(in srgb, var(--text) 3%, transparent);border:1px solid color-mix(in srgb, var(--text) 6%, transparent);border-radius:8px;';
+
+      const info = document.createElement('div');
+      info.style.cssText = 'flex:1;';
+
+      const name = document.createElement('div');
+      name.className = 'app-spm-name';
+      name.style.cssText = 'font-size:13px;font-weight:500;color:var(--text);';
+      name.textContent = studio.name;
+      info.appendChild(name);
+
+      if (hasPrefs) {
+        const detail = document.createElement('div');
+        detail.style.cssText = 'font-size:12px;color:var(--text-tertiary);margin-top:2px;';
+        const parts = [];
+        if (studioPrefs.preferredSlots?.length > 0) parts.push(formatCopyText(COPY.spotMaps.preferredSpotsCount, { count: studioPrefs.preferredSlots.length, plural: studioPrefs.preferredSlots.length > 1 ? 's' : '' }));
+        if (studioPrefs.preferredRows?.length > 0) parts.push(formatCopyText(COPY.spotMaps.preferredRowsCount, { count: studioPrefs.preferredRows.length, plural: studioPrefs.preferredRows.length > 1 ? 's' : '' }));
+        detail.textContent = parts.join(' · ');
+        info.appendChild(detail);
+      }
+      row.appendChild(info);
+
+      const btns = document.createElement('div');
+      btns.style.cssText = 'display:flex;gap:6px;';
+
+      const editBtn = document.createElement('button');
+      editBtn.className = 'app-btn-mini';
+      editBtn.style.cssText = 'font-size:12px;padding:4px 10px;';
+      editBtn.textContent = hasPrefs ? COPY.spotMaps.editSpots : COPY.spotMaps.chooseSpots;
+      editBtn.addEventListener('click', () => {
+        // Desktop: transition between modals instead of stacking the editor over its
+        // manager, reopening the manager if the editor is dismissed without save.
+        // Mobile: the manager page stays open beneath; the editor is a Back-arrow
+        // child, and a save refreshes the list in place.
+        if (isMobile()) {
+          openSpotSetup({
+            event: { gymId: studio.gymId, studioId: studio.id, studioName: studio.name, locationName: locName },
+            className: null,
+            initialStep: hasPrefs ? 'editor' : 'intro',
+            initialPrefs: studioPrefs,
+            rowGroups: studio.rowGroups === true,
+            // The listed studio already carries its own policy; the timetable's metadata may not be loaded yet (cold Settings).
+            mobileRotation: studio.mobileRotation ?? mobileRotationForStudio(studio.id, studio.gymId), front: studio.front ?? frontForStudio(studio.id, studio.gymId),
+            onSaved: () => {},
+            onContinue: (pageEl) => {
+              if (closeNavPage(pageEl)) openManageSpotMapsModal(options);
+            },
+          });
+          return;
+        }
+        close();
+        openStudioFloorPlanEditor(studio.id, studio.name, () => {
+          openManageSpotMapsModal(options);
+        }, { ...options, gymId: studio.gymId, rowGroups: studio.rowGroups === true, mobileRotation: studio.mobileRotation, front: studio.front, onDismiss: () => openManageSpotMapsModal(options) });
+      });
+      btns.appendChild(editBtn);
+
+      if (hasPrefs) {
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'app-btn-mini';
+        removeBtn.style.cssText = 'font-size:12px;padding:4px 10px;background:color-mix(in srgb, var(--danger) 10%, transparent);border-color:color-mix(in srgb, var(--danger) 25%, transparent);color:var(--danger);';
+        removeBtn.textContent = COPY.spotMaps.remove;
+        removeBtn.addEventListener('click', async () => {
+          // In-app two-tap confirm (same pattern as Unlink gym): first tap arms the button and shows what depends
+          // on the map inline; second tap removes. Disarms after 6s.
+          if (removeBtn.dataset.armed !== '1') {
+            removeBtn.disabled = true;
+            let usage = null;
+            try { usage = await api.getStudioMapUsage(studio.id, studio.gymId || options.gymId); } catch (_) { /* warn-only; removal still allowed */ }
+            removeBtn.disabled = false;
+            const warning = mapRemovalWarning(usage);
+            let note = row.querySelector('.app-spm-remove-warning');
+            if (warning) {
+              if (!note) {
+                note = document.createElement('div');
+                note.className = 'app-spm-remove-warning';
+                note.setAttribute('role', 'alert');
+                note.style.cssText = 'flex-basis:100%;width:100%;font-size:12px;line-height:1.4;color:var(--danger);margin-top:6px;';
+                row.style.flexWrap = 'wrap';
+                row.appendChild(note);
+              }
+              note.textContent = warning;
+            }
+            removeBtn.dataset.armed = '1';
+            removeBtn.textContent = COPY.settings.confirmRemove;
+            clearTimeout(removeBtn._armTimer);
+            removeBtn._armTimer = setTimeout(() => { delete removeBtn.dataset.armed; removeBtn.textContent = COPY.spotMaps.remove; note?.remove(); }, 6000);
+            return;
+          }
+          clearTimeout(removeBtn._armTimer);
+          removeBtn.disabled = true;
+          removeBtn.textContent = COPY.spotMaps.removing;
+          try {
+            await api.updateStudioPreferences(studio.id, { preferredSlots: [], preferredRows: [] }, studio.gymId || options.gymId);
+            showToast(COPY.settings.defaultsRemoved, 'success');
+            if (!isMobile()) onClose();
+            openManageSpotMapsModal(options);
+          } catch (err) {
+            showToast(formatCopyText(COPY.settings.actionFailed, { error: err.message }), 'error');
+            removeBtn.disabled = false;
+            removeBtn.textContent = COPY.spotMaps.remove;
+          }
+        });
+        btns.appendChild(removeBtn);
+      }
+
+      row.appendChild(btns);
+      studioList.appendChild(row);
+    });
+
+    // Collapsible toggle — all sections start closed
+    studioList.style.display = 'none';
+    chevron.style.transform = 'rotate(-90deg)';
+
+    locHeader.addEventListener('click', () => {
+      const shown = studioList.style.display !== 'none';
+      studioList.style.display = shown ? 'none' : 'flex';
+      chevron.style.transform = shown ? 'rotate(-90deg)' : '';
+    });
+
+    locSection.appendChild(locHeader);
+    locSection.appendChild(studioList);
+    container.appendChild(locSection);
+  });
+}
+
+
+export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, options = {}) {
+  if (activeSpotEditorOverlay?.isConnected) return;
+  // Build modal overlay
+  const zIndex = (options.zIndex ?? 2000) + 1;
+  const overlay = document.createElement('div');
+  overlay.id = 'app-spotmap-editor-overlay';
+  overlay.className = 'app-ovl';
+  overlay.style.cssText = `position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:${zIndex};display:flex;align-items:center;justify-content:center;padding:16px;`;
+
+  const modal = document.createElement('div');
+  modal.className = 'app-ovl-card';
+  modal.style.cssText = 'background:var(--bg);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);border-radius:16px;width:100%;max-width:560px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;';
+
+  const header = document.createElement('div');
+  header.className = 'app-ovl-header';
+  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;';
+  header.innerHTML = `<div data-nav-title><div class=\"set-editor-title\">${COPY.spotMaps.spotMap}</div><div class=\"set-editor-subtitle\">${escapeHtml(studioName)}</div></div><button class=\"set-modal-close\" data-nav-close id=\"spot-editor-close\" aria-label=\"${COPY.credits.closeModal}\">×</button>`;
+
+  const body = document.createElement('div');
+  body.className = 'app-ovl-body';
+  body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
+  body.innerHTML = renderFloorPlanSkeleton(COPY.spotMaps.loadingFloorPlan);
+
+  modal.appendChild(header);
+  modal.appendChild(body);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  let savedFlag = false;
+  const close = (dismissed = false) => {
+    if (closeNavPage(overlay)) return; // mobile: pops the page; onClose below tears down
+    overlay.remove();
+    if (activeSpotEditorOverlay === overlay) activeSpotEditorOverlay = null;
+    if (dismissed) options.onDismiss?.();
+  };
+  activeSpotEditorOverlay = overlay;
+  // Drill-down page on mobile (Back arrow). Unsaved map changes ask before discarding.
+  openNavPage(overlay, {
+    id: 'spot-editor', back: true, remove: true,
+    canClose: () => !body.__isDirty?.() || confirm(COPY.bookingEditor.discardChanges),
+    onClose: () => {
+      if (activeSpotEditorOverlay === overlay) activeSpotEditorOverlay = null;
+      if (!savedFlag) options.onDismiss?.();
+    },
+  });
+  header.querySelector('#spot-editor-close').onclick = () => close(true);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(true); });
+
+  try {
+    // WP-C5 (Q12 follow-up): reads the new event-independent normalized
+    // studio-layout endpoint instead of guessing at an unconfirmed singular
+    // `GET /studios/{id}` (never actually documented — see
+    // providers/codexfit.js fetchStudioLayout's doc comment). `layoutSlots`
+    // is now NormalizedSlot[] directly (its `.id`/`.x`/`.y`/`.label` fields
+    // already match what `renderStudioFloorPlan` expects) — this is the one
+    // C5 call site where passing normalized shapes straight into the renderer
+    // is safe, since (unlike the booking-modal sites) there's no session
+    // cache mixing raw- and normalized-shaped slots to keep consistent.
+    // `layoutObjects` (podium markers) now comes back normalized from the same
+    // endpoint, so this standalone Manage Maps entry point draws the same floor
+    // fixtures as the event-context booking modals do.
+    const [{ slots: layoutSlots, objects: layoutObjects }, allPrefs] = await Promise.all([
+      api.getStudioLayout(studioId, options.gymId),
+      api.getStudioPreferences(options.gymId)
+    ]);
+    const existing = (options.gymId && allPrefs[`${options.gymId}:${studioId}`]) || allPrefs[studioId] || {};
+
+    const onSave = async (slots, rows) => {
+      try {
+        await api.updateStudioPreferences(studioId, { preferredSlots: slots, preferredRows: rows }, options.gymId);
+        showToast(formatCopyText(COPY.settings.spotMapSaved, { studio: studioName }), 'success');
+        savedFlag = true;
+        close();
+        if (onSaved) onSaved(slots, rows);
+      } catch (err) {
+        showToast(formatCopyText(COPY.settings.spotMapSaveFailed, { error: err.message }), 'error');
+      }
+    };
+
+    if (layoutSlots.length === 0) {
+      body.innerHTML = `
+        <div class=\"set-floor-empty\">
+          <div class=\"set-seatmaps-emoji\">🗺️</div>
+          <p class=\"set-floor-title\">${COPY.spotMaps.noFloorMapAvailable}</p>
+          <p class=\"set-floor-help\">${COPY.spotMaps.anySpotHelp}</p>
+          <button class=\"app-btn set-floor-save\" id=\"spot-save-any\">${COPY.spotMaps.saveAnySpot}</button>
+        </div>
+      `;
+      body.querySelector('#spot-save-any').onclick = () => onSave([], existing.preferredRows || []);
+      return;
+    }
+
+    renderStudioFloorPlan(body, layoutSlots, existing.preferredSlots || [], existing.preferredRows || [], onSave, {
+      layoutObjects,
+      rowGroups: options.rowGroups ?? rowGroupsForStudio(studioId, options.gymId),
+      mobileRotation: options.mobileRotation ?? mobileRotationForStudio(studioId, options.gymId), front: options.front ?? frontForStudio(studioId, options.gymId),
+      bannerHtml: `<div class=\"set-floor-banner\">${formatCopyText(COPY.spotMaps.sharedSpotMapHtml, { studioName: escapeHtml(studioName) })}</div>`
+    });
+  } catch (err) {
+    body.innerHTML = `<div class=\"app-card-error set-studios-error\">${formatCopyText(COPY.settings.floorPlanLoadFailed, { error: escapeHtml(err.message) })}</div>`;
+  }
+}
+
+function setupSettingsNavigation() {
+  const layout = document.getElementById('app-settings-layout-wrapper');
+  if (!layout || layout.dataset.navListener) return;
+  layout.dataset.navListener = 'true';
+
+  // Queried LIVE on every activation, not cached here: per-gym entries and panes
+  // are created asynchronously by renderGymsCard after this runs, and a snapshot
+  // taken at setup time would never see them (clicking a gym would do nothing).
+  const menuItems = () => layout.querySelectorAll('.app-settings-menu-item');
+  const panes = () => layout.querySelectorAll('.app-settings-section-pane');
+  const sectionTitle = document.getElementById('app-settings-section-title');
+  const backBtn = document.getElementById('app-settings-back-btn');
+
+  // U4-19: the initial section comes from the path (/settings/:section). Legacy #hash links
+  // were already rewritten to paths at boot (router.migrateLegacyHash).
+  const routeSection = currentRoute().section || '';
+  let initialSection = 'account';
+  if (['general', 'account', 'gyms', 'about', 'calendar', 'notifications', 'privacy', 'favourites'].includes(routeSection)) initialSection = routeSection;
+
+  let navHistory = [];
+  let currentSection = initialSection;
+
+  const activateSection = (sectionId, pushHistory = true) => {
+    if (pushHistory && currentSection && currentSection !== sectionId) {
+      navHistory.push(currentSection);
+    }
+    if (sectionId === 'about' && (currentSection !== 'about' || !layout.dataset.aboutMascotChosen)) {
+      const image = document.querySelector('.app-about-guide img');
+      if (image) {
+        const assets = Object.values(MASCOT);
+        image.onerror = () => { image.onerror = null; image.src = MASCOT.referee; };
+        image.src = assets[Math.floor(Math.random() * assets.length)];
+        layout.dataset.aboutMascotChosen = 'true';
+      }
+    }
+    currentSection = sectionId;
+
+    menuItems().forEach(item => {
+      const match = item.getAttribute('data-settings-section') === sectionId;
+      item.classList.toggle('active', match);
+      if (match && sectionTitle) {
+        sectionTitle.textContent = item.querySelector('.menu-item-text')?.textContent || sectionId;
+      }
+    });
+
+    panes().forEach(pane => {
+      const paneId = `app-settings-pane-${sectionId}`;
+      pane.classList.toggle('active', pane.id === paneId);
+    });
+
+    // F-12: the Favourites pane is painted from live caches each time it is shown.
+    if (sectionId === 'favourites') renderFavouritesPane();
+    // T-1: Settings -> Privacy, \"Who can see my classes\" (live from GET /api/privacy/sharing).
+    if (sectionId === 'privacy') import('./teams-privacy.js').then((m) => m.renderPrivacyPane()).catch(() => {});
+
+    // On mobile, drill down
+    layout.classList.add('show-pane');
+  };
+
+  // U4-19: keep /settings/:section in step with the visible pane. Initial activation
+  // never touches the URL; user clicks push an entry, programmatic selection replaces.
+  const syncSectionUrl = (sectionId, replace) => {
+    if (document.getElementById('app-panel-settings')?.style.display === 'none') return; // not the visible tab
+    navigate(pathFor({ tab: 'settings', section: sectionId }), { replace });
+  };
+
+  // ONE delegated listener on the menu, so entries added later (the per-gym
+  // ones) work without re-binding.
+  layout.addEventListener('click', (event) => {
+    const item = event.target.closest('.app-settings-menu-item');
+    if (!item || !layout.contains(item)) return;
+    navHistory = [];
+    const id = item.getAttribute('data-settings-section');
+    activateSection(id, false);
+    syncSectionUrl(id, false);
+  });
+  // Exposed so renderGymsCard can select a gym's pane after creating it.
+  layout.__activateSettingsSection = (id, { sync = true, history = true } = {}) => { activateSection(id, history); if (sync) syncSectionUrl(id, true); };
+  // Back/forward: apply the section (or the bare menu on mobile) without touching history.
+  layout.__applySettingsRoute = (section) => {
+    navHistory = []; // URL navigation owns its own history; do not accumulate pane hops.
+    if (!section) { layout.classList.remove('show-pane'); return; }
+    if (section.startsWith('gym-')) { openGymSettings(section.slice(4), true); return; }
+    activateSection(section, false);
+  };
+
+  layout.querySelector('[data-about-account]')?.addEventListener('click', () => { activateSection('account'); syncSectionUrl('account', false); });
+
+  // Attach mobile back button listener
+  if (backBtn) {
+    backBtn.addEventListener('click', () => {
+      if (navHistory.length > 0) {
+        const prev = navHistory.pop();
+        activateSection(prev, false);
+        syncSectionUrl(prev, false);
+      } else {
+        layout.classList.remove('show-pane');
+        navigate('/settings', { replace: true });
+      }
+    });
+  }
+
+  // iOS-style left-edge swipe back (pane -> menu). Mobile only; reuses the back button's
+  // handler for the actual navigation. Passive listeners: horizontal drags are claimed via
+  // `touch-action: pan-y` on the content, so vertical scrolling is untouched. Requires
+  // horizontal dominance and a distance/velocity threshold, and never starts while the
+  // shared scroll clock (header transition) is busy.
+  const content = layout.querySelector('.app-settings-content');
+  if (content && backBtn) {
+    const EDGE = 28, COMMIT = 90;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let sx = 0, sy = 0, st = 0, dx = 0, tracking = false, locked = false;
+    const reset = (animate) => {
+      content.style.transition = animate && !reduce.matches ? 'transform .22s ease' : 'none';
+      content.style.transform = '';
+    };
+    content.addEventListener('touchstart', (e) => {
+      tracking = false; locked = false;
+      if (!window.matchMedia('(max-width: 768px)').matches || !layout.classList.contains('show-pane')) return;
+      if (e.touches.length !== 1 || isScrollBusy()) return;
+      const t = e.touches[0];
+      if (t.clientX > EDGE) return;               // must begin at the left edge
+      sx = t.clientX; sy = t.clientY; st = performance.now(); dx = 0; tracking = true;
+      content.style.transition = 'none';
+    }, { passive: true });
+    content.addEventListener('touchmove', (e) => {
+      if (!tracking) return;
+      const t = e.touches[0];
+      const mx = t.clientX - sx, my = t.clientY - sy;
+      if (!locked) {
+        if (Math.abs(my) > 10 && Math.abs(my) > Math.abs(mx)) { tracking = false; reset(false); return; } // vertical scroll wins
+        if (mx > 10 && mx > Math.abs(my) * 1.5) locked = true; else return;                                // horizontal dominance
+      }
+      dx = Math.max(0, mx);
+      content.style.transform = `translateX(${dx}px)`;
+    }, { passive: true });
+    const end = () => {
+      if (!tracking) return;
+      tracking = false;
+      const fast = dx / Math.max(1, performance.now() - st) > 0.5; // px/ms
+      if (locked && (dx > COMMIT || (fast && dx > 30))) {
+        if (reduce.matches) { reset(false); backBtn.click(); return; }
+        content.style.transition = 'transform .18s ease';
+        content.style.transform = `translateX(${window.innerWidth}px)`;
+        setTimeout(() => { backBtn.click(); reset(false); }, 180);
+      } else {
+        reset(true);
+      }
+      locked = false;
+    };
+    content.addEventListener('touchend', end, { passive: true });
+    content.addEventListener('touchcancel', end, { passive: true });
+  }
+
+  // Set initial state
+  activateSection(initialSection);
+  // Remove show-pane class initially so list displays first on mobile,
+  // EXCEPT if the URL explicitly named a section (/settings/:section)
+  if (!routeSection) {
+    layout.classList.remove('show-pane');
+  }
+}
+
+
+// Local escape helper — gym names come from gyms.config.js (trusted), but the
+// email/status/provider strings rendered below can originate from a provider
+// response, and AGENTS.md flags unescaped innerHTML as a known weak spot. Cheap
+// to be correct here rather than add to the pile.
+
+// ═══════════════════════════════════════════════════════════════════════
+//  YOUR GYMS — link/unlink and per-gym settings. NO SWITCHER.
+//
+//  An app account holds N gym credentials (Decision D4), and the app
+//  presents ONE unified view: the timetable, bookings, waitlists and queues show
+//  every linked gym at once, and every row reads and writes through its own
+//  `gymId`. There is therefore nothing for a user to switch BETWEEN, and a
+//  \"switch\" control actively misleads — it implies the other gym's classes are
+//  hidden until you flip something, which they are not.
+//
+//  The server still resolves an active gym (db.resolveActiveGymId) because
+//  background cron has no request context and some single-gym paths need a
+//  default. That is an implementation detail and must stay invisible: do not
+//  surface it, do not add a switch button, and do not make any user-visible
+//  behaviour depend on which gym happens to be persisted.
+// ═══════════════════════════════════════════════════════════════════════
+
+function gymModal() {
+  const modal = document.getElementById('app-gym-modal');
+  const body = document.getElementById('app-gym-modal-body');
+  const title = document.getElementById('app-gym-modal-title');
+  const close = () => {
+    body.querySelectorAll('#app-link-gym-password, #app-link-gym-email').forEach(input => { input.value = ''; });
+    // Mobile page: pop its history entry (guard skipped, the work is done). Desktop: as before.
+    if (closeNavPage(modal)) return;
+    modal.classList.remove('show');
+    setTimeout(() => { modal.style.display = 'none'; }, 300);
+  };
+  document.getElementById('app-gym-modal-close').onclick = close;
+  modal.querySelector('.app-modal-overlay').onclick = close;
+  // navOpts: { id, back, canClose } for the mobile page shell (ui/modal-nav.js).
+  const open = (navOpts = {}) => {
+    openNavPage(modal, { focusField: 'input, select', ...navOpts });
+  };
+  return { modal, body, title, open, close };
+}
+
+// NOTE: `applyGymSwitch()` used to live here. It is gone with the switcher —
+// see the section header above. Every cache key is gym-scoped (WP-G), so no
+// cache clearing is needed on any gym-related action; do not re-add a \"clear
+// everything\" helper to be safe, because that was the mechanism the old design
+// leaned on and it was only ever correct while every caller remembered it.
+
+// ── Your Gyms: render once, then update in place (U1-7) ─────────────────────
+//
+// The linked-gym list is already known at boot (`loadGymContext()` fetches it
+// before Settings is bound), so the sidebar entries, per-gym panes and the
+// connection table are painted SYNCHRONOUSLY from that, together with the rest of
+// the menu. `GET /api/my-gyms` then only ENRICHES what is on screen (health,
+// last-authenticated) by updating the same elements — rows are keyed by gym id
+// and never rebuilt. See gym-connections.js for why the previous
+// clear-then-append-in-a-loop render duplicated a gym when two renders overlapped.
+const gymsRenderGuard = createRenderGuard();
+let connByGym = new Map();
+
+/** The connection table's static shell, built once per list host. */
+function ensureConnTable(list) {
+  if (list.querySelector('.app-gym-conn-table')) return list.querySelector('.app-gym-conn-table');
+  list.innerHTML = `
+    <div class=\"app-card-desc app-gym-conn-empty set-gyms-empty\" hidden>${COPY.settings.noGymsLinked}</div>
+    <div class=\"app-gym-conn-table\" role=\"table\" aria-label=\"${COPY.settings.gymConnections}\">
+      <div class=\"app-gym-conn-head\" role=\"row\">
+        <span role=\"columnheader\">${COPY.settings.gym}</span>
+        <span role=\"columnheader\">${COPY.settings.connection}</span>
+      <span role=\"columnheader\">${COPY.settings.lastAuthenticated}</span>
+        <span role=\"columnheader\"><span class=\"u-visually-hidden\">${COPY.settings.actions}</span></span>
+      </div>
+    </div>`;
+  return list.querySelector('.app-gym-conn-table');
+}
+
+export function connRowCreate(g) {
+  const row = document.createElement('div');
+  row.className = 'app-gym-conn-row';
+  row.setAttribute('role', 'row');
+  const id = escapeHtml(g.gym_id);
+  row.innerHTML = `
+    <span role=\"cell\" class=\"app-gym-conn-name\"><span class=\"app-gym-conn-logo\"></span><small></small></span>
+    <span role=\"cell\" class=\"app-gym-conn-health\"><span class=\"app-gym-conn-dot\" aria-hidden=\"true\"></span><span class=\"app-gym-conn-label\"></span></span>
+    <span role=\"cell\" class=\"app-gym-conn-when\"></span>
+    <span role=\"cell\" class=\"app-gym-conn-actions\">
+      <button class=\"app-btn app-btn-mini\" data-reauth-gym=\"${id}\">${COPY.settings.reauthenticate}</button>
+      <button class=\"app-btn app-btn-mini variant-danger\" data-unlink-gym=\"${id}\">${COPY.settings.unlink}</button>
+    </span>`;
+  return row;
+}
+
+export function connRowUpdate(row, g) {
+  const health = connectionHealth(g);
+  // Full logo; rebuilt when the resolved brand changes (a chip built before the catalogue loads is the neutral placeholder).
+  const logo = row.querySelector('.app-gym-conn-logo');
+  const logoKey = `${g.gym_id}:${gymBrand(g.gym_id).id}`;
+  if (logo.getAttribute('data-mark') !== logoKey) {
+    logo.setAttribute('data-mark', logoKey);
+    logo.innerHTML = gymLogoBanner(g.gym_id, { settings: true });
+  }
+  const gymName = g.gym_name || g.gym_id;
+  logo.setAttribute('title', gymName);
+  logo.setAttribute('aria-label', gymName);
+  const img = logo.querySelector('img');
+  if (img) img.setAttribute('alt', gymName);
+  const svg = logo.querySelector('svg');
+  if (svg) svg.setAttribute('aria-label', gymName);
+
+  const strong = row.querySelector('.app-gym-conn-name strong');
+  if (strong) strong.remove();
+
+  row.querySelector('.app-gym-conn-name small').textContent = g.gym_email || g.provider || '';
+  const h = row.querySelector('.app-gym-conn-health');
+  h.className = `app-gym-conn-health ${health.cls}`;
+  h.querySelector('.app-gym-conn-dot').textContent = health.icon;
+  h.querySelector('.app-gym-conn-label').textContent = health.label;
+  row.querySelector('.app-gym-conn-when').textContent = lastAuthLabel(g.last_authenticated_at);
+}
+
+function gymNavCreate() {
+  const item = document.createElement('button');
+  item.className = 'app-settings-menu-item app-settings-menu-sub';
+  // U1-8: the gym's own 1:1 mark leads the entry (in place of a generic icon).
+  item.innerHTML = '<span class=\"menu-item-lead\"></span><span class=\"menu-item-text\"></span>';
+  return item;
+}
+
+function gymNavUpdate(item, g) {
+  const lead = item.querySelector('.menu-item-lead');
+  // Keyed on the RESOLVED brand too: a chip built before the gym catalogue loaded is the neutral grey
+  // placeholder, and must be rebuilt once the real brand is known.
+  const markKey = `${g.gym_id}:${gymBrand(g.gym_id).id}`;
+  if (lead.getAttribute('data-mark') !== markKey) {
+    lead.setAttribute('data-mark', markKey);
+    lead.innerHTML = gymSquareChip(g.gym_id);
+  }
+  item.setAttribute('data-settings-section', `gym-${g.gym_id}`);
+  item.setAttribute('data-gym-nav', g.gym_id);
+  item.querySelector('.menu-item-text').textContent = g.gym_name || g.gym_id;
+  const flag = item.querySelector('.app-menu-item-flag');
+  const needs = g.status === 'needs_relogin';
+  if (needs && !flag) {
+    const f = document.createElement('span');
+    f.className = 'app-menu-item-flag';
+    f.title = COPY.settings.reconnectNeeded;
+    f.textContent = '!';
+    item.appendChild(f);
+  } else if (!needs && flag) {
+    flag.remove();
+  }
+}
+
+function gymPaneCreate(g) {
+  const pane = document.createElement('div');
+  pane.className = 'app-settings-section-pane';
+  pane.id = `app-settings-pane-gym-${g.gym_id}`;
+  pane.setAttribute('data-gym-pane', g.gym_id);
+  return pane;
+}
+
+/**
+ * Paint (or repaint) everything that derives from the linked-gym list. Idempotent
+ * and synchronous: safe to call from the boot context and again from the network
+ * response, and safe under overlapping renders.
+ */
+function paintGyms(linked, { list, layout, menu, panesHost }) {
+  connByGym = new Map(linked.map((g) => [g.gym_id, g]));
+
+  const table = ensureConnTable(list);
+  list.querySelector('.app-gym-conn-empty').hidden = linked.length > 0;
+  table.hidden = linked.length === 0;
+  reconcileKeyed(table, linked, {
+    keyAttr: 'data-gym-key', keyOf: (g) => g.gym_id, create: connRowCreate, update: connRowUpdate,
+  });
+
+  // ── One sidebar entry and one pane PER GYM ─────────────────────────────────
+  // A gym is a first-class section, so it gets a first-class nav entry (stacking
+  // every gym's settings on one page meant scrolling past one gym's cards to
+  // reach the next). Entries are keyed and reconciled, so an unlinked gym cannot
+  // leave a dead entry behind and a surviving one keeps its `.active` state.
+  if (!menu || !panesHost) return;
+  const activeBefore = menu.querySelector('.active[data-gym-nav]')?.getAttribute('data-gym-nav');
+  reconcileKeyed(menu, linked, {
+    keyAttr: 'data-gym-nav', keyOf: (g) => g.gym_id, create: gymNavCreate, update: gymNavUpdate,
+    // Gyms sit directly under \"Your Gyms\" and above \"About\".
+    anchor: menu.querySelector('[data-settings-section=\"account\"]'),
+  });
+  reconcileKeyed(panesHost, linked, { keyAttr: 'data-gym-pane', keyOf: (g) => g.gym_id, create: gymPaneCreate });
+  // The gym whose pane was showing was unlinked: land on the connection table.
+  if (activeBefore && !linked.some((g) => g.gym_id === activeBefore)) {
+    layout?.__activateSettingsSection?.('gyms');
+  }
+}
+
+async function onGymListClick(event) {
+  const reauth = event.target.closest('[data-reauth-gym]');
+  if (reauth) {
+    const gymId = reauth.dataset.reauthGym;
+    openLinkGymModal(gymId, connByGym.get(gymId));
+    return;
+  }
+  const btn = event.target.closest('[data-unlink-gym]');
+  if (btn) {
+    // Double-click confirm, matching how every other destructive action in the app
+    // behaves (cancel a booking, leave a waitlist).
+    if (btn.dataset.armed !== '1') {
+      btn.dataset.armed = '1';
+      btn.textContent = COPY.settings.confirmUnlink;
+      clearTimeout(btn._armTimer);
+      btn._armTimer = setTimeout(() => { delete btn.dataset.armed; btn.textContent = COPY.settings.unlink; }, 4000);
+      return;
+    }
+    clearTimeout(btn._armTimer);
+    btn.disabled = true;
+    try {
+      await api.unlinkGym(btn.dataset.unlinkGym);
+      showToast(COPY.settings.gymUnlinked, 'success');
+      // C3-1: unlinking changes the linked-gym set the header badges and
+      // capability gates read (client/src/gym-context.js), which settings.js
+      // re-rendering its own cards never refreshes — without this the header
+      // still shows the unlinked gym's badge until a full reload. loadGymContext()
+      // updates the linked-gym list capability gates read; refreshUserData()
+      // is what actually re-renders the header credit badges from that list
+      // (updateCreditBadge reads getLinkedGyms()).
+      await syncAfterGymSetChange();
+      await renderGymsCard();
+    } catch (err) {
+      showToast(err.message, 'error');
+      btn.disabled = false;
+      delete btn.dataset.armed;
+      btn.textContent = COPY.settings.unlink;
+    }
+    return;
+  }
+
+  // Tapping anywhere else on the row navigates to the gym's specific settings pane
+  const row = event.target.closest('.app-gym-conn-row');
+  if (row) {
+    const gymId = row.getAttribute('data-gym-key');
+    if (gymId) {
+      const layout = document.getElementById('app-settings-layout-wrapper');
+      layout?.__activateSettingsSection?.(`gym-${gymId}`);
+    }
+  }
+}
+
+export /**
+ * C3-15 / C3-26: everything that must refresh when the linked-gym SET changes
+ * (link, re-auth, unlink). Sequenced: refreshUserData reads the linked-gym list
+ * loadGymContext just set, and the timetable refetch needs both. The unscoped
+ * studio-preferences cache entry (used only with <=1 gym) is dropped so going
+ * from 2 gyms to 1 cannot serve the two-gym merge for 5 minutes.
+ */
+async function syncAfterGymSetChange() {
+  await loadGymContext();
+  await invalidateApiCache('/api/studio-preferences').catch(() => {});
+  await refreshUserData(true);
+  window.dispatchEvent(new CustomEvent('app:gyms-changed'));
+  // Fire and forget: the fetch can take seconds and the settings panel must not wait.
+  resetTimetableForGymChange().catch(() => {});
+}
+
+async function renderGymsCard() {
+  const token = gymsRenderGuard.begin();
+  const card = document.getElementById('app-gyms-card');
+  const list = document.getElementById('app-gyms-list');
+  const actions = document.getElementById('app-gyms-actions');
+  const layout = document.getElementById('app-settings-layout-wrapper');
+  const menu = layout?.querySelector('.app-settings-menu');
+  const panesHost = layout?.querySelector('.app-settings-section-panes');
+  if (!list) return;
+  const els = { list, layout, menu, panesHost };
+
+  // The card is ALWAYS shown, at every gym count. It used to hide itself when
+  // exactly one gym was linked — and since the \"Add a gym\" button lives inside
+  // it, a single-gym account had no way to link a second one at all.
+  if (card) card.hidden = false;
+  if (!list.dataset.gymHandlers) {
+    list.dataset.gymHandlers = '1';
+    list.addEventListener('click', onGymListClick);
+  }
+
+  // The old single inline host is no longer used; keep it empty so a stale render
+  // can't linger behind the per-gym panes.
+  const legacyInline = document.getElementById('app-gym-settings-section');
+  if (legacyInline) { legacyInline.hidden = true; legacyInline.innerHTML = ''; }
+
+  // ── Phase 1, synchronous: paint from the gyms the app already knows ────────
+  const known = getAllLinkedGyms() || [];
+  const painted = known.length > 0;
+  if (painted) paintGyms(known, els);
+
+  // ── Phase 2: enrich in place from the server (health, last authenticated) ──
+  let linked;
+  try {
+    linked = (await api.getMyGyms()).gyms || [];
+  } catch (err) {
+    if (!gymsRenderGuard.isCurrent(token)) return;
+    if (painted) debugConsole('[Settings] Could not refresh gym connections:', err.message);
+    else list.innerHTML = `<div class=\"app-empty-state set-gyms-error\">${getIsOffline() ? COPY.settings.noSavedGymData : formatCopyText(COPY.settings.couldNotLoadGyms, { error: escapeHtml(err.message) })}</div>`;
+    return;
+  }
+  if (!gymsRenderGuard.isCurrent(token)) return;
+  paintGyms(linked, els);
+
+  // Only offer gyms that are both enabled and not already linked.
+  let addable = [];
+  try {
+    const all = await api.getGyms();
+    const linkedIds = new Set(linked.map(g => g.gym_id));
+    addable = all.filter(g => g.enabled && !linkedIds.has(g.id));
+  } catch (_) { /* catalogue is best-effort — the rest of the card still works */ }
+  if (!gymsRenderGuard.isCurrent(token)) return;
+
+  actions.innerHTML = addable.length
+    ? `<button class=\"app-btn primary app-btn-mini\" id=\"app-add-gym-btn\">${COPY.settings.connectGymAction}</button>`
+    : `<p class=\"app-card-desc set-seatmaps-title\">${COPY.settings.noAvailableGyms}</p>`;
+  const addBtn = document.getElementById('app-add-gym-btn');
+  if (addBtn) addBtn.onclick = () => openLinkGymModal(null, null, addable);
+
+  // ── Phase 3: each gym's own settings pane (its content is the slow part) ───
+  // Sequential, not Promise.all: each section fetches settings, membership and
+  // credits for its gym, and firing them all at once against a rate-limited
+  // provider is how you turn a settings page into a 429. The menu entries above
+  // are already on screen, so this only ever fills panes in.
+  if (!panesHost) return;
+  for (const g of linked) {
+    if (!gymsRenderGuard.isCurrent(token)) return;
+    const pane = Array.from(panesHost.querySelectorAll('[data-gym-pane]')).find((p) => p.getAttribute('data-gym-pane') === g.gym_id);
+    if (!pane) continue;
+    await renderGymSettingsSection(g.gym_id, pane)
+      .catch(err => debugConsole('[Settings] Gym section failed:', g.gym_id, err.message));
+  }
+}
+
+// NOTE: `openGymSettingsDrawer()` used to live here and is deliberately gone.
+// Per-gym settings render inline (see renderGymsCard above). The drawer was a
+// fixed-position overlay with its own backdrop, and any modal launched from
+// inside it — the spot-map editor in particular — painted BELOW that backdrop.
+// Do not reintroduce a drawer or any other overlay layer for gym settings.
+
+// One renderer for every setting owned by a gym. Phase 2 mounts the active gym
+// inline in the existing Booking pane; Phase 3 can call this same function from
+// an n=1 inline section or an n>=2 drawer without recreating any controls.
+export async function renderGymSettingsSection(requestedGymId = null, targetContainer = null) {
+  const container = targetContainer || document.getElementById('app-gym-settings-section');
+  if (!container) return;
+
+  // Keep already-rendered content while a refresh runs (U1-7: panes now persist
+  // across renders); the placeholder is only for a pane that has nothing yet.
+  if (!container.hasChildNodes()) {
+    container.innerHTML = `<div class=\"app-settings-card\"><p class=\"app-card-desc\">${COPY.settings.loadingGymSettings}</p></div>`;
+  }
+
+  try {
+    const [myGyms, catalogue] = await Promise.all([api.getMyGyms(), api.getGyms()]);
+    const linked = myGyms.gyms || [];
+    // No server-persisted \"active gym\" any more (stage 4 of the active-gym
+    // audit) — `linked[0]` is the same deterministic default `loadGymContext()`
+    // uses, so this and `userSettings`'s own gym stay in agreement.
+    const gymId = requestedGymId || linked[0]?.gym_id;
+    const link = linked.find(g => g.gym_id === gymId);
+    if (!gymId || !link) {
+      container.innerHTML = `<div class=\"app-settings-card\"><h4>${COPY.settings.connectGym}</h4><p class=\"app-card-desc\">${COPY.settings.linkBeforeConfig}</p></div>`;
+      return;
+    }
+
+    const config = catalogue.find(g => g.id === gymId) || {};
+    const gym = { ...config, ...link, id: gymId, capabilities: { ...(config.capabilities || {}), ...(link.capabilities || {}) } };
+    const [settings, membership, credits] = await Promise.all([
+      api.getSettings(gymId),
+      api.getMembership(gymId).catch(() => undefined), // undefined = unknown, null = confirmed none
+      api.getNormalizedCredits(gymId).catch(() => undefined),
+    ]);
+    const bookingWindowText = describeBookingWindow(getBookingOffset(settings), null);
+
+    const rerender = () => renderGymSettingsSection(gymId).catch(err => debugConsole('[Settings] Gym section refresh failed:', err.message));
+    renderGymSettingsSectionView(container, {
+      logoHtml: gymLogoBanner(gymId, { settings: true }),
+      gym,
+      settings,
+      membership,
+      credits,
+      bookingWindowText,
+      debugMode: !!userSettings.debugMode,
+    }, {
+      onEnabledChange: async (enabled, input) => {
+        input.disabled = true;
+        try {
+          await api.setGymEnabled(gymId, enabled);
+          await resetTimetableForGymChange({ refetch: false });
+          window.location.reload();
+        } catch (err) {
+          input.checked = !enabled;
+          input.disabled = false;
+          showToast(err.message, 'error');
+        }
+      },
+      onSettingChange: async (key, value, input) => {
+        input.disabled = true;
+        const normalizedValue = key === 'manualBookingWindowWeeks' && value != null ? Number(value) : value;
+        const next = { ...settings, [key]: normalizedValue };
+        try {
+          // Only the changed key, against THIS section's gym.
+          await api.updateSettings({ [key]: normalizedValue }, gymId);
+          Object.assign(settings, next);
+          // C3-18: mirror into the in-memory copy KEYED BY GYM. This used to
+          // compare against `getLinkedGyms()[0]` on the theory that it was the
+          // gym the server defaults to, but /api/my-gyms sorts by gym_id, so [0]
+          // is not necessarily the gym the server resolves: the mirror
+          // landed on the wrong gym's copy. Position says nothing about identity.
+          cache.gymSettings[gymId] = { ...(cache.gymSettings[gymId] || {}), ...next };
+          showToast(formatCopyText(COPY.settings.gymSettingsSaved, { gym: gym.name || gymId }), 'success');
+        } catch (err) {
+          showToast(formatCopyText(COPY.settings.gymSettingsSaveFailed, { gym: gym.name || gymId, error: err.message }), 'error');
+          rerender();
+        } finally {
+          input.disabled = false;
+        }
+      },
+      onAction: async (action, button) => {
+        if (action === 'forget-login') {
+          const modal = gymModal();
+          modal.title.textContent = 'Forget your saved gym login?';
+          modal.body.innerHTML = `<p>${escapeHtml(appConfig.appName)} will remove your saved gym login details and keep your current session. You’ll need to log in again occasionally. Auto-Book, Auto-Upgrade and syncing will pause for this gym when its session expires.</p><div class=\"app-settings-btn-row\"><button class=\"app-btn\" data-keep-login>Keep saved login</button><button class=\"app-btn variant-danger\" data-forget-login>Forget gym login</button></div><p data-forget-error role=\"alert\"></p>`;
+          modal.open({ id: 'forget-gym-login', back: true });
+          modal.body.querySelector('[data-keep-login]').onclick = modal.close;
+          modal.body.querySelector('[data-forget-login]').onclick = async () => {
+            try { await api.forgetGymLogin(gymId); modal.close(); await renderGymsCard(); }
+            catch (err) { modal.body.querySelector('[data-forget-error]').textContent = err.message; }
+          };
+          return;
+        }
+        if (action === 'reauth') return openLinkGymModal(gymId, link);
+        if (action === 'spot-maps') return openManageSpotMapsModal({ gymId });
+        if (action === 'profile') return openProfileExplorerModal(gymId, gym.name || link.gym_name);
+        if (action === 'buy-credits') {
+          document.querySelector('[data-tab=\"buy-credits\"]')?.click();
+          return;
+        }
+        if (action === 'unlink') {
+          if (button.dataset.confirmState !== 'confirm') {
+            button.dataset.confirmState = 'confirm';
+            button.textContent = COPY.settings.confirmUnlink;
+            setTimeout(() => {
+              if (button.dataset.confirmState === 'confirm') {
+                delete button.dataset.confirmState;
+                button.textContent = COPY.settings.unlinkGym;
+              }
+            }, 4000);
+            return;
+          }
+          button.disabled = true;
+          try {
+            await api.unlinkGym(gymId);
+                await clearApiCache().catch(() => {});
+            showToast(COPY.settings.gymUnlinked, 'success');
+            // C3-1: see the other unlink handler above — the global gym context
+            // (header badges, capability gates) must refresh too, not just this
+            // panel's own card.
+            await syncAfterGymSetChange();
+            container.closest('.app-gym-settings-overlay')?.remove();
+            await renderGymsCard();
+          } catch (err) {
+            showToast(formatCopyText(COPY.settings.unlinkFailed, { error: err.message }), 'error');
+            button.disabled = false;
+          }
+          return;
+        }
+
+        // No remaining async gym actions fall through to here; calendar moved
+        // to the account-level section (ui/calendar-section.js).
+      },
+    });
+  } catch (err) {
+    container.innerHTML = `<div class=\"app-${getIsOffline() ? 'empty-state' : 'card-error'} set-gyms-error\">${getIsOffline() ? COPY.settings.noSavedGymSettings : formatCopyText(COPY.settings.loadGymSettingsFailed, { error: escapeHtml(err.message) })}</div>`;
+  }
+}
+
+// One modal for both \"add a gym\" and \"re-authenticate an existing one\" — they are
+// the same operation server-side (prove the credential, then store it), so making
+// them two dialogs would just be two things to keep in step.
+export function openLinkGymModal(gymId, existing, addable = []) {
+  const { body, title, open, close } = gymModal();
+  const isReauth = !!gymId;
+  title.textContent = isReauth
+    ? formatCopyText(COPY.settings.reauthenticateGym, { gym: existing?.gym_name || gymId })
+    : COPY.settings.addGym;
+
+  const logoGymId = gymId || addable[0]?.id || '';
+  body.innerHTML = `
+    <div id=\"app-link-gym-logo\" class=\"app-gym-form-logo\">${logoGymId ? gymLogoBanner(logoGymId) : ''}</div>
+    <p class=\"app-card-desc set-gyms-desc\">
+      ${isReauth
+        ? COPY.settings.addGymCredentialsHelp
+        : COPY.settings.linkGymCredentialsHelp}
+    </p>
+    ${isReauth ? '' : `
+      <label class=\"app-setting-label set-gym-label\"><span>${COPY.settings.gym}</span></label>
+      <select id=\"app-link-gym-id\" class=\"app-select set-gym-select\">
+        ${addable.map(g => `<option value=\"${escapeHtml(g.id)}\">${escapeHtml(g.name)}</option>`).join('')}
+      </select>`}
+    <label class=\"app-setting-label set-gym-label\"><span>${COPY.settings.email}</span></label>
+    <input id=\"app-link-gym-email\" type=\"email\" class=\"app-input set-gym-select\" autocomplete=\"username\"
+           placeholder=\"${COPY.static.exampleEmail}\">
+    <label class=\"app-setting-label set-gym-label\"><span>${COPY.settings.password}</span></label>
+    <input id=\"app-link-gym-password\" type=\"password\" class=\"app-input set-gym-password\" autocomplete=\"current-password\"
+          >
+    ${gymLoginChoiceHtml('app-link-gym-remember')}
+    <div id=\"app-link-gym-error\" style=\"display:none;color:var(--danger);font-size:12px;margin-bottom:10px;\"></div>
+    <button class=\"app-btn primary set-gym-submit\" id=\"app-link-gym-submit\">
+      ${isReauth ? COPY.settings.reauthenticate : COPY.settings.link}
+    </button>
+  `;
+  // Re-auth is a drill-down from a gym's row: Back arrow. Link-a-gym is a task from the tab: X.
+  open({ id: isReauth ? 'gym-reauth' : 'gym-link', back: isReauth });
+
+  // Link flow: the logo follows the gym picked in the select.
+  body.querySelector('#app-link-gym-id')?.addEventListener('change', (e) => {
+    body.querySelector('#app-link-gym-logo').innerHTML = gymLogoBanner(e.target.value);
+  });
+  bindGymLoginChoice(body);
+  const errEl = body.querySelector('#app-link-gym-error');
+  const submit = body.querySelector('#app-link-gym-submit');
+  submit.onclick = async () => {
+    const targetGym = isReauth ? gymId : body.querySelector('#app-link-gym-id')?.value;
+    const email = body.querySelector('#app-link-gym-email').value.trim();
+    const password = body.querySelector('#app-link-gym-password').value;
+    errEl.style.display = 'none';
+    if (!targetGym || !email || !password) {
+      errEl.textContent = COPY.auth.requiredGymCredentials;
+      errEl.style.display = 'block';
+      return;
+    }
+    submit.disabled = true;
+    submit.textContent = COPY.settings.checking;
+    try {
+      await api.linkGym(targetGym, email, password, body.querySelector('[data-remember-gym-login]').checked);
+      body.querySelector('#app-link-gym-password').value = '';
+      body.querySelector('#app-link-gym-email').value = '';
+      showToast(isReauth ? COPY.settings.reauthenticated : COPY.settings.gymLinked, 'success');
+      close();
+      // C3-1: a newly linked gym must appear in the header badges and pass
+      // through capability gates immediately, not just in this panel's cards —
+      // loadGymContext() updates the linked-gym list, refreshUserData() re-renders
+      // the header credit badges from it (same pair the unlink handlers now use).
+      // Sequenced (not Promise.all) because refreshUserData reads the linked-gym
+      // list loadGymContext just set.
+      syncAfterGymSetChange().catch(() => {});
+      Promise.all([renderGymsCard(), renderGymSettingsSection(isReauth ? gymId : targetGym)]).catch(() => {});
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+      submit.disabled = false;
+      submit.textContent = isReauth ? COPY.settings.reauthenticate : COPY.settings.link;
+    }
+  };
+}
+
+function openAccountPasswordModal() {
+  const { body, title, open, close } = gymModal();
+  title.textContent = COPY.settings.changeAccountPassword;
+  body.innerHTML = `
+    <p class=\"app-card-desc set-gyms-desc\">
+      ${formatCopyText(COPY.settings.accountPasswordDescription, { appName: escapeHtml(appConfig.appName) })}
+    </p>
+    <label class=\"app-setting-label set-gym-label\"><span>${COPY.settings.currentPassword}</span></label>
+    <input id=\"app-pw-current\" type=\"password\" class=\"app-input set-gym-select\" autocomplete=\"current-password\"
+          >
+    <label class=\"app-setting-label set-gym-label\"><span>${COPY.settings.newPassword}</span></label>
+    <input id=\"app-pw-new\" type=\"password\" class=\"app-input set-gym-select\" autocomplete=\"new-password\"
+           placeholder=\"${COPY.settings.newPasswordMinPlaceholder}\">
+    <label class=\"app-setting-label set-gym-label\"><span>${COPY.settings.confirmNewPassword}</span></label>
+    <input id=\"app-pw-confirm\" type=\"password\" class=\"app-input set-gym-password\" autocomplete=\"new-password\"
+          >
+    <div id=\"app-pw-error\" style=\"display:none;color:var(--danger);font-size:12px;margin-bottom:10px;\"></div>
+    <button class=\"app-btn primary set-gym-submit\" id=\"app-pw-submit\">${COPY.settings.changePassword}</button>
+  `;
+  // Any typed value means unsaved work: ask before a mobile Back/X/Esc discards it.
+  open({
+    id: 'account-password',
+    canClose: () => !['#app-pw-current', '#app-pw-new', '#app-pw-confirm']
+      .some((s) => body.querySelector(s)?.value) || confirm(COPY.settings.discardUnsaved),
+  });
+
+  const errEl = body.querySelector('#app-pw-error');
+  const submit = body.querySelector('#app-pw-submit');
+  const fail = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; };
+
+  submit.onclick = async () => {
+    errEl.style.display = 'none';
+    const current = body.querySelector('#app-pw-current').value;
+    const next = body.querySelector('#app-pw-new').value;
+    const confirm = body.querySelector('#app-pw-confirm').value;
+    if (next.length < 8) return fail(COPY.settings.passwordMinimumError);
+    if (next !== confirm) return fail(COPY.settings.passwordMismatchError);
+    submit.disabled = true;
+    submit.textContent = COPY.settings.changePasswordSaving;
+    try {
+      await api.changeAccountPassword(current, next);
+      showToast(COPY.settings.accountPasswordChanged, 'success');
+      close();
+    } catch (err) {
+      fail(err.message);
+      submit.disabled = false;
+      submit.textContent = COPY.settings.changePasswordButton;
+    }
+  };
+}
+
+// U1-10: a leading SVG glyph on each static Settings entry. Injected here (from the
+// shared cards.js icon set) rather than pasted into index.html so the sidebar uses
+// exactly the same stroke, size and currentColor rules as every other icon in the
+// app. Idempotent; per-gym entries lead with the gym's own mark instead (U1-8).
+const SETTINGS_MENU_ICONS = { general: 'sliders', calendar: 'calendar', notifications: 'bell', privacy: 'shield', favourites: 'heart', account: 'user', gyms: 'link', about: 'info' };
+export function decorateSettingsMenu() {
+  document.querySelectorAll('.app-settings-menu > [data-settings-section]').forEach((item) => {
+    const name = SETTINGS_MENU_ICONS[item.getAttribute('data-settings-section')];
+    if (!name || item.querySelector('.menu-item-lead')) return;
+    const lead = document.createElement('span');
+    lead.className = 'menu-item-lead';
+    lead.innerHTML = icon(name, 18);
+    item.insertBefore(lead, item.firstChild);
+  });
+}
+
+/**
+ * Open one gym's own Settings pane (header gym chips use this). Settings must
+ * already be the visible tab. The gym's sidebar entry and pane are created by
+ * renderGymsCard, so wait briefly for them rather than assuming they exist; on
+ * mobile activateSection also drills into the pane, so Back / swipe-back work
+ * exactly as after tapping the entry.
+ */
+export async function openGymSettings(gymId, fromHistory = false) {
+  const layout = document.getElementById('app-settings-layout-wrapper');
+  if (!layout) return;
+  for (let i = 0; i < 40; i++) {
+    const item = [...layout.querySelectorAll('[data-gym-nav]')].find((el) => el.getAttribute('data-gym-nav') === String(gymId));
+    if (item && layout.__activateSettingsSection) {
+      layout.__activateSettingsSection(`gym-${gymId}`, { sync: !fromHistory, history: !fromHistory });
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
+export async function initSettings() {
+  decorateSettingsMenu();
+  loadSettingsInputs();
+  setupSettingsListeners();
+  setupThemeToggle();
+  setupNotificationPrefs();
+  updateTestNotifCardVisibility();
+  // Konami listener is attached on first profile explorer modal open via setupExplorerKonamiListener()
+  updatePushStatusUI();
+  // Your Gyms card (WP-C2) — fire-and-forget: it renders its own loading and
+  // error states, and a failure here must not stop the rest of Settings binding.
+  renderGymsCard().catch(err => debugConsole('[Settings] Gyms card failed:', err.message));
+  if (!window.__gymCatListener) {
+    window.__gymCatListener = true;
+    // Catalogue arriving after Settings first rendered: rebuild so the gym marks stop being neutral placeholders.
+    window.addEventListener('gym-catalogue-ready', () => { renderGymsCard().catch(() => {}); });
+  }
+  // Account-level calendar feed (General tab) — same fire-and-forget rationale.
+  renderCalendarSection().catch(err => debugConsole('[Settings] Calendar section failed:', err.message));
+  // Spot Maps section is ready; button opens the modal
+  initFavouritesPane();
+  setupSettingsNavigation();
+  // A deep link to one gym's pane: its entry is built asynchronously by renderGymsCard.
+  document.getElementById('app-settings-layout-wrapper')?.__applySettingsRoute?.(currentRoute().section);
+}
+
+// Open an external URL from inside the installed PWA. window.open('_blank') leaves a
+// blank standalone window on iOS; a transient anchor click hands off to Safari cleanly.
+function openExternal(url) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+// ─── Theme toggle (Auto / Light / Dark) ──────────────────────────────────────
+function setupThemeToggle() {
+  const group = document.getElementById('app-theme-segmented');
+  if (!group || group.dataset.listener) return;
+  group.dataset.listener = 'true';
+
+  const sync = () => {
+    const active = getTheme();
+    group.querySelectorAll('.app-segmented-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.themeMode === active);
+    });
+  };
+
+  group.querySelectorAll('.app-segmented-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setTheme(btn.dataset.themeMode);
+      sync();
+    });
+  });
+  sync();
+}
+
+// ─── Notification preferences ────────────────────────────────────────────────
+
+const NOTIF_DEFAULTS = {
+  booking: { enabled: true, scope: 'all' },
+  upgrade: { enabled: true },
+  creditWarning: { enabled: true },
+  cancellationReminder: { enabled: true, timing: '24h' },
+  bookingWindow: { enabled: true },
+  // T-5 Teams (server notifications.js DEFAULT_PREFS): only \"request approved\" is an
+  // account switch (the requester has no Team page yet). Join requests and \"a teammate
+  // booked a class you're in\" are per Team, on each Team's Manage page (T-5b).
+  teamApproved: { enabled: true },
+};
+
+function getNotifPrefs() {
+  const n = userSettings.notifications || {};
+  const merged = {};
+  for (const key of Object.keys(NOTIF_DEFAULTS)) {
+    merged[key] = { ...NOTIF_DEFAULTS[key], ...(n[key] || {}) };
+  }
+  return merged;
+}
+
+const NOTIF_ROWS = [
+  { key: 'booking', title: COPY.settings.notificationSpotBooked, desc: COPY.settings.notificationSpotBookedHelp,
+    dropdown: { prop: 'scope', options: [['all', COPY.settings.allBookings], ['autobook', COPY.settings.autoBookOnly]] } },
+  { key: 'upgrade', title: COPY.settings.notificationSpotUpgraded, desc: COPY.settings.notificationSpotUpgradedHelp },
+  { key: 'creditWarning', title: COPY.settings.notificationCreditWarning, desc: COPY.settings.notificationCreditWarningHelp },
+  { key: 'cancellationReminder', title: COPY.settings.notificationCancellationReminder, desc: COPY.settings.notificationCancellationHelp,
+    dropdown: { prop: 'timing', options: [['24h', COPY.settings.cancellationDayBefore], ['14h', COPY.settings.beforePenalty]] } },
+  // Per gym: only a gym that releases at one moment a week has a \"window\" to
+  // warn about, so each gym carries its own default (gyms.config.js) and the
+  // member can override either way.
+  { key: 'bookingWindow', title: COPY.settings.notificationBookingWindow, desc: COPY.settings.notificationBookingWindowHelp, perGym: true },
+  // T-5 Teams (PLAN-teams.md §5.3): the rest are per Team (pointer line below the rows).
+  { key: 'teamApproved', title: COPY.settings.notificationTeamApproved, desc: COPY.settings.notificationTeamApprovedHelp },
+];
+
+/**
+ * Is this gym's reminder on — the member's override, else the gym's own default.
+ * Mirrors `notifications.bookingWindowEnabledForGym` on the server; the toggle
+ * has to show the state the member would actually get.
+ */
+function perGymPrefOn(pref, gym) {
+  const gymId = gym.gym_id || gym.id;
+  // Rolling / per-class windows have no periodic release: always off (mirrors the server).
+  if (!gymHasPeriodicWindow(gym)) return false;
+  const override = (pref.byGym || {})[gymId];
+  if (typeof override === 'boolean') return override;
+  return gym.notifications?.bookingWindowReminder !== false;
+}
+
+/** A gym with a periodic ('rolling-weekly') booking window — from the gym's capability data, never its id. */
+function gymHasPeriodicWindow(gym) {
+  return gym?.capabilities?.bookingWindow === 'rolling-weekly';
+}
+
+/**
+ * One sub-toggle per linked gym, shown under the parent row.
+ *
+ * Rendered even for a single-gym account: the default differs per gym, so
+ * \"Booking Window Reminder: on\" with no gym named would be a half-truth the
+ * moment a second gym is linked.
+ */
+function renderPerGymToggles(key, parentPref) {
+  const gyms = getLinkedGyms() || [];
+  if (gyms.length === 0) return '';
+  return `
+    <div class=\"notif-pergym-wrap\" data-key=\"${key}\" style=\"${parentPref.enabled ? '' : 'opacity:0.4;pointer-events:none;'}margin-top:10px;padding-top:10px;border-top:1px solid color-mix(in srgb, var(--text) 8%, transparent);\">
+      ${gyms.map((g) => {
+        const gymId = g.gym_id || g.id;
+        const locked = key === 'bookingWindow' && !gymHasPeriodicWindow(g);
+        return `
+        <div style=\"display:flex;justify-content:space-between;align-items:center;gap:12px;padding:4px 0;${locked ? 'opacity:0.45;' : ''}\">
+          <span class=\"set-credit-handle\">${escapeHtml(getGymShortName(gymId) || gymId)}${locked ? `<br><small class=\"set-gym-note\">${COPY.settings.bookingWindowRollingNote}</small>` : ''}</span>
+          <label class=\"app-switch set-gym-switch\">
+            <input type=\"checkbox\" class=\"notif-pergym-toggle\" data-key=\"${escapeHtml(key)}\" data-gym-id=\"${escapeHtml(gymId)}\" ${locked ? 'disabled' : ''} ${perGymPrefOn(parentPref, g) ? 'checked' : ''}>
+            <span class=\"app-slider\"></span>
+          </label>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+/** The booking-window reminder applies only if at least one linked gym has a periodic window. */
+function anyPeriodicGym() { return (getLinkedGyms() || []).some(gymHasPeriodicWindow); }
+
+function renderNotifPrefs() {
+  const body = document.getElementById('app-notif-prefs-body');
+  if (!body) return;
+  const prefs = getNotifPrefs();
+
+  body.innerHTML = `
+    <p class=\"set-push-desc\">${COPY.notifications.customizePush}</p>
+    ${NOTIF_ROWS.map(row => {
+      const p = prefs[row.key];
+      const dd = row.dropdown ? `
+        <select class=\"app-select notif-dropdown set-push-dropdown\" data-key=\"${row.key}\" data-prop=\"${row.dropdown.prop}\">
+          ${row.dropdown.options.map(([val, label]) => `<option value=\"${val}\" ${p[row.dropdown.prop] === val ? 'selected' : ''}>${label}</option>`).join('')}
+        </select>` : '';
+      return `
+        <div class=\"set-push-card\">
+          <div class=\"set-push-row\">
+            <div class=\"set-push-info\">
+              <div class=\"set-push-title\">${row.title}</div>
+              <div class=\"set-push-subtitle\">${row.desc}</div>
+            </div>
+            <label class=\"app-switch set-gym-switch\">
+              <input type=\"checkbox\" class=\"notif-toggle\" data-key=\"${row.key}\" ${row.perGym && !anyPeriodicGym() ? 'disabled' : ''} ${p.enabled && !(row.perGym && !anyPeriodicGym()) ? 'checked' : ''}>
+              <span class=\"app-slider\"></span>
+            </label>
+          </div>
+          ${dd ? `<div class=\"notif-dropdown-wrap\" data-key=\"${row.key}\" style=\"${p.enabled ? '' : 'opacity:0.4;pointer-events:none;'}\">${dd}</div>` : ''}
+          ${row.perGym ? renderPerGymToggles(row.key, p) : ''}
+        </div>`;
+    }).join('')}
+    <p class=\"set-push-desc\">${escapeHtml(COPY.settings.notificationTeamsPointer)}</p>
+  `;
+
+  body.querySelectorAll('.notif-toggle').forEach(el => {
+    el.addEventListener('change', () => {
+      // The master switch dims its dependants — a per-gym toggle means nothing
+      // while the notification type itself is off.
+      for (const sel of ['.notif-dropdown-wrap', '.notif-pergym-wrap']) {
+        const wrap = body.querySelector(`${sel}[data-key=\"${el.dataset...
+
+ ❯ src/copy.test.js:74:61
+     72|       const source = fs.readFileSync(file, 'utf8');
+     73|       expect(source, `${file}: fixed toast copy`).not.toMatch(inlineSt…
+     74|       expect(source, `${file}: fixed textContent copy`).not.toMatch(in…
+       |                                                             ^
+     75|     }
+     76|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/gym-availability.test.js > explicit gym login disclosure > starts unticked on each render and uses the exact unchecked notice
+AssertionError: expected ' won’t save copies of your gym login …' to be 'Dibs won’t save copies of your gym lo…' // Object.is equality
+
+Expected: "Dibs won’t save copies of your gym login details. You may be asked to log back in more often."
+Received: " won’t save copies of your gym login details. You may be asked to log back in more often."
+
+ ❯ src/gym-availability.test.js:36:75
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  3 failed | 120 passed (123)
+      Tests  3 failed | 987 passed (990)
+   Start at  00:27:11
+   Duration  19.28s (transform 3.64s, setup 0ms, import 7.79s, tests 20.31s, environment 86.96s)
+

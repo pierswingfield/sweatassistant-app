@@ -115,6 +115,18 @@ const bk = (gym, id, event, start, name, extra = {}) => ({ gym_id: gym, booking_
 const zoneOf = (g) => (g === 'ny' ? 'America/New_York' : LON);
 const run = (members, now, extra = {}) => projectTeam({ viewer: { userId: 1, linkedGymIds: ['g1', 'ny'] }, team: { id: 'T' }, members, now, zone: LON, zoneOf, ...extra });
 
+check('a gym needing login disappears from Team classes and counts while membership and healthy gyms survive', () => {
+  const now = Date.parse('2026-11-10T10:00:00Z');
+  const p = run([member(1, 'Ana', {
+    links: [{ gym_id: 'g1', account_enabled: 1, status: 'needs_relogin' }, { gym_id: 'ny', account_enabled: 1, status: 'active' }],
+    bookings: [bk('g1', 1, 10, '2026-11-10T12:00:00Z', 'Unavailable'), bk('ny', 2, 20, '2026-11-10T18:00:00Z', 'Available')],
+  }), member(2, 'Ben')], now, { includeDetail: true });
+  assert.strictEqual(p.members.length, 2, 'Team membership survives');
+  assert.strictEqual(p.classes.length, 1, 'stale affected-gym class hidden');
+  assert.strictEqual(p.classes[0].gymId, 'ny', 'healthy gym remains');
+  assert.strictEqual(p.today.total, 1, 'derived totals exclude the affected gym');
+});
+
 check('today line inputs: total, done, first upcoming time; hottest needs two people', () => {
   const now = Date.parse('2026-11-10T10:00:00Z');
   const p = run([

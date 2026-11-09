@@ -1,3 +1,4 @@
+import { connectionEpoch, connectionStates, isGymAvailable } from '../gym-availability.js';
 import { api } from '../api';
 import { invalidateApiCache } from '../cache.js';
 import { appConfig } from '../config.js';
@@ -74,8 +75,11 @@ import { currentRoute, commitFilterChange, commitNow, replaceCurrent, pathFor } 
 import { stateToUrlTimetable, urlToState, savedToState, sameFilters, overlayLabels, guardedSaveDefaults, emptyFilterState } from './timetable-url-sync.js';
 
 async function cacheSet(key, value) {
+  const epoch = connectionEpoch();
+  if (Object.values(connectionStates()).some(g => ['needs_relogin','syncing'].includes(g.status))) return;
   try {
     const db = await openDB();
+    if (epoch !== connectionEpoch()) { db.close(); return; }
     const tx = db.transaction('cache', 'readwrite');
     tx.objectStore('cache').put(value, key);
     await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
@@ -973,7 +977,7 @@ export async function prefetchTimetableData(force = false) {
       eventCount: cachedEvents?.length || 0,
     });
     if (cachedEvents && cachedEvents.length > 0) {
-      timetableEvents = cachedEvents;
+      timetableEvents = cachedEvents.filter(event => isGymAvailable(event.gymId));
       if (cachedMeta) {
         if (cachedMeta.locations?.length) metadata.locations = cachedMeta.locations;
         if (cachedMeta.studios?.length) metadata.studios = cachedMeta.studios;
@@ -1062,7 +1066,7 @@ export async function prefetchTimetableData(force = false) {
       if (final && !events.length) { renderPreservingScroll('network-refresh'); return; } // every gym failed/empty: keep what we had, drop the skeleton
       // A failed gym keeps its cached rows exactly like a pending one, and so
       // does the persisted cache below (it never loses a gym to a failed fetch).
-      timetableEvents = carryStaleRows(staleEvents, events, { pending, failed });
+      timetableEvents = carryStaleRows(staleEvents, events, { pending, failed }).filter(event => isGymAvailable(event.gymId));
       mergeMetadataFromEvents(timetableEvents);
       buildMetaMaps();
       if (final) {

@@ -1,0 +1,186 @@
+{
+  "checks": [
+    {
+      "name": "320 light: all four supporting paragraphs use compact body hierarchy",
+      "pass": false,
+      "detail": [
+        {
+          "text": "You have no classes booked! Why not choose a session?",
+          "size": "17px",
+          "weight": "500",
+          "color": "rgb(31, 27, 22)",
+          "line": "25.5px",
+          "overflow": false
+        },
+        {
+          "text": "Your training story starts with your first past class.",
+          "size": "14px",
+          "weight": "400",
+          "color": "rgb(101, 91, 76)",
+          "line": "19.6px",
+          "overflow": false
+        },
+        {
+          "text": "No classes in the last 30 days.",
+          "size": "14px",
+          "weight": "400",
+          "color": "rgb(101, 91, 76)",
+          "line": "19.6px",
+          "overflow": false
+        },
+        {
+          "text": "Train with friends: a Team shares who is doing which class, so you can book in together.",
+          "size": "13px",
+          "weight": "400",
+          "color": "rgb(101, 91, 76)",
+          "line": "normal",
+          "overflow": false
+        }
+      ]
+    },
+    {
+      "name": "320 light: readable paragraphs and no horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "390 dark: all four supporting paragraphs use compact body hierarchy",
+      "pass": false,
+      "detail": [
+        {
+          "text": "You have no classes booked! Why not choose a session?",
+          "size": "17px",
+          "weight": "500",
+          "color": "rgb(243, 237, 228)",
+          "line": "25.5px",
+          "overflow": false
+        },
+        {
+          "text": "Your training story starts with your first past class.",
+          "size": "14px",
+          "weight": "400",
+          "color": "rgb(185, 174, 159)",
+          "line": "19.6px",
+          "overflow": false
+        },
+        {
+          "text": "No classes in the last 30 days.",
+          "size": "14px",
+          "weight": "400",
+          "color": "rgb(185, 174, 159)",
+          "line": "19.6px",
+          "overflow": false
+        },
+        {
+          "text": "Train with friends: a Team shares who is doing which class, so you can book in together.",
+          "size": "13px",
+          "weight": "400",
+          "color": "rgb(185, 174, 159)",
+          "line": "normal",
+          "overflow": false
+        }
+      ]
+    },
+    {
+      "name": "390 dark: readable paragraphs and no horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "1280 light: all four supporting paragraphs use compact body hierarchy",
+      "pass": false,
+      "detail": [
+        {
+          "text": "You have no classes booked! Why not choose a session?",
+          "size": "17px",
+          "weight": "500",
+          "color": "rgb(31, 27, 22)",
+          "line": "25.5px",
+          "overflow": false
+        },
+        {
+          "text": "Your training story starts with your first past class.",
+          "size": "14px",
+          "weight": "400",
+          "color": "rgb(101, 91, 76)",
+          "line": "19.6px",
+          "overflow": false
+        },
+        {
+          "text": "No classes in the last 30 days.",
+          "size": "14px",
+          "weight": "400",
+          "color": "rgb(101, 91, 76)",
+          "line": "19.6px",
+          "overflow": false
+        },
+        {
+          "text": "Train with friends: a Team shares who is doing which class, so you can book in together.",
+          "size": "13px",
+          "weight": "400",
+          "color": "rgb(101, 91, 76)",
+          "line": "normal",
+          "overflow": false
+        }
+      ]
+    },
+    {
+      "name": "1280 light: readable paragraphs and no horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "1280 dark: all four supporting paragraphs use compact body hierarchy",
+      "pass": false,
+      "detail": [
+        {
+          "text": "You have no classes booked! Why not choose a session?",
+          "size": "17px",
+          "weight": "500",
+          "color": "rgb(243, 237, 228)",
+          "line": "25.5px",
+          "overflow": false
+        },
+        {
+          "text": "Your training story starts with your first past class.",
+          "size": "14px",
+          "weight": "400",
+          "color": "rgb(185, 174, 159)",
+          "line": "19.6px",
+          "overflow": false
+        },
+        {
+          "text": "No classes in the last 30 days.",
+          "size": "14px",
+          "weight": "400",
+          "color": "rgb(185, 174, 159)",
+          "line": "19.6px",
+          "overflow": false
+        },
+        {
+          "text": "Train with friends: a Team shares who is doing which class, so you can book in together.",
+          "size": "13px",
+          "weight": "400",
+          "color": "rgb(185, 174, 159)",
+          "line": "normal",
+          "overflow": false
+        }
+      ]
+    },
+    {
+      "name": "1280 dark: readable paragraphs and no horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "Shared display strips leading pipe after discipline",
+      "pass": false,
+      "detail": {
+        "raw": "Ride: | Signature 45",
+        "display": "| Signature 45"
+      }
+    },
+    {
+      "name": "No page errors",
+      "pass": true,
+      "detail": []
+    }
+  ],
+  "errors": []
+}

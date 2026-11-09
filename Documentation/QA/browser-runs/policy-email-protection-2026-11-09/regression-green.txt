@@ -1,0 +1,8 @@
+PASS inlineScriptHashes picks inline executable scripts only
+PASS all four policy contacts are readable mailto links; no-transform on 200/304; hashed asset caching unchanged
+PASS shell: headers + per-inline-script hashes + HSTS
+PASS admin: inline script allowed by hash, nothing else inline
+PASS api, sw.js, assets, .ics and 404 carry the headers
+PASS CSP_REPORT_ONLY=1 and HSTS_MAX_AGE=0
+PASS non-production: headers, no HSTS
+ALL PASS test-security-headers

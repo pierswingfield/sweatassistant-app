@@ -13,6 +13,13 @@ export function disciplineHead(discipline = '') {
 }
 
 
+// Leading bars and spaced separators are provider decoration, not title text.
+// Keep unspaced punctuation ("#1", quotes, "(Members)", "-5") and all internal
+// separators. Apply before AND after discipline removal: either can expose one.
+function trimLeadingSeparators(value) {
+  return value.replace(/^(?:[\s|｜]+|[-–—:•]\s+)+/u, '');
+}
+
 /**
  * Presentable class name: drop the redundant discipline prefix, then normalise
  * SHOUTING into sentence case.
@@ -31,7 +38,7 @@ export function disciplineHead(discipline = '') {
  * keeps its name rather than rendering as a blank cell.
  */
 export function cleanClassNameWith(name = '', discipline = '', label = '') {
-  let n = String(name || '').trim();
+  let n = trimLeadingSeparators(String(name || '').trim());
   if (!n) return '';
 
   // U1-11: what the row's pill says can differ from the raw `discipline` string.
@@ -45,10 +52,10 @@ export function cleanClassNameWith(name = '', discipline = '', label = '') {
     .sort((a, b) => b.length - a.length); // longest prefix first
   for (const c of candidates) {
     const esc = c.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    // Optional separator: colon, dash, en-dash, or plain whitespace.
-    const re = new RegExp(`^${esc}(?:\\s*[:\\-–]\\s*|\\s+)`, 'i');
+    // Optional separator: colon, bar, dash, en/em-dash, or plain whitespace.
+    const re = new RegExp(`^${esc}(?:\\s*[:|｜\\-–—]\\s*|\\s+)`, 'i');
     if (!re.test(n)) continue;
-    let rest = n.replace(re, '').trim();
+    let rest = trimLeadingSeparators(n.replace(re, '').trim());
     // A remainder wrapped entirely in brackets is the real name with decoration
     // around it: "RECOVERY (Members)" should read "Members", not "(Members)".
     const bracketed = rest.match(/^\((.+)\)$/);

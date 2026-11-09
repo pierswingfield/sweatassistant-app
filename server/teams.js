@@ -340,8 +340,8 @@ function projectionsFor(userId, teamIds, { zone, includeDetail, preload = null }
   const allIds = [...new Set([...byTeam.values()].flat().map((r) => r.user_id))];
   const data = preload && allIds.every((id) => preload.data.has(id)) ? preload.data : teamData.rowsForUsers(allIds, { now });
   const linked = preload && preload.data.has(userId)
-    ? preload.data.get(userId).links.map((l) => l.gym_id)
-    : teamData.linkedGymIds(userId);
+    ? preload.data.get(userId).links.filter(l => !['needs_relogin','syncing'].includes(l.status)).map((l) => l.gym_id)
+    : teamData.linkedGymIds(userId, { available: true });
   const partsOf = (preload && preload.partsOf) || namePartsMemo(); // one name lookup per unique user across every Team
   const out = new Map();
   for (const [teamId, rows] of byTeam) {
@@ -448,7 +448,7 @@ function timetableChips(userId) {
     WHERE m.user_id = ?`).all(userId);
   if (!rows.length) return { classes: [] };
   const projections = projectionsFor(userId, rows.map((t) => t.id), { zone: viewerZone(userId), includeDetail: true });
-  const linked = new Set(teamData.linkedGymIds(userId));
+  const linked = new Set(teamData.linkedGymIds(userId, { available: true }));
   const byKey = new Map();
   for (const t of rows) {
     const p = projections.get(t.id);

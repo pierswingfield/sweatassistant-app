@@ -1,0 +1,27 @@
+[
+  {
+    "name": "experiment origin",
+    "pass": true,
+    "detail": "https://experiment.dibs.fit/"
+  },
+  {
+    "name": "deployed consent card unticked and required",
+    "pass": true
+  },
+  {
+    "name": "deployed custom checkbox style",
+    "pass": true
+  },
+  {
+    "name": "deployed consent no overflow",
+    "pass": true
+  },
+  {
+    "name": "deployed policy reader contact preserved",
+    "pass": false
+  },
+  {
+    "name": "deployed reader retains consent",
+    "pass": true
+  }
+]

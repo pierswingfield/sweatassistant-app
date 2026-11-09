@@ -23,10 +23,7 @@ export function renderPersonalStats(el, data) {
   const weekLabel = weeks === 1 ? C.statsWeekOne : formatCopyText(C.statsWeekMany, { count: weeks });
   const unresolvedZero = (data.pending || data.partial) && !data.totalPastClasses;
   el.innerHTML = unresolvedZero ? '' : `<div class="tm-stat-tiles personal-stat-tiles"><div class="tm-stat-tile"><span class="tm-stat-big">${esc(weekLabel)}</span><span class="tm-stat-label">${esc(C.statsStreak)}</span></div></div>`;
-  if (!data.totalPastClasses) {
-    if (!unresolvedZero) { const p = document.createElement('p'); p.className = 'home-widget-empty'; p.textContent = C.statsEmptyHistory; el.append(p); }
-    return;
-  }
+  if (!data.totalPastClasses) return;
   const charts = { busiestDays: data.patterns.weekdays, gymMix: data.patterns.gymMix, busiestTimes: data.patterns.hours || [] };
   const options = { period: C.statsLast90, emptyText: C.statsNoRecent };
   const slides = [volumeChart(data.volume.points), busiestDaysHtml(charts, options), gymMixHtml(charts, options), busiestTimesHtml(charts, options)];

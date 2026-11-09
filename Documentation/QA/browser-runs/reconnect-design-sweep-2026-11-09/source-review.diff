@@ -1,0 +1,218 @@
+diff --git a/client/src/ui/gym-settings-section.js b/client/src/ui/gym-settings-section.js
+index 4c2e0cf..c33efad 100644
+--- a/client/src/ui/gym-settings-section.js
++++ b/client/src/ui/gym-settings-section.js
+@@ -146,19 +146,20 @@ export function renderGymSettingsSection(container, model, handlers = {}) {
+   const logoBannerHtml = model.logoHtml || (gymIdForTheme ? gymLogoBanner(gymIdForTheme, { settings: true }) : '');
+   container.innerHTML = `
+     <div class="app-gym-settings-heading"><div class="app-gym-settings-brand">${logoBannerHtml}</div><div class="app-settings-btn-row"><span class="app-badge ${status === 'active' ? 'success' : 'warning'}">${escapeHtml(statusLabel)}</span></div></div>
+-    ${needsRelogin ? `<div class="app-gym-settings-warning"><strong>${COPY.gymSettings.reconnect}</strong><span>${COPY.gymSettings.reconnectHelp}</span></div>` : ''}
+     <div class="app-settings-grid app-gym-settings-grid">
+       <div class="app-settings-card">
+         <h4>${COPY.gymSettings.connection}</h4>
+-        <div class="app-setting-row"><div class="app-setting-label"><span>Enable this gym</span><small>Hide the gym everywhere in the app, and disables Auto-Book, Auto Upgrade, calendar and notifications. Your bookings and waitlists aren't changed.</small></div><label class="app-switch"><input type="checkbox" data-gym-enabled aria-label="Enable ${escapeHtml(gymName)}" ${gym.account_enabled !== 0 && gym.account_enabled !== false ? 'checked' : ''}><span class="app-slider"></span></label></div>
++        ${needsRelogin ? '' : `<div class="app-setting-row"><div class="app-setting-label"><span>Enable this gym</span><small>Hide the gym everywhere in the app, and disables Auto-Book, Auto Upgrade, calendar and notifications. Your bookings and waitlists aren't changed.</small></div><label class="app-switch"><input type="checkbox" data-gym-enabled aria-label="Enable ${escapeHtml(gymName)}" ${gym.account_enabled !== 0 && gym.account_enabled !== false ? 'checked' : ''}><span class="app-slider"></span></label></div>`}
+         <div class="app-gym-conn-inline-row">
+-          <p class="app-card-desc">${escapeHtml(gymEmail)}</p>
++          <p class="app-card-desc">${gym.has_saved_login ? escapeHtml(gymEmail) : 'Session only'}</p>${status === 'syncing' ? '<p class="app-card-desc" role="status">Syncing…</p>' : ''}
+           <div class="app-settings-btn-row">
+             <button class="app-btn app-btn-mini ${needsRelogin ? 'primary' : ''}" data-gym-action="reauth">${COPY.gymSettings.reauthenticate}</button>
++            ${gym.has_saved_login ? `<button class="app-btn app-btn-mini" data-gym-action="forget-login">Forget gym login</button>` : ''}
+             <button class="app-btn app-btn-mini variant-danger" data-gym-action="unlink">${COPY.gymSettings.unlink}</button>
+           </div>
+         </div>
+       </div>
++      ${needsRelogin ? '' : `
+       ${capability(gym, 'spotMaps') ? `<div class="app-settings-card"><h4>${COPY.spotMaps.preferredSpotMaps}</h4><p class="app-card-desc">${COPY.gymSettings.spotMapHelp}</p><button class="app-btn" data-gym-action="spot-maps">${COPY.gymSettings.manageMaps}</button></div>` : ''}
+       <div class="app-settings-card"><h4>${COPY.gymSettings.membershipCredits}</h4>${membershipHtml(gym, membership, credits)}</div>
+       <div class="app-settings-card">
+@@ -167,6 +168,7 @@ export function renderGymSettingsSection(container, model, handlers = {}) {
+       </div>
+       ${capability(gym, 'autoUpgrade') ? `<div class="app-settings-card"><h4>${COPY.gymSettings.autoUpgradeEngine}</h4>${autoUpgradeHtml(settings, gym)}</div>` : ''}
+       ${capability(gym, 'profile') ? `<div class="app-settings-card"><h4>${COPY.gymSettings.profileExplorer}</h4><p class="app-card-desc">${COPY.gymSettings.profileExplorerHelp}</p><button class="app-btn" data-gym-action="profile">${COPY.gymSettings.openProfileExplorer}</button></div>` : ''}
++      `}
+     </div>`;
+ 
+   const brandEl = container.querySelector('.app-gym-settings-brand');
+diff --git a/client/src/ui/home.js b/client/src/ui/home.js
+index 1dd97ba..bb89218 100644
+--- a/client/src/ui/home.js
++++ b/client/src/ui/home.js
+@@ -1,3 +1,4 @@
++import { homeConnectionsWidget } from './home-connections.js';
+ import { personalStatsZone, personalStatsKey, renderPersonalStats } from './personal-stats.js';
+ // Home tab: a page of independent widgets (F-10-1).
+ // Framework lives in widget-registry.js; this file registers the widgets and paints the page.
+@@ -11,7 +12,7 @@ import { greetingText } from './name-capture.js';
+ import { getTotalCredits, isMetered } from './credit-allowance.js';
+ import { canForGym, getGymShortName, getLinkedGyms, getAllLinkedGyms } from '../gym-context.js';
+ import { readCached } from '../cache.js';
+-import { cleanClassName, gymLogoPlate, gymSquareChip, icon, sparklesIcon } from './cards.js';
++import { escapeHtml, cleanClassName, gymLogoPlate, gymSquareChip, icon, sparklesIcon } from './cards.js';
+ import { buildTimetableUrl } from '../url-state.js';
+ import { navigate } from '../router.js';
+ import { DateTime } from 'luxon';
+@@ -23,6 +24,8 @@ import { instructorAvatar } from './tooltips.js';
+ import { safeImageUrl } from './safe-url.js';
+ import { indexFavourites, isFavouriteIn } from '../favourites.js';
+ 
++registerWidget(homeConnectionsWidget);
++
+ const goTo = (tabId) => (window.switchTab ? window.switchTab(tabId) : null);
+ 
+ const gymIdOf = (gym) => String(gym?.gym_id || gym?.gymId || gym?.id || '');
+@@ -244,7 +247,8 @@ function attendanceTile(row, ctx) {
+ 
+ // The activity total spans every linked gym, switched-off ones included (their
+ // stored history); every other widget sees only the enabled gyms in ctx.gyms.
+-const statsGyms = (ctx) => (Array.isArray(ctx.allGyms) ? ctx.allGyms : (Array.isArray(ctx.gyms) ? ctx.gyms : []));
++const connectedLinks = (gyms) => (gyms || []).filter(g => !['needs_relogin', 'syncing'].includes(g.status));
++const statsGyms = (ctx) => connectedLinks(Array.isArray(ctx.allGyms) ? ctx.allGyms : (Array.isArray(ctx.gyms) ? ctx.gyms : []));
+ 
+ // Pending imports get a bounded, account-owned follow-up; ordinary Home paints use SWR.
+ let statsPoll = null, statsPollCount = 0, statsPollAccount = '';
+@@ -710,7 +714,7 @@ async function loadHomeFavourites(ctx) {
+   const [{ cache }, timetable] = await Promise.all([
+     import('../main.js'), import('./timetable.js'),
+   ]);
+-  const gymIds = uniqueGymIds(ctx.allGyms || gyms);
++  const gymIds = uniqueGymIds(connectedLinks(ctx.allGyms || gyms));
+   const settled = await Promise.allSettled(gymIds.map((gymId) => api.getFavourites(gymId, { loading: true })));
+   const favouritesByGym = { ...(cache.favouritesByGym || {}) };
+   const decisionByGym = { ...favouritesByGym };
+@@ -845,7 +849,7 @@ const favouriteCard = renderHomeFavouriteCard;
+ 
+ registerWidget({
+   id: 'favourites', order: 50, title: (data) => data ? COPY.home.favourites : '',
+-  cacheKeys(ctx) { return uniqueGymIds(ctx.allGyms || ctx.gyms).map((id) => gymCacheKey('/api/favourites', id)); },
++  cacheKeys(ctx) { return uniqueGymIds(connectedLinks(ctx.allGyms || ctx.gyms)).map((id) => gymCacheKey('/api/favourites', id)); },
+   async load(ctx) { return loadHomeFavourites(ctx); },
+   // Event objects alone do not change when a release instant passes. Include
+   // the time-derived status/action so a foreground refresh moves Auto-Book to
+@@ -964,7 +968,7 @@ let renderRun = 0;
+ // (order >= HOME_ORDER_LAST, e.g. the no-Team "Create a Team" card) leaves its column for
+ // a tail row under BOTH columns (owner: "the bottom of the other widgets"), at its
+ // column's width.
+-const HOME_LEFT_COLUMN_ORDER = ['upcoming', 'teams', 'book', 'stats'];
++const HOME_LEFT_COLUMN_ORDER = ['connections', 'upcoming', 'teams', 'book', 'stats'];
+ const HOME_RIGHT_COLUMN_ORDER = ['credits', 'favourites', 'top-instructors'];
+ 
+ /** Pure: [{ id, order }] (effective registry orders) -> { mobile, left, right, tail } id lists. */
+@@ -1066,6 +1070,7 @@ export async function renderHome() {
+   if (!host) return;
+   const run = ++renderRun;
+   const gyms = getLinkedGyms();
++  const unavailable = getAllLinkedGyms().filter(g => ['needs_relogin', 'syncing'].includes(g.status));
+   const contextKey = homeContextKey(gyms);
+   const previousKey = host.dataset.homeContextKey || '';
+   if (previousKey !== contextKey) {
+@@ -1077,9 +1082,9 @@ export async function renderHome() {
+   try { settings = await api.getSettings(); } catch (_) { /* neutral greeting */ }
+   if (run !== renderRun) return;
+   paintHomeGreeting(settings);
+-  if (Array.isArray(gyms) && gyms.length === 0) { renderConnectGym(host); return; }
++  if (gyms.length === 0 && unavailable.length === 0) { renderConnectGym(host); return; }
+   const ctx = { gyms, allGyms: getAllLinkedGyms(), navigate: goTo, openGymSettings, contextKey };
+-  const widgets = registry.list(ctx);
++  const widgets = registry.list(ctx).filter(widget => gyms.length > 0 || widget.id === 'connections');
+   const skeleton = () => renderCardSkeletons(1, COPY.home.loadingWidget);
+   // syncHomeDesktopFlow nests sections inside columns; include those mounted
+   // sections so a refresh moves/reuses them instead of appending duplicates.
+diff --git a/client/src/ui/settings.js b/client/src/ui/settings.js
+index f50ddf1..05b4e11 100644
+--- a/client/src/ui/settings.js
++++ b/client/src/ui/settings.js
+@@ -1,3 +1,4 @@
++import { gymLoginChoiceHtml, bindGymLoginChoice } from './gym-login-choice.js';
+ import { MASCOT } from './teams-ui.js';
+ import { api, apiFetch } from '../api';
+ import { loadSpotMapGyms } from './spot-map-loading.js';
+@@ -1276,6 +1277,7 @@ function gymModal() {
+   const body = document.getElementById('app-gym-modal-body');
+   const title = document.getElementById('app-gym-modal-title');
+   const close = () => {
++    body.querySelectorAll('#app-link-gym-password, #app-link-gym-email').forEach(input => { input.value = ''; });
+     // Mobile page: pop its history entry (guard skipped, the work is done). Desktop: as before.
+     if (closeNavPage(modal)) return;
+     modal.classList.remove('show');
+@@ -1619,13 +1621,13 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
+     const config = catalogue.find(g => g.id === gymId) || {};
+     const gym = { ...config, ...link, id: gymId, capabilities: { ...(config.capabilities || {}), ...(link.capabilities || {}) } };
+     const [settings, membership, credits] = await Promise.all([
+-      api.getSettings(gymId),
+-      api.getMembership(gymId).catch(() => undefined), // undefined = unknown, null = confirmed none
+-      api.getNormalizedCredits(gymId).catch(() => undefined),
++      link.status === 'needs_relogin' ? {} : api.getSettings(gymId),
++      link.status === 'needs_relogin' ? undefined : api.getMembership(gymId).catch(() => undefined), // undefined = unknown
++      link.status === 'needs_relogin' ? undefined : api.getNormalizedCredits(gymId).catch(() => undefined),
+     ]);
+     const bookingWindowText = describeBookingWindow(getBookingOffset(settings), null);
+ 
+-    const rerender = () => renderGymSettingsSection(gymId).catch(err => debugConsole('[Settings] Gym section refresh failed:', err.message));
++    const rerender = () => renderGymSettingsSection(gymId, container).catch(err => debugConsole('[Settings] Gym section refresh failed:', err.message));
+     renderGymSettingsSectionView(container, {
+       logoHtml: gymLogoBanner(gymId, { settings: true }),
+       gym,
+@@ -1670,6 +1672,18 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
+         }
+       },
+       onAction: async (action, button) => {
++        if (action === 'forget-login') {
++          const modal = gymModal();
++          modal.title.textContent = COPY.settings.forgetGymLoginTitle;
++          modal.body.innerHTML = `<p>${escapeHtml(appConfig.appName)} will remove your saved gym login details and keep your current session. You’ll need to log in again occasionally. Auto-Book, Auto-Upgrade and syncing will pause for this gym when its session expires.</p><div class="app-settings-btn-row"><button class="app-btn" data-keep-login>Keep saved login</button><button class="app-btn variant-danger" data-forget-login>Forget gym login</button></div><p data-forget-error role="alert"></p>`;
++          modal.open({ id: 'forget-gym-login', back: true });
++          modal.body.querySelector('[data-keep-login]').onclick = modal.close;
++          modal.body.querySelector('[data-forget-login]').onclick = async () => {
++            try { await api.forgetGymLogin(gymId); modal.close(); await renderGymsCard(); }
++            catch (err) { modal.body.querySelector('[data-forget-error]').textContent = err.message; }
++          };
++          return;
++        }
+         if (action === 'reauth') return openLinkGymModal(gymId, link);
+         if (action === 'spot-maps') return openManageSpotMapsModal({ gymId });
+         if (action === 'profile') return openProfileExplorerModal(gymId, gym.name || link.gym_name);
+@@ -1719,7 +1733,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
+ // One modal for both "add a gym" and "re-authenticate an existing one" — they are
+ // the same operation server-side (prove the credential, then store it), so making
+ // them two dialogs would just be two things to keep in step.
+-function openLinkGymModal(gymId, existing, addable = []) {
++export function openLinkGymModal(gymId, existing, addable = []) {
+   const { body, title, open, close } = gymModal();
+   const isReauth = !!gymId;
+   title.textContent = isReauth
+@@ -1739,12 +1753,13 @@ function openLinkGymModal(gymId, existing, addable = []) {
+       <select id="app-link-gym-id" class="app-select set-gym-select">
+         ${addable.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join('')}
+       </select>`}
+-    <label class="app-setting-label set-gym-label"><span>${COPY.settings.email}</span></label>
++    <label for="app-link-gym-email" class="app-setting-label set-gym-label"><span>${COPY.settings.email}</span></label>
+     <input id="app-link-gym-email" type="email" class="app-input set-gym-select" autocomplete="username"
+            placeholder="${COPY.static.exampleEmail}">
+-    <label class="app-setting-label set-gym-label"><span>${COPY.settings.password}</span></label>
++    <label for="app-link-gym-password" class="app-setting-label set-gym-label"><span>${COPY.settings.password}</span></label>
+     <input id="app-link-gym-password" type="password" class="app-input set-gym-password" autocomplete="current-password"
+           >
++    ${gymLoginChoiceHtml('app-link-gym-remember')}
+     <div id="app-link-gym-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
+     <button class="app-btn primary set-gym-submit" id="app-link-gym-submit">
+       ${isReauth ? COPY.settings.reauthenticate : COPY.settings.link}
+@@ -1757,6 +1772,7 @@ function openLinkGymModal(gymId, existing, addable = []) {
+   body.querySelector('#app-link-gym-id')?.addEventListener('change', (e) => {
+     body.querySelector('#app-link-gym-logo').innerHTML = gymLogoBanner(e.target.value);
+   });
++  bindGymLoginChoice(body);
+   const errEl = body.querySelector('#app-link-gym-error');
+   const submit = body.querySelector('#app-link-gym-submit');
+   submit.onclick = async () => {
+@@ -1772,7 +1788,9 @@ function openLinkGymModal(gymId, existing, addable = []) {
+     submit.disabled = true;
+     submit.textContent = COPY.settings.checking;
+     try {
+-      await api.linkGym(targetGym, email, password);
++      await api.linkGym(targetGym, email, password, body.querySelector('[data-remember-gym-login]').checked);
++      body.querySelector('#app-link-gym-password').value = '';
++      body.querySelector('#app-link-gym-email').value = '';
+       showToast(isReauth ? COPY.settings.reauthenticated : COPY.settings.gymLinked, 'success');
+       close();
+       // C3-1: a newly linked gym must appear in the header badges and pass

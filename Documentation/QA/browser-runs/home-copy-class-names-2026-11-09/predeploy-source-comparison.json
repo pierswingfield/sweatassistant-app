@@ -1,0 +1,10 @@
+{
+  "baseline": "reconnect-design-sweep final source manifest",
+  "unchanged": 353,
+  "changed": [
+    "server/class-name.js",
+    "client/src/styles.css",
+    "client/src/class-name.js",
+    "client/src/ui/cards.test.js"
+  ]
+}

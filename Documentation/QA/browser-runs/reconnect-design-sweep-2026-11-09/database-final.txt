@@ -1,0 +1,1 @@
+{"integrity":"ok","counts":{"users":12,"user_gyms":18,"auto_bookings":2,"auto_upgrades":2,"team_members":11,"teams":3}}

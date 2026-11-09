@@ -1,0 +1,158 @@
+[
+  {
+    "name": "terms: raw HTML independent of Cloudflare decoder",
+    "pass": true,
+    "detail": {
+      "cache": "no-cache, no-transform"
+    }
+  },
+  {
+    "name": "terms: no-transform response",
+    "pass": true
+  },
+  {
+    "name": "terms: visible direct mailto contact",
+    "pass": true,
+    "detail": [
+      {
+        "text": "privacy@dibs.fit",
+        "href": "mailto:privacy@dibs.fit"
+      }
+    ]
+  },
+  {
+    "name": "privacy: raw HTML independent of Cloudflare decoder",
+    "pass": true,
+    "detail": {
+      "cache": "no-cache, no-transform"
+    }
+  },
+  {
+    "name": "privacy: no-transform response",
+    "pass": true
+  },
+  {
+    "name": "privacy: visible direct mailto contact",
+    "pass": true,
+    "detail": [
+      {
+        "text": "privacy@dibs.fit",
+        "href": "mailto:privacy@dibs.fit"
+      },
+      {
+        "text": "privacy@dibs.fit",
+        "href": "mailto:privacy@dibs.fit"
+      },
+      {
+        "text": "privacy@dibs.fit",
+        "href": "mailto:privacy@dibs.fit"
+      },
+      {
+        "text": "privacy@dibs.fit",
+        "href": "mailto:privacy@dibs.fit"
+      }
+    ]
+  },
+  {
+    "name": "terms-2026-11-09: raw HTML independent of Cloudflare decoder",
+    "pass": true,
+    "detail": {
+      "cache": "no-cache, no-transform"
+    }
+  },
+  {
+    "name": "terms-2026-11-09: no-transform response",
+    "pass": true
+  },
+  {
+    "name": "terms-2026-11-09: visible direct mailto contact",
+    "pass": true,
+    "detail": [
+      {
+        "text": "privacy@dibs.fit",
+        "href": "mailto:privacy@dibs.fit"
+      }
+    ]
+  },
+  {
+    "name": "privacy-2026-11-09: raw HTML independent of Cloudflare decoder",
+    "pass": true,
+    "detail": {
+      "cache": "no-cache, no-transform"
+    }
+  },
+  {
+    "name": "privacy-2026-11-09: no-transform response",
+    "pass": true
+  },
+  {
+    "name": "privacy-2026-11-09: visible direct mailto contact",
+    "pass": true,
+    "detail": [
+      {
+        "text": "privacy@dibs.fit",
+        "href": "mailto:privacy@dibs.fit"
+      },
+      {
+        "text": "privacy@dibs.fit",
+        "href": "mailto:privacy@dibs.fit"
+      },
+      {
+        "text": "privacy@dibs.fit",
+        "href": "mailto:privacy@dibs.fit"
+      },
+      {
+        "text": "privacy@dibs.fit",
+        "href": "mailto:privacy@dibs.fit"
+      }
+    ]
+  },
+  {
+    "name": "Terms and Conditions: embedded readable mailto, no protected links",
+    "pass": true,
+    "detail": [
+      {
+        "text": "privacy@dibs.fit",
+        "href": "mailto:privacy@dibs.fit"
+      },
+      {
+        "text": "Privacy notice",
+        "href": "/policies/privacy.html"
+      }
+    ]
+  },
+  {
+    "name": "Terms and Conditions: signup checkbox retained",
+    "pass": true
+  },
+  {
+    "name": "Privacy Policy: embedded readable mailto, no protected links",
+    "pass": true,
+    "detail": [
+      {
+        "text": "privacy@dibs.fit",
+        "href": "mailto:privacy@dibs.fit"
+      },
+      {
+        "text": "privacy@dibs.fit",
+        "href": "mailto:privacy@dibs.fit"
+      },
+      {
+        "text": "privacy@dibs.fit",
+        "href": "mailto:privacy@dibs.fit"
+      },
+      {
+        "text": "privacy@dibs.fit",
+        "href": "mailto:privacy@dibs.fit"
+      },
+      {
+        "text": "Information Commissioner's Office",
+        "href": "https://ico.org.uk/make-a-complaint/"
+      }
+    ]
+  },
+  {
+    "name": "Privacy Policy: signup checkbox retained",
+    "pass": true
+  }
+]

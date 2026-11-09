@@ -121,7 +121,7 @@ export function renderGymSettingsSection(container, model, handlers = {}) {
   const gymEmail = gym.gym_email || gym.email || COPY.gymSettings.gymAccountEmailNotCaptured;
   const status = gym.status || 'active';
   const needsRelogin = status === 'needs_relogin';
-  const statusLabel = needsRelogin ? COPY.auth.reauthenticationNeeded : (status === 'active' ? COPY.gyms.connected : status);
+  const statusLabel = needsRelogin ? COPY.gymSettings.loginNeeded : (status === 'active' ? COPY.gyms.connected : status);
   const bookingKind = gym.capabilities?.bookingWindow;
   const windowDescription = gym.bookingWindowSummary
     ? gym.bookingWindowSummary
@@ -146,19 +146,20 @@ export function renderGymSettingsSection(container, model, handlers = {}) {
   const logoBannerHtml = model.logoHtml || (gymIdForTheme ? gymLogoBanner(gymIdForTheme, { settings: true }) : '');
   container.innerHTML = `
     <div class="app-gym-settings-heading"><div class="app-gym-settings-brand">${logoBannerHtml}</div><div class="app-settings-btn-row"><span class="app-badge ${status === 'active' ? 'success' : 'warning'}">${escapeHtml(statusLabel)}</span></div></div>
-    ${needsRelogin ? `<div class="app-gym-settings-warning"><strong>${COPY.gymSettings.reconnect}</strong><span>${COPY.gymSettings.reconnectHelp}</span></div>` : ''}
     <div class="app-settings-grid app-gym-settings-grid">
       <div class="app-settings-card">
         <h4>${COPY.gymSettings.connection}</h4>
-        <div class="app-setting-row"><div class="app-setting-label"><span>Enable this gym</span><small>Hide the gym everywhere in the app, and disables Auto-Book, Auto Upgrade, calendar and notifications. Your bookings and waitlists aren't changed.</small></div><label class="app-switch"><input type="checkbox" data-gym-enabled aria-label="Enable ${escapeHtml(gymName)}" ${gym.account_enabled !== 0 && gym.account_enabled !== false ? 'checked' : ''}><span class="app-slider"></span></label></div>
-        <div class="app-gym-conn-inline-row">
-          <p class="app-card-desc">${escapeHtml(gymEmail)}</p>
+        ${needsRelogin ? '' : `<div class="app-setting-row"><div class="app-setting-label"><span>Enable this gym</span><small>Hide the gym everywhere in the app, and disables Auto-Book, Auto Upgrade, calendar and notifications. Your bookings and waitlists aren't changed.</small></div><label class="app-switch"><input type="checkbox" data-gym-enabled aria-label="Enable ${escapeHtml(gymName)}" ${gym.account_enabled !== 0 && gym.account_enabled !== false ? 'checked' : ''}><span class="app-slider"></span></label></div>`}
+        <div class="app-gym-conn-inline-row${needsRelogin ? ' is-reconnecting' : ''}">
+          <p class="app-card-desc">${gym.has_saved_login ? escapeHtml(gymEmail) : 'Session only'}</p>${status === 'syncing' ? '<p class="app-card-desc" role="status">Syncing…</p>' : ''}
           <div class="app-settings-btn-row">
             <button class="app-btn app-btn-mini ${needsRelogin ? 'primary' : ''}" data-gym-action="reauth">${COPY.gymSettings.reauthenticate}</button>
+            ${gym.has_saved_login ? `<button class="app-btn app-btn-mini" data-gym-action="forget-login">Forget gym login</button>` : ''}
             <button class="app-btn app-btn-mini variant-danger" data-gym-action="unlink">${COPY.gymSettings.unlink}</button>
           </div>
         </div>
       </div>
+      ${needsRelogin ? '' : `
       ${capability(gym, 'spotMaps') ? `<div class="app-settings-card"><h4>${COPY.spotMaps.preferredSpotMaps}</h4><p class="app-card-desc">${COPY.gymSettings.spotMapHelp}</p><button class="app-btn" data-gym-action="spot-maps">${COPY.gymSettings.manageMaps}</button></div>` : ''}
       <div class="app-settings-card"><h4>${COPY.gymSettings.membershipCredits}</h4>${membershipHtml(gym, membership, credits)}</div>
       <div class="app-settings-card">
@@ -167,6 +168,7 @@ export function renderGymSettingsSection(container, model, handlers = {}) {
       </div>
       ${capability(gym, 'autoUpgrade') ? `<div class="app-settings-card"><h4>${COPY.gymSettings.autoUpgradeEngine}</h4>${autoUpgradeHtml(settings, gym)}</div>` : ''}
       ${capability(gym, 'profile') ? `<div class="app-settings-card"><h4>${COPY.gymSettings.profileExplorer}</h4><p class="app-card-desc">${COPY.gymSettings.profileExplorerHelp}</p><button class="app-btn" data-gym-action="profile">${COPY.gymSettings.openProfileExplorer}</button></div>` : ''}
+      `}
     </div>`;
 
   const brandEl = container.querySelector('.app-gym-settings-brand');

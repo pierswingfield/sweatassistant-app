@@ -1,3 +1,4 @@
+import { gymLoginChoiceHtml, bindGymLoginChoice } from './gym-login-choice.js';
 // first-run onboarding flow.
 //
 // Runs before login on first launch and guides the user through:
@@ -23,7 +24,7 @@ import { setupGuideHtml } from './setup-guide.js';
 import { escapeHtml, gymLogoBanner } from './cards';
 import { enableAutoUpgradeForGyms, gymsWithPreferredSlots, gymsWithAutoUpgradeOn, getPostLoginDestination as choosePostLoginDestination, detectInstallContext, shouldOfferInstall } from './onboarding-routing.js';
 import { cleanNameField, onboardingNameSuggestion } from './name-capture.js';
-import { startGymLogoDiscovery } from './gym-logo-strip.js';
+import { startGymLogoDiscovery, setGymLogoDiscoveryVisible } from './gym-logo-strip.js';
 
 const COMPLETE_KEY = 'appOnboardingComplete';
 const STEP_KEY = 'appOnboardingStep';
@@ -620,6 +621,7 @@ function stepGyms() {
             <div>
               <label class="onb-select-label" for="app-onb-gym-password">${COPY.onboarding.gymPassword}</label>
               <input class="onb-email-input" type="password" id="app-onb-gym-password" placeholder="${COPY.onboarding.gymPasswordPlaceholder}" autocomplete="section-gym current-password">
+              ${gymLoginChoiceHtml('app-onb-gym-remember')}
             </div>
             <div id="app-onb-gym-error" class="app-login-error" style="display:none;margin-top:4px;"></div>
             <button type="button" id="app-onb-gym-submit" class="app-btn-primary onb-submit-button"><span>${escapeHtml(submitLabel(null))}</span></button>
@@ -658,6 +660,7 @@ function stepGyms() {
       const newStrip = sheet.querySelector('.app-onb-gym-logos');
       if (stableLogoStrip) newStrip.replaceWith(stableLogoStrip);
       else { stableLogoStrip = newStrip; startGymLogoDiscovery(stableLogoStrip); }
+      setGymLogoDiscoveryVisible(stableLogoStrip, !hasLinked || addingAnother, { animate: false });
       const addAnotherBtn = sheet.querySelector('#app-onb-add-another');
       if (addAnotherBtn) addAnotherBtn.addEventListener('click', () => { addingAnother = true; render(); });
 
@@ -671,11 +674,15 @@ function stepGyms() {
         skipBtn.addEventListener('click', resolve);
       }
 
+      bindGymLoginChoice(sheet);
       const submitBtn = sheet.querySelector('#app-onb-gym-submit');
       const gymSel = sheet.querySelector('#app-onb-gym-select');
       if (gymSel && submitBtn) gymSel.addEventListener('change', () => {
         const fields = sheet.querySelector('.app-onb-credentials');
         fields.hidden = !gymSel.value;
+        setGymLogoDiscoveryVisible(stableLogoStrip, !gymSel.value, {
+          anchor: sheet.querySelector('.app-onb-link-form'), focusTarget: gymSel,
+        });
         submitBtn.querySelector('span').textContent = submitLabel(gymSel.value);
       });
       if (submitBtn) {
@@ -700,7 +707,8 @@ function stepGyms() {
           submitBtn.querySelector('span').textContent = COPY.onboarding.connecting;
 
           try {
-            await api.linkGym(gymId, email, password);
+            await api.linkGym(gymId, email, password, sheet.querySelector('[data-remember-gym-login]').checked);
+            emailInput.value = ''; passInput.value = '';
             showToast(COPY.notifications.gymConnectedToast, 'success');
             await loadData();
             addingAnother = false;

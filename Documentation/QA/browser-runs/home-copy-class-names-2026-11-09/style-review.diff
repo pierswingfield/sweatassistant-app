@@ -1,0 +1,16 @@
+--- /tmp/dibs-home-before.css	2026-11-09 22:17:29
++++ client/src/styles.css	2026-11-09 22:13:43
+@@ -13075,7 +13075,12 @@
+ #app-helper-container .tm-skeleton-card > div i:last-child { width: 55%; }
+ #app-helper-container .tm-skeleton-footer { width: 45%; }
+ @keyframes personal-skeleton { to { opacity: .45; } }
+-#app-helper-container .home-book-invitation { margin: 0 0 17px; color: var(--text); font: 500 17px/1.5 var(--font-sans); max-width: 30ch; text-wrap: balance; }
++/* Supporting copy shares one compact-body hierarchy across Home cards. */
++#app-helper-container :is(.home-book-invitation, .home-widget-empty, .home-teams-empty p) {
++  color: var(--text-secondary);
++  font: 400 var(--text-sm)/1.4 var(--font-sans);
++}
++#app-helper-container .home-book-invitation { margin: 0 0 17px; }
+ @media (max-width: 359px) {
+   #app-helper-container .tm-list-page-empty .tm-orb { width: 62px; height: 62px; }
+   #app-helper-container .tm-list-page-empty .tm-orb .tm-mascot { --s: 62px !important; }

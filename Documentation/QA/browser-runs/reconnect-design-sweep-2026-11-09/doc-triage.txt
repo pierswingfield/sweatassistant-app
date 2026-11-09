@@ -1,0 +1,7 @@
+- **Mandatory Workflow:** Verify first in real Chrome (CDP `127.0.0.1:9222` or Claude for Chrome per `AGENT_PROTOCOL.md`), then change, then re-verify (`npm test` green, Node 22.23.4, clear SW/IndexedDB client caches).
+- **Design Patterns & Tokens:** CSSv2 visual contract in `styles.css` (`--bg`, `--surface`, `--accent`, `color-mix` tints); Fraunces (titles) & Inter (body/tabular data); mobile modals/sheets **must** use `client/src/ui/modal-nav.js` (`openPage`/`closePage`) for full-screen `.app-page` layout with bottom-pinned action trays.
+- **Experiment Deployment & Preservation:** Deploy exclusively via `./deploy.sh --experiment` targeting `sweatassistant-experiment`. Preserve SQLite DB integrity (`app.db`), all user links/queues, and env/compose hashes. If Docker Hub returns 429, fall back to preserved local image `15d8b1b7748b`. Verify WAL-safe backups and SQLite integrity post-deploy.
+- **Exact Files/Sections to Inspect:**
+  - *Settings card hiding & Reauth:* `client/src/ui/settings.js` (reconnect handlers, gym state), `server/auth.js` (`triggerAutoRelogin`, `needs_relogin`).
+  - *Home & Widgets:* `client/src/ui/home.js`, `client/src/ui/widget-registry.js` (widget independent error/retry/order).
+  - *Mobile Layout Fixes:* `client/src/ui/modal-nav.js`, `client/src/styles.css` (auth/onboarding forms, `.app-ovl-card`, small-screen height adjustments).

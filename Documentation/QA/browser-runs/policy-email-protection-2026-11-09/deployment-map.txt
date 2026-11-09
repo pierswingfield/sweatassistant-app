@@ -1,0 +1,10 @@
+### `sweatassistant-experiment` Deployment Profile (`registry.md:2-5`)
+- **Host & Row:** Oracle OCI (`clearwaterai`), registry.md:2. Container: `sweatassistant-experiment`.
+- **Ports / Bind / Networks:** `100.86.226.52:3006->3000` (Tailnet only), attached to `edge` + `sweatassistant-experiment_default`.
+- **Exposure:** Access-protected (`experiment.dibs.fit`, Allow Piers policy; calendar/health paths bypass).
+- **Mounts:** Bind-mounted `./data` (SQLite `app.db`, secrets, compose).
+- **Current Drift:** Deployed 2026-11-09 from uncommitted branch `feat/optional-gym-login-policy` (base `43592ebb`). Node v22.23.4 ARM64, 0 restarts, 11 users / 16 gym links preserved.
+- **Mandatory Backup:** Run `sudo /usr/local/sbin/sweatassistant-backup-sqlite.sh` (`oracle.md:210+`) to snapshot DB to encrypted GDrive (`gdrive_crypt:`) prior to changes.
+- **Mandatory Update:** Execute `./deploy.sh --experiment` (`registry.md:3`). Builds 133 client modules, recreates container.
+- **Mandatory Verify:** Check internal/public `/api/health` returns HTTP 200; verify browser run receipt at `Documentation/QA/browser-runs/gym-login-policy-experiment-2026-11-09/README.md` (`registry.md:5`).
+- **Mandatory Rollback:** Restore DB, env, and compose from `~/services/sweatassistant-experiment/rollback-gym-login-policy-experiment-20261109/` and rollback image `sweatassistant-experiment:rollback-gym-login-policy-20261109` (`registry.md:5`).

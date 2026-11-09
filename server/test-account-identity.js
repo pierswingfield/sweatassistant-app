@@ -72,7 +72,7 @@ check('an unknown email is rejected, creates nothing, and never reaches a gym', 
 
 check('an app login authenticates locally, WITHOUT touching the gym', async () => {
   const email = uniq('local');
-  await auth.handleSignup(email, APP_PASSWORD);
+  await auth.handleSignup(email, APP_PASSWORD, require('./policies').CURRENT_ACCEPTANCE);
   const before = providerLoginCalls;
   const result = await auth.handleLogin(email, APP_PASSWORD);
   assert.ok(result.token);
@@ -82,10 +82,10 @@ check('an app login authenticates locally, WITHOUT touching the gym', async () =
 
 check('a wrong password is rejected and does NOT fall back to the gym', async () => {
   const email = uniq('wrongpw');
-  const { token } = await auth.handleSignup(email, APP_PASSWORD);
+  const { token } = await auth.handleSignup(email, APP_PASSWORD, require('./policies').CURRENT_ACCEPTANCE);
   assert.ok(token);
   const uid = db.getUserByEmail(email).id;
-  await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD);
+  await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD, true);
   const before = providerLoginCalls;
   await assert.rejects(() => auth.handleLogin(email, GYM_PASSWORD), /invalid email or password/i);
   assert.strictEqual(providerLoginCalls, before,
@@ -94,7 +94,7 @@ check('a wrong password is rejected and does NOT fall back to the gym', async ()
 
 check('changing the app password stops the old one working', async () => {
   const email = uniq('changed');
-  await auth.handleSignup(email, APP_PASSWORD);
+  await auth.handleSignup(email, APP_PASSWORD, require('./policies').CURRENT_ACCEPTANCE);
   const uid = db.getUserByEmail(email).id;
   db.setAccountPassword(uid, 'my-new-app-password');
   await assert.rejects(() => auth.handleLogin(email, APP_PASSWORD),
@@ -108,7 +108,7 @@ check('changing the app password stops the old one working', async () => {
 check('linkGymAccount stores credentials only after the provider accepts them', async () => {
   const email = uniq('link');
   const uid = testkit.createUser(db, email, 'encrypted-blob');
-  await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD);
+  await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD, true);
 
   assert.strictEqual(db.isGymLinked(uid, 'jab-boxing'), true);
   const link = db.getUserGym(uid, 'jab-boxing');
@@ -120,10 +120,10 @@ check('linkGymAccount stores credentials only after the provider accepts them', 
 check('a rejected credential does not overwrite a working link', async () => {
   const email = uniq('noclobber');
   const uid = testkit.createUser(db, email, 'encrypted-blob');
-  await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD);
+  await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD, true);
   const good = db.getUserGym(uid, 'jab-boxing').encrypted_password;
 
-  await assert.rejects(() => auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', 'wrong'));
+  await assert.rejects(() => auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', 'wrong', true));
   assert.strictEqual(db.getUserGym(uid, 'jab-boxing').encrypted_password, good,
     'a failed re-auth must leave the previously working credential intact');
 });
@@ -131,11 +131,11 @@ check('a rejected credential does not overwrite a working link', async () => {
 check('re-authenticating preserves priority tier and calendar token', async () => {
   const email = uniq('reauth');
   const uid = testkit.createUser(db, email, 'encrypted-blob');
-  await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD);
+  await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD, true);
   db.upsertUserGym(uid, 'jab-boxing', { priority: 10, calendar_token: `tok-${Date.now()}` });
   const beforeLink = db.getUserGym(uid, 'jab-boxing');
 
-  await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD);
+  await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD, true);
   const after = db.getUserGym(uid, 'jab-boxing');
   assert.strictEqual(after.priority, 10, 're-auth must not silently demote a priority tier');
   assert.strictEqual(after.calendar_token, beforeLink.calendar_token, 'nor break a published feed URL');
@@ -143,10 +143,10 @@ check('re-authenticating preserves priority tier and calendar token', async () =
 
 check('linking refuses an unknown or not-yet-enabled gym', async () => {
   const uid = testkit.createUser(db, uniq('gated'), 'encrypted-blob');
-  await assert.rejects(() => auth.linkGymAccount(uid, 'no-such-gym', 'a@b.c', GYM_PASSWORD), /Unknown gym/i);
+  await assert.rejects(() => auth.linkGymAccount(uid, 'no-such-gym', 'a@b.c', GYM_PASSWORD, true), /Unknown gym/i);
   db.db.prepare("UPDATE gyms SET enabled = 0 WHERE id = 'jab-boxing'").run();
   try {
-    await assert.rejects(() => auth.linkGymAccount(uid, 'jab-boxing', 'a@b.c', GYM_PASSWORD), /not available/i);
+    await assert.rejects(() => auth.linkGymAccount(uid, 'jab-boxing', 'a@b.c', GYM_PASSWORD, true), /not available/i);
   } finally {
     db.db.prepare("UPDATE gyms SET enabled = 1 WHERE id = 'jab-boxing'").run();
   }
@@ -155,7 +155,7 @@ check('linking refuses an unknown or not-yet-enabled gym', async () => {
 check('two gyms can be linked; each resolves via request context, not a stored choice', async () => {
   const email = uniq('twogyms');
   const uid = testkit.createUser(db, email, 'encrypted-blob');
-  await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD);
+  await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD, true);
 
   const gyms = db.getUserGymsPublic(uid).map((g) => g.gym_id).sort();
   assert.deepStrictEqual(gyms, ['jab-boxing', 'psycle-london']);
@@ -172,10 +172,10 @@ check('two gyms can be linked; each resolves via request context, not a stored c
 
 check('unlinking Psycle leaves a working JAB-only account (the D4 scenario, end to end)', async () => {
   const email = uniq('cancelled');
-  await auth.handleSignup(email, APP_PASSWORD);
+  await auth.handleSignup(email, APP_PASSWORD, require('./policies').CURRENT_ACCEPTANCE);
   const uid = db.getUserByEmail(email).id;
-  await auth.linkGymAccount(uid, 'psycle-london', 'psy@test.local', GYM_PASSWORD);
-  await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD);
+  await auth.linkGymAccount(uid, 'psycle-london', 'psy@test.local', GYM_PASSWORD, true);
+  await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD, true);
 
   auth.unlinkGymAccount(uid, 'psycle-london');                       // membership cancelled
 
@@ -190,7 +190,7 @@ check('unlinking Psycle leaves a working JAB-only account (the D4 scenario, end 
 check('signup creates an account with a password and NO gym linked', async () => {
   const email = uniq('signup');
   const before = providerLoginCalls;
-  const result = await auth.handleSignup(email, 'a-real-password');
+  const result = await auth.handleSignup(email, 'a-real-password', require('./policies').CURRENT_ACCEPTANCE);
   assert.ok(result.token, 'issues a session immediately');
   assert.strictEqual(result.needsGym, true, 'and tells the client to go link a gym');
   assert.strictEqual(providerLoginCalls, before, 'signup must not touch any gym');
@@ -202,24 +202,24 @@ check('signup creates an account with a password and NO gym linked', async () =>
 
 check('a signed-up account can log in before it has any gym', async () => {
   const email = uniq('signup-login');
-  await auth.handleSignup(email, 'a-real-password');
+  await auth.handleSignup(email, 'a-real-password', require('./policies').CURRENT_ACCEPTANCE);
   const login = await auth.handleLogin(email, 'a-real-password');
   assert.ok(login.token, 'login works with zero gyms linked');
 });
 
 check('signup rejects a duplicate email, a bad address, and a short password', async () => {
   const email = uniq('dupe');
-  await auth.handleSignup(email, 'a-real-password');
-  await assert.rejects(() => auth.handleSignup(email, 'another-password'), /already exists/i);
-  await assert.rejects(() => auth.handleSignup('not-an-email', 'a-real-password'), /valid email/i);
-  await assert.rejects(() => auth.handleSignup(uniq('short'), 'abc'), /at least 8/i);
+  await auth.handleSignup(email, 'a-real-password', require('./policies').CURRENT_ACCEPTANCE);
+  await assert.rejects(() => auth.handleSignup(email, 'another-password', require('./policies').CURRENT_ACCEPTANCE), /already exists/i);
+  await assert.rejects(() => auth.handleSignup('not-an-email', 'a-real-password', require('./policies').CURRENT_ACCEPTANCE), /valid email/i);
+  await assert.rejects(() => auth.handleSignup(uniq('short'), 'abc', require('./policies').CURRENT_ACCEPTANCE), /at least 8/i);
 });
 
 check('signup then link produces exactly the same shape as a migrated account', async () => {
   const email = uniq('signup-link');
-  await auth.handleSignup(email, 'a-real-password');
+  await auth.handleSignup(email, 'a-real-password', require('./policies').CURRENT_ACCEPTANCE);
   const uid = db.getUserByEmail(email).id;
-  await auth.linkGymAccount(uid, 'psycle-london', 'gym@test.local', GYM_PASSWORD);
+  await auth.linkGymAccount(uid, 'psycle-london', 'gym@test.local', GYM_PASSWORD, true);
   assert.strictEqual(db.isGymLinked(uid, 'psycle-london'), true);
   assert.strictEqual(db.resolveActiveGymId(uid), 'psycle-london');
   assert.ok(db.getUserById(uid).encrypted_password, 'credential resolves through user_gyms');
@@ -242,8 +242,8 @@ check('the gym-login recovery surface is gone, not merely unrouted', () => {
 check('resetGymCredentials clears every credential but keeps the links', async () => {
   const email = uniq('reset-all');
   const uid = testkit.createUser(db, email, 'encrypted-blob');
-  await auth.linkGymAccount(uid, 'psycle-london', 'gym@test.local', GYM_PASSWORD);
-  await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD);
+  await auth.linkGymAccount(uid, 'psycle-london', 'gym@test.local', GYM_PASSWORD, true);
+  await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD, true);
   db.upsertUserGym(uid, 'jab-boxing', { ...db.getUserGym(uid, 'jab-boxing'), priority: 10 });
 
   const reset = db.resetGymCredentials(uid);

@@ -1,0 +1,40 @@
+{
+  "sourceCount": 357,
+  "sourceDifferences": [],
+  "assetCount": 15,
+  "assetDifferences": [],
+  "assets": {
+    "autobook-k41sZQah.js": "c91ec6dd87241c2c116843e5346eb453183ff89a40af1025b73b907eac991189",
+    "credits-xLXwQtZK.js": "11182d01db04d028fa6a648e5d9118a1e1f6255729f3d46806983d13ddbbc4ab",
+    "home-4Uv7OKOv.js": "973ef415260e2df0506d2f5505a1e78d65a4c404dba052a2a7520bdf1959fd89",
+    "home-teams-DvJY7P8-.js": "12e146b04dae6c24dfda975984886613b25300bab55480f8003b07218005447b",
+    "index-CVv2hau7.js": "da5f81f5ea5fe5f54b700b80298df2ee7ca463b16c2fe21918d1cbf72ddf2efe",
+    "index-D1U5v9HO.css": "276f08c1c3b5aad2f44699279ed26645ee8d06457270e49ed6386a48ffa825db",
+    "share-sheet-DTw7R4Dz.js": "ca6e009dbc6237c5943a7316afb6e6b24c8cf909b1e25cf0e440a9ba34df399f",
+    "teams-99PNcASC.js": "8f9111d2d0c6e09dc60840d063bd49b4e20dba06001385f47f7556d12342ea26",
+    "teams-card-Bf3KGlnT.js": "7790496d494be957143d533ec6294f78c95836a3ae2773cc36b83537f6e66de5",
+    "teams-create-BJboEbGl.js": "41ec2d524fe765967dbe65479c721849ec3909b9b317dcbdd6218706a5b9eb09",
+    "teams-dashboard-BE7jx7zI.js": "b186f40fde6d1bc5a179937afe419aa255f4638ff37968566f7ee7ac4188a94d",
+    "teams-join-CYvDPnz9.js": "578d1c7c6fc49eceb4cec4c0ea274f5567d775452c806f5365f3d0d0333e17a1",
+    "teams-manage-B3QmPbYh.js": "9431ae4cf9a244a62dd4be230863c14cb6ce67d9944063724a490027f2531efc",
+    "teams-privacy-DWnteOlO.js": "74b5803930137d214ab02c7b09aadb06fb334883aacf6e8fc09c84657e787055",
+    "teams-stats-model-DUtcGQf_.js": "35b0959dacef1787a7b0e071a302d388b04e0d599aa1ee79f3300a70d28c7a48"
+  },
+  "runtimeAssets": {
+    "autobook-k41sZQah.js": "c91ec6dd87241c2c116843e5346eb453183ff89a40af1025b73b907eac991189",
+    "credits-xLXwQtZK.js": "11182d01db04d028fa6a648e5d9118a1e1f6255729f3d46806983d13ddbbc4ab",
+    "home-4Uv7OKOv.js": "973ef415260e2df0506d2f5505a1e78d65a4c404dba052a2a7520bdf1959fd89",
+    "home-teams-DvJY7P8-.js": "12e146b04dae6c24dfda975984886613b25300bab55480f8003b07218005447b",
+    "index-CVv2hau7.js": "da5f81f5ea5fe5f54b700b80298df2ee7ca463b16c2fe21918d1cbf72ddf2efe",
+    "index-D1U5v9HO.css": "276f08c1c3b5aad2f44699279ed26645ee8d06457270e49ed6386a48ffa825db",
+    "share-sheet-DTw7R4Dz.js": "ca6e009dbc6237c5943a7316afb6e6b24c8cf909b1e25cf0e440a9ba34df399f",
+    "teams-99PNcASC.js": "8f9111d2d0c6e09dc60840d063bd49b4e20dba06001385f47f7556d12342ea26",
+    "teams-card-Bf3KGlnT.js": "7790496d494be957143d533ec6294f78c95836a3ae2773cc36b83537f6e66de5",
+    "teams-create-BJboEbGl.js": "41ec2d524fe765967dbe65479c721849ec3909b9b317dcbdd6218706a5b9eb09",
+    "teams-dashboard-BE7jx7zI.js": "b186f40fde6d1bc5a179937afe419aa255f4638ff37968566f7ee7ac4188a94d",
+    "teams-join-CYvDPnz9.js": "578d1c7c6fc49eceb4cec4c0ea274f5567d775452c806f5365f3d0d0333e17a1",
+    "teams-manage-B3QmPbYh.js": "9431ae4cf9a244a62dd4be230863c14cb6ce67d9944063724a490027f2531efc",
+    "teams-privacy-DWnteOlO.js": "74b5803930137d214ab02c7b09aadb06fb334883aacf6e8fc09c84657e787055",
+    "teams-stats-model-DUtcGQf_.js": "35b0959dacef1787a7b0e071a302d388b04e0d599aa1ee79f3300a70d28c7a48"
+  }
+}

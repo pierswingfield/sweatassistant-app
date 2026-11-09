@@ -1,0 +1,4 @@
+[Push] Automatically generated and saved VAPID keypair in server database.
+{"ts":"2026-11-09T00:52:06.242Z","level":"info","msg":"auto-upgrade booking got 401, attempting relogin and retry","component":"poller","userId":1,"gymId":"psycle-london"}
+{"ts":"2026-11-09T00:52:06.243Z","level":"info","msg":"auto-upgrade booking got 401, attempting relogin and retry","component":"poller","userId":1,"gymId":"psycle-london"}
+Rejected calls: 8 renewals: 4 status: active incident: null

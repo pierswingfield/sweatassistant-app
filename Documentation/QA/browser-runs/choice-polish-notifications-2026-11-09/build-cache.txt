@@ -1,0 +1,4 @@
+bash: line 1: rg: command not found
+NAME/NODE     DRIVER/ENDPOINT   STATUS    BUILDKIT   PLATFORMS
+default*      docker                                 
+ \_ default    \_ default       running   v0.32.0    linux/arm64

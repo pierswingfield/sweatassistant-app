@@ -1,0 +1,30 @@
+{
+  "widgets": [
+    {
+      "id": "book",
+      "state": "ready",
+      "hidden": false,
+      "text": "Find a classYou have no classes booked! Why not choose a session?PsycleAarmySee full timetable→"
+    },
+    {
+      "id": "stats",
+      "state": "ready",
+      "hidden": false,
+      "text": "Your stats0 weeksstreak"
+    },
+    {
+      "id": "top-instructors",
+      "state": "empty",
+      "hidden": false,
+      "text": "Your trending instructorsNo classes in the last 30 days."
+    },
+    {
+      "id": "teams",
+      "state": "empty",
+      "hidden": false,
+      "text": "Your TeamsTrain with friends: a Team shares who is doing which class, so you can book in together.Create a Team"
+    }
+  ],
+  "panel": "display: block;",
+  "body": "app-helper-expanded"
+}

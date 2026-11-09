@@ -1,0 +1,28 @@
+
+🧪 C5-3: competing booking detection
+
+✅ Duplicate = same gym + event; provider-id collisions across gyms are not duplicates.
+✅ Overlap detected in one gym and across gyms.
+✅ detectManualBookingOverlaps: queue + booked, cross-gym, and no duplicate/already-booked noise.
+✅ Warning references carry display fields (null when the source never had them).
+✅ Back-to-back is not overlap; durations (and the default) are honoured.
+✅ Naive datetimes are interpreted in each gym's own zone.
+✅ Already-booked and overlap-with-booking detected.
+✅ Queue analysis flags both sides of a clash only.
+✅ JAB mock: 16 unreleased classes (rolling 10-day window); day 0-10 classes stay open.
+✅ First entry queues with no warnings.
+✅ Exact duplicate is rejected with 409 DUPLICATE_AUTO_BOOK.
+✅ Unconfirmed overlap is refused with 409 OVERLAP_CONFIRM_REQUIRED; nothing inserted.
+✅ The clashing class is described in warnings[].with (display fields present).
+✅ With confirmOverlap:true the overlap is queued, with the OVERLAP_QUEUED warning.
+✅ confirmOverlap cannot override an exact duplicate.
+✅ Stored instructor/photo/location travel on the clash reference.
+✅ GET annotates both halves; a per-gym view still shows the cross-gym clash.
+✅ Non-conflicting entry is clean; other accounts are unaffected.
+✅ POST /api/overlap-check: queue + booked overlaps across gyms, clean otherwise, read-only.
+✅ Removing one side clears the warning on the other.
+✅ Auto-Book count updates persist valid multi-spot values and preserve capped entries on refusal.
+✅ Overlap HTTP projection excludes unavailable booked/queue rows and retains both available conflicts.
+
+🎉 C5-3 COMPETING-BOOKING CHECK PASSED.
+

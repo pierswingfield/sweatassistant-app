@@ -1,0 +1,114 @@
+[
+  {
+    "name": "terms: raw HTML independent of Cloudflare decoder",
+    "pass": false,
+    "detail": {
+      "cache": "no-cache"
+    }
+  },
+  {
+    "name": "terms: no-transform response",
+    "pass": false
+  },
+  {
+    "name": "terms: visible direct mailto contact",
+    "pass": false,
+    "detail": []
+  },
+  {
+    "name": "privacy: raw HTML independent of Cloudflare decoder",
+    "pass": false,
+    "detail": {
+      "cache": "no-cache"
+    }
+  },
+  {
+    "name": "privacy: no-transform response",
+    "pass": false
+  },
+  {
+    "name": "privacy: visible direct mailto contact",
+    "pass": false,
+    "detail": []
+  },
+  {
+    "name": "terms-2026-11-09: raw HTML independent of Cloudflare decoder",
+    "pass": false,
+    "detail": {
+      "cache": "no-cache"
+    }
+  },
+  {
+    "name": "terms-2026-11-09: no-transform response",
+    "pass": false
+  },
+  {
+    "name": "terms-2026-11-09: visible direct mailto contact",
+    "pass": false,
+    "detail": []
+  },
+  {
+    "name": "privacy-2026-11-09: raw HTML independent of Cloudflare decoder",
+    "pass": false,
+    "detail": {
+      "cache": "no-cache"
+    }
+  },
+  {
+    "name": "privacy-2026-11-09: no-transform response",
+    "pass": false
+  },
+  {
+    "name": "privacy-2026-11-09: visible direct mailto contact",
+    "pass": false,
+    "detail": []
+  },
+  {
+    "name": "Terms and Conditions: embedded readable mailto, no protected links",
+    "pass": false,
+    "detail": [
+      {
+        "text": "[email protected]",
+        "href": "/cdn-cgi/l/email-protection"
+      },
+      {
+        "text": "Privacy notice",
+        "href": "/policies/privacy.html"
+      }
+    ]
+  },
+  {
+    "name": "Terms and Conditions: signup checkbox retained",
+    "pass": true
+  },
+  {
+    "name": "Privacy Policy: embedded readable mailto, no protected links",
+    "pass": false,
+    "detail": [
+      {
+        "text": "[email protected]",
+        "href": "/cdn-cgi/l/email-protection"
+      },
+      {
+        "text": "[email protected]",
+        "href": "/cdn-cgi/l/email-protection"
+      },
+      {
+        "text": "[email protected]",
+        "href": "/cdn-cgi/l/email-protection"
+      },
+      {
+        "text": "[email protected]",
+        "href": "/cdn-cgi/l/email-protection"
+      },
+      {
+        "text": "Information Commissioner's Office",
+        "href": "https://ico.org.uk/make-a-complaint/"
+      }
+    ]
+  },
+  {
+    "name": "Privacy Policy: signup checkbox retained",
+    "pass": true
+  }
+]

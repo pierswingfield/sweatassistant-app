@@ -1,0 +1,60 @@
+[Push] Automatically generated and saved VAPID keypair in server database.
+FAIL poller records one incident when the renewed session is rejected and stops further renewal
+AssertionError [ERR_ASSERTION]: Missing expected rejection.
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-gym-retry-state.js:40:23
+    at async /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-gym-retry-state.js:84:59
+FAIL booking sync records one incident for a rejected retried session and stops further renewal
+AssertionError [ERR_ASSERTION]: The validation function is expected to return "true". Received false
+
+Caught error:
+
+Error: provider rejected session
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-gym-retry-state.js:45:23
+    at async /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-gym-retry-state.js:84:59
+PASS poller preserves renewed session on post-renewal 429
+PASS booking sync preserves renewed session on post-renewal 429
+PASS poller preserves renewed session on post-renewal 503
+PASS booking sync preserves renewed session on post-renewal 503
+PASS poller: late retried 401 cannot invalidate a newer manual-login
+PASS poller: late retried 401 cannot invalidate a newer session-only-write
+PASS sync: late retried 401 cannot invalidate a newer manual-login
+PASS sync: late retried 401 cannot invalidate a newer session-only-write
+[Scheduler] No release time resolvable for event retry-event-13 at gym jab-boxing — skipping.
+[Push] No push subscriptions found for user 11. Skipping notification.
+[Scheduler] Running booking worker for User 11, Event retry-event-13. Needs 1 total places.
+[Scheduler] Live available slots for event retry-event-13: [ 'only' ]
+[Scheduler] Event retry-event-13: planning to attempt slots in order: [only]
+[Scheduler] Attempting to book fallback slot only for event retry-event-13...
+{"ts":"2026-11-09T00:47:23.940Z","level":"info","msg":"booking got 401, attempting relogin and retry","component":"scheduler","userId":11,"gymId":"jab-boxing"}
+[Push] No push subscriptions found for user 11. Skipping notification.
+FAIL scheduler: late retried 401 cannot invalidate a newer manual-login
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ 'needs_relogin'
+- 'active'
+
+    at /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-gym-retry-state.js:80:12
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-gym-retry-state.js:84:59
+[Scheduler] No release time resolvable for event retry-event-15 at gym jab-boxing — skipping.
+[Push] No push subscriptions found for user 12. Skipping notification.
+[Scheduler] Running booking worker for User 12, Event retry-event-15. Needs 1 total places.
+[Scheduler] Live available slots for event retry-event-15: [ 'only' ]
+[Scheduler] Event retry-event-15: planning to attempt slots in order: [only]
+[Scheduler] Attempting to book fallback slot only for event retry-event-15...
+{"ts":"2026-11-09T00:47:23.982Z","level":"info","msg":"booking got 401, attempting relogin and retry","component":"scheduler","userId":12,"gymId":"jab-boxing"}
+[Push] No push subscriptions found for user 12. Skipping notification.
+FAIL scheduler: late retried 401 cannot invalidate a newer session-only-write
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ 'needs_relogin'
+- 'active'
+
+    at /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-gym-retry-state.js:80:12
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-gym-retry-state.js:84:59
+8/12 gym-retry-state checks passed

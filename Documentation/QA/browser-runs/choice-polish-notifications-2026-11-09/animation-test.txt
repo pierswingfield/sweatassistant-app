@@ -1,0 +1,13 @@
+
+> app-client@1.0.0 test
+> vitest run src/ui/gym-logo-strip.test.js
+
+
+ RUN  v4.1.11 /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  16:56:51
+   Duration  697ms (transform 40ms, setup 0ms, import 56ms, tests 63ms, environment 495ms)
+

@@ -38,14 +38,14 @@ async function run() {
     assert.strictEqual(login.profile.firstName, 'Dev');
     assert.strictEqual(liveFetchCalls, 0, 'adapter login must not fetch the live Psycle API');
 
-    await auth.handleSignup('fresh-codexfit-link@test.local', 'a-safe-password');
+    await auth.handleSignup('fresh-codexfit-link@test.local', 'a-safe-password', require('./policies').CURRENT_ACCEPTANCE);
     const account = db.getUserByEmail('fresh-codexfit-link@test.local');
     const linked = await auth.linkGymAccount(
       account.id,
       'psycle-london',
       'dev@psycle.com',
       'any-password',
-    );
+      true);
     assert.strictEqual(linked.gym_id, 'psycle-london');
     assert.strictEqual(db.isGymLinked(account.id, 'psycle-london'), true);
     assert.strictEqual(JSON.parse(db.getUserGym(account.id, 'psycle-london').session_json).accessToken, 'mock-jwt-token');

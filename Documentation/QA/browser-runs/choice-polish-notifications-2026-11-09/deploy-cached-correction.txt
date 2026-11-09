@@ -1,0 +1,41 @@
+base=sha256:39236d55d3316a14a55947a997a8d2d9833bbab369d59c132673edfa2b5f4fa7 arch=arm64
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile.sync-correction
+#1 transferring dockerfile: 183B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/sweatassistant-experiment:rollback-before-sync-correction-20261109
+#2 DONE 0.0s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [internal] load build context
+#4 transferring context: 27.06kB 0.0s done
+#4 DONE 0.0s
+
+#5 [1/2] FROM docker.io/library/sweatassistant-experiment:rollback-before-sync-correction-20261109@sha256:39236d55d3316a14a55947a997a8d2d9833bbab369d59c132673edfa2b5f4fa7
+#5 resolve docker.io/library/sweatassistant-experiment:rollback-before-sync-correction-20261109@sha256:39236d55d3316a14a55947a997a8d2d9833bbab369d59c132673edfa2b5f4fa7 0.0s done
+#5 DONE 0.2s
+
+#6 [2/2] COPY server/booking-sync.js /app/server/booking-sync.js
+#6 DONE 0.1s
+
+#7 exporting to image
+#7 exporting layers 0.1s done
+#7 exporting manifest sha256:5c9d3b1d994999a876469384feb01006b1a5cb05accfe0058ced78fa19ef2a1a 0.0s done
+#7 exporting config sha256:2757fe3bf8bed6dc71c5c398b0ee977af4c8cdc3660b233b0279045c9774b992 0.0s done
+#7 exporting attestation manifest sha256:60bd5a0e2bd23d3dd4b223225dc3dc080f4c12db843cc10204efb8ff4439b657 0.0s done
+#7 exporting manifest list sha256:15d8b1b7748b819b4a4675d65f7315dd662e19be0951f24c0a5965d70b334f2e 0.0s done
+#7 naming to docker.io/library/sweatassistant-experiment-sweatassistant-experiment:latest done
+#7 unpacking to docker.io/library/sweatassistant-experiment-sweatassistant-experiment:latest 0.0s done
+#7 DONE 0.2s
+ Container sweatassistant-experiment Recreate 
+ Container sweatassistant-experiment Recreated 
+ Container sweatassistant-experiment Starting 
+ Container sweatassistant-experiment Started 
+NAME                        IMAGE                                                 COMMAND                  SERVICE                     CREATED          STATUS                  PORTS
+sweatassistant-experiment   sweatassistant-experiment-sweatassistant-experiment   "docker-entrypoint.s…"   sweatassistant-experiment   11 seconds ago   Up Less than a second   100.86.226.52:3006->3000/tcp
+v22.23.4

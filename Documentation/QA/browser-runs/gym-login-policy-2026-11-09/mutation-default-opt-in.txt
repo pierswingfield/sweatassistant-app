@@ -1,0 +1,34 @@
+PASS signup rejects missing, unchecked and obsolete policy versions without creating an account
+PASS signup records current versions and a server timestamp
+FAIL session-only login stores encrypted session material without reusable email/password echoes
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ 'separate@gym.test'
+- null
+
+    at /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-gym-login-policy.js:42:10
+    at async /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-gym-login-policy.js:107:60
+PASS remember requires a real boolean and only saves after provider success
+PASS successful unticked re-login removes previously remembered credentials atomically
+PASS forget retains working session, link, settings, calendar and other gym
+PASS in-flight renewal cannot replace session or restore credentials after forget
+PASS late rejected renewal after forget does not expire a working session
+[Push] Automatically generated and saved VAPID keypair in server database.
+[Push] No push subscriptions found for user 8. Skipping notification.
+PASS concurrent definitive failures create one incident/push record, preserve the gym and stop retries
+PASS network outage and rate limit preserve the working session and availability
+[Push] No push subscriptions found for user 12. Skipping notification.
+FAIL reconnection syncs fresh rows before restoring availability and preserves user pause
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ 'separate@gym.test'
+- null
+
+    at /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-gym-login-policy.js:92:137
+    at async /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-gym-login-policy.js:107:60
+PASS CodexFit without saved credentials gives a classified session-expiry answer
+[MarianaTek] Refresh rejected (invalid_grant); falling back to a full re-login.
+PASS MarianaTek refresh works without saved login and does not fall through on outages
+11/13 gym-login-policy checks passed

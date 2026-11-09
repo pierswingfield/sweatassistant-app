@@ -1,0 +1,1 @@
+{"pass":22,"total":25,"failed":[{"name":"Coordinator renders only connection card without the exact noisy copy","pass":false},{"name":"Healthy settings restored after status recovery","pass":false},{"name":"Repeated state updates return to connection-only","pass":false}]}

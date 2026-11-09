@@ -1,0 +1,333 @@
+
+> app-pwa@1.0.0 test
+> npm run test:server && npm run test:client
+
+
+> app-pwa@1.0.0 test:server
+> node server/run-tests.js
+
+  account-identity           FAIL
+      ❌ changing the app password stops the old one working
+         Please review and agree to the current Terms and Conditions and acknowledge the Privacy Policy.
+      ❌ linkGymAccount stores credentials only after the provider accepts them
+         credential stored
+      ❌ unlinking Psycle leaves a working JAB-only account (the D4 scenario, end to end)
+         Please review and agree to the current Terms and Conditions and acknowledge the Privacy Policy.
+      ❌ signup creates an account with a password and NO gym linked
+         Please review and agree to the current Terms and Conditions and acknowledge the Privacy Policy.
+      ❌ a signed-up account can log in before it has any gym
+         Please review and agree to the current Terms and Conditions and acknowledge the Privacy Policy.
+      ❌ signup rejects a duplicate email, a bad address, and a short password
+         Please review and agree to the current Terms and Conditions and acknowledge the Privacy Policy.
+      ❌ signup then link produces exactly the same shape as a migrated account
+         Please review and agree to the current Terms and Conditions and acknowledge the Privacy Policy.
+  active-gym                 PASS  🎉 18/18 active-gym checks passed.
+  adapters                   PASS  [CodexFit] POST /bookings -> 401 req={"event_i
+  admin-audit                PASS  test-admin-audit: all checks passed
+  admin-gym-aware            PASS  🎉 3/3 admin-gym-aware checks passed.
+  admin-gym-picker           PASS  🎉 4/4 admin-gym-picker checks passed.
+  admin-gym-presentation     PASS  [gyms] ignoring stored presentation for ghost:
+  admin-provider-shapes      PASS  🎉 Admin detail reads normalized MarianaTek bo
+  app-name-config            PASS  🎉 app-name config test PASSED.
+  auth-and-proxy             PASS  🎉 ALL TESTS PASSED SUCCESSFULLY!
+  auto-book-history-cap      PASS  🎉 History cap PASSED.
+  autobook-calendar-confirm  PASS  🎉 1/1 autobook-calendar-confirm checks passed
+  background-gym-session     PASS  🎉 3/3 background-gym-session checks passed.
+  booking-entitlement        PASS  ✅ server booking entitlement count/limit check
+  booking-limit-route        PASS  ✅ /api/book enforces the self-booking limit se
+  booking-success-gym        PASS  🎉 C3-19 PASSED.
+  booking-success-limit      PASS  1/1 passed
+  booking-sync-scope         PASS  ✨ 4/4 booking-sync-scope checks passed.
+  booking-sync               PASS  [BookingSync] jab-boxing failed for user 8: bo
+  booking-window-policy      PASS  [Scheduler] No release time resolvable for eve
+  booking-window             PASS  🎉 8/8 booking-window checks passed.
+  calendar-domain-migration  PASS  Calendar domain migration: stable class/window
+  calendar-feed              FAIL
+      ✅ Calendar uses normalized slotId for a MarianaTek-shaped booking.
+      [Calendar] listBookings got 401 for user 1 (psycle-london) — attempting relogin and retry.
+      [Push] No push subscriptions found for user 1. Skipping notification.
+      
+      ❌ Calendar feed test FAILED:
+       Error: Log in to this gym again. Its data and automation are paused.
+          at expiredError (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/gym-connection.js:16:24)
+          at Object.requireLogin (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/gym-connection.js:23:10)
+          at renewGymSession (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/auth.js:329:22)
+          at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+        status: 401,
+        code: 'GYM_SESSION_EXPIRED',
+        gymId: 'psycle-london'
+      }
+  calendar-links             PASS  ✅ webcal, webcals, https and Google link forms
+  calendar-locations-per-gym PASS  ✅ Location addresses are cached per gym.
+  calendar-prefs             PASS  ✅ U4-16 calendar prefs migrate, VALARMs are ta
+  calendar-regen-on-link     PASS  🎉 C3-22 PASSED.
+  calendar-settings-multigym PASS  🎉 C3-14 PASSED.
+  calendar-title             PASS  ✅ Calendar titles omit the instructor clause w
+  cancel-rebook              PASS  [Poller] notify failed: push down
+  capability-gating          PASS  🎉 6/6 capability-gating checks passed.
+  class-history              PASS  13/13 class-history checks passed
+  class-name-parity          PASS  ✅ a class that IS its discipline keeps its nam
+  codexfit-book-wire         PASS  🎉 7/7 book-wire checks passed.
+  codexfit-direct-swap       PASS  [CodexFit] PATCH /bookings/8265117 -> 422 slot
+  codexfit-instructor-photo  PASS  photo lookup falls back to event-seen photo.
+  codexfit-mock-login        FAIL
+      [Mock Server] Intercepted GET /profile
+      ❌ Error: Please review and agree to the current Terms and Conditions and acknowledge the Privacy Policy.
+          at Object.validateAcceptance (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/policies.js:7:11)
+          at Object.handleSignup (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/auth.js:340:25)
+          at run (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-codexfit-mock-login.js:41:16)
+          at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+  codexfit-timetable-range   PASS  4/4 passed
+  codexfit-v2-cart           PASS  🎉 11/11 cart checks passed.
+  competing-bookings         FAIL
+      +   message: 'Invalid or expired session token'
+      + }
+      - []
+      
+          at http (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-competing-bookings.js:261:10)
+          at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+          at async /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-competing-bookings.js:334:5 {
+        generatedMessage: false,
+        code: 'ERR_ASSERTION',
+        actual: [Object],
+        expected: [],
+        operator: 'deepStrictEqual',
+        diff: 'simple'
+      }
+  config-export-import       PASS  🎉 C3-16 PASSED.
+  config-required            PASS  🎉 5/5 config-required checks passed.
+  dev-mock-hook              PASS  🎉 4/4 dev-mock-hook checks passed.
+  disabled-gym-outbound      FAIL
+      [Mock MarianaTek] Intercepted GET /me/reservations?is_upcoming=false&page_size=100
+      [Mock MarianaTek] Intercepted GET /me/reservations?is_upcoming=false&page_size=100&page=2
+        ok  member switch: off means zero provider calls (route + backstop); on resumes them at once
+      7/8 disabled-gym outbound checks passed
+        FAIL [link-disabled] cached history counts in the activity total; routes make no provider call
+      AssertionError [ERR_ASSERTION]: history serves stored rows
+      
+      409 !== 200
+      
+          at /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-disabled-gym-outbound.js:128:18
+          at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+          at async withRoutes (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-disabled-gym-outbound.js:98:16)
+          at async /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-disabled-gym-outbound.js:112:7
+          at async /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-disabled-gym-outbound.js:244:11
+  display-rules              PASS  display-rules: ok
+  favourites                 PASS  F-12 PASSED (6 checks).
+  fixture-accounts           PASS  11/11 fixture-account checks passed
+  freshness-cache            PASS  🎉 10/10 freshness-cache checks passed.
+  group-upgrade-route        PASS  ✅ /api/auto-upgrade: group accepted, duplicate
+  group-upgrade              PASS  [Poller] Could not verify group 20: no session
+  guest-booking-groups       PASS  PASS provider list recovers a legacy unpersist
+  gym-enabled                PASS  [Scheduler] Auto-booking 2 (event 2) has neith
+  gym-http-cache             PASS  ✅ gym-scoped GETs carry Vary: x-gym-id, Author
+  gym-identity               PASS  🎉 10/10 gym-identity checks passed.
+  gym-isolation              PASS  🎉 25/25 gym-isolation checks passed.
+  gym-presentation           PASS  🎉 4 presentation checks passed.
+  gym-required               PASS  🎉 C3-28 PASSED.
+  home-welcome               PASS  PASS test-home-welcome
+  instructor-photo           PASS  🎉 6/6 instructor-photo checks passed.
+  invalid-credentials-naming FAIL
+      🧪 C3-11: invalid-credentials error names the gym
+      
+        ✓ MarianaTek (JAB): a rejected login names "JAB", not "MarianaTek"
+        ✗ CodexFit (Psycle): a rejected login names "Psycle", not a generic message
+          AssertionError [ERR_ASSERTION]: expected the original reason preserved, got: Psycle login failed (401).
+          at Object.<anonymous> (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-invalid-credentials-naming.js:56:16)
+          at expectedException (node:assert:576:17)
+          at expectsError (node:assert:701:21)
+          at Function.rejects (node:assert:767:3)
+          at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+          at async /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-invalid-credentials-naming.js:52:5
+          at async /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-invalid-credentials-naming.js:110:11
+      
+      1/2 invalid-credentials-naming checks FAILED.
+  landing-events             PASS  landing-events: all assertions passed
+  last-authenticated         PASS  🎉 U1-9 LAST-AUTHENTICATED CHECK PASSED.
+  logger                     PASS  test-logger: all checks passed
+  mariana-attendance         PASS  5/5 MarianaTek attendance checks passed
+  mariana-booking-portraits  PASS  🎉 2/2 portrait enrichment checks passed.
+  marianatek-classlist       PASS  8/8 class-list checks passed.
+  marianatek-mock            PASS  🎉 13/13 MarianaTek checks passed.
+  marianatek-region-scope    PASS  Mariana Tek configured region scope passed
+  metrics                    PASS  test-metrics: all checks passed
+  missing-spot-map           PASS  🎉 5/5 missing-spot-map checks passed.
+  no-active-gym              PASS  🎉 21/21 no-active-gym checks passed.
+  no-gym-privilege           PASS  🎉 8/8 no-gym-privilege checks passed.
+  no-gym-state               FAIL
+       AssertionError [ERR_ASSERTION]: and it was NOT created by the failed login, so signup still succeeds
+      
+      400 !== 200
+      
+          at run (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-no-gym-state.js:42:10)
+          at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+          at async /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-no-gym-state.js:91:9 {
+        generatedMessage: false,
+        code: 'ERR_ASSERTION',
+        actual: 400,
+        expected: 200,
+        operator: 'strictEqual',
+        diff: 'simple'
+      }
+  no-hardcoded-app-name      FAIL
+          'client/public/policies/terms-2026-11-09.html:1: <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=devi',
+          'client/public/policies/terms.html:1: <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=devi',
+          "client/src/copy.js:564: linkGymCredentialsHelp: 'Sign in with that gym’s own credentials. Choose whether Dibs remembers your",
+          "client/src/ui/gym-login-choice.js:3: export const sessionNotice = 'Dibs won’t save copies of your gym login details. You may be asked to ",
+          'client/src/ui/gym-login-choice.js:4: export const rememberedNotice = `Dibs will securely store copies of your gym login details, and use ',
+          'client/src/ui/gym-login-choice.js:6: return `<div class="app-gym-login-choice"><label class="app-login-choice-label" for="${id}"><input t',
+          'client/src/ui/settings.js:1667: modal.body.innerHTML = `<p>Dibs will remove your saved gym login details and keep your current sessi'
+        ],
+        expected: [],
+        operator: 'deepStrictEqual',
+        diff: 'simple'
+      }
+      
+      Node.js v22.23.4
+  no-unsafe-markup           FAIL
+          at Module.load (node:internal/modules/cjs/loader:1505:32)
+          at Function._load (node:internal/modules/cjs/loader:1309:12)
+          at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)
+          at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+          at node:internal/main/run_main_module:36:49 {
+        generatedMessage: false,
+        code: 'ERR_ASSERTION',
+        actual: [ 'ui/policies.js:12 src="${url.pathname}" is not escaped' ],
+        expected: [],
+        operator: 'deepStrictEqual',
+        diff: 'simple'
+      }
+      
+      Node.js v22.23.4
+  notification-defaults      PASS  🎉 6/6 notification-default checks passed.
+  notification-gym-naming    PASS  🎉 10/10 notification gym-naming checks passed
+  notification-text          PASS  🎉 6/6 notification text checks passed.
+  person-names               FAIL
+        ok  skeleton: folds case, accents, width and Latin lookalikes to one key
+        ok  Teams: a Cyrillic lookalike first name is disambiguated, not shown identically
+        ok  Teams: invalid stored names never reach teammates
+        ok  db: lastName is account-scoped; my-gyms rows expose the gym profile first/last name
+        FAIL HTTP: PUT /api/settings validates and normalises names; import drops invalid ones
+       AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+      
+        assert.ok(t)
+      
+          at Object.fn (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-person-names.js:197:10)
+          at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+          at async /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-person-names.js:221:11
+      
+      1 failed
+  personal-stats             PASS  PASS provider guard explicitly reports bounded
+  poller-backoff             PASS  [BookingSync] jab-boxing failed for user 2: bo
+  poller-resume              PASS  [Poller] Resume check: credits read failed for
+  poller-upgrade-settings    PASS  🎉 AUTO-UPGRADE SETTINGS CHECK PASSED.
+  poller-upgrade             PASS  🎉 POLLER AUTO-UPGRADE CHECK PASSED.
+  profile-envelope           PASS  🎉 7/7 profile-envelope checks passed.
+  profile-singleflight       PASS  [CodexFit] PATCH /bookings/5 -> 401 slot=2 res
+  rate-limit-abort           PASS  {"ts":"2026-11-09T00:21:15.671Z","level":"erro
+  rate-limit-reads           PASS  🎉 ALL RATE-LIMIT-READS CHECKS PASSED.
+  regression-codexfit-mock   FAIL
+      ✅ GET /api/config returns configured appName.
+      ✅ POST /api/auth/login (dev mock) issues a local JWT.
+      
+      ❌ REGRESSION FAILURE: signup failed: {"message":"Please review and agree to the current Terms and Conditions and acknowledge the Privacy Policy."}
+      
+      400 !== 200
+      
+      AssertionError [ERR_ASSERTION]: signup failed: {"message":"Please review and agree to the current Terms and Conditions and acknowledge the Privacy Policy."}
+      
+      400 !== 200
+      
+          at run (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-regression-codexfit-mock.js:130:12)
+          at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+          at async main (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-regression-codexfit-mock.js:626:5)
+  relogin-failures           FAIL
+        ✗ a provider outage counts as a failure but never suspends retries
+            Expected values to be strictly equal:
+      
+      0 !== 6
+      
+        ✗ re-linking with fresh credentials clears the count and the suspension
+            Expected values to be strictly equal:
+      
+      0 !== 1
+      
+        ✗ admin user list is gym-aware: names each gym with failures, for accounts on any active gym
+            Cannot read properties of undefined (reading 'failures')
+      
+      ✗ 5/5 failed
+  reminder-sweep             PASS  [BookingSync] jab-boxing failed for user 4: bo
+  retired-endpoint-scan      PASS  ✓ No retired CodexFit v1 cart paths found in s
+  review-disabled-interval   PASS  Disabled interval boundaries and repeated togg
+  review-disabled-routes     PASS  Disabled owning-gym mutation routes and accoun
+  review-guest-switch        PASS  Guest switch races passed
+  review-interval-migration  PASS  Existing database interval migration passed
+  review-pagination          PASS  Reservation pagination, waitlist lookup and UR
+  review-switch-race         PASS  Switch during preparation and in-flight mutati
+  routes-normalized          FAIL
+      🧪 routes-normalized.js 401-relogin ladder regression
+      
+      [Push] No push subscriptions found for user 1. Skipping notification.
+      
+      ❌ routes-normalized relogin test FAILED:
+       Error: Log in to this gym again. Its data and automation are paused.
+          at expiredError (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/gym-connection.js:16:24)
+          at Object.requireLogin (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/gym-connection.js:23:10)
+          at renewGymSession (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/auth.js:329:22)
+          at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+        status: 401,
+        code: 'GYM_SESSION_EXPIRED',
+        gymId: 'psycle-london'
+      }
+  row-groups                 PASS  row-groups: ok
+  schedule-cache             PASS  🎉 8/8 schedule-cache checks passed.
+  scheduled-guests           PASS  ✅ scheduled guest normalization, durable parti
+  scheduler-event-details    PASS  [Scheduler] Slot alpha booking failed: undefin
+  security-headers           PASS  ALL PASS test-security-headers
+  security-part2             PASS  security-part2: all assertions passed
+  spa-fallback               PASS  spa-fallback: all checks passed
+  spot-label                 PASS  spot-label checks passed
+  spot-selection             PASS  ✅ spatial candidate planner: preferred groups,
+  team-goal                  PASS  11/11 passed
+  team-membership            FAIL
+        FAIL HTTP: full flow, 404-not-403, no user ids / emails in any payload, tokens never logged
+       AssertionError [ERR_ASSERTION]: signup failed: {"message":"Please review and agree to the current Terms and Conditions and acknowledge the Privacy Policy."}
+          at signup (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-team-membership.js:574:12)
+          at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+          at async Object.fn (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-team-membership.js:597:15)
+          at async /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-team-membership.js:774:11
+        FAIL production: /t/:token serves a generic shell with no-referrer; invite endpoints are rate limited
+       AssertionError [ERR_ASSERTION]: signup failed: {"message":"Please review and agree to the current Terms and Conditions and acknowledge the Privacy Policy."}
+          at signup (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-team-membership.js:574:12)
+          at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+          at async Object.fn (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-team-membership.js:746:15)
+          at async /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-team-membership.js:774:11
+      
+      2 failed
+  team-notify                PASS  [Teams] event listener failed: boom
+  team-privacy               PASS  59/59 passed
+  team-projection            PASS  13/13 passed
+  team-spots                 PASS  13/13 passed
+  team-stats                 PASS  11/11 passed
+  team-surname               PASS  team surname initial: ok
+  timetable-profile-refresh  PASS  ✅ timetable/profile refresh, stale cutoff, gym
+  timezone                   PASS  🎉 6/6 timezone checks passed.
+  token-revocation           FAIL
+      AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+      
+      401 !== 200
+      
+          at run (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-token-revocation.js:88:10)
+          at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+        generatedMessage: true,
+        code: 'ERR_ASSERTION',
+        actual: 401,
+        expected: 200,
+        operator: 'strictEqual',
+        diff: 'simple'
+      }
+  trust-proxy                PASS  trust-proxy: all passed
+  waitlist-verbs             PASS  🎉 5/5 waitlist checks passed.
+  wake-clock                 PASS  [Scheduler] Auto-booking 11 (event 5040) has n
+
+✗ 15/122 server suites FAILED.

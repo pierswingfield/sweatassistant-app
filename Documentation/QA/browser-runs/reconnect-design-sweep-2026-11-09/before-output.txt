@@ -1,0 +1,1 @@
+{"passed":1,"total":3,"checks":[{"name":"Unavailable gym shows only connection settings card","pass":false},{"name":"No paused/preserved/calendar paragraph","pass":true},{"name":"Reauthenticate scrolls with form without a sticky overlay","pass":false,"position":"sticky"}]}

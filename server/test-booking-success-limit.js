@@ -45,7 +45,7 @@ async function run() {
   assert.strictEqual(statuses[10], 429, 'the eleventh in a minute is refused');
   // The budget is per user: a second account is unaffected.
   const signup = await (await fetch(`${BASE}/api/auth/signup`, { method: 'POST', headers: H(''),
-    body: JSON.stringify({ email: `other-${Date.now()}@limit.test`, password: 'correct horse battery 9' }) })).json();
+    body: JSON.stringify({ policyAcceptance: require('./policies').CURRENT_ACCEPTANCE, email: `other-${Date.now()}@limit.test`, password: 'correct horse battery 9' }) })).json();
   if (signup.token) {
     const r = await fetch(`${BASE}/api/notify/booking-success`, { method: 'POST', headers: H(signup.token), body: JSON.stringify({ eventId: 'e1' }) });
     assert.notStrictEqual(r.status, 429, 'another account has its own budget');

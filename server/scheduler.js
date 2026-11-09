@@ -246,10 +246,10 @@ async function fetchFromGym(userId, gymId, path, options = {}) {
   if (res.status === 401) {
     try {
       const newJwt = await triggerAutoRelogin(userId, gymId);
-      res = await runFetch(newJwt);
+      res = await require('./gym-connection').retrySessionCall(userId, gymId, newJwt, () => runFetch(newJwt));
     } catch (err) {
       log.error('relogin failed during api fetch', { component: 'scheduler', userId, err });
-      pushService.sendNotification(userId, 'Session Expired ⚠️', 'Failed to renew session. Auto-booking skipped.');
+      // Login incidents own the deduplicated notification; outages are transient.
       throw err;
     }
   }
@@ -332,7 +332,7 @@ async function bookSlotWithRelogin(userId, gymId, eventId, targetSlot) {
     log.info('booking got 401, attempting relogin and retry', { component: 'scheduler', userId, gymId });
     const newJwt = await triggerAutoRelogin(userId, gymId);
     session = { accessToken: newJwt };
-    result = await provider.bookSlot(eventId, [targetSlot], session);
+    result = await require('./gym-connection').retrySessionCall(userId, gymId, newJwt, () => provider.bookSlot(eventId, [targetSlot], session));
   }
   return result;
 }
@@ -344,7 +344,7 @@ async function executeAutoBookForClass(booking) {
 
 async function executeAutoBookForClassInner(booking) {
   // A gym may have been switched off after the queue was selected.
-  if (!db.isUserGymEnabled(booking.user_id, booking.gym_id)) return;
+  if (!db.isUserGymAvailable(booking.user_id, booking.gym_id)) return;
   // Disabled gym/link: the entry stays pending (not burned, not failed) and the
   // provider is never contacted. Every dispatch path funnels through here.
   if (gymOutbound.isOutboundBlocked(booking.gym_id, booking.user_id)) return;
@@ -467,7 +467,7 @@ async function executeAutoBookForClassInner(booking) {
     //   burnedSlots  — slot POST already failed for another user this window → skip (externally taken)
     // Both short-circuit without a network call, letting subsequent users reach live slots faster.
     while (bookedCount < selfRequiredCount && attemptIdx < slotsToTry.length) {
-      if (mutationGate.isClosing(userId, gymId) || !db.isUserGymEnabled(userId, gymId)) break;
+      if (mutationGate.isClosing(userId, gymId) || !db.isUserGymAvailable(userId, gymId)) break;
       if (!releaseMutation) releaseMutation = mutationGate.begin(userId, gymId);
       if (!releaseMutation) break;
       const targetSlot = slotsToTry[attemptIdx++];
@@ -551,7 +551,7 @@ async function executeAutoBookForClassInner(booking) {
         }
       } catch (err) {
         claimedSlots.delete(claimKey);
-        if (err.code === 'GYM_DISABLED') return;
+        if (err.code === 'GYM_DISABLED' || err.code === 'GYM_SESSION_EXPIRED') return;
         console.error(`[Scheduler] Booking attempt error for slot ${targetSlot}:`, err.message);
         burnedSlots.add(claimKey);
       }
@@ -578,7 +578,7 @@ async function executeAutoBookForClassInner(booking) {
     }
 
     // A self booking never sent before switch-off remains queued.
-    if (bookedCount === 0 && (mutationGate.isClosing(userId, gymId) || !db.isUserGymEnabled(userId, gymId))) return;
+    if (bookedCount === 0 && (mutationGate.isClosing(userId, gymId) || !db.isUserGymAvailable(userId, gymId))) return;
 
     // A named guest is only attempted after a verified primary reservation. A
     // successful participant is skipped on any re-entry. A timeout/transport
@@ -593,7 +593,7 @@ async function executeAutoBookForClassInner(booking) {
         const key = `guest:${String(guest.email || '').trim().toLowerCase()}`;
         const participant = participantRows.find((row) => row.participant_key === key);
         if (participant?.status === 'success') continue;
-        if (mutationGate.isClosing(userId, gymId) || !db.isUserGymEnabled(userId, gymId)) return;
+        if (mutationGate.isClosing(userId, gymId) || !db.isUserGymAvailable(userId, gymId)) return;
         let guestResult = null;
         let guestBooked = false;
         // Re-plan around the primary's ACTUAL spot (it may differ from the plan): with togetherness the
@@ -606,7 +606,7 @@ async function executeAutoBookForClassInner(booking) {
         }).filter((id) => !claimedSlots.has(`${gymId}:${eventId}:${id}`) && !burnedSlots.has(`${gymId}:${eventId}:${id}`));
         let guestIdx = 0;
         while (guestIdx < guestOrder.length) {
-          if (mutationGate.isClosing(userId, gymId) || !db.isUserGymEnabled(userId, gymId)) return;
+          if (mutationGate.isClosing(userId, gymId) || !db.isUserGymAvailable(userId, gymId)) return;
           if (!releaseMutation) releaseMutation = mutationGate.begin(userId, gymId);
           if (!releaseMutation) return;
           const targetSlot = guestOrder[guestIdx++];
@@ -639,7 +639,7 @@ async function executeAutoBookForClassInner(booking) {
           break;
         }
         if (!guestBooked && (!guestResult || guestResult.code === 'SPOT_UNAVAILABLE') &&
-            (mutationGate.isClosing(userId, gymId) || !db.isUserGymEnabled(userId, gymId))) return;
+            (mutationGate.isClosing(userId, gymId) || !db.isUserGymAvailable(userId, gymId))) return;
         if (!guestBooked && !guestResult) {
           db.markAutoBookingParticipant(booking.id, userId, key, { status: 'failed', failureCode: 'NO_GUEST_SLOT_AVAILABLE', failureMessage: 'No remaining spot was available for this guest.' });
           guestFailures++;
@@ -729,7 +729,7 @@ async function executeAutoBookForClassInner(booking) {
       }
     } else {
       // 6. Fail fallback: join waitlist
-      if (mutationGate.isClosing(userId, gymId) || !db.isUserGymEnabled(userId, gymId)) return;
+      if (mutationGate.isClosing(userId, gymId) || !db.isUserGymAvailable(userId, gymId)) return;
       if (!releaseMutation) releaseMutation = mutationGate.begin(userId, gymId);
       if (!releaseMutation) return;
       console.log(`[Scheduler] All slots taken for event ${eventId}. Attempting waitlist fallback...`);
@@ -777,7 +777,7 @@ async function executeAutoBookForClassInner(booking) {
       }
     }
   } catch (err) {
-    if (err.code === 'GYM_DISABLED') return;
+    if (err.code === 'GYM_DISABLED' || err.code === 'GYM_SESSION_EXPIRED') return;
     console.error(`[Scheduler] Auto-book worker failed for user ${userId}, event ${eventId}:`, err.message);
     db.markAutoBookingExecuted(eventId, userId, gymId, 'failed', `Worker execution failed: ${err.message}`, new Date().toISOString());
     pushService.sendNotification(userId, 'Auto-Book Error ⚠️', `Error executing booking for ${displayClass(booking)}: ${err.message}`);

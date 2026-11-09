@@ -1,0 +1,9 @@
+{
+  "id": 4,
+  "result": {
+    "result": {
+      "type": "string",
+      "value": "{\"status\":200,\"warnings\":[{\"code\":\"OVERLAP_BOOKED\",\"className\":\"Available booked review\",\"gymId\":\"jab-boxing\"},{\"code\":\"OVERLAP_BOOKED\",\"className\":\"Unavailable booked review\",\"gymId\":\"psycle-london\"}]}"
+    }
+  }
+}

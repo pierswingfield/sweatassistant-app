@@ -1,0 +1,12 @@
+=== Deploy target: experiment (oracle:~/services/sweatassistant-experiment) ===
+(--print: nothing will be executed)
+[0/3] remote preflight (compose, writable layer, disk)
+  ssh  oracle  set\ -e\;\ cd\ ~/services/sweatassistant-experiment\;\ docker\ compose\ -f\ docker-compose.experiment.yml\ config\ -q\;\ echo\ \'---\ writable-layer\ diff\ before\ recreate\ ---\'\;\ docker\ diff\ sweatassistant-experiment\ \|\|\ true\;\ echo\ \'---\ filesystem\ capacity\ before\ build\ ---\'\;\ df\ -h\ /
+[1/3] rsync
+  rsync  -az  --exclude  .env  --exclude  .env.\*  --exclude  data/  --exclude  node_modules  --exclude  client/node_modules  --exclude  server/node_modules  --exclude  client/dist/  --exclude  server/public/  --exclude  .git  --exclude  .git/  --exclude  .claude/  --exclude  scratch/  --exclude  .DS_Store  --exclude  \*.db  --exclude  \*.db-shm  --exclude  \*.db-wal  --exclude  docker-compose.yml  --exclude  docker-compose.prod.yml  ./  oracle:~/services/sweatassistant-experiment/
+[2/3] docker compose up -d --build
+  ssh  oracle  cd\ ~/services/sweatassistant-experiment\ \&\&\ docker\ compose\ -f\ docker-compose.experiment.yml\ up\ -d\ --build\ \&\&\ docker\ compose\ -f\ docker-compose.experiment.yml\ ps
+[3/3] verify patched runtime
+  ssh  oracle  docker\ exec\ sweatassistant-experiment\ node\ --version\ \|\ grep\ -Fx\ \'v22.23.4\'
+Done. Verify:  curl -s https://experiment.dibs.fit/api/health
+Also check the registry (~/.claude/skills/selfhost-deploy/references/registry.md) if ports or names changed.

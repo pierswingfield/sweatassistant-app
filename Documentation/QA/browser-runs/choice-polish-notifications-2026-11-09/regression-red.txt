@@ -1,0 +1,22 @@
+FAIL real reservation 401 and rejected refresh create exactly one incident and stop later reads: The validation function is expected to return "true". Received false
+
+Caught error:
+
+Error: listReservations failed: 401
+FAIL real reservation 401 with a valid refresh recovers without an incident: listReservations failed: 401
+FAIL real reservation retry 401 creates one incident after successful renewal: The validation function is expected to return "true". Received false
+
+Caught error:
+
+Error: listReservations failed: 401
+FAIL real reservation 429 stays transient and keeps session: The validation function is expected to return "true". Received false
+
+Caught error:
+
+Error: listReservations failed: 429
+FAIL real reservation 503 stays transient and keeps session: The validation function is expected to return "true". Received false
+
+Caught error:
+
+Error: listReservations failed: 503
+0/5 MarianaTek session rejection checks passed

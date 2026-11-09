@@ -1,0 +1,17 @@
+PASS inlineScriptHashes picks inline executable scripts only
+FAIL AssertionError [ERR_ASSERTION]: terms.html: prevent edge email rewriting
++ actual - expected
+
++ 'no-cache'
+- 'no-cache, no-transform'
+           ^
+
+    at run (/Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/server/test-security-headers.js:107:14)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 'no-cache',
+  expected: 'no-cache, no-transform',
+  operator: 'strictEqual',
+  diff: 'simple'
+}

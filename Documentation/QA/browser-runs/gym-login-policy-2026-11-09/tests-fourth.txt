@@ -1,0 +1,52 @@
+
+> app-pwa@1.0.0 test
+> npm run test:server && npm run test:client
+
+
+> app-pwa@1.0.0 test:server
+> node server/run-tests.js
+
+  account-identity           PASS  🎉 17/17 identity checks passed.
+  active-gym                 PASS  🎉 18/18 active-gym checks passed.
+  adapters                   PASS  [CodexFit] POST /bookings -> 401 req={"event_i
+  admin-audit                PASS  test-admin-audit: all checks passed
+  admin-gym-aware            PASS  🎉 3/3 admin-gym-aware checks passed.
+  admin-gym-picker           PASS  🎉 4/4 admin-gym-picker checks passed.
+  admin-gym-presentation     PASS  [gyms] ignoring stored presentation for ghost:
+  admin-provider-shapes      PASS  🎉 Admin detail reads normalized MarianaTek bo
+  app-name-config            PASS  🎉 app-name config test PASSED.
+  auth-and-proxy             PASS  🎉 ALL TESTS PASSED SUCCESSFULLY!
+  auto-book-history-cap      PASS  🎉 History cap PASSED.
+  autobook-calendar-confirm  PASS  [gyms] ignoring stored presentation for ghost:
+  background-gym-session     PASS  [gyms] ignoring stored presentation for ghost:
+  booking-entitlement        PASS  ✅ server booking entitlement count/limit check
+  booking-limit-route        PASS  ✅ /api/book enforces the self-booking limit se
+  booking-success-gym        PASS  🎉 C3-19 PASSED.
+  booking-success-limit      PASS  1/1 passed
+  booking-sync-scope         PASS  [gyms] ignoring stored presentation for ghost:
+  booking-sync               PASS  [BookingSync] jab-boxing failed for user 8: bo
+  booking-window-policy      PASS  [Scheduler] No release time resolvable for eve
+  booking-window             PASS  [gyms] ignoring stored presentation for ghost:
+  calendar-domain-migration  PASS  Calendar domain migration: stable class/window
+  calendar-feed              PASS  [BookingSync] jab-boxing failed for user 1: bo
+  calendar-links             PASS  ✅ webcal, webcals, https and Google link forms
+  calendar-locations-per-gym PASS  ✅ Location addresses are cached per gym.
+  calendar-prefs             PASS  ✅ U4-16 calendar prefs migrate, VALARMs are ta
+  calendar-regen-on-link     PASS  🎉 C3-22 PASSED.
+  calendar-settings-multigym PASS  🎉 C3-14 PASSED.
+  calendar-title             PASS  ✅ Calendar titles omit the instructor clause w
+  cancel-rebook              PASS  [Poller] notify failed: push down
+  capability-gating          PASS  [gyms] ignoring stored presentation for ghost:
+  class-history              PASS  [gyms] ignoring stored presentation for ghost:
+  class-name-parity          PASS  ✅ a class that IS its discipline keeps its nam
+  codexfit-book-wire         PASS  🎉 7/7 book-wire checks passed.
+  codexfit-direct-swap       PASS  [CodexFit] PATCH /bookings/8264300 -> 422 slot
+  codexfit-instructor-photo  PASS  [gyms] ignoring stored presentation for ghost:
+  codexfit-mock-login        PASS  ✅ CodexFit dev login and fresh Psycle link use
+  codexfit-timetable-range   PASS  [gyms] ignoring stored presentation for ghost:
+  codexfit-v2-cart           PASS  [gyms] ignoring stored presentation for ghost:
+  competing-bookings         PASS  🎉 C5-3 COMPETING-BOOKING CHECK PASSED.
+  config-export-import       PASS  🎉 C3-16 PASSED.
+  config-required            PASS  🎉 5/5 config-required checks passed.
+  dev-mock-hook              PASS  🎉 4/4 dev-mock-hook checks passed.
+  disabled-gym-outbound      

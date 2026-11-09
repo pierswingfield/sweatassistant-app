@@ -90,6 +90,20 @@ for (const { type, ctx } of CASES) {
   });
 }
 
+for (const gymId of ['psycle-london', 'jab-boxing', 'aarmy']) {
+  check(`gymLoginRequired: body independently names ${gymId} and preserves incident tag`, async () => {
+    installSpy();
+    try {
+      const uid = makeUser();
+      await notifications.notify(uid, 'gymLoginRequired', { gymId, incident: 'same-incident', url: '/?reconnect=' + gymId });
+      assert.ok(captured);
+      assert.ok(captured.body.includes(require('./gyms.config').getGymConfig(gymId).name), captured.body);
+      assert.equal(captured.data.tag, 'gym-login-same-incident');
+      assert.equal(captured.data.type, 'gymLoginRequired');
+    } finally { restoreSpy(); }
+  });
+}
+
 (async () => {
   let failed = 0;
   console.log('\n🧪 C3-5: notification gym naming\n');

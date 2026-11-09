@@ -28,6 +28,11 @@ fs.writeFileSync(path.join(pub, 'index.html'),
 fs.writeFileSync(path.join(pub, 'manifest.json'), '{"name":"__APP_NAME__"}');
 fs.writeFileSync(path.join(pub, 'sw.js'), '// sw');
 fs.writeFileSync(path.join(pub, 'assets', 'app.js'), 'console.log(1)');
+const policyFiles = ['terms.html', 'privacy.html', 'terms-2026-11-09.html', 'privacy-2026-11-09.html'];
+fs.mkdirSync(path.join(pub, 'policies'));
+for (const file of policyFiles) {
+  fs.copyFileSync(path.join(__dirname, '../client/public/policies', file), path.join(pub, 'policies', file));
+}
 
 let n = 0;
 const children = new Set();
@@ -95,6 +100,29 @@ async function run() {
   const prod = await boot({});
   try {
     // App shell: hashes of exactly the inline scripts served (after templating).
+    // Real static-route response: readers fetch HTML without running edge-injected decoders.
+    for (const file of policyFiles) {
+      const response = await fetch(`${prod.base}/policies/${file}`);
+      assert.strictEqual(response.status, 200, file);
+      assert.strictEqual(response.headers.get('cache-control'), 'no-cache, no-transform', `${file}: prevent edge email rewriting`);
+      const html = await response.text();
+      const emails = html.match(/privacy@dibs\.fit/g) || [];
+      const links = html.match(/<a href="mailto:privacy@dibs\.fit">privacy@dibs\.fit<\/a>/g) || [];
+      assert.ok(links.length > 0, `${file}: readable mailto contact`);
+      assert.strictEqual(emails.length, links.length * 2, `${file}: every contact is a mailto link`);
+      // fetch adds cache-bypass request headers for conditional requests. Use
+      // plain HTTP to exercise Express's normal browser revalidation response.
+      const revalidated = await new Promise((resolve, reject) => {
+        require('node:http').get(`${prod.base}/policies/${file}`, { headers: { 'If-None-Match': response.headers.get('etag') } }, res => {
+          res.resume(); res.on('end', () => resolve(res));
+        }).on('error', reject);
+      });
+      assert.strictEqual(revalidated.statusCode, 304);
+      assert.strictEqual(revalidated.headers['cache-control'], 'no-cache, no-transform', `${file}: preserve no-transform on 304`);
+    }
+    const asset = await fetch(`${prod.base}/assets/app.js`);
+    assert.strictEqual(asset.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+    console.log('PASS all four policy contacts are readable mailto links; no-transform on 200/304; hashed asset caching unchanged');
     const shell = await fetch(`${prod.base}/`);
     const shellCsp = assertCommon(shell, 'shell');
     const ss = scriptSrc(shellCsp);

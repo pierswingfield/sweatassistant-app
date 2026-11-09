@@ -21,6 +21,17 @@ const CORPUS = [
   ['Signature 45', 'Ride'],
   ['HIIT Burn', ''],
   ['', 'Ride'],
+  ['LAGREE | Lagree & Free Shake (Signature 50)', 'Lagree'],
+  ['\u00a0 | | – \u2003| Signature 45', 'Ride'],
+  ['Ride｜ | Signature 45', 'Ride'],
+  ['Ride - | — Signature 45', 'Ride'],
+  ['#1 Ride', ''],
+  ['“Flow” & Focus', ''],
+  ['(Members) Flow', ''],
+  ['-5 Challenge', ''],
+  ['Ride | Flow', ''],
+  ['Core - Lower', ''],
+  ['A: B', ''],
 ];
 
 (async () => {
@@ -37,6 +48,9 @@ const CORPUS = [
   t('the reported string reads "Lower (Focus)" and its group token is "TRAIN"', () => {
     assert.strictEqual(server.cleanClassName('TRAIN - Lower (Focus)', 'TRAIN - Lower (Focus)'), 'Lower (Focus)');
     assert.strictEqual(server.groupToken('TRAIN - Lower (Focus)'), 'TRAIN');
+  });
+  t('reported pipe prefix is removed in server-composed class names', () => {
+    assert.strictEqual(server.cleanClassName('LAGREE | Lagree & Free Shake (Signature 50)', 'Lagree'), 'Lagree & Free Shake (Signature 50)');
   });
   t('a class that IS its discipline keeps its name (no blank cell)', () => {
     assert.strictEqual(server.cleanClassName('BOXING', 'BOXING'), 'Boxing');

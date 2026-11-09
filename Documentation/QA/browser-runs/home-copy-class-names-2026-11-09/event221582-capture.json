@@ -1,0 +1,22 @@
+{
+  "route": "GET /api/events/221582",
+  "status": 200,
+  "links": [
+    {
+      "gym_id": "aarmy",
+      "status": "active"
+    },
+    {
+      "gym_id": "psycle-london",
+      "status": "active"
+    }
+  ],
+  "event": {
+    "id": "221582",
+    "gymId": "psycle-london",
+    "name": "LAGREE | Lagree & Free Shake (Signature 50)",
+    "discipline": "Lagree",
+    "startAt": "2026-11-10T06:30:00+00:00",
+    "locationName": "London Bridge"
+  }
+}

@@ -65,7 +65,7 @@ function mockIndexedDB() {
                 return {};
               },
               delete(key) { rows.delete(key); },
-              clear() { rows.clear(); },
+              clear() { rows.clear(); setTimeout(() => tx.oncomplete?.(), 0); },
               openCursor() {
                 const cursorRequest = {};
                 const entries = [...rows.entries()];

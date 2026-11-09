@@ -1,3 +1,5 @@
+import { gymLoginChoiceHtml, bindGymLoginChoice } from './ui/gym-login-choice.js';
+import { initPolicyLinks } from './ui/policies.js';
 import { observeEdgeFades } from './ui/edge-fades.js';
 import { parseLocation, legacyHashToPath } from './url-state.js';
 import { currentRoute, navigate, pathFor, migrateLegacyHash, initRouter, stashReturnTo, takeReturnTo } from './router.js';
@@ -1302,10 +1304,10 @@ function initConnectivity() {
 // Fetch core user data and update UI header. Pass force=true after mutations
 // (booking, cancellation, spot edits) to bypass the 5-min profile cache and
 // fetch fresh credit counts from CodexFit.
-export async function loadGymContext() {
+export async function loadGymContext({ refresh = false } = {}) {
   try {
     const [{ gyms: linked }, catalogueRes] = await Promise.all([
-      api.getMyGyms(),
+      api.getMyGyms({ refresh }),
       api.getGyms(),
     ]);
     const catalogue = catalogueRes.gyms || catalogueRes || [];
@@ -1518,7 +1520,7 @@ export async function initApp() {
   // UI doesn't briefly show features this gym lacks. Awaited rather than
   // fire-and-forget: it is two small requests, and the alternative is a visible
   // flash of Buy Credits on a membership gym.
-  await loadGymContext();
+  await loadGymContext({ refresh: true });
 
   // Prefetch auto-book tab data in the background for instant tab load
   import('./ui/autobook').then(m => m.prefetchAutoBookData()).catch(() => {});
@@ -1830,10 +1832,12 @@ function showNoGymScreen() {
       <label for="app-nogym-password">${COPY.auth.gymPassword}</label>
       <input type="password" id="app-nogym-password" placeholder="${COPY.static.passwordPlaceholder}" autocomplete="off">
     </div>
+    ${gymLoginChoiceHtml('app-nogym-remember')}
     <div id="app-nogym-error" class="app-login-error" style="display:none;"></div>
     <button type="button" id="app-nogym-submit" class="app-btn-primary"><span>${COPY.auth.connectGymButton}</span></button>
   `;
 
+  bindGymLoginChoice(panel);
   const sel = panel.querySelector('#app-nogym-gym');
   const errorEl = panel.querySelector('#app-nogym-error');
   api.getGyms().then(gyms => {
@@ -1857,7 +1861,9 @@ function showNoGymScreen() {
     btn.disabled = true;
     btn.querySelector('span').textContent = COPY.auth.connecting;
     try {
-      await api.linkGym(gymId, email, password);
+      await api.linkGym(gymId, email, password, panel.querySelector('[data-remember-gym-login]').checked);
+      panel.querySelector('#app-nogym-password').value = '';
+      panel.querySelector('#app-nogym-email').value = '';
       panel.style.display = 'none';
       showToast(COPY.auth.gymConnected, 'success');
       await onLoginSuccess();
@@ -1931,6 +1937,7 @@ function wireAuthSwitcher() {
 wireAuthSwitcher();
 
 // --- create account ---
+initPolicyLinks();
 const signupForm = document.getElementById('app-signup-form');
 if (signupForm) {
   signupForm.addEventListener('submit', async (e) => {
@@ -1949,6 +1956,7 @@ if (signupForm) {
     btn.disabled = true;
     btn.querySelector('span').textContent = COPY.auth.creating;
     try {
+      if (!document.getElementById('app-signup-policy').checked) throw new Error('Please agree to the Terms and Conditions and acknowledge the Privacy Policy.');
       const { user } = await api.signup(email, password);
       currentUser = user;
       rememberAccountEmail((user && user.email) || email);
@@ -1996,15 +2004,25 @@ window.addEventListener('app-logout-triggered', () => {
 // just to reflect it without delay: toast which gym, and refresh the "Your
 // Gyms" list if Settings happens to be open so the "Re-authenticate" prompt
 // shows immediately rather than on the next visit to the tab.
-window.addEventListener('app-gym-needs-relogin', async (e) => {
-  const gymId = e.detail?.gymId;
-  const name = (gymId && getGymShortName(gymId)) || COPY.static.linkedGymFallback;
-  showToast(formatCopyText(COPY.shell.gymSessionExpired, { gymName: name }), 'warning');
-  try {
-    const { renderGymsCard } = await import('./ui/settings');
-    await renderGymsCard();
-  } catch (_) { /* Settings not mounted / not the active tab — nothing to refresh */ }
-});
+let availabilityReloadPending = false;
+function reloadForGymAvailability() {
+  if (availabilityReloadPending || !isLoggedIn()) return;
+  availabilityReloadPending = true;
+  // Clearing persistent caches plus a real reload retires every in-memory widget,
+  // timetable, bookings and Team request together. The Dibs login is preserved.
+  clearApiCache().finally(() => window.location.reload());
+}
+window.addEventListener('app-gym-needs-relogin', reloadForGymAvailability);
+window.addEventListener('app-gym-availability-changed', reloadForGymAvailability);
+let checkingConnections = false;
+async function refreshGymConnections() {
+  if (!isLoggedIn() || checkingConnections || document.visibilityState !== 'visible') return;
+  checkingConnections = true;
+  try { await loadGymContext({ refresh: true }); } catch (_) {} finally { checkingConnections = false; }
+}
+document.addEventListener('visibilitychange', refreshGymConnections);
+window.addEventListener('pageshow', refreshGymConnections);
+window.addEventListener('online', refreshGymConnections);
 
 // Back/forward: apply the tab/section from the path. modal-nav's capture-phase popstate
 // listener runs first and flags events it consumed (appNavHandled); the router skips those.

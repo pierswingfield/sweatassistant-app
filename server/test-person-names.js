@@ -192,7 +192,7 @@ check('HTTP: PUT /api/settings validates and normalises names; import drops inva
     let json = null; try { json = await r.json(); } catch (_) {}
     return { status: r.status, body: json };
   };
-  const su = await call('POST', '/api/auth/signup', null, { email: `n-${process.pid}@test.local`, password: 'password123' });
+  const su = await call('POST', '/api/auth/signup', null, { policyAcceptance: require('./policies').CURRENT_ACCEPTANCE, email: `n-${process.pid}@test.local`, password: 'password123' });
   const t = su.body.token;
   assert.ok(t);
   let r = await call('PUT', '/api/settings', t, { firstName: '  Ada ', lastName: ' Love  lace ' });

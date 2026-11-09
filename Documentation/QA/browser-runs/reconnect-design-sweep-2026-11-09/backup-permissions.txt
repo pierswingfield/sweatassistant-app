@@ -1,0 +1,2 @@
+700 /home/ubuntu/services/sweatassistant-experiment/data/.rollback-reconnect-design-20261109
+600 /home/ubuntu/services/sweatassistant-experiment/data/.rollback-reconnect-design-20261109/app.db

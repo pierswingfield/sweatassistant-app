@@ -217,6 +217,7 @@ export function syncBookingCache(bookings) {
     const now = Date.now();
     const normalized = (bookings || []).map(b => {
       const event = b.event || {};
+      if (b.isCancelled === true || event.isCancelled === true) return null; // studio-cancelled: not a live booking
       const startAt = event.startAt || event.start_at || b.start_at;
       if (!startAt || new Date(startAt).getTime() < now) return null;
       const rawClassName = event.name || event.event_type?.name || COPY.autoBook.class;
@@ -470,7 +471,8 @@ function buildBookingCard(group, upgrades) {
   // auto-upgrade modal for a class with no seats to upgrade to.
   const { hasMap } = getStudioMapInfo(event);
 
-  const chipsHtml = group.bookings.map(b => {
+  const cancelledByStudio = group.isCancelled === true;
+  const chipsHtml = cancelledByStudio ? '' : group.bookings.map(b => {
     if (!hasMap) {
       // Static badge, not a button: there is no spot to configure auto-upgrade
       // for on an FCFS/recovery class, so it must not be clickable (it isn't
@@ -526,10 +528,10 @@ function buildBookingCard(group, upgrades) {
             </button>`;
   }).join('');
 
-  const offerGuest = canOfferGuestAction({ supported: canForGym('guestBooking', event.gymId), bookings: group.bookings });
+  const offerGuest = !cancelledByStudio && canOfferGuestAction({ supported: canForGym('guestBooking', event.gymId), bookings: group.bookings });
   // A direct, always-visible Guest action (a chip with the spot chips), not only inside the rail.
   const guestChipHtml = offerGuest ? `<button type="button" class="bk-guest-chip" aria-label="${GUEST_ACTION_LABEL}" title="${GUEST_ACTION_LABEL}">${COPY.bookings.guestChip}</button>` : '';
-  const editBtnHtml = (within12h || !hasMap) ? '' :
+  const editBtnHtml = (cancelledByStudio || within12h || !hasMap) ? '' :
     `<button class="ab-rail-btn bk-edit-btn" aria-label="${COPY.bookings.editSpots}">${icon('edit', 17)}<span>${COPY.accessibility.editCard}</span></button>`;
 
   const card = document.createElement('div');
@@ -556,25 +558,28 @@ function buildBookingCard(group, upgrades) {
             <span class="ab-card-time">${timeOnly}</span>
           </div>
           <div class="ab-card-line2">
-            <span class="ab-card-titlegroup">${disciplineTag(groupName)}
+            ${cancelledByStudio
+              ? `<span class="ab-card-titlegroup"><span class="ab-card-class">${escapeHtml(COPY.bookings.cancelledClass)}</span></span>`
+              : `<span class="ab-card-titlegroup">${disciplineTag(groupName)}
             <span class="ab-card-class">${escapeHtml(className)}</span></span>
             ${instructorInlineHtml(instructorName)}
-            ${locationLine ? `<span class="ab-meta-dot">·</span><span class="ab-card-location">${escapeHtml(locationLine)}</span>` : ''}
+            ${locationLine ? `<span class="ab-meta-dot">·</span><span class="ab-card-location">${escapeHtml(locationLine)}</span>` : ''}`}
           </div>
         </div>
-        ${(instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || instructorName)
+        ${!cancelledByStudio && (instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || instructorName)
           ? `<div class="ab-card-figure ${instructorNameLengthClass(instructorName)}">${instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || ''}${instructorName ? `<span class="ab-card-instructor ${instructorNameLengthClass(instructorName)}">${escapeHtml(instructorName)}</span>` : ''}</div>` : ''}
       </div>
       <div class="ab-card-footer bk-footer-start">
-        <div class="ab-chip-group">${chipsHtml}${guestChipHtml}</div>
+        ${cancelledByStudio ? '' : `<div class="ab-chip-group">${chipsHtml}${guestChipHtml}</div>`}
       </div>
     </div>
     <div class="ab-card-rail">
       ${editBtnHtml}
       ${offerGuest ? `<button class="ab-rail-btn bk-guest-btn" aria-label="${GUEST_ACTION_LABEL}">${icon('plus', 17)}<span>${GUEST_ACTION_LABEL}</span></button>` : ''}
-      <button class="ab-rail-btn danger bk-cancel-btn" aria-label="${COPY.bookings.cancelBookingLabel}">${icon('close', 17)}<span>${COPY.bookings.cancel}</span></button>
+      <button class="ab-rail-btn danger bk-cancel-btn" aria-label="${cancelledByStudio ? COPY.bookings.dismissCancelledLabel : COPY.bookings.cancelBookingLabel}">${icon('close', 17)}<span>${cancelledByStudio ? COPY.bookings.dismissCancelled : COPY.bookings.cancel}</span></button>
     </div>
   `;
+  if (cancelledByStudio) card.classList.add('is-studio-cancelled');
 
   // Edit spots
   const editBtn = card.querySelector('.bk-edit-btn');
@@ -617,6 +622,26 @@ function buildBookingCard(group, upgrades) {
       });
     });
   });
+
+  // Studio-cancelled: no penalty check, no grace countdown. "Remove" asks the
+  // gym to clear the reservation; if the gym refuses, say so and keep the card.
+  if (cancelledByStudio) {
+    const removeBtn = card.querySelector('.bk-cancel-btn');
+    removeBtn.addEventListener('click', async () => {
+      removeBtn.disabled = true;
+      try {
+        const primary = group.bookings.find((booking) => !booking.isGuest) || group.bookings[0];
+        await api.cancel(bookingIdOf(primary), primary.gymId || group.event?.gymId);
+        await invalidateApiCache('/api/bookings');
+        await refreshUserData(true);
+        renderBookings();
+      } catch (err) {
+        removeBtn.disabled = false;
+        showToast(COPY.bookings.dismissCancelledFailed, 'warning');
+      }
+    });
+    return card;
+  }
 
   // Cancel (two-tap confirm) — cancels every spot booked for the class.
   const cancelBtn = card.querySelector('.bk-cancel-btn');
@@ -1344,13 +1369,15 @@ function buildWaitlistCard(w) {
             <span class="ab-card-time">${timeOnly}</span>
           </div>
           <div class="ab-card-line2">
-            <span class="ab-card-titlegroup">${disciplineTag(groupName)}
+            ${cancelledByStudio
+              ? `<span class="ab-card-titlegroup"><span class="ab-card-class">${escapeHtml(COPY.bookings.cancelledClass)}</span></span>`
+              : `<span class="ab-card-titlegroup">${disciplineTag(groupName)}
             <span class="ab-card-class">${escapeHtml(className)}</span></span>
             ${instructorInlineHtml(instructorName)}
-            ${locationLine ? `<span class="ab-meta-dot">·</span><span class="ab-card-location">${escapeHtml(locationLine)}</span>` : ''}
+            ${locationLine ? `<span class="ab-meta-dot">·</span><span class="ab-card-location">${escapeHtml(locationLine)}</span>` : ''}`}
           </div>
         </div>
-        ${(instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || instructorName)
+        ${!cancelledByStudio && (instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || instructorName)
           ? `<div class="ab-card-figure ${instructorNameLengthClass(instructorName)}">${instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || ''}${instructorName ? `<span class="ab-card-instructor ${instructorNameLengthClass(instructorName)}">${escapeHtml(instructorName)}</span>` : ''}</div>` : ''}
       </div>
       <div class="ab-card-footer">

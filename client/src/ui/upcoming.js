@@ -17,6 +17,8 @@ export function groupBookingsByEvent(bookings) {
     const key = `${gymId}:${String(event.id || b.eventId || b.event_id)}`;
     if (!groups.has(key)) groups.set(key, { eventId: String(event.id || b.eventId || b.event_id), gymId, event, bookings: [] });
     groups.get(key).bookings.push(b);
+    // Cancelled by the studio: no seat, nothing to cancel-with-penalty or upgrade.
+    if (b.isCancelled === true || event.isCancelled === true) groups.get(key).isCancelled = true;
   }
   return [...groups.values()].sort((a, b) => Date.parse(startOf(a)) - Date.parse(startOf(b)));
 }

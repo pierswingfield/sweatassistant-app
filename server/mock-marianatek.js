@@ -299,8 +299,26 @@ function getClasses() {
   });
 }
 
+// A free class with NO payment options, kept out of the timetable list so class
+// counts in other suites do not move; reachable by id (detail, payment_options, book).
+const FREE_CLASS_ID = '9990';
+function freeClass() {
+  const base = getClasses()[0];
+  return { ...base, id: FREE_CLASS_ID, name: 'Free Community Class', is_free_class: true, layout_format: 'first-come-first-serve', available_spot_count: 10, capacity: 10 };
+}
+
 function findClass(id) {
+  if (String(id) === FREE_CLASS_ID) return freeClass();
   return getClasses().find((c) => c.id === String(id));
+}
+
+// Test hook: an upcoming reservation whose class the studio cancelled
+// (status 'class cancelled', class_session.is_cancelled true).
+function seedCancelledReservation(classId) {
+  const r = makeReservation({ classId, spotId: null, reservationType: 'standard' });
+  r.status = 'class cancelled';
+  r.class_session = { ...r.class_session, is_cancelled: true, status: 'Class Cancelled' };
+  return r;
 }
 
 function makeReservation({ classId, spotId, reservationType, guestEmail }) {
@@ -377,6 +395,7 @@ function handleMockRequest(pathName, method, body, gym) {
   // GET /classes/{id}/payment_options
   let m = path.match(/^\/classes\/([^/]+)\/payment_options$/);
   if (m && method === 'GET') {
+    if (m[1] === FREE_CLASS_ID) return createFakeResponse({ user_payment_options: [], guest_payment_options: [] });
     return createFakeResponse(paymentOptionLists());
   }
 
@@ -543,4 +562,4 @@ function handleMockRequest(pathName, method, body, gym) {
   return createFakeResponse([]);
 }
 
-module.exports = { handleMockRequest };
+module.exports = { handleMockRequest, seedCancelledReservation, FREE_CLASS_ID };

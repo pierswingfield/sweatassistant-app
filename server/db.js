@@ -1497,6 +1497,17 @@ module.exports = {
     `).run(status, message, executedAt, eventId, userId, gymId);
   },
 
+  // A studio-cancelled class can never be booked: retire its pending queue entries as
+  // 'cancelled' (executed_at set, so scheduler and Teams queue reads, both filtered on
+  // pending + executed_at IS NULL, drop them) instead of leaving them 'pending'.
+  cancelPendingAutoBookingsForEvent(userId, gymId, eventId, message = 'Class was cancelled by the studio.') {
+    if (!gymId || eventId == null || eventId === '') return 0;
+    return db.prepare(`
+      UPDATE auto_bookings SET status = 'cancelled', execution_message = ?, executed_at = ?
+      WHERE user_id = ? AND gym_id = ? AND event_id = ? AND status = 'pending' AND executed_at IS NULL
+    `).run(message, new Date().toISOString(), userId, gymId, Number(eventId)).changes;
+  },
+
   // Auto-upgrades
   getActiveAutoUpgrades() {
     return db.prepare("SELECT au.* FROM auto_upgrades au JOIN user_gyms ug ON ug.user_id = au.user_id AND ug.gym_id = au.gym_id WHERE au.status = 'active' AND ug.account_enabled = 1 AND ug.status = 'active'").all();

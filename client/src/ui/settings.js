@@ -1965,6 +1965,7 @@ const NOTIF_DEFAULTS = {
   creditWarning: { enabled: true },
   cancellationReminder: { enabled: true, timing: '24h' },
   bookingWindow: { enabled: true },
+  classCancelled: { enabled: true },
   // T-5 Teams (server notifications.js DEFAULT_PREFS): only "request approved" is an
   // account switch (the requester has no Team page yet). Join requests and "a teammate
   // booked a class you're in" are per Team, on each Team's Manage page (T-5b).
@@ -1991,6 +1992,7 @@ const NOTIF_ROWS = [
   // warn about, so each gym carries its own default (gyms.config.js) and the
   // member can override either way.
   { key: 'bookingWindow', title: COPY.settings.notificationBookingWindow, desc: COPY.settings.notificationBookingWindowHelp, perGym: true },
+  { key: 'classCancelled', title: COPY.settings.notificationClassCancelled, desc: COPY.settings.notificationClassCancelledHelp },
   // T-5 Teams (PLAN-teams.md §5.3): the rest are per Team (pointer line below the rows).
   { key: 'teamApproved', title: COPY.settings.notificationTeamApproved, desc: COPY.settings.notificationTeamApprovedHelp },
 ];

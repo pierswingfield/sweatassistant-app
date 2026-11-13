@@ -11828,15 +11828,15 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 
 /* Combined view: a waitlist card is FULLY greyscale (every element, not the light desaturation the
    Separate section uses) and ~15% narrower than a booked card, centred within the booked cards' width. */
-#app-helper-container #app-bookings-list .ab-card.is-waitlist.is-combined {
+#app-helper-container #app-bookings-list .ab-card:is(.is-waitlist.is-combined, .is-studio-cancelled) {
   filter: grayscale(1);
   width: 85% !important; max-width: calc(var(--ab-card-max-w, 100%) * 0.85);
   align-self: center;
 }
-#app-helper-container #app-bookings-list .ab-card.is-waitlist.is-combined :is(.ab-card-gym-rail, .ab-card-body, .ab-card-rail .ab-rail-btn) { filter: none; }
+#app-helper-container #app-bookings-list .ab-card:is(.is-waitlist.is-combined, .is-studio-cancelled) :is(.ab-card-gym-rail, .ab-card-body, .ab-card-rail .ab-rail-btn) { filter: none; }
 @media (min-width: 769px) {
   /* Desktop cards are left-aligned at --ab-card-max-w; centre the waitlist card on THAT column. */
-  #app-helper-container #app-bookings-list .ab-card.is-waitlist.is-combined {
+  #app-helper-container #app-bookings-list .ab-card:is(.is-waitlist.is-combined, .is-studio-cancelled) {
     align-self: flex-start;
     margin-left: calc(min(100%, var(--ab-card-max-w)) * 0.075) !important;
     width: calc(min(100%, var(--ab-card-max-w)) * 0.85) !important; max-width: none;
@@ -13175,3 +13175,10 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   #app-helper-container .app-gym-conn-inline-row.is-reconnecting .app-card-desc { flex: 1 0 100%; margin: 0; white-space: normal; overflow: visible; text-overflow: clip; }
   #app-helper-container .app-gym-conn-inline-row.is-reconnecting .app-settings-btn-row { margin: 0; }
 }
+
+/* Studio-cancelled booking (MarianaTek class cancelled): muted card.
+   After the base .ab-spot-open-floor rules; !important per the table/menu notes. */
+/* Greyscale + narrower width come from the waitlist rules above (:is(... .is-studio-cancelled)). */
+/* Minimal card: date/time, "Cancelled class". No strikethrough, photo, tag or location. */
+#app-helper-container .app-autobook-card.is-studio-cancelled .ab-card-line2 { flex-wrap: nowrap; }
+#app-helper-container .app-autobook-card.is-studio-cancelled .ab-card-lines { flex: 1 1 auto; min-width: 0; }

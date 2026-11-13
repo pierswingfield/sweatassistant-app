@@ -243,7 +243,7 @@ There is **one shared preferred spot map per studio**:
 
 ## Notification System
 
-Five notification types, all server-side, all deduped via the `sent_notifications` SQLite table:
+Six notification types, all server-side, all deduped via the `sent_notifications` SQLite table:
 
 | Type | Triggered by | Condition | Default |
 |------|-------------|-----------|---------|
@@ -252,6 +252,7 @@ Five notification types, all server-side, all deduped via the `sent_notification
 | `creditWarning` | `server.js` POST `/api/auto-book` or `/api/auto-upgrade` | `prefs.creditWarning.enabled` | enabled |
 | `cancellationReminder` | `poller.checkCancellationReminders` (local timer, reads `booking_cache`) | `prefs.cancellationReminder.enabled`; fires at 24h or 14h before class, only inside free-cancel window | enabled, timing: 24h |
 | `bookingWindow` | `poller.checkBookingWindowReminder` (weekly at Mon 11AM) | `prefs.bookingWindow.enabled`; contextual tip based on queue count + credits | enabled |
+| `classCancelled` | `booking-sync.notifyStudioCancelled` (studio cancels a booked class; MarianaTek `isCancelled`) | `prefs.classCancelled.enabled`; upcoming classes only, deduped per user+gym+booking, first sync of a link records silently | enabled |
 
 - **Dispatch**: `notifications.js` `notify(userId, type, ctx)` builds the body, checks user prefs, calls `push.js` `sendNotification()` which fans out to all `push_subscriptions` for the user. Expired subscriptions (410/404) are auto-deleted.
 - **Dedupe**: `sent_notifications` table with `UNIQUE(user_id, dedupe_key)`.

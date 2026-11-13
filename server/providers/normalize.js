@@ -77,6 +77,8 @@ function makeEvent(e) {
     isUserGuestBooked: bool(e.isUserGuestBooked),
     isUserWaitlisted: bool(e.isUserWaitlisted),
     credits: makeCreditRequirement(e.credits),
+    isCancelled: bool(e.isCancelled),
+    isFree: bool(e.isFree),
     raw: e.raw,
   });
 }
@@ -230,6 +232,7 @@ function makeBooking(b) {
     slotLabel: str(b.slotLabel),
     spotSection: str(b.spotSection),
     isWaitlist: bool(b.isWaitlist) ?? false,
+    isCancelled: bool(b.isCancelled),
     isGuest: bool(b.isGuest),
     guestEmail: str(b.guestEmail),
     // When the booking was made. Powers the free-cancellation grace period the

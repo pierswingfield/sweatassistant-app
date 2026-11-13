@@ -149,11 +149,14 @@ function eventFields(ev) {
 }
 
 /** booking_cache rows for one gym (throws when the gym cannot be read). */
-async function bookingRowsFor(userId, gymId) {
+async function bookingRowsFor(userId, gymId, cancelledOut = null) {
   const list = await listWithRelogin(userId, gymId, 'listBookings');
   const rows = [];
   for (const nb of list || []) {
-    if (!nb || nb.isWaitlist || !nb.eventId) continue;
+    // A studio-cancelled class is not a live booking: it must never reach
+    // booking_cache (reminders, calendar feed, Home counts all read it).
+    if (nb && !nb.isWaitlist && nb.isCancelled && cancelledOut) cancelledOut.push(nb);
+    if (!nb || nb.isWaitlist || nb.isCancelled || !nb.eventId) continue;
     const ev = await eventFor(userId, gymId, nb);
     if (!ev || !ev.startAt) continue;
     rows.push({
@@ -163,6 +166,41 @@ async function bookingRowsFor(userId, gymId) {
     });
   }
   return rows;
+}
+
+/** A studio-cancelled class ends its auto-upgrade monitor and pending auto-book entry. */
+function retireCancelled(userId, gymId, cancelled) {
+  for (const nb of cancelled) {
+    try {
+      db.stopAutoUpgradesForBooking(userId, gymId, nb.bookingId, 'Class was cancelled by the studio — monitoring stopped.');
+      db.cancelPendingAutoBookingsForEvent(userId, gymId, nb.eventId);
+    } catch (e) { console.error(`[BookingSync] retiring cancelled class failed for user ${userId}:`, e.message); }
+  }
+}
+
+const cancelledNoticeKey = (gymId, bookingId) => `classCancelled:${gymId}:${bookingId}`;
+
+/**
+ * Tell the member a class they booked was cancelled by the studio. Deduped per
+ * (user, gym, booking) in sent_notifications, so repeat syncs stay silent. No flood:
+ * only classes still in the future notify (history never does), and the FIRST sync of a
+ * link records what it sees without notifying (it has no "before" to compare with).
+ * Never throws: a failed push must not fail the sync.
+ */
+async function notifyStudioCancelled(userId, gymId, cancelled, { firstSync = false } = {}) {
+  for (const nb of cancelled || []) {
+    try {
+      if (!nb || nb.bookingId == null) continue;
+      const key = cancelledNoticeKey(gymId, nb.bookingId);
+      if (db.wasNotificationSent(userId, key)) continue;
+      const ev = await eventFor(userId, gymId, nb);
+      const startMs = ev && ev.startAt ? Date.parse(ev.startAt) : NaN;
+      if (!Number.isFinite(startMs) || startMs <= clock()) continue; // past or unknown: never notify, never record
+      db.markNotificationSent(userId, key);
+      if (firstSync) continue;
+      await require('./notifications').notify(userId, 'classCancelled', { gymId, ...eventFields(ev), url: '/bookings' });
+    } catch (e) { console.error(`[BookingSync] cancelled-class notice failed for user ${userId}:`, e.message); }
+  }
 }
 
 /** waitlist_cache rows for one gym (throws when the gym cannot be read). */
@@ -231,8 +269,12 @@ async function fetchAndStore(userId, gymId, allowRestart = true) {
   let bookings = null;
   let waitlists = null;
   try {
-    bookings = await bookingRowsFor(userId, gymId);
+    const cancelled = [];
+    bookings = await bookingRowsFor(userId, gymId, cancelled);
     assertCurrent();
+    retireCancelled(userId, gymId, cancelled);
+    const wasFirstSync = !(db.getBookingSyncState(userId, gymId) || {}).last_synced_at;
+    await notifyStudioCancelled(userId, gymId, cancelled, { firstSync: wasFirstSync });
     const listening = !!newBookingsListener;
     const prevState = listening ? db.getBookingSyncState(userId, gymId) : null;
     const firstSync = !(prevState && prevState.last_synced_at);
@@ -484,7 +526,7 @@ function acceptClientBookings(userId, bookings, scope, now = Date.now()) {
   // stays 'server' (Team-visible); one only the client knows is stored as 'client' and
   // never reaches a Team. The client's list can still remove a row (a cancel).
   const serverBookingIds = new Set();
-  const merged = list.map((b) => {
+  const merged = list.filter((b) => !(b && b.isCancelled)).map((b) => {
     const gymId = b && b.gymId;
     const prev = gymId && b.bookingId != null ? existing.get(`${gymId}:${b.bookingId}`) : null;
     if (!prev) return b;
@@ -511,6 +553,7 @@ module.exports = {
   syncUser,
   syncUserGym,
   bookingRowsFor,
+  notifyStudioCancelled,
   waitlistRowsFor,
   skipReason,
   cadenceFor,

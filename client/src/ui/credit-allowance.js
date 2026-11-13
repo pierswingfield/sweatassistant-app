@@ -96,6 +96,8 @@ export function getAvailableCreditsForEvent(event) {
 }
 
 export function hasUsableCredit(event) {
+  // A free class needs no credit or membership (provider-published `isFree`).
+  if (event && event.isFree === true) return true;
   return canBookAtAll(event && (event.gymId || event.gym_id)) && getAvailableCreditsForEvent(event) > 0;
 }
 

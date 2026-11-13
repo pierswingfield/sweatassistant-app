@@ -426,6 +426,13 @@ async function executeAutoBookForClassInner(booking) {
       setCachedEvent(gymId, eventId, details, 30000);
     }
 
+    // Studio-cancelled class: never book it, and never leave the entry 'pending'.
+    if (details.event && details.event.isCancelled === true) {
+      db.cancelPendingAutoBookingsForEvent(userId, gymId, eventId);
+      emitStatusUpdate(userId, { eventId, status: 'failed', message: 'Class was cancelled by the studio. Removed from your queue.' });
+      return;
+    }
+
     const layoutSlots = details.slots || [];
     const liveAvailable = layoutSlots.filter((slot) => slot.isAvailable).map((slot) => String(slot.id));
 

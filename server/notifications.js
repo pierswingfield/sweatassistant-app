@@ -22,6 +22,8 @@ const DEFAULT_PREFS = {
   // for that gym. Minimal by design — no scope/timing sub-options, since
   // there's exactly one situation it fires for and no useful variant of it.
   providerThrottled: { enabled: true },
+  // A class booked by the member was cancelled by the studio (MarianaTek is_cancelled).
+  classCancelled: { enabled: true },
   // T-5 Teams: "request approved" reaches someone who is not yet a member, so it has no
   // Team page to be set on and stays an account switch (on: §5.6 "approved means a push").
   // Join requests and "a teammate booked a class you're in" are per Team (T-5b,
@@ -211,6 +213,16 @@ function buildProviderThrottled(ctx) {
   };
 }
 
+function buildClassCancelled(ctx) {
+  const gym = gymShortName(ctx.gymId);
+  const gymName = (getGymConfig(ctx.gymId) || {}).name || gym;
+  const what = (ctx.className || '').trim() || `${groupToken(ctx.groupName, ctx.className)} class`;
+  return {
+    title: `${gym}: Class Cancelled`,
+    body: `${what} on ${formatDayTime(ctx.startAt, zoneFor(ctx.gymId))} has been cancelled by ${gymName}.`,
+  };
+}
+
 function buildBookingWindow(ctx) {
   const gym = gymShortName(ctx.gymId);
   return {
@@ -289,6 +301,10 @@ async function notify(userId, type, ctx = {}) {
       if (!prefs.providerThrottled.enabled) return;
       built = buildProviderThrottled(ctx);
       break;
+    case 'classCancelled':
+      if (!prefs.classCancelled.enabled) return;
+      built = buildClassCancelled(ctx);
+      break;
     case 'teamRequest':
       // Per-Team opt-in, checked by team-notify.js (the only caller).
       built = buildTeamRequest(ctx);
@@ -335,6 +351,7 @@ function buildSample(type) {
     case 'bookingWindow-none': return buildBookingWindow({ gymId: sampleGymId, tip: "Don't forget to set up Auto-Book!" });
     case 'bookingWindow-nocredits': return buildBookingWindow({ gymId: sampleGymId, tip: '⚠️ You have 3 classes set to Auto-Book, but you don\'t have enough credits.' });
     case 'providerThrottled': return buildProviderThrottled({ gymId: sampleGymId });
+    case 'classCancelled': return buildClassCancelled(base);
     case 'teamRequest': return buildTeamRequest({ teamName: 'Tuesday Riders', pending: 1 });
     case 'teamApproved': return buildTeamApproved({ teamName: 'Tuesday Riders' });
     case 'teamBooked': return buildTeamBooked({ ...base, discipline: 'RIDE', teamName: 'Tuesday Riders', bookerName: 'Ana', others: 1 });
@@ -368,6 +385,7 @@ module.exports = {
   buildSample,
   buildGenericTest,
   sendGenericTest,
+  buildClassCancelled,
   buildTeamRequest,
   buildTeamApproved,
   buildTeamBooked,

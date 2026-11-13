@@ -94,6 +94,8 @@
  * @property {'pick-a-spot'|'first-come-first-serve'} layoutFormat
  * @property {boolean=} isUserBooked
  * @property {boolean=} isUserGuestBooked
+ * @property {boolean=} isCancelled   Cancelled by the studio.
+ * @property {boolean=} isFree        Free class: needs no payment option / credit.
  * @property {boolean=} isUserWaitlisted
  * @property {*=}      raw               Raw provider payload (debug only).
  * @property {NormalizedCreditRequirement=} credits  What it costs and what it
@@ -183,6 +185,7 @@
  * @property {string=} slotLabel
  * @property {string=} spotSection
  * @property {boolean} isWaitlist
+ * @property {boolean=} isCancelled   Cancelled by the studio (not by the member).
  * @property {boolean=} isGuest
  * @property {string=} guestEmail
  * @property {NormalizedEvent=} event     Present when the provider's list response embeds

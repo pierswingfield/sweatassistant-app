@@ -571,7 +571,7 @@ registerWidget({
       api.getAutoBookings({ gymIds: uniqueGymIds(ctx.gyms), loading: true }).catch(() => null),
     ]);
     const now = DateTime.now();
-    const groups = groupBookingsByEvent(bookings);
+    const groups = groupBookingsByEvent(bookings).filter((g) => !g.isCancelled);
     const bookedCount = groups.filter((group) => Date.parse(group.event.startAt || group.event.start_at) >= now.toMillis()).length;
     return { ...selectUpcoming(groups, now), bookedCount, waitlistCount: countUpcomingWaitlists(waitlists, now.toMillis()), upgrades: upgrades || [], queueCount: countPendingAutoBooks(queue) };
   },

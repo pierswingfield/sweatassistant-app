@@ -805,3 +805,11 @@ Official demo of Universal Authentication flow.
 ## Timezone
 
 A class carries `start_datetime` (UTC, `Z`), `start_time` (local) and `location.timezone` (IANA, also on `/locations`). The adapter resolves config location override -> `location.timezone` -> gym `timezone`, and emits `startAt` as an offset-bearing ISO in that zone plus `timeZone`, so a 14:15Z Aarmy class displays as 09:15 (not 14:15).
+
+## Studio-cancelled classes and free classes (2026-11-13, UNVERIFIED live)
+
+Built from the documented payload, not a live capture. Assumptions to check against a real account:
+
+- An upcoming reservation for a studio-cancelled class appears in `GET /me/reservations` with `status: "class cancelled"` and/or `class_session.is_cancelled: true`. The adapter sets `NormalizedBooking.isCancelled`; booking sync drops these from `booking_cache`, so reminders, the calendar feed and Home counts ignore them. My Bookings shows "Cancelled by studio" with a Remove button that calls the normal cancel endpoint; it is unknown whether the gym accepts that cancel.
+- A free class is `is_free_class: true` or a zero `price`/`cost` field (the price field name is a guess). Free classes may return empty `payment_options`. `bookSlot` now sends the booking without `payment_option` when none is usable and passes the gym's own error message through (code `NOT_ELIGIBLE` only when a non-free class is rejected with no option). `joinWaitlist` already omitted the option. The client treats `isFree` events as bookable regardless of credits or membership.
+- Pinned by `server/test-marianatek-cancelled-free.js` against `mock-marianatek.js` (`seedCancelledReservation`, free class id `9990`).

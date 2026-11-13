@@ -97,6 +97,17 @@ describe('getDiscipline & passesDisciplineFilter (Pilates vs Reformer)', () => {
 });
 
 describe('action rail state', () => {
+  it('keeps the toggle labelled Edit on a studio-cancelled card', async () => {
+    const { wireRailToggle } = await import('./cards.js');
+    const c = document.createElement('div'); c.id = 'cancelled-test'; document.body.appendChild(c);
+    c.innerHTML = '<div class="ab-card is-studio-cancelled" data-event-id="9" data-gym="g"><div class="ab-card-footer"></div><div class="ab-card-rail"><button class="ab-rail-btn"></button></div></div>';
+    wireRailToggle(c);
+    const t = c.querySelector('.ab-rail-toggle');
+    expect(t.textContent).toBe('Edit');
+    expect(t.getAttribute('aria-label')).not.toMatch(/remove/i);
+    c.remove();
+  });
+
   it('preserves the same gym-qualified card across refresh and resets on logout', async () => {
     const { wireRailToggle, closeAllRails } = await import('./cards.js');
     closeAllRails();

@@ -284,6 +284,11 @@ async function attemptGroupUpgradeInner(upgrade, members, isCutoffMode) {
       if (!details) return;
       setCachedEvent(gymId, eventId, details, 30000);
     }
+    // Studio-cancelled class: nothing to upgrade into; end the monitor.
+    if (details.event && details.event.isCancelled === true) {
+      db.updateAutoUpgrade(upgrade.id, userId, 'stopped', 'Class was cancelled by the studio — monitoring stopped.', { lastCheckedAt: new Date().toISOString() });
+      return;
+    }
     const layout = details.slots || [];
     const available = layout.filter((s) => s && s.isAvailable).map((s) => String(s.id));
     const preferredOrder = preferredOrderFor(layout, preferredSlots, preferredRows);
@@ -741,6 +746,11 @@ async function attemptUpgradeSlotInner(upgrade, isCutoffMode) {
       details = await provider.fetchEventDetails(eventId, session);
       if (!details) return;
       setCachedEvent(gymId, eventId, details, 30000);
+    }
+    // Studio-cancelled class: nothing to upgrade into; end the monitor.
+    if (details.event && details.event.isCancelled === true) {
+      db.updateAutoUpgrade(upgrade.id, userId, 'stopped', 'Class was cancelled by the studio — monitoring stopped.', { lastCheckedAt: new Date().toISOString() });
+      return;
     }
 
     const upgradeLayout = details.slots || [];

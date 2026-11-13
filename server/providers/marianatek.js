@@ -989,9 +989,16 @@ class MarianaTekProvider extends GymProvider {
       isUserBooked: c.is_user_reserved,
       isUserGuestBooked: c.is_user_guest_reserved,
       isUserWaitlisted: c.is_user_waitlisted,
+      // Verified live 2026-11-13 (Homerun): class payload carries `is_cancelled` and `is_free_class`.
+      isCancelled: c.is_cancelled === true,
+      isFree: this._classIsFree(c),
       raw: c,
     });
   }
+
+  // Free = the class payload's own `is_free_class === true` (verified live
+  // 2026-11-13; there are NO price/cost fields). Absent/false means not free.
+  _classIsFree(c) { return !!c && c.is_free_class === true; }
 
   // Maps MT's `layout.spots` (pick-a-spot only — `layout` is null for
   // first-come-first-serve classes, confirmed via class-detail-fcfs.json) onto
@@ -1098,7 +1105,9 @@ class MarianaTekProvider extends GymProvider {
     const policyLimit = this.gym?.capabilities?.selfBookingPolicy === 'one-per-class'
       ? 1
       : (Number.isFinite(configuredLimit) && configuredLimit > 0 ? configuredLimit : 4);
-    const maxSelfBookings = !alreadyBooked && userOptions.length && hasAvailability
+    // A free class needs no payment option, so an empty list must not block it.
+    const selfPayable = userOptions.length > 0 || event.isFree === true;
+    const maxSelfBookings = !alreadyBooked && selfPayable && hasAvailability
       ? Math.min(policyLimit, Number.isFinite(available) ? available : policyLimit)
       : 0;
     const guestEnabled = this.gym?.capabilities?.guestBooking === true;
@@ -1113,7 +1122,7 @@ class MarianaTekProvider extends GymProvider {
       maxSelfBookings,
       selfEligible: maxSelfBookings > 0,
       selfReason: alreadyBooked ? 'ALREADY_BOOKED'
-        : !userOptions.length ? 'NO_VALID_PAYMENT_OPTION'
+        : !selfPayable ? 'NO_VALID_PAYMENT_OPTION'
           : !hasAvailability ? 'CLASS_FULL' : undefined,
       guestSupported: guestEnabled,
       maxGuestBookings,
@@ -1153,8 +1162,11 @@ class MarianaTekProvider extends GymProvider {
     if (this.gym?.capabilities?.selfBookingPolicy === 'one-per-class' && slotIds && slotIds.length > 1) {
       return makeBookingResult({ ok: false, status: 400, code: 'ATTENDEE_LIMIT_EXCEEDED', error: 'Only one self reservation is available per class.' });
     }
+    // A class flagged free (`is_free_class`) is booked without `payment_option`
+    // (live free reservations carry payment_option null). Any other class with no
+    // usable option is not eligible.
     const paymentOptionId = await this.resolvePaymentOption(eventId, session, { timeoutMs: remainingMs() });
-    if (!paymentOptionId) {
+    if (!paymentOptionId && details.event.isFree !== true) {
       return makeBookingResult({ ok: false, status: 403, code: 'NOT_ELIGIBLE', error: 'No valid payment option is available for this class.' });
     }
     const body = { class_session: { id: eventId }, is_booked_for_me: true, reservation_type: 'standard' };
@@ -1290,8 +1302,13 @@ class MarianaTekProvider extends GymProvider {
         if (embedded && enriched && enriched.instructors && enriched.instructors.length) {
           embedded.instructors = enriched.instructors;
         }
+        // Studio-cancelled (verified live 2026-11-13): reservation status
+        // 'class cancelled' and class_session.is_cancelled true.
+        const isCancelled = this._historyStatus(r) === 'class-cancelled' || !!(r.class_session && r.class_session.is_cancelled === true);
+        if (isCancelled && embedded) embedded.isCancelled = true;
         return makeBooking({
           bookingId: r.id,
+          isCancelled,
           eventId: r.class_session && r.class_session.id,
           slotId: r.spot && r.spot.id,
           slotLabel: r.spot && r.spot.name,

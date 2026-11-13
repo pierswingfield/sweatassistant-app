@@ -1,0 +1,9 @@
+{
+  "_note": "Sanitized live capture (Homerun London, 2026-11-13, read-only GETs). Ids, names, tokens removed. There are NO price/cost fields on the class payload; free is class.is_free_class === true. A free class reservation has payment_option null. A studio-cancelled reservation has status 'class cancelled' and class_session.is_cancelled true, status 'Class Cancelled'.",
+  "freeClass": { "id": "9001", "is_cancelled": false, "is_free_class": true, "status": null, "layout_format": "pick-a-spot" },
+  "paidClass": { "id": "9002", "is_cancelled": false, "is_free_class": false, "status": null, "layout_format": "pick-a-spot" },
+  "freeReservation": { "id": "8001", "status": "pending", "reservation_type": "standard", "payment_option": null, "class_session": { "id": "9001", "is_cancelled": false, "is_free_class": true, "status": null } },
+  "cancelledReservation": { "id": "8002", "status": "class cancelled", "reservation_type": "standard", "is_upcoming": true,
+    "payment_option": { "id": "credit-1", "type": "credit", "name": "Pack", "credit_payment": { "credits_remaining": 2 } },
+    "class_session": { "id": "9003", "is_cancelled": true, "is_free_class": false, "status": "Class Cancelled" } }
+}

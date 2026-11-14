@@ -1,5 +1,9 @@
 # Current Dibs operations
 
+## PROD and DEV Home attendance / Team handoff release — 14 November 2026
+
+Commit `afe5f1df2da2efa10a491a6e74587f1556c1deec` is pushed to `origin/master` and deployed to `sweatassistant-dev` and `sweatassistant`. Both are ARM64 / Node 22.23.4, restart 0; internal and public health are HTTP 200, scheduler/poller/calendar are healthy, SQLite integrity is `ok`, and expected static asset hashes match the build. DB counts are preserved (DEV 4 users / 7 links / 2 Teams; PROD 3 / 6 / 2). Environment, compose, binds and networks are unchanged. Experiment and landing were not targeted. No fresh interactive browser/device checks were run for this promotion; the pre-auth fresh-install continuation limit and unexplained earlier Home-only result remain open. [Release receipt](../QA/browser-runs/home-team-handoff-release-2026-11-14/README.md).
+
 ## Experiment Team invitation race guards — 13 November 2026, 22:06 UTC
 
 Experiment runs image `sha256:beebdd00ebf2561702f9fb9584a7b0c2d85e1fb6468208d2e8a0779a191510be` with guards against stale Team redemption, manifest, preview and account-recovery responses. ARM64 / Node 22.23.4, restart 0; internal and public health HTTP 200. DB integrity `ok`, with 14 users / 18 gym links / 4 Teams / 0 pending signup rows before and after. The reviewed helper, main source and served `index-iuCg2AGb.js` hashes match; 57/57 local static files except the stamped worker match runtime, which retains two Homerun WebPs. The served worker has the no-store guard. Env/compose, bind/networks and production/dev/landing were unchanged. Rollback: `~/services/sweatassistant-experiment/rollback-intent-races-20261113/` and corresponding image tag. [Receipt and validation](../QA/browser-runs/team-intent-races-2026-11-13/README.md).

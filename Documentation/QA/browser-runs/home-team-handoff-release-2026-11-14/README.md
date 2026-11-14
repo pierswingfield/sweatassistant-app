@@ -18,7 +18,7 @@ Commit `afe5f1df2da2efa10a491a6e74587f1556c1deec` (`Restore Home attendance and 
 - Current container IDs/images: DEV `969cdc6fb4ff7bdd6f4d09b516c9ab1eefcb9d4dd21287041d70800cae287064`, image `sha256:70d2ee38b267e8b497bf499504af4ff87a0a0c6bedf7a91fa1d91cab0f1db222`; PROD `0b96815f7e27c9d126b49d9e11a37123f1170b9bc0d95448dfdc9e735b52798a`, image `sha256:ddaf59d0e7945eb77b6d5554285e760a98bf4c2cb1f7d489ab93cdcda9aceacd`.
 - Experiment stayed on container `240cac7f079f1d0d9946f22dcbb5f879d94c97640812bc54a65facd88245de58` / image `sha256:beebdd00ebf2561702f9fb9584a7b0c2d85e1fb6468208d2e8a0779a191510be`; landing stayed on container `97d51a0737d4fff3b28970358a2227ffa84ece662842f4dca12cdcfaa10e0004` / image `sha256:8658870566c2e458ba362c44b33673c1d48728e1820956efb0bfed21ac9c6375`.
 
-No new interactive browser or device acceptance was run during this promotion. The prior physical auth-first flow is documented in [the experiment receipt](../team-auth-first-2026-11-13/README.md). A fresh pre-auth installation can still lose its invite continuation, and the earlier Home-only outcome remains unresolved; full physical fresh-install signup-to-welcome is not claimed here.
+The owner confirmed the Team preview in the PWA installed before signup. Full physical signup-to-welcome for that installation timing remains unconfirmed; supporting WebKit full-flow checks passed. No fresh PROD/DEV interactive browser or device acceptance was run during this promotion.
 
 ## Rollback
 

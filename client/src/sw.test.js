@@ -85,6 +85,14 @@ function navigation(path = '/timetable') {
 }
 
 describe('service-worker navigation shell', () => {
+  it('never caches no-store invite HTML as the generic shell, including after redirects', async () => {
+    const invite = response('<link rel="manifest" href="/api/teams/install-manifest/secret">', { headers: { 'Cache-Control': 'private, no-store' } });
+    const worker = workerHarness({ fetchImpl: async () => invite });
+    await worker.dispatch(navigation('/t/invite'));
+    await worker.dispatch(navigation('/redirected-invite'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(worker.puts).toEqual([]);
+  });
   it('returns a fast navigation and refreshes the cached shell', async () => {
     const fresh = response('<html>fresh</html>');
     const worker = workerHarness({ fetchImpl: async () => fresh });

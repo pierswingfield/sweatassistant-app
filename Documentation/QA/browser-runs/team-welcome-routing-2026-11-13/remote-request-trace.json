@@ -1,0 +1,134 @@
+[
+  {
+    "ts": "2026-11-12T12:36:35.131Z",
+    "method": "GET",
+    "path": "/api/my-gyms",
+    "status": 200
+  },
+  {
+    "ts": "2026-11-12T12:36:35.137Z",
+    "method": "GET",
+    "path": "/api/auth/status",
+    "status": 200
+  },
+  {
+    "ts": "2026-11-12T12:36:35.187Z",
+    "method": "GET",
+    "path": "/api/teams/onboarding",
+    "status": 200
+  },
+  {
+    "ts": "2026-11-12T12:36:35.242Z",
+    "method": "PUT",
+    "path": "/api/teams/invite/:token/onboarding",
+    "status": 200
+  },
+  {
+    "ts": "2026-11-12T12:36:38.892Z",
+    "method": "GET",
+    "path": "/api/auth/status",
+    "status": 200
+  },
+  {
+    "ts": "2026-11-12T12:36:38.928Z",
+    "method": "GET",
+    "path": "/api/my-gyms",
+    "status": 200
+  },
+  {
+    "ts": "2026-11-12T12:36:38.950Z",
+    "method": "GET",
+    "path": "/api/teams/invite/:token/onboarding",
+    "status": 200
+  },
+  {
+    "ts": "2026-11-12T12:36:38.990Z",
+    "method": "PUT",
+    "path": "/api/teams/invite/:token/onboarding",
+    "status": 200
+  },
+  {
+    "ts": "2026-11-12T12:36:43.598Z",
+    "method": "PUT",
+    "path": "/api/teams/invite/:token/onboarding",
+    "status": 200
+  },
+  {
+    "ts": "2026-11-12T12:36:43.649Z",
+    "method": "PUT",
+    "path": "/api/teams/invite/:token/onboarding",
+    "status": 200
+  },
+  {
+    "ts": "2026-11-12T12:36:43.728Z",
+    "method": "GET",
+    "path": "/api/calendar/status",
+    "status": 200
+  },
+  {
+    "ts": "2026-11-12T12:36:43.765Z",
+    "method": "GET",
+    "path": "/api/settings",
+    "status": 200
+  },
+  {
+    "ts": "2026-11-12T12:36:43.818Z",
+    "method": "GET",
+    "path": "/api/studio-preferences",
+    "status": 200
+  },
+  {
+    "ts": "2026-11-12T12:36:44.993Z",
+    "method": "DELETE",
+    "path": "/api/teams/invite/:token/onboarding",
+    "status": 200
+  },
+  {
+    "ts": "2026-11-12T12:36:45.291Z",
+    "method": "GET",
+    "path": "/api/my-gyms",
+    "status": 200
+  },
+  {
+    "ts": "2026-11-12T12:36:45.361Z",
+    "method": "GET",
+    "path": "/api/profile",
+    "status": 409
+  },
+  {
+    "ts": "2026-11-12T12:36:45.364Z",
+    "method": "GET",
+    "path": "/api/auto-upgrade",
+    "status": 200
+  },
+  {
+    "ts": "2026-11-12T12:36:45.366Z",
+    "method": "GET",
+    "path": "/api/credits",
+    "status": 409
+  },
+  {
+    "ts": "2026-11-12T12:36:45.394Z",
+    "method": "GET",
+    "path": "/api/teams/invite/:token",
+    "status": 200
+  },
+  {
+    "ts": "2026-11-12T12:36:45.397Z",
+    "method": "GET",
+    "path": "/api/auto-book",
+    "status": 200
+  },
+  {
+    "ts": "2026-11-12T12:36:45.405Z",
+    "method": "GET",
+    "path": "/api/eligibility",
+    "status": 409
+  },
+  {
+    "ts": "2026-11-12T12:36:45.759Z",
+    "method": "GET",
+    "path": "/api/calendar/status",
+    "status": 200
+  }
+]

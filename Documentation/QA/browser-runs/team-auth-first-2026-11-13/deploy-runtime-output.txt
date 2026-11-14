@@ -1,0 +1,26 @@
+Experiment postdeploy proof captured before owner physical retest
+
+Docker:
+sweatassistant-experiment|ce4231e99fa7|Up|100.86.226.52:3006->3000/tcp
+image_id=sha256:877d245f33e6ce73b64b62518b3a513a798b1c0f09aaf7120fda6b402db2bae5 restart=0 started=2026-11-13T16:44:41.216813485Z
+architecture=arm64
+node=v22.23.4
+bind=/home/ubuntu/services/sweatassistant-experiment/data -> /data
+networks=edge,sweatassistant-experiment_default
+writable_diff=A /data
+env_sha256=af4c5b2007b805118fd528a5d224475461ab11cd28b58b2367f6d0ebfa8c176c
+compose_sha256=322b8ddeb92234824c61281a026974f4e5adca2a2cb8721d426351f735519475
+
+Main bundle served from the app over the container HTTP route: HTTP 200, 752304 bytes, SHA-256 5bd89533dcaf1e4fff97ddda8496c48f04ab5f80fdf95c4173f38195200e2dba (`index-DwWmGoUw.js`); this equals the local built file.
+
+Database before owner retry:
+PRAGMA integrity_check => ok
+users|gym_links|teams|team_signup_onboarding = 14|18|4|0
+
+Internal /api/health => HTTP 200, status ok; scheduler, poller and calendar healthy.
+Public https://experiment.dibs.fit/api/health => HTTP 200.
+
+Other containers after the experiment deploy:
+sweatassistant|ab1dc6f03c3b7d4216032676f1cbfea7f5dbfab033d15442cb360a13ed21d4d9|running|2026-11-13T14:24:58.350973063Z|restart=0
+sweatassistant-dev|f3cad934874a1c9e54a72f7296689b981164c114e55075f07534f01d89f1400a|running|2026-11-13T14:24:21.706626052Z|restart=0
+dibs-landing|97d51a0737d4fff3b28970358a2227ffa84ece662842f4dca12cdcfaa10e0004|running|2026-11-07T15:06:33.047134191Z|restart=0

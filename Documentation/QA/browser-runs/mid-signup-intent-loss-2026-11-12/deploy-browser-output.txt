@@ -1,0 +1,3 @@
+assigned_tab_before=http://localhost:5173/
+browser_observation={"origin":"https://pierswingfield.cloudflareaccess.com","path":"/cdn-cgi/access/login/experiment.dibs.fit","title":"Sign in ・ Cloudflare Access","heading":"Log in to Dibs experiment (Piers)","assets":[]}
+assigned_tab_close_http=200

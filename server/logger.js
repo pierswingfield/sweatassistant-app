@@ -36,6 +36,7 @@ function scrubPath(p) {
   return p
     .replace(/^(\/api\/calendar\/)[^/]+(\.ics)$/, '$1:token$2')
     .replace(/^(\/api\/teams\/invite\/)[^/]+/, '$1:token')
+    .replace(/^(\/api\/teams\/(?:continuation|install-manifest)\/)[^/]+/, '$1:token')
     .replace(/^(\/t\/)[^/]+/, '$1:token');
 }
 

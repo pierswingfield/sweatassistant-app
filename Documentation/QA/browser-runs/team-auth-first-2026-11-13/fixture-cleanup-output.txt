@@ -1,0 +1,6 @@
+{"fixture15Deleted":true,"fixture16Preserved":true,"usersBefore":15,"usersAfter":14,"linksAfter":18,"teamsAfter":4,"fixture16SignupRows":0,"fixture16Memberships":0,"fixture16Requests":0}
+
+Read-only post-cleanup verification (2026-11-13):
+PRAGMA integrity_check => ok
+users|gym_links|teams|pending_onboarding = 14|18|4|0
+fixture15_exists|fixture16_exists|original13_exists|fixture16_memberships|fixture16_join_requests|fixture16_pending_onboarding = 0|1|1|0|0|0

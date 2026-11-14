@@ -52,6 +52,10 @@ const NAME_MAX = 40;
 const EMOJI_MAX = 16;
 const PAUSE_FOREVER = '9999-12-31T23:59:59.999Z';
 const TOKEN_RE = /^[A-Za-z0-9_-]{22}$/;
+const CONTINUATION_RE = /^[A-Za-z0-9_-]{43}$/;
+// Allow installing today and completing account setup later that day. This
+// bearer restores an invite only; it never authenticates or requests membership.
+const INSTALL_CONTINUATION_TTL_MS = 24 * 60 * 60 * 1000;
 
 let nowFn = () => Date.now();
 const nowIso = () => new Date(nowFn()).toISOString();
@@ -690,6 +694,116 @@ function previewInvite(userId, token) {
   return out;
 }
 
+// Signed-out visitors with a valid bearer may preview only the Team identity.
+// No account status, membership, IDs, or gym data crosses this public boundary.
+function previewPublicInvite(token) {
+  const team = teamByToken(token);
+  if (!team) throw notFound();
+  return { name: team.name, emoji: team.emoji || null };
+}
+
+const INSTALL_CONTINUATION_LIMIT = 10000;
+const createInstallContinuation = db.transaction((token) => {
+  const team = teamByToken(token);
+  if (!team) throw notFound();
+  db.prepare('DELETE FROM team_install_continuations WHERE expires_at <= ?').run(nowFn());
+  if (db.prepare('SELECT COUNT(*) c FROM team_install_continuations').get().c >= INSTALL_CONTINUATION_LIMIT) {
+    throw new TeamError('CONTINUATION_CAPACITY', 503, 'Install handoff temporarily unavailable');
+  }
+  const continuation = randomId(32);
+  db.prepare(`INSERT INTO team_install_continuations
+    (continuation_hash, team_id, invite_token_hash, expires_at) VALUES (?, ?, ?, ?)`)
+    .run(hashToken(continuation), team.id, team.invite_token_hash, nowFn() + INSTALL_CONTINUATION_TTL_MS);
+  return { continuation, manifestUrl: `/api/teams/install-manifest/${continuation}` };
+});
+
+// The public shell has the same shape for valid, invalid and capacity-limited links.
+function createInitialInstallContinuation(token) {
+  try { return createInstallContinuation(token).continuation; }
+  catch (err) {
+    if (!(err instanceof TeamError)) throw err;
+    return randomId(32);
+  }
+}
+
+function continuationTeam(continuation) {
+  if (typeof continuation !== 'string' || !CONTINUATION_RE.test(continuation)) return null;
+  return db.prepare(`SELECT t.* FROM team_install_continuations c JOIN teams t ON t.id = c.team_id
+    WHERE c.continuation_hash = ? AND c.expires_at > ? AND t.invite_enabled = 1
+      AND t.invite_token_hash = c.invite_token_hash`).get(hashToken(continuation), nowFn()) || null;
+}
+
+// Reading a manifest never spends the intent: browsers can fetch it repeatedly
+// before installation. A consumed/expired install URL becomes the ordinary app.
+function installContinuationStartUrl(continuation) {
+  return continuationTeam(continuation) ? `/?teamContinuation=${continuation}` : '/';
+}
+
+const consumeInstallContinuation = db.transaction((continuation) => {
+  const team = continuationTeam(continuation);
+  if (typeof continuation === 'string' && CONTINUATION_RE.test(continuation)) {
+    db.prepare('DELETE FROM team_install_continuations WHERE continuation_hash = ?').run(hashToken(continuation));
+  }
+  db.prepare('DELETE FROM team_install_continuations WHERE expires_at <= ?').run(nowFn());
+  if (!team) return { inviteToken: null };
+  try {
+    const inviteToken = decrypt(team.invite_token_enc);
+    return { inviteToken: TOKEN_RE.test(inviteToken || '') && hashToken(inviteToken) === team.invite_token_hash ? inviteToken : null };
+  } catch (_) { return { inviteToken: null }; }
+});
+
+// Only auth.handleSignup calls this, inside its successful account-creation transaction.
+// An invalid invitation is ignored: account signup must still succeed independently.
+function startSignupOnboarding(userId, token) {
+  const team = teamByToken(token);
+  if (!team) return;
+  db.prepare('DELETE FROM team_signup_onboarding WHERE expires_at <= ?').run(nowFn());
+  db.prepare(`INSERT INTO team_signup_onboarding (user_id, team_id, invite_token_hash, step, expires_at)
+    VALUES (?, ?, ?, 'gyms', ?)`)
+    .run(userId, team.id, team.invite_token_hash, nowFn() + INSTALL_CONTINUATION_TTL_MS);
+}
+
+function getSignupOnboarding(userId, token) {
+  const team = teamByToken(token);
+  if (!team) return { step: null };
+  const row = db.prepare(`SELECT step FROM team_signup_onboarding
+    WHERE user_id = ? AND team_id = ? AND invite_token_hash = ? AND expires_at > ?`)
+    .get(userId, team.id, team.invite_token_hash, nowFn());
+  return { step: row?.step || null };
+}
+
+// An installed app may lose its launch URL and all browser storage. Recover only
+// the authenticated account's unfinished signup, never a public installation identity.
+function recoverSignupOnboarding(userId) {
+  const row = db.prepare(`SELECT s.step, t.invite_token_enc, t.invite_token_hash
+    FROM team_signup_onboarding s JOIN teams t ON t.id = s.team_id
+    WHERE s.user_id = ? AND s.expires_at > ? AND t.invite_enabled = 1
+      AND t.invite_token_hash = s.invite_token_hash`).get(userId, nowFn());
+  if (!row) return { step: null, inviteToken: null };
+  try {
+    const inviteToken = decrypt(row.invite_token_enc);
+    if (TOKEN_RE.test(inviteToken || '') && hashToken(inviteToken) === row.invite_token_hash) {
+      return { step: row.step, inviteToken };
+    }
+  } catch (_) { /* invalid encrypted invite is not recoverable */ }
+  return { step: null, inviteToken: null };
+}
+
+function updateSignupOnboarding(userId, token, step) {
+  if (!['gyms', 'name', 'features'].includes(step)) throw new TeamError('INVALID_INPUT', 400, 'Invalid setup step.');
+  if (!getSignupOnboarding(userId, token).step) return { step: null };
+  // Never INSERT here: an existing account or a stale progress request cannot create/revive setup.
+  db.prepare('UPDATE team_signup_onboarding SET step = ? WHERE user_id = ?').run(step, userId);
+  return { step };
+}
+
+function finishSignupOnboarding(userId, token) {
+  const team = teamByToken(token);
+  if (team) db.prepare(`DELETE FROM team_signup_onboarding
+    WHERE user_id = ? AND team_id = ? AND invite_token_hash = ?`).run(userId, team.id, team.invite_token_hash);
+  return { step: null };
+}
+
 function requestJoin(userId, token, share) {
   expireStale();
   const team = teamByToken(token);
@@ -954,6 +1068,8 @@ module.exports = {
   createTeam, listTeams, getTeam, getTeamToday, priorityMemberIds, updateTeam, deleteTeam,
   rotateInvite, setInviteEnabled, getInvite, withdrawRequestById,
   previewInvite, requestJoin, withdrawRequest, listRequests, decideRequest,
+  previewPublicInvite, createInstallContinuation, createInitialInstallContinuation, consumeInstallContinuation, installContinuationStartUrl, INSTALL_CONTINUATION_TTL_MS, INSTALL_CONTINUATION_LIMIT,
+  startSignupOnboarding, getSignupOnboarding, recoverSignupOnboarding, updateSignupOnboarding, finishSignupOnboarding,
   updateMe, setPinned, leaveTeam, setCaptain, removeMember,
   privacyOverview, beforeAccountDelete, teamCountsByUser, exportMyShares, importMyShares,
   timetableChips, joinRequestTargets, approvalTarget, teammateBookingAlerts, alertsEnabledFor, setEventListener,

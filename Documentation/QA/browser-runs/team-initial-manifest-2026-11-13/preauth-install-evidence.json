@@ -1,0 +1,25 @@
+{
+  "source": "Root tool outputs from actual owner-operated installation",
+  "before": {
+    "continuationExists": true,
+    "unexpired": true,
+    "users": 14,
+    "pendingSignup": 0
+  },
+  "after": {
+    "continuationExists": false,
+    "users": 14,
+    "pendingSignup": 0
+  },
+  "webInspector": {
+    "source": "Last target listing cached by bridge when USB connection ended",
+    "path": "/",
+    "queryKeys": [
+      "teamContinuation"
+    ],
+    "notLiveDomSnapshot": true
+  },
+  "pending": "Full physical new-account signup-to-welcome screen report; automated supporting WebKit flow has passed",
+  "ownerConfirmedTeamPreviewBeforeAccount": true,
+  "ownerConfirmationSource": "Owner replied Yes, the Team preview is there in the newly installed PWA before authentication"
+}

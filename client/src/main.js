@@ -13,7 +13,8 @@ import { initGymLogoLoader } from './ui/gym-logo-loader.js';
 import { initNavLens } from './nav-lens.js';
 import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
 import { appConfig, initConfig } from './config';
-import { coldBootDestination } from './ui/onboarding-routing.js';
+import { coldBootDestination, shouldOpenInviteImmediately } from './ui/onboarding-routing.js';
+import { restoreTeamInvite, pendingTeamInvite, prepareTeamInstall, finishTeamInviteHandoff, markTeamInviteSignup, syncTeamInviteSignup } from './team-invite-intent.js';
 import { shouldShowOnboarding, resumeOnboarding, getPostLoginDestination, isOnboardingActive, advanceAfterLogin, promoteInstallDismissal, offerInstallBeforeLogin } from './ui/onboarding';
 import { detectBookingWindow, noSept } from './lib';
 import { indexFavourites } from './favourites.js';
@@ -1590,6 +1591,7 @@ export async function initApp() {
       history.replaceState(history.state, '', `/t/${pendingInvite}`);
     }
   }
+  if (parseTeamsPath(location.pathname)?.view === 'invite') await finishTeamInviteHandoff();
   const route = currentRoute();
   applyCreditsTabGate(); // TEMP: credits hidden unless debugMode (restore by removing gate)
   // The URL already names the tab ('none'); an unknown path is normalised to Home ('replace').
@@ -1611,6 +1613,8 @@ async function checkAuth() {
   // onboarding, login, and the app shell all show the correct name.
   await initConfig();
   applyAppName();
+  await restoreTeamInvite();
+  if (!isLoggedIn() && pendingTeamInvite()) await prepareTeamInstall();
 
   // U4-19: a logged-out visit to a deep link (including via onboarding, which never calls showLogin)
   // remembers where it was headed.
@@ -1619,14 +1623,26 @@ async function checkAuth() {
     // Restore per-user cache key prefix from localStorage so cached data
     // is found on reload (the prefix was set during login but is lost on reload).
     const storedUserId = localStorage.getItem('appUserId');
+    const bootToken = localStorage.getItem('appLocalToken');
+    let checkedUserId = storedUserId;
+    const stillCurrent = () => isLoggedIn() && localStorage.getItem('appLocalToken') === bootToken && localStorage.getItem('appUserId') === checkedUserId;
     if (storedUserId) setCacheKeyPrefix(storedUserId);
 
     try {
       const status = await api.getStatus();
+      if (!stillCurrent()) return;
       currentUser = { id: status.userId, email: status.email };
       rememberAccountEmail(status.email);
       setCacheKeyPrefix(currentUser.id);
       localStorage.setItem('appUserId', currentUser.id);
+      checkedUserId = String(currentUser.id);
+      const signupStep = await syncTeamInviteSignup(currentUser.id, (invite) => api.teamSignupOnboarding(invite));
+      if (!stillCurrent()) return;
+      if (signupStep) { resumeOnboarding({ step: signupStep }); return; }
+      if (shouldOpenInviteImmediately({ hasInvite: !!pendingTeamInvite() })) {
+        await initApp();
+        return;
+      }
       // Cold load: honour an earlier "Set up later" (completion is per account); don't nag on every launch.
       const destination = coldBootDestination(await getPostLoginDestination().catch(() => null), !shouldShowOnboarding());
       if (destination === 'full') {
@@ -1639,9 +1655,11 @@ async function checkAuth() {
       }
       initApp();
     } catch (err) {
+      if (!stillCurrent()) return;
       // Distinguish auth failure (401) from network error (offline).
       // 401 errors fire 'app-logout-triggered' which already calls showLogin() + clears cache.
       // Network errors (offline) should NOT log out — the token may still be valid.
+      if (err.code === 'TEAM_SETUP_UNAVAILABLE') { showLogin(); showToast(err.message, 'error'); return; }
       const isAuthError = err.message && err.message.includes('session has expired');
       if (isAuthError) {
         // 401 — showLogin() already called by app-logout-triggered handler
@@ -1707,12 +1725,23 @@ function showLogin() {
 
 // Shared post-login routing. During onboarding we hand control back to the flow
 // (which calls initApp() at its finish step); otherwise we boot the app directly.
-async function onLoginSuccess() {
+async function onLoginSuccess({ newSignup = false } = {}) {
   promoteInstallDismissal();
+  if (newSignup) markTeamInviteSignup(currentUser?.id);
+  const accountId = currentUser?.id;
+  const loginToken = localStorage.getItem('appLocalToken');
+  const stillCurrent = () => isLoggedIn() && currentUser?.id === accountId && localStorage.getItem('appUserId') === String(accountId) && localStorage.getItem('appLocalToken') === loginToken;
+  let signupStep;
+  try { signupStep = await syncTeamInviteSignup(accountId, (invite) => api.teamSignupOnboarding(invite)); }
+  catch (err) { if (!stillCurrent()) return; throw err; }
+  if (!stillCurrent()) return;
+  const openInvite = shouldOpenInviteImmediately({ hasInvite: !!pendingTeamInvite(), newSignup: newSignup || !!signupStep });
   if (isOnboardingActive()) {
-    advanceAfterLogin();
+    advanceAfterLogin({ skipSetup: openInvite, resumeStep: signupStep, newSignup });
     return;
   }
+  if (signupStep) { resumeOnboarding({ step: signupStep }); return; }
+  if (openInvite) { await initApp(); return; }
   const destination = await getPostLoginDestination().catch(() => null);
   if (destination === 'full') {
     resumeOnboarding();
@@ -1784,9 +1813,8 @@ if (loginForm) {
       await onLoginSuccess();
     } catch (err) {
       const isNetworkErr = err instanceof TypeError;
-      const msg = isNetworkErr
-        ? COPY.auth.connectionFailed
-        : COPY.auth.incorrectCredentials;
+      const msg = err.code === 'TEAM_SETUP_UNAVAILABLE' ? err.message
+        : isNetworkErr ? COPY.auth.connectionFailed : COPY.auth.incorrectCredentials;
       if (errorEl) { errorEl.textContent = msg; errorEl.style.display = 'block'; }
       else showToast(msg, 'error');
     } finally {
@@ -1957,14 +1985,21 @@ if (signupForm) {
     btn.querySelector('span').textContent = COPY.auth.creating;
     try {
       if (!document.getElementById('app-signup-policy').checked) throw new Error('Please agree to the Terms and Conditions and acknowledge the Privacy Policy.');
-      const { user } = await api.signup(email, password);
+      const { user } = await api.signup(email, password, { teamInviteToken: pendingTeamInvite() });
       currentUser = user;
       rememberAccountEmail((user && user.email) || email);
       setCacheKeyPrefix(currentUser.id || email);
       localStorage.setItem('appUserId', currentUser.id || email);
-      await onLoginSuccess();
+      await onLoginSuccess({ newSignup: true });
     } catch (err) {
-      fail(err instanceof TypeError ? COPY.auth.connectionFailed : err.message);
+      if (err.code === 'TEAM_SETUP_UNAVAILABLE') {
+        // Account creation succeeded. Offer its normal login path instead of another signup.
+        setAuthMode('login');
+        document.getElementById('app-login-email').value = email;
+        const loginError = document.getElementById('app-login-error');
+        loginError.textContent = COPY.onboarding.signupCreatedRetry;
+        loginError.style.display = 'block';
+      } else fail(err instanceof TypeError ? COPY.auth.connectionFailed : err.message);
     } finally {
       btn.disabled = false;
       btn.querySelector('span').textContent = COPY.auth.createAccountButton;
@@ -1988,6 +2023,7 @@ if (recoverFindBtn) {
 
 // Listen for global logout triggers (e.g. from api.js 401 interceptor)
 window.addEventListener('app-logout-triggered', () => {
+  finishTeamInviteHandoff().catch(() => {});
   clearPendingInvite(safeLocalStorage()); // T-1: an invite stashed for one account never resumes for the next
   // ...and the /t/<token> must not be re-stashed by showLogin() for the NEXT account.
   if (parseTeamsPath(location.pathname)) { try { history.replaceState(null, '', '/'); } catch (_) { /* keep */ } }

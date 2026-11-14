@@ -328,7 +328,7 @@ const PUBLIC_DIR = process.env.PUBLIC_DIR || path.join(__dirname, 'public');
 
 // Cache the templated file keyed by path AND mtime: a rebuilt client (new hashed bundle names in
 // index.html) is served on the next request instead of after a process restart.
-function sendTemplated(filePath, res, contentType, transform = null) {
+function sendTemplated(filePath, res, contentType, transform = null, cacheControl = 'no-cache') {
   let mtimeMs;
   try {
     mtimeMs = fs.statSync(filePath).mtimeMs;
@@ -349,7 +349,7 @@ function sendTemplated(filePath, res, contentType, transform = null) {
   // Always revalidate. Without an explicit header Cloudflare cached sw.js at
   // the edge for 4 h, so phones kept installing a worker that precached the
   // previous build's deleted chunks; its install failed and push never started.
-  res.set('Cache-Control', 'no-cache');
+  res.set('Cache-Control', cacheControl);
   res.type(contentType).send(content);
 }
 
@@ -435,7 +435,7 @@ app.get('/api/policies', (req, res) => {
 app.post('/api/auth/signup', authLoginLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   try {
-    res.json(await auth.handleSignup(email, password, req.body?.policyAcceptance));
+    res.json(await auth.handleSignup(email, password, req.body?.policyAcceptance, { teamInviteToken: req.body?.teamInviteToken }));
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -1292,12 +1292,14 @@ if (process.env.NODE_ENV === 'production') {
   });
 
   // T-1 Teams invite link (PLAN-teams.md §2 principle 4, §7.4). The shell is served for
-  // ANY token, valid or not, and the page is byte-identical either way: the token is a
-  // secret, so the response must not reveal whether it works or which Team it names.
+  // ANY token, valid or not. Each response has the same shape with a fresh opaque
+  // handoff; neither the Team name nor whether the token works is disclosed in HTML.
   // Open Graph tags are generic because a chat unfurl is seen by everyone in the chat,
   // not just the invitee. no-referrer keeps the token out of every third-party request
   // the page makes. Client routing for /t/ is T-1 UI work (waits for mock-ups).
   app.get('/t/:token', teamsRoutes.inviteIpLimiter, (req, res) => {
+    const continuation = require('./teams').createInitialInstallContinuation(req.params.token);
+    const inviteHash = require('crypto').createHash('sha256').update(req.params.token).digest('hex');
     const invite = escapeForType(`You've been invited to a Team on ${config.appName}`, 'text/html');
     const desc = escapeForType(`Open the link to see the invite in ${config.appName}.`, 'text/html');
     const tags = `<meta property="og:title" content="${invite}">`
@@ -1308,9 +1310,10 @@ if (process.env.NODE_ENV === 'production') {
     res.set('Referrer-Policy', 'no-referrer');
     res.set('X-Robots-Tag', 'noindex');
     sendTemplated(path.join(PUBLIC_DIR, 'index.html'), res, 'text/html', (html) => {
-      const titled = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${invite}</title>`);
+      const titled = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${invite}</title>`)
+        .replace(/<link\s+rel="manifest"\s+href="\/manifest\.json"\s*\/?\s*>/i, `<link rel="manifest" href="/api/teams/install-manifest/${continuation}" data-team-invite-hash="${inviteHash}">`);
       return /<\/head>/i.test(titled) ? titled.replace(/<\/head>/i, `${tags}</head>`) : `${tags}${titled}`;
-    });
+    }, 'no-store');
   });
 }
 

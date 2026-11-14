@@ -1,0 +1,15 @@
+{
+  "environment": "Supporting iPhone 15 Pro standalone WebKit emulation; local production build and disposable database; not a physical iPhone test",
+  "results": {
+    "initialHtml": "200; manifest URL contained opaque continuation",
+    "manifest": "200; start URL contained continuation; scope and id were root",
+    "preAuthenticationPreview": "visible Team preview after clearing localStorage, sessionStorage, IndexedDB, CacheStorage and service workers",
+    "continuationReplay": "200 with no invite returned",
+    "signupAndSetup": "gym skipped, name entered, feature setup finished",
+    "finalDestination": "/teams; Team welcome visible; Home hidden",
+    "ordinaryRelaunch": "/; no pending invite and no visible Team welcome; existing no-gym intro appeared",
+    "pageErrors": 0,
+    "networkFailures": 0
+  },
+  "consoleNotes": "The emulator logs include three 403 responses during initial navigation before prior emulator storage was cleared, and no-gym 409s and booking/profile prefetch errors during the fixture flow."
+}

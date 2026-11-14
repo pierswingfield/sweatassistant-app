@@ -1,0 +1,39 @@
+{
+  "before": {
+    "path": "/",
+    "hasPending": true,
+    "signupMarked": true,
+    "standalone": true
+  },
+  "after": {
+    "path": "/teams",
+    "visibleHome": false,
+    "visibleTeams": true,
+    "visibleWelcome": true,
+    "text": "Team invite\n🌟\n\nYOU'VE BEEN INVITED\n\nRequest to join Finish Routing Fixture?\n\nA Captain approves each request. Next you'll choose what this Team can see.\n\nContinue\nNot now",
+    "trace": [
+      {
+        "method": "replaceState",
+        "from": "/",
+        "to": "/t/[redacted]",
+        "time": 830.0999999046326
+      },
+      {
+        "method": "replaceState",
+        "from": "/t/[redacted]",
+        "to": "/teams",
+        "time": 880.7000000476837
+      }
+    ]
+  },
+  "network": [
+    {
+      "path": "/api/teams/invite/[redacted]/onboarding",
+      "status": 200
+    },
+    {
+      "path": "/api/teams/invite/[redacted]",
+      "status": 200
+    }
+  ]
+}

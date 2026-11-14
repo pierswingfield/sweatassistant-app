@@ -1,0 +1,39 @@
+--- target status ---
+sweatassistant-experiment|c5f9fa1e7988|sweatassistant-experiment-sweatassistant-experiment|Up About a minute|100.86.226.52:3006->3000/tcp
+image_id=sha256:da15b49686e182b71a786bf2345286e7c905b0a6769d12937a66a4369a2ac879 restart=0 started=2026-11-12T11:30:15.622689771Z
+architecture=arm64
+bind /home/ubuntu/services/sweatassistant-experiment/data -> /data
+
+edge
+sweatassistant-experiment_default
+runtime_node=v22.23.4
+env_sha256=af4c5b2007b805118fd528a5d224475461ab11cd28b58b2367f6d0ebfa8c176c
+compose_sha256=322b8ddeb92234824c61281a026974f4e5adca2a2cb8721d426351f735519475
+writable_diff=A /data 
+--- internal health ---
+{"http":200,"status":"ok","services":{"scheduler":{"healthy":true,"lastHeartbeatAgoSec":5,"staleAfterSec":180},"poller":{"healthy":true,"lastHeartbeatAgoSec":21,"staleAfterSec":180},"calendar":{"healthy":true,"lastHeartbeatAgoSec":65,"staleAfterSec":12600}},"bookingSync":{"cycles":0,"gymsFailed":0}}
+--- database integrity and preserved counts ---
+ok
+12|18|3
+--- install continuation schema ---
+team_install_continuations|CREATE TABLE team_install_continuations (
+    continuation_hash TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    invite_token_hash TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+  )
+0
+--- public health ---
+HTTP 200
+--- other services isolation ---
+/sweatassistant|d9d5e56346d4dd54c73e5f1af7c33786ff5cfe236b016029fb52dc060b92205a|running|2026-11-09T23:43:27.274831884Z|restart=0
+/sweatassistant-dev|105a4d6872e2c3d9c396b92a0c2c6b6f263b2e2a869ec82c5cb66579dc579329|running|2026-11-09T23:42:46.840284846Z|restart=0
+/dibs-landing|97d51a0737d4fff3b28970358a2227ffa84ece662842f4dca12cdcfaa10e0004|running|2026-11-07T15:06:33.047134191Z|restart=0
+--- onboarding table and preserved database ---
+ok
+12|18|3
+team_signup_onboarding
+0
+0|0|teams|team_id|id|NO ACTION|CASCADE|NONE
+1|0|users|user_id|id|NO ACTION|CASCADE|NONE

@@ -166,6 +166,7 @@ const NAVIGATION_NETWORK_BUDGET_MS = 700;
 // this worker generation's install manifest. That keeps a deploy's new HTML
 // from being written into an old cache generation that cannot serve its chunks.
 async function cacheCoherentShell(cache, response) {
+  if (/(?:^|,)\s*no-store\s*(?:,|$)/i.test(response.headers.get('Cache-Control') || '')) return;
   const html = await response.clone().text();
   const assetUrls = [...html.matchAll(/(?:src|href)=["']([^"']+)["']/gi)]
     .map((match) => new URL(match[1], self.location.origin))

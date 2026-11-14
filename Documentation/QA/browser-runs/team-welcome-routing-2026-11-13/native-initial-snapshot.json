@@ -1,0 +1,19 @@
+{
+  "source": "Owner-connected physical iPhone, read through Web Inspector",
+  "phase": "Ordinary reopening after the reported setup failure; not a new finish-flow replay",
+  "origin": "https://experiment.dibs.fit",
+  "path": "/",
+  "queryKeys": [],
+  "standalone": true,
+  "visibility": "hidden",
+  "onboardingDisplay": "flex",
+  "onboardingStep": "intro",
+  "homeDisplay": "none",
+  "teamsDisplay": "none",
+  "inviteCardExists": false,
+  "pendingInvitePresent": false,
+  "signupMarkerPresent": false,
+  "isAffectedAccount": true,
+  "entryScript": "/assets/index-BYiqm-CV.js",
+  "entryScriptMatchesDeployedManifest": true
+}

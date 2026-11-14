@@ -1,0 +1,13 @@
+{
+  "browser": "User Google Chrome CDP9222",
+  "results": [
+    "existing logged-in account skips all setup and reaches invitation welcome",
+    "signed-out first screen previews Team and prepares opaque install manifest",
+    "returning login goes straight to welcome and invalidates browser install handoff",
+    "new signup completes resumable onboarding before invitation welcome",
+    "opening welcome and completing onboarding never requests membership",
+    "fresh storage restores Team once; replay silently opens ordinary app",
+    "returning account with saved first and last name skips name capture"
+  ],
+  "physicalInstallTested": false
+}

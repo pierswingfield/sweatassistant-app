@@ -1,0 +1,20 @@
+--- predeploy rollback snapshot ---
+total 4556
+-rw------- 1 ubuntu ubuntu 2527232 Nov 12 11:27 app.db
+-rw------- 1 ubuntu ubuntu   32768 Nov 12 11:27 app.db-shm
+-rw------- 1 ubuntu ubuntu       0 Nov 12 11:27 app.db-wal
+-rw------- 1 ubuntu ubuntu     578 Nov 12 11:27 docker-compose.experiment.yml
+-rw------- 1 ubuntu ubuntu     269 Nov 12 11:27 metadata.txt
+-rw------- 1 ubuntu ubuntu   53581 Nov 12 11:27 source-remote-manifest.txt
+-rw------- 1 ubuntu ubuntu 2038509 Nov 12 11:28 source-remote-predeploy.tar.gz
+--- snapshot fingerprints ---
+af4c5b2007b805118fd528a5d224475461ab11cd28b58b2367f6d0ebfa8c176c  rollback-mid-signup-20261112/.env
+322b8ddeb92234824c61281a026974f4e5adca2a2cb8721d426351f735519475  rollback-mid-signup-20261112/docker-compose.experiment.yml
+c43969267da45a3260028588d8da7ef93d5f321bf2dc98309270234db4f49787  rollback-mid-signup-20261112/app.db
+0cf19daaf01f8a14feca49cb415093b7fc6fa7b27f0990f148e0d179f93e6cad  rollback-mid-signup-20261112/source-remote-predeploy.tar.gz
+--- snapshot DB integrity and counts ---
+ok
+12|18|3
+--- prior image tag ---
+sha256:8247887fc441e39f811f5d30a8f055d6d03a1dfae8dbdda87ce2f4e757da5de1
+--- candidate source manifest ---

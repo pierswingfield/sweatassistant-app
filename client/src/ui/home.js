@@ -248,7 +248,7 @@ function attendanceTile(row, ctx) {
 // The activity total spans every linked gym, switched-off ones included (their
 // stored history); every other widget sees only the enabled gyms in ctx.gyms.
 const connectedLinks = (gyms) => (gyms || []).filter(g => !['needs_relogin', 'syncing'].includes(g.status));
-const statsGyms = (ctx) => connectedLinks(Array.isArray(ctx.allGyms) ? ctx.allGyms : (Array.isArray(ctx.gyms) ? ctx.gyms : []));
+const statsGyms = (ctx) => (Array.isArray(ctx.allGyms) ? ctx.allGyms : (Array.isArray(ctx.gyms) ? ctx.gyms : []));
 
 // Pending imports get a bounded, account-owned follow-up; ordinary Home paints use SWR.
 let statsPoll = null, statsPollCount = 0, statsPollAccount = '';
@@ -277,6 +277,31 @@ registerWidget({
   async load(ctx) { const data = await api.getPersonalStats(personalStatsZone()); scheduleStatsPoll(data, ctx); return data; },
   isEmpty: () => false,
   render(el, data) { renderPersonalStats(el, data); },
+});
+
+registerWidget({
+  id: 'attendance', order: 71, title: COPY.home.stats,
+  cacheKeys(ctx) {
+    const gyms = statsGyms(ctx);
+    const wanted = new Set(gyms.filter(homeStatsWantsAttendance).map(gymIdOf));
+    return uniqueGymIds(gyms).filter((id) => wanted.has(id)).map((id) => gymCacheKey('/api/attendance-totals', id));
+  },
+  headerMeta: getHomeActivityMeta,
+  async load(ctx) { return loadHomeStats(statsGyms(ctx)); },
+  isEmpty: (data) => Array.isArray(data?.rows) && data.rows.length === 0 && !data.unsupported && !data.failed,
+  emptyText: COPY.home.statsNone,
+  render(el, data, ctx) {
+    const grid = document.createElement('div');
+    grid.className = 'home-attendance-grid';
+    data.rows.filter((row) => !row.hidden).forEach((row) => grid.appendChild(attendanceTile(row, ctx)));
+    el.appendChild(grid);
+    for (const text of [data.unsupported && COPY.home.statsUnsupported, data.failed && COPY.home.statsPartial].filter(Boolean)) {
+      const note = document.createElement('p');
+      note.className = 'home-stats-partial';
+      note.textContent = text;
+      el.appendChild(note);
+    }
+  },
 });
 
 function guestCreditBalance(credits) {
@@ -337,7 +362,7 @@ export function getHomeCreditRows(gyms, { creditsByGym = {}, eligibilityByGym = 
 }
 
 registerWidget({
-  id: 'credits', order: 60, title: COPY.home.credits,
+  id: 'credits', order: HOME_ORDER_LAST + 1, title: COPY.home.credits,
   cacheKeys(ctx) {
     return uniqueGymIds(ctx.gyms).flatMap((id) => [gymCacheKey('/api/credits', id), gymCacheKey('/api/eligibility', id), gymCacheKey('/api/membership', id)]);
   },
@@ -968,8 +993,8 @@ let renderRun = 0;
 // (order >= HOME_ORDER_LAST, e.g. the no-Team "Create a Team" card) leaves its column for
 // a tail row under BOTH columns (owner: "the bottom of the other widgets"), at its
 // column's width.
-const HOME_LEFT_COLUMN_ORDER = ['connections', 'upcoming', 'teams', 'book', 'stats'];
-const HOME_RIGHT_COLUMN_ORDER = ['credits', 'favourites', 'top-instructors'];
+const HOME_LEFT_COLUMN_ORDER = ['connections', 'upcoming', 'teams', 'book', 'stats', 'attendance'];
+const HOME_RIGHT_COLUMN_ORDER = ['favourites', 'top-instructors'];
 
 /** Pure: [{ id, order }] (effective registry orders) -> { mobile, left, right, tail } id lists. */
 export function homeLayout(entries) {

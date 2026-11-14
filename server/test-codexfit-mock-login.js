@@ -51,6 +51,11 @@ async function run() {
     assert.strictEqual(JSON.parse(db.getUserGym(account.id, 'psycle-london').session_json).accessToken, 'mock-jwt-token');
     assert.strictEqual(liveFetchCalls, 0, 'linkGymAccount must use mock data without a live fetch');
 
+    const mockAccount = await auth.handleLogin('dev@psycle.com', 'any-password');
+    assert.strictEqual(mockAccount.user.id, db.getUserByEmail('dev@psycle.com').id, 'mock login identifies the Dibs account, not provider99999');
+    assert.notStrictEqual(mockAccount.user.id, 99999);
+    assert.strictEqual(liveFetchCalls, 0, 'mock account login must not use live fetch');
+
     process.env.NODE_ENV = 'production';
     global.fetch = async (url) => {
       liveFetchCalls++;

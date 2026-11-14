@@ -113,6 +113,19 @@ describe('Home booked classes header and strip', () => {
   });
 });
 
+describe('Home widget placement', () => {
+  it('places attendance immediately after personal stats and credits below every widget', () => {
+    const defs = homeRegistry.list({});
+    const entries = defs.map(({ id, order }) => ({ id, order: id === 'teams' ? 1000 : order }));
+    const layout = homeLayout(entries);
+    expect(layout.mobile.indexOf('attendance')).toBe(layout.mobile.indexOf('stats') + 1);
+    expect(layout.left.indexOf('attendance')).toBe(layout.left.indexOf('stats') + 1);
+    expect(layout.mobile.at(-1)).toBe('credits');
+    expect(layout.tail.at(-1)).toBe('credits');
+    expect(homeRegistry.get('attendance').headerMeta({ rows: [{ attendanceTotal: 12 }], partial: false })).toBe('12 classes');
+  });
+});
+
 describe('Home desktop flow', () => {
   it('groups desktop columns without changing the mobile reading order', () => {
     const root = document.createElement('div');
@@ -130,12 +143,14 @@ describe('Home desktop flow', () => {
       expect([...root.children].map((node) => node.className)).toEqual([
         'home-desktop-column home-desktop-column--left',
         'home-desktop-column home-desktop-column--right',
+        'home-desktop-tail',
       ]);
       expect([...root.children[0].children].map((node) => node.dataset.widgetId)).toEqual(['upcoming', 'book', 'stats']);
-      expect([...root.children[1].children].map((node) => node.dataset.widgetId)).toEqual(['credits', 'favourites', 'top-instructors']);
+      expect([...root.children[1].children].map((node) => node.dataset.widgetId)).toEqual(['favourites', 'top-instructors']);
+      expect([...root.children[2].children].map((node) => node.dataset.widgetId)).toEqual(['credits']);
       media.matches = false;
       syncHomeDesktopFlow(root);
-      expect([...root.children].map((node) => node.dataset.widgetId)).toEqual(['upcoming', 'book', 'favourites', 'credits', 'stats', 'top-instructors']);
+      expect([...root.children].map((node) => node.dataset.widgetId)).toEqual(['upcoming', 'book', 'favourites', 'stats', 'top-instructors', 'credits']);
     } finally {
       window.matchMedia = originalMatchMedia;
     }
@@ -151,7 +166,7 @@ describe('Home ordering: the Teams widget (owner, 2026-11-06)', () => {
     expect(homeTeamsOrderFor('loading')).toBe(HOME_TEAMS_ORDER);
     expect(homeTeamsOrderFor('loading', true)).toBe(HOME_ORDER_LAST);
     expect(homeTeamsOrderFor('error', true)).toBe(HOME_ORDER_LAST);
-    const top = Math.max(...homeRegistry.list({}).filter((x) => x.id !== 'teams').map((x) => x.order));
+    const top = Math.max(...homeRegistry.list({}).filter((x) => x.id !== 'teams' && x.id !== 'credits').map((x) => x.order));
     expect(HOME_ORDER_LAST).toBeGreaterThan(top);
   });
   it('the registered Teams widget uses that rule', () => {
@@ -163,18 +178,18 @@ describe('Home ordering: the Teams widget (owner, 2026-11-06)', () => {
     expect(def.orderFor('ready')).toBe(30);
     expect(def.orderFor('loading')).toBe(30);
   });
-  it('homeLayout: in a Team, Teams sits after Upcoming; in no Team, below everything (mobile) and in a tail row under both columns (desktop)', () => {
-    const base = [['upcoming', 20], ['book', 40], ['favourites', 50], ['credits', 60], ['stats', 70], ['top-instructors', 80]];
+  it('homeLayout: Teams follows Upcoming when joined and otherwise precedes credits in the tail', () => {
+    const base = [['upcoming', 20], ['book', 40], ['favourites', 50], ['credits', 1001], ['stats', 70], ['top-instructors', 80]];
     const inTeam = homeLayout([...base, ['teams', 30]].map(([id, order]) => ({ id, order })));
-    expect(inTeam.mobile).toEqual(['upcoming', 'teams', 'book', 'favourites', 'credits', 'stats', 'top-instructors']);
+    expect(inTeam.mobile).toEqual(['upcoming', 'teams', 'book', 'favourites', 'stats', 'top-instructors', 'credits']);
     expect(inTeam.left).toEqual(['upcoming', 'teams', 'book', 'stats']);
-    expect(inTeam.right).toEqual(['credits', 'favourites', 'top-instructors']);
-    expect(inTeam.tail).toEqual([]);
+    expect(inTeam.right).toEqual(['favourites', 'top-instructors']);
+    expect(inTeam.tail).toEqual(['credits']);
     const noTeam = homeLayout([...base, ['teams', 1000]].map(([id, order]) => ({ id, order })));
-    expect(noTeam.mobile).toEqual(['upcoming', 'book', 'favourites', 'credits', 'stats', 'top-instructors', 'teams']);
+    expect(noTeam.mobile).toEqual(['upcoming', 'book', 'favourites', 'stats', 'top-instructors', 'teams', 'credits']);
     expect(noTeam.left).toEqual(['upcoming', 'book', 'stats']);
-    expect(noTeam.right).toEqual(['credits', 'favourites', 'top-instructors']);
-    expect(noTeam.tail).toEqual(['teams']);
+    expect(noTeam.right).toEqual(['favourites', 'top-instructors']);
+    expect(noTeam.tail).toEqual(['teams', 'credits']);
   });
   it('syncHomeDesktopFlow on desktop: the no-Team card goes to a tail row after both columns, and back when in a Team', () => {
     const root = document.createElement('div');

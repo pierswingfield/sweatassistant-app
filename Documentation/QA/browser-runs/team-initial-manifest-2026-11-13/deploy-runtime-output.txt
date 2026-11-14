@@ -1,0 +1,18 @@
+Experiment runtime verification (2026-11-13)
+
+Container: a194576bb3cc6aa498ec59054e900e561cf16748ba46b3ae35b7f57b661697d8
+Image: sha256:3099115cad22786f088c6733212d5aea4e975beb482e08ef0a72726f53afd638 (ARM64)
+Node: v22.23.4; restart count: 0
+Public and internal /api/health: HTTP 200; internal status ok
+Generic internal shell GET /: HTTP 200, Cache-Control no-cache, 68,556 bytes; ordinary manifest href is /manifest.json. No live Team invite URL was requested during this check.
+Main asset GET /assets/index-BgsxdgX5.js: HTTP 200, 753,494 bytes, SHA-256 82233f1402d48318b872a93171b89931b612518a75dd287dff56e8018c7792a2 (matches local client/dist output).
+Runtime source SHA-256:
+  server/server.js fab43069fea2b311199ad945efe76314f5bc621dd4c59cec0d8d23fd18811de7
+  server/teams.js 5ba2536bb21d40c2729f66974bfd4caa385d091515e0cf0a9d0434141e670abf
+  client/src/team-invite-intent.js 4f9ea04a74ead4fd4932965c3dcd301e3be7b3fa62e161a72cc4c75f61bb032e
+  server/public/assets/index-BgsxdgX5.js 82233f1402d48318b872a93171b89931b612518a75dd287dff56e8018c7792a2
+  server/public/sw.js 29a4d6f635c455337849c3ef47b086f7979265267cc6d6f4538b4af40ef1a84a (build-stamped output)
+DB before deployment and after deployment: integrity_check=ok; 14 users / 18 gym links / 4 teams / 0 team signup-onboarding rows.
+Configuration hashes unchanged: .env af4c5b2007b805118fd528a5d224475461ab11cd28b58b2367f6d0ebfa8c176c; docker-compose.experiment.yml 322b8ddeb92234824c61281a026974f4e5adca2a2cb8721d426351f735519475.
+Mount remains /data -> existing experiment data directory; bind remains 100.86.226.52:3006->3000; networks remain edge and sweatassistant-experiment_default.
+Production container ab1dc6f03c3b and start time 2026-11-13T14:24:58.350973063Z unchanged. Dev f3cad934874a start 2026-11-13T14:24:21.706626052Z unchanged. Landing 97d51a0737d4 start 2026-11-07T15:06:33.047134191Z unchanged.

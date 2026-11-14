@@ -1,0 +1,12 @@
+{
+  "environment": "Supporting iPhone 15 Pro standalone WebKit emulator; disposable local production fixture; not physical iPhone",
+  "assetSha256": "8d8c1abc6829441ca56cc9a480361b7100fc0a06ec1874530f4ef697de6d3936",
+  "independentDeferredRepros": ["PASS newer Team route survives delayed redemption", "PASS account switch discards stale private lookup", "PASS newer Team route survives delayed manifest response"],
+  "initialHtmlAndManifest": "200 each; opaque manifest and launch continuation",
+  "freshLaunch": "Team preview visible before authentication, query removed",
+  "signupAndSetup": "Team welcome visible and Home hidden",
+  "spentLaunch": "root path, query removed, no pending invite or visible Team preview or welcome",
+  "pageErrors": 0,
+  "networkFailures": 0,
+  "consoleNotes": "Two initial 403s before clearing old emulator storage; no-gym 409s and timetable/profile refresh errors during fixture."
+}

@@ -1,0 +1,53 @@
+
+> app-pwa@1.0.0 build:client
+> npm run build --prefix client
+
+
+> app-client@1.0.0 build
+> vite build
+
+vite v5.4.21 building for production...
+transforming...
+✓ 135 modules transformed.
+rendering chunks...
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/cache.js is dynamically imported by /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/main.js but also statically imported by /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/api.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/main.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/booking-state.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/bookings.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/home.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/settings.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/timetable.js, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/bookings.js is dynamically imported by /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/main.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/main.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/main.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/main.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/booking-state.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/teams-dashboard.js but also statically imported by /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/home.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/timetable.js, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/settings.js is dynamically imported by /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/main.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/main.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/main.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/booking-chrome.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/home-connections.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/home.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/teams-dashboard.js but also statically imported by /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/onboarding.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/timetable.js, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/timetable-search-state.js is dynamically imported by /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/main.js but also statically imported by /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/timetable-search-ui.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/timetable.js, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/timetable.js is dynamically imported by /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/main.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/main.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/main.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/main.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/main.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/main.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/main.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/home.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/teams-dashboard.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/teams-dashboard.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/teams-dashboard.js but also statically imported by /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/autobook.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/bookings.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/favourites-pane.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/settings.js, /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/tooltips.js, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/onboarding.js is dynamically imported by /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/ui/settings.js but also statically imported by /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client/src/main.js, dynamic import will not move module into another chunk.
+
+computing gzip size...
+dist/index.html                             68.43 kB │ gzip:  15.27 kB
+dist/assets/index-BUfn-Y9W.css             433.17 kB │ gzip:  68.23 kB
+dist/assets/home-teams-Bloa1x8W.js           1.22 kB │ gzip:   0.65 kB
+dist/assets/teams-stats-model-DJ-7y6L_.js    2.91 kB │ gzip:   1.44 kB
+dist/assets/teams-join-CYd-4V3C.js           4.04 kB │ gzip:   1.67 kB
+dist/assets/teams-privacy-DVWdkI0W.js        4.27 kB │ gzip:   1.78 kB
+dist/assets/teams-card-CDy4Kr9n.js           4.47 kB │ gzip:   1.92 kB
+dist/assets/teams-create-CmHY6sFK.js         8.20 kB │ gzip:   2.98 kB
+dist/assets/share-sheet-loWGHlBQ.js          8.93 kB │ gzip:   3.57 kB
+dist/assets/teams-DT-ln-Tx.js               12.77 kB │ gzip:   4.28 kB
+dist/assets/autobook-CkeahgAX.js            16.09 kB │ gzip:   5.46 kB
+dist/assets/teams-manage-DAfLF3vo.js        18.94 kB │ gzip:   5.86 kB
+dist/assets/credits-C86Xdlwm.js             20.01 kB │ gzip:   6.52 kB
+dist/assets/teams-dashboard-HAVJ0cLg.js     28.17 kB │ gzip:   9.46 kB
+dist/assets/home-OQniX7S4.js                42.97 kB │ gzip:  14.02 kB
+dist/assets/index-CaEQJezN.js              753.11 kB │ gzip: 228.81 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 956ms

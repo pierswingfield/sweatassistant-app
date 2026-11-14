@@ -401,7 +401,16 @@ check('a started server row missing from the next sync is hidden from Teams unti
   const yc = t.members.find((m) => m.name.startsWith('Retainer')).counts;
   assert.strictEqual(yc.week, 1);
   // The member's own (non-Team) views still see the retained row, as before.
-  const own = db.getBookingCacheAllGyms(Y).map((r) => r.class_name).sort();
+  // This cache view has a real-time 24-hour cutoff. Use the same clock as the
+  // Team fixture so the assertion remains about retention after 10 November.
+  const realNow = Date.now;
+  let own;
+  try {
+    Date.now = () => NOW;
+    own = db.getBookingCacheAllGyms(Y).map((r) => r.class_name).sort();
+  } finally {
+    Date.now = realNow;
+  }
   assert.deepStrictEqual(own, ['MARK-retained-unconfirmed', 'POS-retained-confirmed']);
 });
 // ---- T-3 dashboard fields ----------------------------------------------------------

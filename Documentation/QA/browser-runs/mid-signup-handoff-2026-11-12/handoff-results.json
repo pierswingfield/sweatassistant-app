@@ -1,0 +1,15 @@
+{
+  "browser": "User Chrome CDP9222, separate origin-storage simulation",
+  "results": [
+    "install before signup preserves Team and begins setup",
+    "install after account creation resumes gym setup for the same account",
+    "install during setup resumes the saved name step",
+    "transfer and setup never request Team membership",
+    "install during setup resumes the saved features step",
+    "different existing account does not inherit new-account setup",
+    "after welcome the old continuation opens the ordinary app",
+    "reused continuation does not restore an invite",
+    "expired continuation does not restore an invite"
+  ],
+  "physicalInstallTested": false
+}

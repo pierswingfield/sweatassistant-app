@@ -1,0 +1,1 @@
+{"publicRootStatus":302,"redirect":"https://pierswingfield.cloudflareaccess.com/cdn-cgi/access/login/experiment.dibs.fit","credentialsEntered":false,"uiVerified":false,"reason":"Shared tab was closed after its CDP page evaluation failed; public root independently confirms Cloudflare Access gate."}

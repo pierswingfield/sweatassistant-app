@@ -1,0 +1,15 @@
+{
+  "browser": "User Chrome CDP9222; cleared localStorage and sessionStorage",
+  "results": [
+    "same account recovers lost intent and sees welcome without joining",
+    "ordinary relaunch after welcome does not replay invite",
+    "explicit Team B invite takes precedence over pending Team A",
+    "existing onboarding-complete marker does not suppress pending Team setup",
+    "wrong account cannot recover another account intent",
+    "disabled invite is not recovered",
+    "rotated invite is not recovered",
+    "expired pending signup is not recovered",
+    "transient lookup failure retains intent for retry"
+  ],
+  "physicalInstallTested": false
+}

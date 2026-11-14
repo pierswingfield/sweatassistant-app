@@ -11,6 +11,11 @@ export const COPY = Object.freeze({
     disclaimerHtml: '{appName} gives you a one-stop-shop for finding and booking classes in your favuorute studios, all in one place:</br><ul><li>{appName} remembers your favourite spots and bikes, and books them for you automatically.<li><b>Auto-Book</b> secures your spot in class as soon as booking opens.<li><b>Auto-Upgrade</b> checks for a better spot 24/7, and upgrades you automatically.<li><b>Calendar Sync</b> keeps your Google and Apple Calendars up to date with classes as they are booked, changed or cancelled.<li><b>Flexible notifications</b> help you plan, and avoid cancellation penalties.</br><li>Works with a growing list of boutique fitness studios.',
   }),
   onboarding: Object.freeze({
+    setupLoadFailed: 'Could not load your setup. Please try logging in again.',
+    setupSaveFailed: 'Could not save setup. Please try again.',
+    setupRequestFailed: 'Could not save or load setup. Please try again.',
+    signupCreatedRetry: 'Your account was created. Please log in to continue setup.',
+    retrySetup: 'Try again',
     welcomeTitle: 'Welcome to your boutique fitness concierge!',
     perkAutoBookTitle: 'Auto-Book',
     perkAutoBookText: 'Books your favourite spots the moment booking opens.',

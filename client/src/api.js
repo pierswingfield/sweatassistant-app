@@ -305,17 +305,28 @@ export const api = {
 
   // Create an app account — no gym involved (Decision D4). Returns
   // { user, needsGym } so the caller can route straight to "link a gym".
-  async signup(email, password) {
+  async signup(email, password, { teamInviteToken } = {}) {
     // Versions match the policies shipped with this form; a stale client must review again.
     const policies = { termsVersion: '2026-11-09', privacyVersion: '2026-11-09' };
     const res = await apiFetch('/api/auth/signup', {
       method: 'POST',
-      body: JSON.stringify({ email, password, policyAcceptance: { accepted: true, ...policies } })
+      body: JSON.stringify({ email, password, policyAcceptance: { accepted: true, ...policies }, ...(teamInviteToken ? { teamInviteToken } : {}) })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Could not create account');
     setToken(data.token);
     return { user: data.user, needsGym: !!data.needsGym };
+  },
+
+  // Authenticated private setup state; never a cache or part of the install bearer.
+  async teamSignupOnboarding(inviteToken, { method = 'GET', step } = {}) {
+    const endpoint = inviteToken ? `/api/teams/invite/${encodeURIComponent(inviteToken)}/onboarding` : '/api/teams/onboarding';
+    const res = await apiFetch(endpoint, {
+      method,
+      ...(step ? { body: JSON.stringify({ step }) } : {}),
+    });
+    if (!res.ok) throw new Error(COPY.onboarding.setupRequestFailed);
+    return res.json();
   },
 
   // Account-recovery client methods were REMOVED 2026-08-31 along with the

@@ -1,0 +1,154 @@
+
+> app-pwa@1.0.0 test
+> npm run test:server && npm run test:client
+
+
+> app-pwa@1.0.0 test:server
+> node server/run-tests.js
+
+  account-identity           PASS  🎉 17/17 identity checks passed.
+  active-gym                 PASS  🎉 18/18 active-gym checks passed.
+  adapters                   PASS  [CodexFit] POST /bookings -> 401 req={"event_i
+  admin-audit                PASS  test-admin-audit: all checks passed
+  admin-gym-aware            PASS  🎉 3/3 admin-gym-aware checks passed.
+  admin-gym-picker           PASS  🎉 4/4 admin-gym-picker checks passed.
+  admin-gym-presentation     PASS  [gyms] ignoring stored presentation for ghost:
+  admin-provider-shapes      PASS  🎉 Admin detail reads normalized MarianaTek bo
+  app-name-config            PASS  🎉 app-name config test PASSED.
+  auth-and-proxy             PASS  🎉 ALL TESTS PASSED SUCCESSFULLY!
+  auto-book-history-cap      PASS  🎉 History cap PASSED.
+  autobook-calendar-confirm  PASS  🎉 1/1 autobook-calendar-confirm checks passed
+  background-gym-session     PASS  🎉 3/3 background-gym-session checks passed.
+  booking-entitlement        PASS  ✅ server booking entitlement count/limit check
+  booking-limit-route        PASS  ✅ /api/book enforces the self-booking limit se
+  booking-success-gym        PASS  🎉 C3-19 PASSED.
+  booking-success-limit      PASS  1/1 passed
+  booking-sync-scope         PASS  ✨ 4/4 booking-sync-scope checks passed.
+  booking-sync               PASS  [BookingSync] jab-boxing failed for user 8: bo
+  booking-window-policy      PASS  [Scheduler] No release time resolvable for eve
+  booking-window             PASS  🎉 8/8 booking-window checks passed.
+  calendar-domain-migration  PASS  Calendar domain migration: stable class/window
+  calendar-feed              PASS  [BookingSync] jab-boxing failed for user 1: bo
+  calendar-links             PASS  ✅ webcal, webcals, https and Google link forms
+  calendar-locations-per-gym PASS  ✅ Location addresses are cached per gym.
+  calendar-prefs             PASS  ✅ U4-16 calendar prefs migrate, VALARMs are ta
+  calendar-regen-on-link     PASS  🎉 C3-22 PASSED.
+  calendar-settings-multigym PASS  🎉 C3-14 PASSED.
+  calendar-title             PASS  ✅ Calendar titles omit the instructor clause w
+  cancel-rebook              PASS  [Poller] notify failed: push down
+  capability-gating          PASS  🎉 6/6 capability-gating checks passed.
+  class-history              PASS  13/13 class-history checks passed
+  class-name-parity          PASS  ✅ a class that IS its discipline keeps its nam
+  codexfit-book-wire         PASS  🎉 7/7 book-wire checks passed.
+  codexfit-direct-swap       PASS  [CodexFit] PATCH /bookings/8261802 -> 422 slot
+  codexfit-instructor-photo  PASS  photo lookup falls back to event-seen photo.
+  codexfit-mock-login        PASS  ✅ CodexFit dev login and fresh Psycle link use
+  codexfit-timetable-range   PASS  4/4 passed
+  codexfit-v2-cart           PASS  🎉 11/11 cart checks passed.
+  competing-bookings         PASS  🎉 C5-3 COMPETING-BOOKING CHECK PASSED.
+  config-export-import       PASS  🎉 C3-16 PASSED.
+  config-required            PASS  🎉 5/5 config-required checks passed.
+  dev-mock-hook              PASS  🎉 4/4 dev-mock-hook checks passed.
+  disabled-gym-outbound      PASS  8/8 disabled-gym outbound checks passed
+  display-rules              PASS  display-rules: ok
+  favourites                 PASS  F-12 PASSED (6 checks).
+  fixture-accounts           PASS  11/11 fixture-account checks passed
+  freshness-cache            PASS  🎉 10/10 freshness-cache checks passed.
+  group-upgrade-route        PASS  ✅ /api/auto-upgrade: group accepted, duplicate
+  group-upgrade              PASS  [Poller] Could not verify group 20: no session
+  guest-booking-groups       PASS  PASS provider list recovers a legacy unpersist
+  gym-enabled                PASS  [Scheduler] Auto-booking 2 (event 2) has neith
+  gym-http-cache             PASS  ✅ gym-scoped GETs carry Vary: x-gym-id, Author
+  gym-identity               PASS  🎉 10/10 gym-identity checks passed.
+  gym-isolation              PASS  🎉 25/25 gym-isolation checks passed.
+  gym-login-policy           PASS  13/13 gym-login-policy checks passed
+  gym-presentation           PASS  🎉 4 presentation checks passed.
+  gym-required               PASS  🎉 C3-28 PASSED.
+  gym-retry-state            PASS  [Scheduler] No release time resolvable for eve
+  home-welcome               PASS  PASS test-home-welcome
+  instructor-photo           PASS  🎉 6/6 instructor-photo checks passed.
+  invalid-credentials-naming PASS  🎉 2/2 invalid-credentials-naming checks passe
+  landing-events             PASS  landing-events: all assertions passed
+  last-authenticated         PASS  🎉 U1-9 LAST-AUTHENTICATED CHECK PASSED.
+  logger                     PASS  test-logger: all checks passed
+  mariana-attendance         PASS  5/5 MarianaTek attendance checks passed
+  mariana-booking-portraits  PASS  🎉 2/2 portrait enrichment checks passed.
+  marianatek-classlist       PASS  8/8 class-list checks passed.
+  marianatek-mock            PASS  🎉 13/13 MarianaTek checks passed.
+  marianatek-region-scope    PASS  Mariana Tek configured region scope passed
+  marianatek-session-rejection PASS  [BookingSync] jab-boxing failed for user 5: bo
+  metrics                    PASS  test-metrics: all checks passed
+  missing-spot-map           PASS  🎉 5/5 missing-spot-map checks passed.
+  no-active-gym              PASS  🎉 21/21 no-active-gym checks passed.
+  no-gym-privilege           PASS  🎉 8/8 no-gym-privilege checks passed.
+  no-gym-state               PASS  🎉 no-gym-state PASSED.
+  no-hardcoded-app-name      PASS  PASS no hardcoded product name in 224 app file
+  no-unsafe-markup           PASS  PASS test-no-unsafe-markup (132 files)
+  notification-defaults      PASS  🎉 6/6 notification-default checks passed.
+  notification-gym-naming    PASS  🎉 13/13 notification gym-naming checks passed
+  notification-text          PASS  🎉 6/6 notification text checks passed.
+  person-names               PASS  person names PASSED (12 checks).
+  personal-stats             PASS  PASS provider guard explicitly reports bounded
+  poller-backoff             PASS  [BookingSync] jab-boxing failed for user 2: bo
+  poller-resume              PASS  [Poller] Resume check: credits read failed for
+  poller-upgrade-settings    PASS  🎉 AUTO-UPGRADE SETTINGS CHECK PASSED.
+  poller-upgrade             PASS  🎉 POLLER AUTO-UPGRADE CHECK PASSED.
+  profile-envelope           PASS  🎉 7/7 profile-envelope checks passed.
+  profile-singleflight       PASS  [CodexFit] PATCH /bookings/5 -> 401 slot=2 res
+  rate-limit-abort           PASS  {"ts":"2026-11-12T12:19:11.812Z","level":"erro
+  rate-limit-reads           PASS  🎉 ALL RATE-LIMIT-READS CHECKS PASSED.
+  regression-codexfit-mock   PASS  [server:err] [Auth] BFF login error: Invalid e
+  relogin-failures           PASS  🎉 5/5 passed
+  reminder-sweep             PASS  [BookingSync] jab-boxing failed for user 4: bo
+  retired-endpoint-scan      PASS  ✓ No retired CodexFit v1 cart paths found in s
+  review-disabled-interval   PASS  Disabled interval boundaries and repeated togg
+  review-disabled-routes     PASS  Disabled owning-gym mutation routes and accoun
+  review-guest-switch        PASS  Guest switch races passed
+  review-interval-migration  PASS  Existing database interval migration passed
+  review-pagination          PASS  Reservation pagination, waitlist lookup and UR
+  review-switch-race         PASS  Switch during preparation and in-flight mutati
+  routes-normalized          PASS  🎉 ROUTES-NORMALIZED RELOGIN LADDER CHECK PASS
+  row-groups                 PASS  row-groups: ok
+  schedule-cache             PASS  🎉 8/8 schedule-cache checks passed.
+  scheduled-guests           PASS  ✅ scheduled guest normalization, durable parti
+  scheduler-event-details    PASS  [Scheduler] Slot alpha booking failed: undefin
+  security-headers           PASS  ALL PASS test-security-headers
+  security-part2             PASS  security-part2: all assertions passed
+  spa-fallback               PASS  spa-fallback: all checks passed
+  spot-label                 PASS  spot-label checks passed
+  spot-selection             PASS  ✅ spatial candidate planner: preferred groups,
+  team-goal                  PASS  11/11 passed
+  team-install-continuation  PASS  7/7 Team install continuation checks passed
+  team-membership            PASS  T-1 PASSED (24 checks).
+  team-notify                PASS  [Teams] event listener failed: boom
+  team-privacy               PASS  59/59 passed
+  team-projection            PASS  14/14 passed
+  team-signup-onboarding     PASS  5/5 Team signup onboarding checks passed
+  team-spots                 PASS  13/13 passed
+  team-stats                 PASS  11/11 passed
+  team-surname               PASS  team surname initial: ok
+  timetable-profile-refresh  PASS  ✅ timetable/profile refresh, stale cutoff, gym
+  timezone                   PASS  🎉 6/6 timezone checks passed.
+  token-revocation           PASS  token-revocation: all assertions passed
+  trust-proxy                PASS  trust-proxy: all passed
+  waitlist-verbs             PASS  🎉 5/5 waitlist checks passed.
+  wake-clock                 PASS  [Scheduler] Auto-booking 11 (event 5040) has n
+
+🎉 127/127 server suites passed.
+
+> app-pwa@1.0.0 test:client
+> npm run test --prefix client
+
+
+> app-client@1.0.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /Users/pierswingfield/Desktop/AI Projects/psycle chrome/App-teams/client
+
+
+ Test Files  126 passed (126)
+      Tests  1014 passed (1014)
+   Start at  12:19:54
+   Duration  21.13s (transform 3.71s, setup 0ms, import 8.08s, tests 18.20s, environment 99.36s)
+

@@ -13,6 +13,7 @@ import { gymLoginChoiceHtml, bindGymLoginChoice } from './gym-login-choice.js';
 // Visual language follows DESIGN.md (warm token system) — all styling lives in
 // the `/* === ONBOARDING === */` section of styles.css. No inline colours here.
 
+import { publicTeamPreview, pendingTeamInvite, isTeamInviteSignup } from '../team-invite-intent.js';
 import { api, isLoggedIn } from '../api';
 import { consumeInstallPrompt, initApp, togglePushSubscription, warmCaches, showToast } from '../main';
 import { openManageSpotMapsModal } from './settings';
@@ -22,7 +23,7 @@ import { setGymCatalogue } from '../gym-context.js';
 import { COPY, formatCopyText, appCopy } from '../copy.js';
 import { setupGuideHtml } from './setup-guide.js';
 import { escapeHtml, gymLogoBanner } from './cards';
-import { enableAutoUpgradeForGyms, gymsWithPreferredSlots, gymsWithAutoUpgradeOn, getPostLoginDestination as choosePostLoginDestination, detectInstallContext, shouldOfferInstall } from './onboarding-routing.js';
+import { enableAutoUpgradeForGyms, gymsWithPreferredSlots, gymsWithAutoUpgradeOn, getPostLoginDestination as choosePostLoginDestination, detectInstallContext, shouldOfferInstall, hasSavedAccountName } from './onboarding-routing.js';
 import { cleanNameField, onboardingNameSuggestion } from './name-capture.js';
 import { startGymLogoDiscovery, setGymLogoDiscoveryVisible } from './gym-logo-strip.js';
 
@@ -45,6 +46,10 @@ let active = false;
 let loginResolver = null;
 let requestedAuthMode = 'login';
 let justAuthenticated = false;
+let skipSetupAfterLogin = false;
+let resumeStepAfterLogin = null;
+let newSignupAfterLogin = false;
+let teamFirstFlow = false;
 
 // ---- presentation state (animation direction + progress capsule); no effect on step logic ----
 // `enter` says whether the next show() is a NEW step (play the entrance) or a re-render of the same one.
@@ -62,8 +67,8 @@ function focusStepTitle() {
   requestAnimationFrame(() => container()?.querySelector('.app-onb-title')?.focus({ preventScroll: true }));
 }
 
-function planPhases(optionalOnly) {
-  phases = ['intro', 'install', 'account', 'gyms', 'name', 'features'].filter((ph) => {
+function planPhases(optionalOnly, teamFirst) {
+  phases = (teamFirst ? ['intro', 'account', 'install', 'gyms', 'name', 'features'] : ['intro', 'install', 'account', 'gyms', 'name', 'features']).filter((ph) => {
     if (optionalOnly) return ph === 'features'; // the post-login "finish setup" roll-up is one screen
     if (ph === 'install') return installOffered();
     if (ph === 'account') return !isLoggedIn();
@@ -101,7 +106,10 @@ function onboardingKey(base) {
 }
 
 // Called by main.js onLoginSuccess() while onboarding is active.
-export function advanceAfterLogin() {
+export function advanceAfterLogin({ skipSetup = false, resumeStep = null, newSignup = false } = {}) {
+  skipSetupAfterLogin = skipSetup;
+  resumeStepAfterLogin = resumeStep;
+  newSignupAfterLogin = newSignup;
   if (loginResolver) {
     const r = loginResolver;
     loginResolver = null;
@@ -132,11 +140,14 @@ export function startOnboarding() {
   return runFrom(0);
 }
 
-export function resumeOnboarding({ optionalOnly = false } = {}) {
+export function resumeOnboarding({ optionalOnly = false, step = null } = {}) {
+  if (isLoggedIn() && ['gyms', 'name', 'features'].includes(step)) return runFrom(STEPS.indexOf(step));
   if (optionalOnly) return runFrom(STEPS.indexOf('features'), true);
   const saved = localStorage.getItem(onboardingKey(STEP_KEY));
   let idx = saved ? STEPS.indexOf(saved) : 0;
   if (idx < 0) idx = 0;
+  // Older anonymous progress may point at the pre-auth install screen.
+  if (!isLoggedIn() && pendingTeamInvite() && saved === 'install') idx = 0;
   // If we're not logged in yet, never resume past the login step.
   if (!isLoggedIn()) idx = Math.min(idx, STEPS.indexOf('login'));
   return runFrom(idx);
@@ -144,6 +155,10 @@ export function resumeOnboarding({ optionalOnly = false } = {}) {
 
 async function runFrom(startIndex, optionalOnly = false) {
   active = true;
+  let completed = true;
+  skipSetupAfterLogin = false;
+  resumeStepAfterLogin = null;
+  newSignupAfterLogin = false;
   focusedStep = '';
   finishDestination = '/';
   // Apply the body id that unlocks all #app-helper-container-scoped CSS
@@ -151,13 +166,21 @@ async function runFrom(startIndex, optionalOnly = false) {
   // look identical to those opened from the main app.
   document.body.id = 'app-helper-container';
   try {
-    let i = startIndex;
-    planPhases(optionalOnly);
+    const teamFirst = !!pendingTeamInvite() && !isLoggedIn();
+    teamFirstFlow = teamFirst;
+    const steps = teamFirst ? ['intro', 'authchoice', 'login', 'install', 'gyms', 'name', 'features'] : STEPS;
+    let i = steps.indexOf(STEPS[startIndex]);
+    planPhases(optionalOnly, teamFirst);
     lastProgress = 0;
     enter.dir = 'fwd';
-    while (i < STEPS.length) {
-      const step = STEPS[i];
+    while (i < steps.length) {
+      const step = steps[i];
       localStorage.setItem(onboardingKey(STEP_KEY), step);
+      const accountId = localStorage.getItem('appUserId');
+      if (['gyms', 'name', 'features'].includes(step) && isTeamInviteSignup(accountId) && pendingTeamInvite()) {
+        // The previous saved step remains safe to resume if this best-effort update fails.
+        await api.teamSignupOnboarding(pendingTeamInvite(), { method: 'PUT', step }).catch(() => {});
+      }
       currentStep = step;
       enter.pending = true;
       const action = await STEP_HANDLERS[step]();
@@ -167,20 +190,29 @@ async function runFrom(startIndex, optionalOnly = false) {
       // changes, or after a user finishes setup in Settings.
       if (step === 'login' && justAuthenticated) {
         justAuthenticated = false;
+        if (['gyms', 'name', 'features'].includes(resumeStepAfterLogin)) {
+          i = steps.indexOf(teamFirst && newSignupAfterLogin && resumeStepAfterLogin === 'gyms' ? 'install' : resumeStepAfterLogin);
+          continue;
+        }
+        if (skipSetupAfterLogin) {
+          completed = false;
+          i = steps.length;
+          break;
+        }
         const destination = await getPostLoginDestination().catch(() => null);
         if (destination === 'home') {
-          i = STEPS.length;
+          i = steps.length;
           break;
         }
         if (destination === 'optional') {
-          i = STEPS.indexOf('name');
+          i = steps.indexOf('name');
           continue;
         }
       }
       if (action === 'back') {
         i = Math.max(0, i - 1);
         // Back never lands on a step that has nothing to show.
-        while (i > 0 && !stepApplies(STEPS[i])) i--;
+        while (i > 0 && !stepApplies(steps[i])) i--;
       }
       else if (action === 'welcome') i = 0;
       else i++;
@@ -188,7 +220,7 @@ async function runFrom(startIndex, optionalOnly = false) {
   } finally {
     active = false;
   }
-  await finish();
+  await finish({ completed });
 }
 
 export async function getPostLoginDestination() {
@@ -218,9 +250,24 @@ export async function getPostLoginDestination() {
   });
 }
 
-async function finish() {
+async function finish({ completed = true } = {}) {
   const accountId = localStorage.getItem('appUserId');
-  if (accountId) {
+  if (completed && isTeamInviteSignup(accountId) && pendingTeamInvite()) {
+    try { await api.teamSignupOnboarding(pendingTeamInvite(), { method: 'DELETE' }); }
+    catch (_) {
+      showToast(COPY.onboarding.setupSaveFailed, 'error');
+      // Keep setup visible and retryable until completion is saved server-side.
+      if (!container().querySelector('[data-setup-retry]')) {
+        const retry = document.createElement('button');
+        retry.type = 'button'; retry.className = 'app-btn-primary';
+        retry.dataset.setupRetry = ''; retry.textContent = COPY.onboarding.retrySetup;
+        retry.addEventListener('click', () => finish());
+        container().append(retry);
+      }
+      return;
+    }
+  }
+  if (accountId && completed) {
     localStorage.setItem(onboardingKey(COMPLETE_KEY), ONBOARDING_VERSION);
     localStorage.removeItem(onboardingKey(STEP_KEY));
   }
@@ -234,7 +281,8 @@ async function finish() {
   container().style.display = 'none';
   container().innerHTML = '';
   container().classList.remove('is-entering');
-  history.replaceState(history.state, '', finishDestination);
+  const invite = pendingTeamInvite();
+  history.replaceState(history.state, '', invite ? `/t/${invite}` : finishDestination);
   await initApp();
   if (location.pathname === '/') {
     // Home's greeting is mounted asynchronously and survives widget refreshes.
@@ -294,7 +342,7 @@ function stepIntro() {
     const slides = getSlides();
     const c = show();
     const O = COPY.onboarding;
-    introContinuesToInstall = !isLoggedIn() && installOffered();
+    introContinuesToInstall = !isLoggedIn() && !pendingTeamInvite() && installOffered();
     const perks = [
       { icon: 'autobook', title: O.perkAutoBookTitle, text: O.perkAutoBookText },
       { icon: 'autoupgrade', title: O.perkAutoUpgradeTitle, text: O.perkAutoUpgradeText },
@@ -309,6 +357,7 @@ function stepIntro() {
           <div class="app-onb-track">
             ${slides.map((s) => s.welcome ? `
               <div class="app-onb-slide app-onb-slide-welcome">
+                <div class="app-onb-team-preview" aria-live="polite"></div>
                 ${setupGuideHtml({ title: `Welcome to ${appConfig.appName}`, message: COPY.onboarding.welcomeConcierge, id: 'app-onb-welcome-title' })}
                 <ul class="app-onb-perks" role="list">
                   ${perks.map((p, i) => `
@@ -335,6 +384,11 @@ function stepIntro() {
         </div>
       </div>`;
 
+    const previewTarget = c.querySelector('.app-onb-team-preview');
+    publicTeamPreview().then((preview) => {
+      if (!preview?.name || !previewTarget.isConnected) return;
+      previewTarget.innerHTML = `<p class="app-onb-lead">${escapeHtml(preview.emoji || '')} Sign in or join ${escapeHtml(appConfig.appName)} to join <strong>${escapeHtml(preview.name)}</strong>!</p>`;
+    });
     const track = c.querySelector('.app-onb-track');
     const dots = [...c.querySelectorAll('.app-onb-dot')];
     let index = 0;
@@ -428,7 +482,7 @@ function installStepsHtml(platform) {
 function stepInstall() {
   return new Promise((resolve) => {
     // Back only exists inside the onboarding flow (the pre-login offer has nothing before it).
-    const onBack = active ? () => resolve('back') : null;
+    const onBack = active && !(teamFirstFlow && isLoggedIn()) ? () => resolve('back') : null;
     const ctx = installContext();
     if (!shouldOfferInstall(ctx, installDismissed())) return resolve();
 
@@ -449,7 +503,7 @@ function stepInstall() {
       hero: ICON.phone,
     });
 
-    sheet.querySelector('.app-onb-skip-inline').addEventListener('click', () => { markInstallPending(); resolve(); });
+    sheet.querySelector('.app-onb-skip-inline').addEventListener('click', () => { markInstallPending(); if (teamFirstFlow && isLoggedIn()) promoteInstallDismissal(); resolve(); });
     const installBtn = sheet.querySelector('.app-onb-install');
     if (installBtn && promptEvent) {
       installBtn.addEventListener('click', async () => {
@@ -469,7 +523,7 @@ function stepInstall() {
  * install step once per session without starting onboarding, then hands back to the caller (showLogin).
  */
 export async function offerInstallBeforeLogin() {
-  if (active || !installOffered()) return;
+  if (active || pendingTeamInvite() || !installOffered()) return;
   document.body.id = 'app-helper-container';
   await stepInstall();
   const c = container();
@@ -746,6 +800,7 @@ function stepName() {
       return;
     }
 
+    if (hasSavedAccountName(settings)) { resolve(); return; }
     const suggestion = onboardingNameSuggestion(settings, linkedGyms);
     const prefillFirst = suggestion.firstName;
     const prefillLast = suggestion.lastName;

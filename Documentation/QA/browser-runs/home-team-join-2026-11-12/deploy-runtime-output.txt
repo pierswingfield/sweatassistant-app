@@ -1,0 +1,26 @@
+--- target status ---
+sweatassistant-experiment|dc8bf0787310|sweatassistant-experiment-sweatassistant-experiment|Up 3 minutes|100.86.226.52:3006->3000/tcp
+image_id=sha256:8247887fc441e39f811f5d30a8f055d6d03a1dfae8dbdda87ce2f4e757da5de1 restart=0 started=2026-11-12T01:42:10.550862202Z
+architecture=arm64
+bind /home/ubuntu/services/sweatassistant-experiment/data -> /data
+
+edge
+sweatassistant-experiment_default
+runtime_node=v22.23.4
+env_sha256=af4c5b2007b805118fd528a5d224475461ab11cd28b58b2367f6d0ebfa8c176c
+compose_sha256=322b8ddeb92234824c61281a026974f4e5adca2a2cb8721d426351f735519475
+writable_diff=A /data 
+--- internal health summary ---
+{"http":200,"status":"ok","services":{"scheduler":{"healthy":true,"lastHeartbeatAgoSec":18,"staleAfterSec":180},"poller":{"healthy":true,"lastHeartbeatAgoSec":29,"staleAfterSec":180},"calendar":{"healthy":true,"lastHeartbeatAgoSec":198,"staleAfterSec":12600}},"bookingSync":{"cycles":2,"gymsFailed":0}}
+--- database integrity and row counts ---
+ok
+12|18|3
+--- public health ---
+HTTP 200
+--- other services ---
+sweatassistant|d9d5e56346d4|Up 2 days
+sweatassistant-dev|105a4d6872e2|Up 2 days
+dibs-landing|97d51a0737d4|Up 4 days
+/sweatassistant|d9d5e56346d4dd54c73e5f1af7c33786ff5cfe236b016029fb52dc060b92205a|2026-11-09T23:43:27.274831884Z|restart=0
+/sweatassistant-dev|105a4d6872e2c3d9c396b92a0c2c6b6f263b2e2a869ec82c5cb66579dc579329|2026-11-09T23:42:46.840284846Z|restart=0
+/dibs-landing|97d51a0737d4fff3b28970358a2227ffa84ece662842f4dca12cdcfaa10e0004|2026-11-07T15:06:33.047134191Z|restart=0

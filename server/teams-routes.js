@@ -10,6 +10,9 @@ const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const { authenticateToken } = require('./auth');
 const teams = require('./teams');
+const fs = require('fs');
+const path = require('path');
+const config = require('./config');
 
 const router = express.Router();
 
@@ -52,6 +55,42 @@ function handle(fn, okStatus = 200) {
 const body = (req) => (req.body && typeof req.body === 'object' ? req.body : {});
 
 // Invite routes first: '/teams/invite/:token' must not be read as '/teams/:id'.
+const privateResponse = (req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('Referrer-Policy', 'no-referrer');
+  next();
+};
+router.get('/teams/invite/:token/preview', inviteIpLimiter, privateResponse,
+  handle((req) => teams.previewPublicInvite(req.params.token)));
+router.post('/teams/invite/:token/continuation', inviteIpLimiter, privateResponse,
+  handle((req) => teams.createInstallContinuation(req.params.token), 201));
+router.post('/teams/continuation/:continuation', inviteIpLimiter, privateResponse,
+  handle((req) => teams.consumeInstallContinuation(req.params.continuation)));
+router.get('/teams/install-manifest/:continuation', inviteIpLimiter, privateResponse, (req, res, next) => {
+  try {
+    // Reuse the deployed manifest (including icons), with a source fallback for Vite.
+    const publicDir = process.env.PUBLIC_DIR || path.join(__dirname, 'public');
+    const deployed = path.join(publicDir, 'manifest.json');
+    const file = fs.existsSync(deployed) ? deployed : path.join(__dirname, '../client/public/manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+    manifest.name = config.appName;
+    manifest.short_name = config.appName;
+    manifest.id = '/';
+    manifest.scope = '/';
+    manifest.start_url = teams.installContinuationStartUrl(req.params.continuation);
+    res.type('application/manifest+json').send(JSON.stringify(manifest));
+  } catch (err) { next(err); }
+});
+// Setup state is private to the authenticated account; an install bearer carries no identity.
+router.get('/teams/invite/:token/onboarding', inviteIpLimiter, authenticateToken, inviteAccountLimiter, privateResponse,
+  handle((req) => teams.getSignupOnboarding(req.userId, req.params.token)));
+router.put('/teams/invite/:token/onboarding', inviteIpLimiter, authenticateToken, inviteAccountLimiter, privateResponse,
+  handle((req) => teams.updateSignupOnboarding(req.userId, req.params.token, body(req).step)));
+router.delete('/teams/invite/:token/onboarding', inviteIpLimiter, authenticateToken, inviteAccountLimiter, privateResponse,
+  handle((req) => teams.finishSignupOnboarding(req.userId, req.params.token)));
+// Before /teams/:id: private fallback when the installed launch has no invite token.
+router.get('/teams/onboarding', inviteIpLimiter, authenticateToken, inviteAccountLimiter, privateResponse,
+  handle((req) => teams.recoverSignupOnboarding(req.userId)));
 router.get('/teams/invite/:token', inviteIpLimiter, authenticateToken, inviteAccountLimiter,
   handle((req) => teams.previewInvite(req.userId, req.params.token)));
 router.post('/teams/invite/:token/request', inviteIpLimiter, authenticateToken, inviteAccountLimiter,

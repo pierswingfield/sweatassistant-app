@@ -1,0 +1,14 @@
+{
+  "environment": "Supporting iPhone 15 Pro standalone WebKit emulation; production local build and disposable database; not physical iPhone",
+  "assetSha256": "b8ad5d9afa7aa4cc236baf975cd72b84a50d922130969c879b4defe2bf91b673",
+  "results": {
+    "initialHtmlAndManifest": "HTTP 200 each; initial manifest opaque and launch continuation present",
+    "preAuthenticationPreview": "visible after clearing both storage areas, IndexedDB, CacheStorage and service workers",
+    "signupAndSetup": "gym skipped; Team welcome visible and Home hidden",
+    "originalSpentLaunch": "root path, no query, pending intent, visible preview or welcome",
+    "signedInHardNavigation": "separate Team welcome visible; no local install metadata; isolated continuation POST 200; table rows zero before and after",
+    "pageErrors": 0,
+    "networkFailures": 0,
+    "consoleNotes": "No-gym profile, credits and eligibility 409s and profile refresh error were observed."
+  }
+}

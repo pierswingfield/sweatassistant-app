@@ -483,6 +483,31 @@ db.exec(`
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
   );
 
+  -- Install-to-first-launch intent, not an account/session. Bearers and invites
+  -- remain hashes at rest; teams.js redeems the current encrypted invite once.
+  CREATE TABLE IF NOT EXISTS team_install_continuations (
+    continuation_hash TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    invite_token_hash TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_team_install_expiry ON team_install_continuations(expires_at);
+
+  -- Private, unfinished setup created only by successful new-account signup.
+  -- Install bearers never contain an account identity or authentication credential.
+  CREATE TABLE IF NOT EXISTS team_signup_onboarding (
+    user_id INTEGER PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    invite_token_hash TEXT NOT NULL,
+    step TEXT NOT NULL CHECK (step IN ('gyms', 'name', 'features')),
+    expires_at INTEGER NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_team_signup_expiry ON team_signup_onboarding(expires_at);
+
+
   -- member_ref is the per-Team opaque handle every payload uses; a user id never leaves.
   CREATE TABLE IF NOT EXISTS team_members (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

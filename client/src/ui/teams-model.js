@@ -314,7 +314,7 @@ export function inviteUrlOn(origin, urlOrToken) {
 
 export const TEAMS_HOME_PATH = '/teams';
 const PENDING_KEY = 'appPendingTeamInvite';
-export const PENDING_TTL_MS = 60 * 60 * 1000;
+export const PENDING_TTL_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Remember an invite token while the visitor logs in or signs up (onboarding can span an

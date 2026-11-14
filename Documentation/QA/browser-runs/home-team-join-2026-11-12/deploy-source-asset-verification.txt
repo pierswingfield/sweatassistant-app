@@ -1,0 +1,9 @@
+Deployment source/asset verification (2026-11-12)
+
+- Frozen local server/client source manifest: 537 files.
+- Remote source tree: all 537 local entries match; two remote-only legacy Homerun WebPs remain unchanged because deploy.sh rsync does not delete remote files.
+- Container runtime source: 490 server + client/src files, exact SHA-256 match to local.
+- Local build and container public assets: all 57 current non-service-worker files match exactly.
+- Runtime sw.js intentionally differs by its per-build cache stamp and precache list; the container also retains the two remote-only legacy Homerun WebPs. The local and container service-worker source hashes are not expected to match across separate Vite builds.
+- Full local and container manifests are in local-build-asset-manifest.txt and container-asset-manifest.txt; source manifests are source-manifest.txt and runtime-source-manifest.txt.
+- Served app page/assets were not browser-verifiable: the existing shared Chrome tab reached Cloudflare Access login and no credentials were entered. Internal/public health checks returned HTTP 200.

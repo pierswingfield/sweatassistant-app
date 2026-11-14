@@ -737,7 +737,7 @@ check('production: /t/:token serves a generic shell with no-referrer; invite end
   tmpFiles.push(tmp);
   const pub = path.join(tmp, 'public');
   fs.mkdirSync(pub, { recursive: true });
-  fs.writeFileSync(path.join(pub, 'index.html'), '<!doctype html><html><head><title>__APP_NAME__</title></head><body>SHELL</body></html>');
+  fs.writeFileSync(path.join(pub, 'index.html'), '<!doctype html><html><head><title>__APP_NAME__</title><link rel="manifest" href="/manifest.json"></head><body>SHELL</body></html>');
   const child = bootServer(PORT, { NODE_ENV: 'production', PUBLIC_DIR: pub, PUBLIC_HOST: 'app.test.example',
     VAPID_EMAIL: 'mailto:test@example.com', APP_NAME: 'Dibs' }, path.join(tmp, 'p.db'));
   children.push(child);
@@ -751,12 +751,25 @@ check('production: /t/:token serves a generic shell with no-referrer; invite end
   const html = await page.text();
   assert.strictEqual(page.status, 200);
   assert.strictEqual(page.headers.get('referrer-policy'), 'no-referrer');
+  assert.match(page.headers.get('cache-control'), /no-store/);
   assert.ok(html.includes('SHELL'));
   assert.ok(!html.includes('Secret Squad'), 'the Team name must not be in the unfurl');
   assert.ok(/og:title/.test(html) && /invited to a Team on Dibs/.test(html), 'generic Open Graph title');
-  // An unknown token gets the identical page (validity is not revealed).
+  const href = html.match(/href="(\/api\/teams\/install-manifest\/[A-Za-z0-9_-]{43})"/)[1];
+  assert.ok(!html.includes(token));
+  const manifest = await (await fetch(BASE + href)).json();
+  assert.equal(manifest.id, '/'); assert.equal(manifest.scope, '/');
+  assert.equal(manifest.start_url, `/?teamContinuation=${href.split('/').pop()}`);
+  assert.ok(!JSON.stringify(manifest).includes(token));
+  const redeemed = await call('POST', `/api/teams/continuation/${href.split('/').pop()}`);
+  assert.equal(redeemed.body.inviteToken, token);
+  assert.equal((await call('POST', `/api/teams/continuation/${href.split('/').pop()}`)).body.inviteToken, null);
   const bogus = await (await fetch(`${BASE}/t/AAAAAAAAAAAAAAAAAAAAAA`)).text();
-  assert.strictEqual(bogus, html);
+  const normalize = (s) => s.replace(/(install-manifest\/)[A-Za-z0-9_-]{43}/g, `$1${'x'.repeat(43)}`).replace(/(data-team-invite-hash=")[a-f0-9]{64}/g, `$1${'x'.repeat(64)}`);
+  assert.strictEqual(normalize(bogus), normalize(html));
+  const bogusHref = bogus.match(/href="(\/api\/teams\/install-manifest\/[A-Za-z0-9_-]{43})"/)[1];
+  assert.equal((await (await fetch(BASE + bogusHref)).json()).start_url, '/');
+  assert.equal((await call('POST', `/api/teams/continuation/${bogusHref.split('/').pop()}`)).body.inviteToken, null);
 
   const bob = await signup('Bob');
   let limited = false;

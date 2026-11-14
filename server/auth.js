@@ -107,7 +107,7 @@ async function handleLogin(email, password) {
     return {
       token: localToken,
       user: {
-        id: 99999,
+        id: userId,
         email: email,
         firstName: 'Dev',
         lastName: 'User',
@@ -147,7 +147,8 @@ async function handleLogin(email, password) {
   return {
     token: localToken,
     user: {
-      id: profile.id || null,
+      // The account identity must match signup/status, independently of gym profile IDs.
+      id: existing.id,
       email: merged.email,
       firstName: profile.first_name || nameParts[0] || '',
       lastName: profile.last_name || nameParts.slice(1).join(' ') || '',
@@ -346,7 +347,7 @@ async function renewGymSession(userId, targetGymId) {
 // an account could only be born by logging into CodexFit, which is precisely
 // what made the account die with the membership. Gyms are linked afterwards
 // via linkGymAccount().
-async function handleSignup(email, password, acceptance) {
+async function handleSignup(email, password, acceptance, { teamInviteToken } = {}) {
   require('./policies').validateAcceptance(acceptance);
   const clean = String(email || '').trim().toLowerCase();
   if (!clean || !clean.includes('@')) throw new Error('A valid email address is required');
@@ -363,6 +364,7 @@ async function handleSignup(email, password, acceptance) {
   const userId = db.db.transaction(() => {
     const id = db.createAccount(clean, password);
     db.recordPolicyAcceptance(id, acceptance);
+    require('./teams').startSignupOnboarding(id, teamInviteToken);
     return id;
   })();
   const localToken = signUserToken(userId, clean);

@@ -1,0 +1,9 @@
+Deployment source and asset verification (2026-11-13)
+
+- Final local source manifest: 543 server/client files. All local entries match the remote tree; remote-only files are the two unchanged legacy Homerun WebPs preserved by rsync.
+- Container runtime source manifest: 496 server + client/src files, exact SHA-256 match to local.
+- Current static build assets: 57 non-service-worker files exactly match local client/dist and container /app/server/public.
+- Main bundle local: 5bd89533dcaf1e4fff97ddda8496c48f04ab5f80fdf95c4173f38195200e2dba  client/dist/assets/index-DwWmGoUw.js
+- Main bundle container: 5bd89533dcaf1e4fff97ddda8496c48f04ab5f80fdf95c4173f38195200e2dba  /app/server/public/assets/index-DwWmGoUw.js
+- Service worker intentionally has a per-build cache stamp and differs between local/remote builds. Local: 2b9a8e52574436ebe91dd7eaad2ae3329fc7d0129981e9775dd94ec6cae47660  client/dist/sw.js ; container: b4009defa3474d3318b3ab47121d7b557afe4432a8e123adc0eaf46c51de6b39  /app/server/public/sw.js
+- Full manifests: source-manifest-final.txt, runtime-source-manifest.txt, local-build-asset-manifest.txt, container-asset-manifest.txt.

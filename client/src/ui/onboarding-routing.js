@@ -1,3 +1,5 @@
+import { validPrefill } from './name-capture.js';
+
 /** Choose the post-login onboarding destination from the account's saved setup. */
 export function getPostLoginDestination({
   linkedGymCount = 0,
@@ -97,4 +99,14 @@ export function gymsWithPreferredSlots(linkedGyms, catalogue, preferencesByGym =
   return [...new Set((linkedGyms || []).filter((g) => g.account_enabled !== 0 && g.account_enabled !== false && g.status !== 'disabled' && g.gym_enabled !== 0 && g.gym_enabled !== false).map((g) => g.gym_id || g.gymId || g.id).filter(Boolean))]
     .filter((id) => configured.has(id) && configured.get(id).enabled !== false && configured.get(id)?.capabilities?.autoUpgrade !== false)
     .filter((id) => Object.values(preferencesByGym[id] || {}).some((p) => Array.isArray(p?.preferredSlots) && p.preferredSlots.length > 0));
+}
+
+/** Existing accounts can review a Team invite without completing optional or gym setup. */
+export function shouldOpenInviteImmediately({ hasInvite = false, newSignup = false } = {}) {
+  return !!hasInvite && !newSignup;
+}
+
+/** Saved account names are already confirmed; profile suggestions still need review. */
+export function hasSavedAccountName(settings) {
+  return !!validPrefill(settings?.firstName) && !!validPrefill(settings?.lastName);
 }

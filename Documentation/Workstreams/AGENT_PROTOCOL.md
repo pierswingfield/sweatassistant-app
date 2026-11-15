@@ -49,12 +49,13 @@ Treat each item as a **claim to check**, not an instruction to execute.
 
 ## Browser access (required; fail hard without it)
 
-Use the user's real Google Chrome. It holds the signed-in sessions the app needs. Two routes:
+Use the user's real Google Chrome. It holds the signed-in sessions the app needs. Three routes:
 
 | Route | Who | How |
 |---|---|---|
 | **Chrome DevTools Protocol, port 9222** | Any agent (Claude, Codex, scripts) | Check with `curl -s http://127.0.0.1:9222/json/version`. Attach with a CDP client, e.g. Playwright `chromium.connectOverCDP('http://127.0.0.1:9222')` or Puppeteer `puppeteer.connect({ browserURL: 'http://127.0.0.1:9222' })`. |
 | **Claude for Chrome extension** | Native Claude Code agents | The `claude-in-chrome` tools. The extension is installed and signed in, in Google Chrome. |
+| **ChatGPT Chrome** | Codex agents | Use the connected Chrome extension and the user’s signed-in profile. |
 
 **Chrome 154 caveat (2026-09-28):** Playwright's `chromium.connectOverCDP()` fails against the user's Chrome with `Browser.setDownloadBehavior: Browser context management is not supported`. Use a raw CDP client instead: `PUT /json/new?about:blank` to open a tab, drive it over its `webSocketDebuggerUrl` (Runtime/Page/Network domains), and close it with `/json/close/<id>`. `curl -s http://127.0.0.1:9222/json/list` lists tabs without attaching.
 
@@ -65,10 +66,10 @@ Use the user's real Google Chrome. It holds the signed-in sessions the app needs
 - Never pay for anything, never cancel the user's existing bookings, and no penalty-window cancels (C4-2/C4-3 are the user's to test).
 - Record an inventory of bookings, waitlists and credits before and after the session.
 
-**If neither route works, stop and report:**
+**If none of the routes works, stop and report:**
 
 ```
-BLOCKED: no real-browser access — CDP 127.0.0.1:9222 unreachable and Claude for Chrome unavailable.
+BLOCKED: no real-browser access — CDP 127.0.0.1:9222 unreachable and Chrome extensions unavailable.
 Item <ID> not verified; no changes made.
 ```
 

@@ -121,8 +121,11 @@ function detectCompetingBookings(subject, queued = [], booked = [], opts = {}) {
     }
   }
 
+  let alreadyBooked = false;
   for (const b of booked) {
     if (sameClass(subject, b)) {
+      if (alreadyBooked) continue;
+      alreadyBooked = true;
       warnings.push({
         code: 'ALREADY_BOOKED', severity: 'warning', with: ref(b, 'booked'),
         crossGym: false,

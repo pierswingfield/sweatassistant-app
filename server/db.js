@@ -1415,6 +1415,10 @@ module.exports = {
     `).run(userId, targetGym, eventId, studioId, className, instructorName, instructorImageUrl, studioName, locationName, startAt, JSON.stringify(preferences), groupName, releaseAt, Number(durationMin) > 0 ? Number(durationMin) : null);
     return result.lastInsertRowid;
   },
+  updatePendingAutoBookingRelease(id, previousRelease, releaseAt) {
+    return db.prepare(`UPDATE auto_bookings SET release_at = ?
+      WHERE id = ? AND status = 'pending' AND executed_at IS NULL AND release_at IS ?`).run(releaseAt, id, previousRelease).changes;
+  },
   updateAutoBookingPreferences(id, userId, preferences) {
     db.prepare('UPDATE auto_bookings SET preferences = ? WHERE id = ? AND user_id = ?')
       .run(JSON.stringify(preferences), id, userId);

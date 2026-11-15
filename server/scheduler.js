@@ -38,7 +38,7 @@ const eventCache = new Map();
 // key would make one gym's claim silently suppress the other gym's POST.
 // claimedSlots: slot is in-flight or successfully booked by one of our users → others skip (no POST).
 // burnedSlots:  slot POST failed (external user took it) → others skip without attempting.
-// Both are cleared at the start of each release window dispatch.
+// Both are cleared when the first of a set of overlapping dispatches starts.
 const claimedSlots = new Set();
 const burnedSlots = new Set();
 
@@ -53,6 +53,7 @@ const burnedSlots = new Set();
 const {
   isGymRateLimited,
   applyRateLimitBackoff,
+  noteThrottleError,
   notifyRateLimited,
   _resetRateLimitBackoffForTests,
 } = require('./rate-limit-backoff');
@@ -819,14 +820,21 @@ function priorityShuffleGroup(group) {
 // forcing anyone to wait for the previous user's full booking flow to complete.
 // The claimedSlots set (atomic in Node.js single-threaded event loop) prevents duplicate
 // POSTs even though all bookings are in flight simultaneously once started.
+const inFlightAutoBookings = new Set();
+let activeDispatches = 0;
 const CLAIM_STAGGER_MS = 80; // time between consecutive users' start within the same class
 
 async function executeAutoBookQueue(bookings) {
+  bookings = bookings.filter(b => !inFlightAutoBookings.has(b.id) && !startupReleaseUnverified.has(b.id));
   if (bookings.length === 0) return;
-
-  // Both sets are scoped to this release window; clear before dispatch
-  claimedSlots.clear();
-  burnedSlots.clear();
+  const reservedBookings = bookings;
+  for (const b of bookings) inFlightAutoBookings.add(b.id);
+  // Overlapping releases share claims; only the first batch clears old claims.
+  if (activeDispatches++ === 0) { claimedSlots.clear(); burnedSlots.clear(); }
+  try {
+  const current = new Map(db.getPendingAutoBookings().map(b => [b.id, b]));
+  bookings = bookings.filter(b => current.has(b.id) && current.get(b.id).release_at === b.release_at);
+  if (!bookings.length) return;
 
   // Group by event_id
   const groups = new Map();
@@ -862,6 +870,7 @@ async function executeAutoBookQueue(bookings) {
   });
 
   await Promise.allSettled(groupJobs);
+  } finally { for (const b of reservedBookings) inFlightAutoBookings.delete(b.id); activeDispatches--; }
 }
 
 // --- The wake clock (layer I) ------------------------------------------------
@@ -897,6 +906,8 @@ const IDLE_RECHECK_MS = 15 * 60 * 1000;
 // A release missed while the process was down is only worth catching if it just
 // happened. Beyond this, the spots are long gone and firing would be noise.
 const MISSED_RELEASE_GRACE_MS = 5 * 60 * 1000;
+// Existing per-class rows are not armed on startup until freshly confirmed.
+const startupReleaseUnverified = new Set();
 
 function missedWhileGymDisabled(booking, releaseAt) {
   return db.wasReleaseDuringGymDisable(booking.user_id, booking.gym_id, booking.id, releaseAt.toUTC().toISO());
@@ -919,6 +930,7 @@ function resolvePendingReleases() {
     // omitted it) regardless of which gym the row is actually for.
     // Disabled gym/link: nothing to wake for or dispatch (the row is kept).
     if (gymOutbound.isOutboundBlocked(booking.gym_id, booking.user_id)) continue;
+    if (startupReleaseUnverified.has(booking.id)) continue;
     const settings = db.getUserSettings(booking.user_id, booking.gym_id) || {};
     const releaseAt = getClassReleaseTime(booking, settings);
     if (!releaseAt) continue; // unresolvable → never dispatch on a guess
@@ -951,7 +963,9 @@ function bookingsReleasingAt(target) {
 // Entries whose release slipped past while the process was down.
 function runMissedReleases(now = DateTime.now()) {
   const missed = resolvePendingReleases()
-    .filter(({ releaseAt }) => {
+    .filter(({ booking, releaseAt }) => {
+      // Per-class releases must be freshly confirmed before startup recovery.
+      if (getGymConfig(booking.gym_id)?.bookingWindow?.kind === 'per-class') return false;
       const agoMs = now.diff(releaseAt).milliseconds;
       return agoMs > 0 && agoMs <= MISSED_RELEASE_GRACE_MS;
     })
@@ -962,6 +976,77 @@ function runMissedReleases(now = DateTime.now()) {
     executeAutoBookQueue(missed);
   }
   return missed.length;
+}
+
+// Refresh published per-class releases per member and date, never from the shared
+// timetable cache. A missing/invalid value or failed request leaves the row intact.
+const RELEASE_REFRESH_MS = 60 * 60 * 1000;
+const RELEASE_RECOVERY_GRACE_MS = 75 * 60 * 1000;
+let releaseRefreshRunning = false;
+async function reconcilePendingReleases({ startupRecovery = false } = {}) {
+  if (releaseRefreshRunning) return;
+  releaseRefreshRunning = true;
+  try {
+    const groups = new Map();
+    for (const b of db.getPendingAutoBookings()) {
+      const gym = getGymConfig(b.gym_id);
+      if (gym?.bookingWindow?.kind !== 'per-class' || gymOutbound.isOutboundBlocked(b.gym_id, b.user_id)) continue;
+      const date = DateTime.fromISO(b.start_at || '', { setZone: true });
+      if (!date.isValid || date <= DateTime.now()) continue;
+      const key = `${b.gym_id}:${b.user_id}:${date.toISODate()}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(b);
+    }
+    for (const rows of groups.values()) {
+      const { gym_id: gymId, user_id: userId } = rows[0];
+      if (isGymRateLimited(gymId) || gymOutbound.isOutboundBlocked(gymId, userId)) continue;
+      const session = db.getUserSession(userId, gymId);
+      if (!session?.accessToken) continue;
+      const provider = getProvider(gymId);
+      if (typeof provider.fetchFreshReleaseEvents !== 'function') continue;
+      const day = DateTime.fromISO(rows[0].start_at, { setZone: true }).toISODate();
+      let events;
+      try { events = await db.runWithGymContext(userId, gymId, () => provider.fetchFreshReleaseEvents({ startDate: day, endDate: day }, session)); }
+      catch (err) {
+        noteThrottleError(gymId, err);
+        log.warn('release reconciliation failed', { component: 'scheduler', gymId, userId, err });
+        continue;
+      }
+      const now = DateTime.now();
+      const due = [];
+      let changed = false;
+      for (const row of rows) {
+        if (inFlightAutoBookings.has(row.id) || gymOutbound.isOutboundBlocked(gymId, userId)) continue;
+        const event = events.find(e => String(e.id) === String(row.event_id));
+        // Require an explicit offset; a timezone-naive value is not a safe instant.
+        if (typeof event?.releaseAt !== 'string' || !/(?:Z|[+-]\d{2}:?\d{2})$/i.test(event.releaseAt)) continue;
+        const release = DateTime.fromISO(event.releaseAt, { setZone: true });
+        const start = DateTime.fromISO(row.start_at, { setZone: true });
+        if (!release.isValid || !start.isValid || release >= start || start <= now) continue;
+        const old = getClassReleaseTime(row, db.getUserSettings(userId, gymId) || {});
+        const sameRelease = old && old.toMillis() === release.toMillis();
+        if (!db.updatePendingAutoBookingRelease(row.id, row.release_at, event.releaseAt)) continue;
+        const wasUnverified = startupReleaseUnverified.delete(row.id);
+        if (!sameRelease || wasUnverified) changed = true;
+        const created = DateTime.fromSQL(row.created_at, { zone: 'utc' });
+        const participants = db.getAutoBookingParticipants(row.id, userId);
+        const alreadyBooked = db.getBookingCacheAllGyms(userId).some(b => b.gym_id === gymId && String(b.event_id) === String(row.event_id));
+        const freshAdvance = !sameRelease && old && old > release
+          && now.diff(old).milliseconds <= RELEASE_RECOVERY_GRACE_MS
+          && now.diff(release).milliseconds <= RELEASE_RECOVERY_GRACE_MS;
+        const startupMiss = (startupRecovery || wasUnverified) && old && old <= now
+          && now.diff(old).milliseconds <= RELEASE_RECOVERY_GRACE_MS
+          && now.diff(release).milliseconds <= RELEASE_RECOVERY_GRACE_MS;
+        if (!alreadyBooked && (freshAdvance || startupMiss) && release <= now
+          && created.isValid && created < release && !missedWhileGymDisabled(row, release)
+          && participants.every(p => !p.attempted_at)) {
+          due.push({ ...row, release_at: event.releaseAt });
+        }
+      }
+      if (changed) rearm();
+      if (due.length) executeAutoBookQueue(due).catch(err => log.error('reconciled release dispatch failed', { component: 'scheduler', gymId, userId, err }));
+    }
+  } finally { releaseRefreshRunning = false; }
 }
 
 // Enter the 10ms precision loop for an instant that is at most seconds away.
@@ -1105,10 +1190,16 @@ module.exports = {
     // A release that landed while the process was down, if it only just happened.
     // Previously this was inferred from "Monday noon minus a week"; it now comes
     // from the queue, so it works for a per-class gym too.
+    for (const row of db.getPendingAutoBookings()) {
+      if (getGymConfig(row.gym_id)?.bookingWindow?.kind === 'per-class') startupReleaseUnverified.add(row.id);
+    }
     runMissedReleases();
     scheduleReleaseWindow();
+    reconcilePendingReleases({ startupRecovery: true }).catch(err => log.error('release reconciliation crashed', { component: 'scheduler', err }));
+    setInterval(() => reconcilePendingReleases().catch(err => log.error('release reconciliation crashed', { component: 'scheduler', err })), RELEASE_REFRESH_MS);
   },
   getClassReleaseTime,
+  reconcilePendingReleases,
   // Layer I: the wake clock. Exported for test-wake-clock.js, which asserts the
   // armed instant for a mixed Psycle+JAB queue — the assertion whose absence let
   // the hardcoded Monday noon survive WP-D8.

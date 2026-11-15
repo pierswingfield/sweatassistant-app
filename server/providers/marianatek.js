@@ -575,6 +575,12 @@ class MarianaTekProvider extends GymProvider {
     return results.map((c) => this.mapClassToEvent(c));
   }
 
+  // Fresh and member-specific: the shared timetable flight is not keyed by session.
+  async fetchFreshReleaseEvents(params, session) {
+    const rows = await this._fetchScopedClassList(classListWindow(params), session);
+    return rows.map(c => this.mapClassToEvent(c));
+  }
+
   classListRequest(path, session) {
     return session
       ? this.request(path, { token: session.accessToken })

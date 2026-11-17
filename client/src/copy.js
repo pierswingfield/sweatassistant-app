@@ -201,8 +201,7 @@ export const COPY = Object.freeze({
     commandFailed: '{action} failed', cancelPenaltyCheckFailed: 'Failed to check cancel penalty',
   }),
   bookingWindow: Object.freeze({
-    weekOne: '{count} week', weekMany: '{count} weeks',
-    through: '{window} · up to {date}', graceCancel: 'Cancel ({seconds}s)',
+    graceCancel: 'Cancel ({seconds}s)',
   }),
   pwa: Object.freeze({
     // Mirror these values in public/manifest.json and the SW fallback: both are
@@ -505,7 +504,7 @@ export const COPY = Object.freeze({
     profileExplorerHelp: 'View the profile, membership and booking metadata returned by this gym.',
     openProfileExplorer: 'Open Profile Explorer',
     publishedBookingWindow: 'Published per class by the gym — there is nothing to configure.',
-    detectingMembership: 'Detecting from your membership…',
+    membershipBookingWindow: 'Set by your membership. Class times show when booking opens.',
     enablePolling: 'Enable Auto-Upgrade Polling',
     pollingHelp: 'Toggle background checks for improved spots at this gym.',
     pollingOffNote: 'Polling is off: existing monitors at this gym are paused (not deleted) and the options below are disabled until you turn it back on.',

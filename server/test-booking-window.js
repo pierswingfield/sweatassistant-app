@@ -18,16 +18,13 @@
 //
 // Two things are pinned here:
 //   1. Detection passes the profile's exact day count through, unsnapped.
-//   2. The server's getBookingOffset stays equivalent to the client's. They are
-//      hand-mirrored in two languages' worth of module systems; a divergence
-//      means the countdown the user watches and the instant auto-book fires
-//      disagree, which is invisible until a Monday goes wrong.
+//   2. The client holds no copy of this arithmetic (it reads the server-stamped
+//      releaseAt), so there is nothing to drift.
 
 process.env.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'a'.repeat(64);
 
 const assert = require('assert');
 const path = require('path');
-const { pathToFileURL } = require('url');
 
 const checks = [];
 const check = (name, fn) => checks.push({ name, fn });
@@ -78,83 +75,14 @@ check('server: debug day-override beats the week-override and detection', () => 
     'overrides are inert without debugMode');
 });
 
-// --- 2. client/server parity ------------------------------------------------
+// --- 2. the client holds no copy of the policy ------------------------------
 
-check('client and server getBookingOffset agree on every case that matters', async () => {
-  let lib;
-  try {
-    const libUrl = pathToFileURL(path.join(__dirname, '..', 'client', 'src', 'lib.js')).href;
-    lib = await import(libUrl);
-  } catch (_) {
-    console.log('       ℹ️  Skipping client lib parity check (client dependencies not available in server container)');
-    return;
+check('client lib.js no longer duplicates the booking-window policy', () => {
+  const src = require('fs').readFileSync(path.join(__dirname, '..', 'client', 'src', 'lib.js'), 'utf8');
+  for (const name of ['detectBookingWindow', 'getBookingOffset', 'getMostRecentReleaseMonday', 'getNextMondayNoonLondon']) {
+    assert.ok(!src.includes(name), `client/src/lib.js must not define ${name}: the server stamps releaseAt`);
   }
-
-  const cases = [
-    {}, // cold start
-    { advancedBooking: true },
-    { advancedBooking: true, advancedBookingCredit: true },
-    { detectedBookingOffset: 14 },
-    { detectedBookingOffset: 16 },
-    { detectedBookingOffset: 17 },
-    { detectedBookingOffset: 22 },
-    { detectedBookingOffset: 9999 },
-    { detectedBookingOffset: 0 },
-    { debugMode: true, manualBookingWindowDays: 17 },
-    { debugMode: true, manualBookingWindowWeeks: 3 },
-    { debugMode: true, manualBookingWindowWeeks: 2, detectedBookingOffset: 16 },
-    { manualBookingWindowDays: 17, detectedBookingOffset: 14 },
-  ];
-  for (const c of cases) {
-    assert.strictEqual(
-      scheduler.getBookingOffset(c), lib.getBookingOffset(c),
-      `client/server divergence for ${JSON.stringify(c)}`);
-  }
-});
-
-check('client: detectBookingWindow reports the profile cutoff exactly, unsnapped', async () => {
-  let lib;
-  try {
-    const libUrl = pathToFileURL(path.join(__dirname, '..', 'client', 'src', 'lib.js')).href;
-    lib = await import(libUrl);
-  } catch (_) {
-    return;
-  }
-  const release = lib.getMostRecentReleaseMonday();
-
-  // Build a profile whose cutoff sits exactly N days after the release Monday.
-  const profileAt = (days) => ({ booking_cutoff: release.plus({ days }).toISO() });
-
-  for (const days of [14, 16, 17, 22]) {
-    const got = lib.detectBookingWindow(profileAt(days), []);
-    assert.ok(got, `detection should succeed for a ${days}-day cutoff`);
-    assert.strictEqual(got.offsetDays, days,
-      `a ${days}-day cutoff must detect as ${days} days, not the nearest week`);
-  }
-
-  // The member tiers used to collapse onto 15. Pin that they no longer do.
-  assert.notStrictEqual(lib.detectBookingWindow(profileAt(16), []).offsetDays, 15);
-  assert.notStrictEqual(lib.detectBookingWindow(profileAt(17), []).offsetDays, 15);
-  assert.strictEqual(lib.detectBookingWindow(profileAt(14), []).offsetDays, 14,
-    'standard must not round UP to 15 — that fires auto-book early');
-});
-
-check('client: extended_cutoff wins over booking_cutoff when extended booking is allowed', async () => {
-  let lib;
-  try {
-    const libUrl = pathToFileURL(path.join(__dirname, '..', 'client', 'src', 'lib.js')).href;
-    lib = await import(libUrl);
-  } catch (_) {
-    return;
-  }
-  const release = lib.getMostRecentReleaseMonday();
-  const got = lib.detectBookingWindow({
-    booking_cutoff: release.plus({ days: 14 }).toISO(),
-    extended_cutoff: release.plus({ days: 17 }).toISO(),
-    metafields: { extended_booking_allowed: true },
-  }, []);
-  assert.strictEqual(got.offsetDays, 17, 'a Psycle 15 member books to Friday, not the standard fortnight');
-  assert.strictEqual(got.source, 'extended');
+  assert.ok(!/Europe\/London/.test(src), 'client/src/lib.js must carry no London policy zone');
 });
 
 // --- runner ------------------------------------------------------------------

@@ -18,7 +18,7 @@ import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, ge
 import { showToast, currentUser, userSettings, gymSetting, isAutoUpgradeDefaultEnabled, favouritesForGym, setFavouriteLocal, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
 import { heartButtonHtml, mobileHeartHtml } from '../favourite-heart.js';
 import { slotOfEvent, favouriteId, labelsOfEvent, isFavouriteIn } from '../favourites.js';
-import { passesLocationFilter, formatFullDate, getClassReleaseTime, isFullWithoutWaitlist, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept, zoneFor, formatInZone, dayKeyInZone, nowInZone, deviceZone } from '../lib';
+import { passesLocationFilter, formatFullDate, getClassReleaseTime, isReleaseOpen, isFullWithoutWaitlist, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept, zoneFor, formatInZone, dayKeyInZone, nowInZone, deviceZone } from '../lib';
 import { getGymTimeZone, getCatalogueGyms } from '../gym-context.js';
 import { DateTime } from 'luxon';
 // === WEEK-STRIP DATE SELECTOR (Task F) — set to false to restore the scrolling carousel + old row order ===
@@ -57,7 +57,7 @@ import { confirmOverlap } from './overlap-modal.js';
 import { quickBookTap } from './quickbook-flow.js';
 import { redactSensitivePayload } from '../redact.js';
 import { haptic } from './haptics.js';
-import { runButton, waitUntilSettled, asyncHandler } from './async-button.js';
+import { runButton, waitUntilSettled, asyncHandler, okResult, failResult, cancelResult, isCancelled } from './async-button.js';
 import { keepOriginalForAutoCreate } from './autoupgrade-setup.js';
 import { openPage as openNavPage, closePage as closeNavPage, pushLayer, setDesktopBack, isMobile } from './modal-nav.js';
 import { applyBookingChrome, mountBookingContext, bannerEl } from './booking-chrome.js';
@@ -2264,8 +2264,7 @@ function autoBookingIdSet(rows = cache.autoBookings) {
 /** The booking state consumed by the one shared action decision. */
 function eventActionState(event, autoBookedIds = autoBookingIdSet()) {
   const startDate = new Date(event.startAt);
-  const classRelease = getClassReleaseTime(event, userSettings);
-  const isLive = event.alwaysBookable ? true : (classRelease ? DateTime.now() >= classRelease : true);
+  const isLive = isReleaseOpen(event);
   const isFullyBooked = !!event.isFull;
   const canWaitlist = !isFullWithoutWaitlist(event);
   const eventBookings = userBookings().filter((booking) => matchesEvent(booking, event));
@@ -2339,9 +2338,7 @@ function buildEventRow(event, autoBookedIds) {
   const hasTimezone = Boolean(formattedTime.suffix);
 
   // Cutoff status calculation (instant comparison; zone-free)
-  const classRelease = getClassReleaseTime(event, userSettings);
-  const now = DateTime.now();
-  const isLive = event.alwaysBookable ? true : (classRelease ? now >= classRelease : true);
+  const isLive = isReleaseOpen(event);
   const isFullyBooked = !!event.isFull;
   const canWaitlist = !isFullWithoutWaitlist(event);
 
@@ -2627,7 +2624,7 @@ function twoTapConfirm(btn, confirmLabel, run) {
     delete btn.dataset.confirmState;
     btn.classList.remove('confirming');
     if (btn.dataset.origLabel != null) { btn.textContent = btn.dataset.origLabel; delete btn.dataset.origLabel; }
-    return run(); // returned so a tactile button can show the run's progress
+    return run(); // returned so a tactile button can show the run's progress (and its outcome)
   }
   haptic('light');
   btn.dataset.confirmState = 'confirm';
@@ -2641,6 +2638,7 @@ function twoTapConfirm(btn, confirmLabel, run) {
       btn.classList.remove('confirming');
     }
   }, 4000);
+  return cancelResult(); // armed the confirm; nothing ran yet
 }
 
 // Resolve the primary action, optional secondary action, and optional config
@@ -2877,8 +2875,8 @@ async function doQuickBook(event, btn) {
     try {
       const { prefs, hasPrefs } = await resolveStudioPrefs(event);
       const { hasMap } = getStudioMapInfo(event);
-      if (!hasPrefs && hasMap) { openBookingModal(event, 'quickbook', opts); return; }
-      await quickBookClass(event.id, {
+      if (!hasPrefs && hasMap) { openBookingModal(event, 'quickbook', opts); return cancelResult(); }
+      return await quickBookClass(event.id, {
         preferredSlots: prefs.preferredSlots || [],
         preferredRows: prefs.preferredRows || [],
         requiredCount: 1, bookAny: true,
@@ -2886,6 +2884,7 @@ async function doQuickBook(event, btn) {
       }, btn, event.gymId);
     } catch (err) {
       openBookingModal(event, 'quickbook', opts);
+      return cancelResult(); // handed over to the modal
     }
   };
   // The row's two-tap confirm only guards the no-modal path. When the overlap
@@ -2899,16 +2898,22 @@ async function doQuickBook(event, btn) {
     hasUnconfiguredMap = getStudioMapInfo(event).hasMap && !hasPrefs;
   } catch (_) { /* retain confirmation if preference state is unknown */ }
   const settle = () => { delete btn.dataset.qbBusy; };
+  let runResult = null;
+  const runCaptured = async (o) => { runResult = await run(o); return runResult; };
+  let tap;
   try {
-    await quickBookTap({
+    tap = await quickBookTap({
       busy: false,
       immediate: hasUnconfiguredMap,
       armed: btn.dataset.confirmState === 'confirm',
       gate: async () => { try { return await overlapGate(event, 'quickbook'); } finally { settle(); } },
-      arm: () => twoTapConfirm(btn, confirmMsg, run),
-      run,
+      arm: () => twoTapConfirm(btn, confirmMsg, runCaptured),
+      run: runCaptured,
     });
   } finally { settle(); }
+  // Only a flow that actually ran reports its own outcome; arming, a closed overlap
+  // confirm or an ignored tap completed nothing.
+  return (tap === 'ran' || tap === 'confirmed') && runResult ? runResult : cancelResult();
 }
 
 async function doAutoBookToggle(event, btn, isScheduled) {
@@ -2917,13 +2922,14 @@ async function doAutoBookToggle(event, btn, isScheduled) {
     // there and in the Auto-Book tab; a tap on the row never deletes.
     try {
       const entry = findScheduledEntry(await api.getAutoBookings(), event);
-      if (!entry) { showToast(formatCopyText(COPY.timetable.errorPrefix, { error: COPY.timetable.scheduledNotFound }), 'error'); return; }
+      if (!entry) { showToast(formatCopyText(COPY.timetable.errorPrefix, { error: COPY.timetable.scheduledNotFound }), 'error'); return failResult(COPY.timetable.scheduledNotFound); }
       const { openAutoBookEditModal } = await import('./autobook.js');
       await openAutoBookEditModal(entry);
     } catch (err) {
       showToast(formatCopyText(COPY.timetable.errorPrefix, { error: err.message }), 'error');
+      return failResult(err);
     }
-    return;
+    return cancelResult(); // opened the Edit Auto-Book screen; nothing was changed here
   }
   // No seat map for this studio (FCFS/recovery) — nothing to configure, so
   // this is one tap, same as Quick Book's own no-map case.
@@ -2935,10 +2941,10 @@ async function doAutoBookToggle(event, btn, isScheduled) {
   }
   // Same defaults as one-tap Quick-Book: one place, the member's own book-any setting, together off.
   if (autoBookTapAction({ hasMap, hasPrefs }) === 'queue-now') {
-    await saveAutoBookPreferences(event, prefs.preferredSlots || [], prefs.preferredRows || [], 1, prefs.bookAny !== false, () => {});
-    return;
+    return await saveAutoBookPreferences(event, prefs.preferredSlots || [], prefs.preferredRows || [], 1, prefs.bookAny !== false, () => {});
   }
   openBookingModal(event, 'autobook'); // no saved map: the shared setup flow
+  return cancelResult();
 }
 
 // Edit a booked class — reuses the My Bookings edit-spots modal. Builds the
@@ -2947,16 +2953,17 @@ async function doAutoBookToggle(event, btn, isScheduled) {
 // lists every spot and asks for one confirmation per cancellation.
 async function doGroupedCancel(event) {
   const eventBookings = userBookings().filter(b => matchesEvent(b, event));
-  if (!eventBookings.length) { showToast(COPY.timetable.bookingNotFound, 'error'); return; }
+  if (!eventBookings.length) { showToast(COPY.timetable.bookingNotFound, 'error'); return failResult(COPY.timetable.bookingNotFound); }
   openGroupedCancellationModal(
     { eventId: event.id, event, bookings: eventBookings },
     async () => { await refreshUserData(true); await refreshBookingState(); },
   );
+  return cancelResult(); // the modal owns the cancellations
 }
 
 async function doEditBooking(event) {
   const eventBookings = userBookings().filter(b => matchesEvent(b, event));
-  if (!eventBookings.length) { showToast(COPY.timetable.bookingNotFound, 'error'); return; }
+  if (!eventBookings.length) { showToast(COPY.timetable.bookingNotFound, 'error'); return failResult(COPY.timetable.bookingNotFound); }
 
   const eventTypeName = event.name || gymScopedGet(eventTypeMap, event.classTypeId, event.gymId) || 'Class';
   const groupName = event.discipline || gymScopedGet(eventTypeGroupMap, event.classTypeId, event.gymId) || eventTypeName;
@@ -2978,6 +2985,7 @@ async function doEditBooking(event) {
     { eventId: event.id, event: enrichedEvent, bookings: eventBookings },
     () => prefetchTimetableData(true), // refresh the timetable after spots change
   );
+  return cancelResult(); // the edit modal owns the change
 }
 
 // Lightweight refresh of booking/waitlist state + re-render the grid.
@@ -3011,11 +3019,13 @@ async function doJoinWaitlist(event, btn) {
     haptic('success');
     showToast(COPY.timetable.joinedWaitlist, 'success');
     prefetchTimetableData(true);
+    return okResult();
   } catch (err) {
     haptic('error');
     showToast(formatCopyText(COPY.timetable.waitlistFailed, { error: err.message }), 'error');
     btn.disabled = false;
     btn.textContent = orig;
+    return failResult(err);
   }
 }
 
@@ -3029,18 +3039,21 @@ async function doLeaveWaitlist(waitlistId, btn, gymId = null) {
     showToast(COPY.timetable.leftWaitlist, 'success');
     await refreshUserData(true);
     await refreshBookingState();
+    return okResult();
   } catch (err) {
     haptic('error');
     showToast(formatCopyText(COPY.timetable.leftWaitlistError, { error: err.message }), 'error');
     btn.disabled = false;
     btn.textContent = orig;
+    return failResult(err);
   }
 }
 
 // ---- Tactile CTAs (DESIGN.md §6.5.1) ------------------------------------------------
 // Every row CTA runs through runButton: pressed state, spinner while the request is in flight,
 // then the re-rendered row's button arrives with a check (success) or the old one shakes
-// (error). The flows themselves are unchanged; they already report outcome via haptics.
+// (error). Each flow returns its own outcome (okResult/failResult/cancelResult), reported to
+// the button that started it; toasts and haptics stay as messaging only.
 function ctaKey(event, role) { return `${event.gymId || ''}|${event.id}|${role}`; }
 function visibleCtas(key) {
   return [...document.querySelectorAll('[data-tt-key]')]
@@ -3053,6 +3066,7 @@ function bindCta(btn, run, event, role) {
 function runCta(btn, fn, event) {
   return runButton(btn, async () => {
     const result = await fn();
+    if (isCancelled(result)) return result; // nothing completed (armed a confirm, opened a modal): no waiting
     // Some flows re-render later (a background timetable refresh) and leave the old button
     // disabled until then: stay pending until the replacement arrives.
     await waitUntilSettled(btn, 8000);
@@ -3069,7 +3083,7 @@ function runCta(btn, fn, event) {
     }
     return result;
   }, {
-    showDelayMs: 120, hapticOutcome: true, rethrow: false,
+    showDelayMs: 120, rethrow: false,
     settle: () => (btn.isConnected ? null : [...visibleCtas(ctaKey(event, 'primary')), ...visibleCtas(ctaKey(event, 'secondary'))].slice(0, 1)),
   });
 }
@@ -3612,7 +3626,7 @@ async function toggleFavourite(event, heartEl) {
   const slot = slotOfEvent(event);
   if (!slot) {
     showToast(COPY.timetable.failedBookmarkId, 'error');
-    return;
+    return failResult(COPY.timetable.failedBookmarkId);
   }
   const wasFavourite = isFavouriteEvent(event);
   if (heartEl) heartEl.classList.add('loading');
@@ -3627,9 +3641,11 @@ async function toggleFavourite(event, heartEl) {
       document.querySelectorAll(`.app-timetable-heart.bookmarked[data-event-id="${String(event.id).replace(/"/g, '')}"]`)
         .forEach((h) => { h.classList.add('is-pop'); setTimeout(() => h.classList.remove('is-pop'), 400); });
     }
+    return okResult();
   } catch (err) {
     console.error('[Timetable] Favourite toggle failed:', err);
     showToast(COPY.timetable.bookmarkUpdateFailed, 'error');
+    return failResult(err);
   } finally {
     if (heartEl) heartEl.classList.remove('loading');
   }
@@ -3650,7 +3666,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
   const guests = Array.isArray(prefs.guests) ? prefs.guests : [];
   if (guests.length > 1) {
     showToast('Quick-Book currently supports one named guest.', 'warning');
-    return false;
+    return failResult('Quick-Book currently supports one named guest.');
   }
   const guest = guests[0] || null;
   // An independent upgrade can split a primary/guest pair. Keep the existing
@@ -3673,11 +3689,11 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
     const eventData = event.raw;
     if (!eventData) {
       showToast(COPY.timetable.classDataFailed, 'error');
-      return;
+      return failResult(COPY.timetable.classDataFailed);
     }
     if (event.isUserBooked) {
       showToast(COPY.overlap.alreadyBooked, 'warning');
-      return;
+      return cancelResult(); // already booked: nothing to do
     }
 
     // An empty `slots` array means "no seat map to check" (FCFS studios, or a
@@ -3698,15 +3714,16 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
               haptic('success');
               showToast(COPY.timetable.waitlistJoined, 'success');
               prefetchTimetableData(true);
+              return okResult(); // joined the waitlist instead (the class was full)
             } catch (wlErr) {
               haptic('error');
               showToast(formatCopyText(COPY.timetable.waitlistFailed, { error: wlErr.message }), 'error');
+              return failResult(wlErr);
             }
-          } else {
-            haptic('error');
-            showToast(formatCopyText(COPY.timetable.quickBookFailedMessage, { error: bookRes.error || COPY.timetable.bookingDeclined }), 'error');
           }
-          return;
+          haptic('error');
+          showToast(formatCopyText(COPY.timetable.quickBookFailedMessage, { error: bookRes.error || COPY.timetable.bookingDeclined }), 'error');
+          return failResult(bookRes.error || COPY.timetable.bookingDeclined);
         }
         haptic('success');
         showToast(COPY.timetable.quickBooked, 'success');
@@ -3721,8 +3738,8 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
       } catch (err) {
         haptic('error');
         showToast(formatCopyText(COPY.timetable.quickBookFailedMessage, { error: err.message }), 'error');
+        return failResult(err);
       }
-      return;
     }
 
     // C1-3: slot ids are strings (see AGENTS.md "Normalized ids are STRINGS,
@@ -3738,11 +3755,12 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
         haptic('success');
         showToast(COPY.timetable.waitlistJoined, 'success');
         prefetchTimetableData(true);
+        return okResult(); // joined the waitlist instead (the class was full)
       } catch (wlErr) {
         haptic('error');
         showToast(formatCopyText(COPY.timetable.waitlistFailed, { error: wlErr.message }), 'error');
+        return failResult(wlErr);
       }
-      return;
     }
 
     const primarySlots = preferredSlots.map(String).filter(id => liveAvailable.includes(id));
@@ -3771,7 +3789,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
     if (slotsToTry.length === 0) {
       haptic('error');
       showToast(COPY.timetable.noEligibleSlots, 'error');
-      return;
+      return failResult(COPY.timetable.noEligibleSlots);
     }
 
     // Several own spots with togetherness: book the tightest set (adjacent when free).
@@ -3842,9 +3860,11 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
       showToast(formatCopyText(COPY.timetable.quickBookFailedMessage, {
         error: failure?.error || COPY.timetable.bookingDeclined,
       }), 'error');
+      return failResult(failure?.error || COPY.timetable.bookingDeclined);
     }
   } catch (err) {
     showToast(formatCopyText(COPY.timetable.quickBookError, { error: err.message }), 'error');
+    return failResult(err);
   } finally {
     if (btn) {
       btn.disabled = false;
@@ -3950,10 +3970,12 @@ export async function openGuestBookingModal(c) {
         close();
         await refreshUserData(true);
         await refreshBookingState();
+        return okResult();
       } catch (err) {
         showToast(formatCopyText(COPY.bookings.guestBookingError, { error: err.message }), 'error');
         submit.disabled = false;
         submit.textContent = COPY.bookings.guestBookingSubmit;
+        return failResult(err);
       }
     });
   } catch (err) {
@@ -4132,7 +4154,7 @@ export async function openBookingModal(c, mode, opts = {}) {
 
     // Determine if booking window is already open
     const classReleaseTime = getClassReleaseTime(c);
-    const isLive = classReleaseTime ? classReleaseTime.toMillis() <= Date.now() : true;
+    const isLive = isReleaseOpen(c);
 
     const instrName = metadata.instructors.find(i => sameId(i.id, c.instructors?.[0]?.id) && (!c.gymId || i.gymId === c.gymId))?.name || '';
     const eventType = metadata.eventTypes.find(t => sameId(t.id, c.classTypeId) && (!c.gymId || t.gymId === c.gymId));
@@ -4194,14 +4216,14 @@ export async function openBookingModal(c, mode, opts = {}) {
 
       mountBookingContext(body, null, classCtx, { helperId: 'spotmap-live' });
       if (isAutoBookMode) {
-        document.getElementById('btn-save-simple-autobook').onclick = () => {
+        document.getElementById('btn-save-simple-autobook').onclick = asyncHandler(() => {
           const qtyEl = document.getElementById('compact-autobook-qty');
-          saveAutoBookPreferences(c, [], [], qtyEl ? (parseInt(qtyEl.value) || 1) : 1, true, closeModal);
-        };
+          return saveAutoBookPreferences(c, [], [], qtyEl ? (parseInt(qtyEl.value) || 1) : 1, true, closeModal);
+        });
       } else {
-        document.getElementById('btn-book-any').onclick = () => bookSeatDirect(
+        document.getElementById('btn-book-any').onclick = asyncHandler(() => bookSeatDirect(
           c.id, availableSlots[0], closeModal, c, layoutSlots.find((slot) => sameId(slot.id, availableSlots[0]))
-        );
+        ));
       }
       return;
     }
@@ -4695,7 +4717,7 @@ export async function openBookingModal(c, mode, opts = {}) {
       const controls = body.querySelector('#app-modal-controls-container');
       const layoutSlotIds = new Set(layoutSlots.map(s => String(s.id)));
       const unmappedSlots = availableSlots.filter(id => !layoutSlotIds.has(id));
-      const releaseStr = isLive ? '' : classReleaseTime.toFormat('EEE d MMM, HH:mm');
+      const releaseStr = isLive || !classReleaseTime ? '' : classReleaseTime.setZone(zoneFor(c)).toFormat('EEE d MMM, HH:mm');
 
       updateAutoBookControls = () => {
         const selectedQty = state.qty;
@@ -4769,7 +4791,7 @@ export async function openBookingModal(c, mode, opts = {}) {
             <button class="app-btn" id="btn-save-autobook" style="width:100%;background:var(--feat-autoupgrade);color:var(--on-accent);display:flex;align-items:center;justify-content:center;gap:6px;">${sparklesIcon(14, 'currentColor')} ${!opts.oneOffSpots && mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.scheduleAutoBook}</button>
             ${opts.autoBookEdit?.onRemove ? `<button type="button" class="app-btn" id="btn-remove-autobook" style="width:100%;background:transparent;border:1px solid var(--danger);color:var(--danger);">${COPY.timetable.removeAutoBook}</button>` : ''}
             <div style="font-size:12px;text-align:center;color:${isLive ? 'var(--success)' : 'var(--text-tertiary)'};">
-              ${isLive ? COPY.timetable.bookingWindowIsOpen : `${formatCopyText(COPY.timetable.bookingOpens, { date: `<span class="u-text-2">${escapeHtml(releaseStr)}</span>` })}`}
+              ${isLive ? COPY.timetable.bookingWindowIsOpen : !releaseStr ? COPY.autoBook.releaseUnknown : `${formatCopyText(COPY.timetable.bookingOpens, { date: `<span class="u-text-2">${escapeHtml(releaseStr)}</span>` })}`}
             </div>
           </div>
         `;
@@ -4797,7 +4819,7 @@ export async function openBookingModal(c, mode, opts = {}) {
         wireGuestFields(controls, { state, count: guestPlacesFor(selectedQty), cta: controls.querySelector('#btn-save-autobook') })();
 
         const removeBtn = controls.querySelector('#btn-remove-autobook');
-        if (removeBtn) removeBtn.onclick = () => twoTapConfirm(removeBtn, COPY.timetable.confirmRemoveAutoBook, () => opts.autoBookEdit.onRemove({ close: closeModal }));
+        if (removeBtn) removeBtn.onclick = asyncHandler(() => twoTapConfirm(removeBtn, COPY.timetable.confirmRemoveAutoBook, () => opts.autoBookEdit.onRemove({ close: closeModal })));
         // Editing an existing Auto-Book: the CTA is a filled primary only while something differs from the
         // seeded entry (count, options, guest, map draft); otherwise it is a plain "Exit without changes".
         const saveCta = controls.querySelector('#btn-save-autobook');
@@ -4824,7 +4846,7 @@ export async function openBookingModal(c, mode, opts = {}) {
           controls.addEventListener('change', () => controls.__refreshEditCta?.());
         }
         saveCta.onclick = asyncHandler(() => {
-          if (opts.autoBookEdit && saveCta.dataset.dirty === '0') { closeModal(); return; }
+          if (opts.autoBookEdit && saveCta.dataset.dirty === '0') { closeModal(); return cancelResult(); } // nothing changed
           const qty = parseInt(controls.querySelector('#autobook-qty')?.value || state.qty) || 1;
           const { bookAny: fallbackAny, prioritizeTogether } = normalizeGroupOptions({
             qty,
@@ -4835,13 +4857,13 @@ export async function openBookingModal(c, mode, opts = {}) {
           // Groups are upgraded together; only a guest in the booking keeps Auto-Upgrade off.
           const autoUpgrade = guestCount > 0 ? false : (controls.querySelector('#autobook-auto-upgrade')?.checked ?? false);
           state.autoUpgrade = autoUpgrade;
-          if (!validateGuestDrafts(state.guestDrafts, guestCount).ok) return;
+          if (!validateGuestDrafts(state.guestDrafts, guestCount).ok) return failResult('guest details');
           const preferredSlots = [...state.selectedSlots];
           const preferredRows = [...state.selectedRows];
           const guests = buildGuests(state.guestDrafts, guestCount, state.seededGuests);
           if (qty > autoBookCurrentLimit) {
             showToast(`Choose ${autoBookCurrentLimit} or fewer places for this class.`, 'warning');
-            return;
+            return failResult('too many places');
           }
           const preferredCapacity = new Set([
             ...preferredSlots,
@@ -4849,7 +4871,7 @@ export async function openBookingModal(c, mode, opts = {}) {
           ]).size;
           if (!fallbackAny && preferredCapacity < qty) {
             showToast(`Choose at least ${qty} preferred spots or allow an available fallback.`, 'warning');
-            return;
+            return failResult('not enough preferred spots');
           }
           if (opts.autoBookEdit?.onSubmit) {
             return opts.autoBookEdit.onSubmit({ slots: preferredSlots, rows: preferredRows, qty, bookAny: fallbackAny, prioritizeTogether, autoUpgrade, guests, close: closeModal });
@@ -4931,11 +4953,11 @@ export async function openBookingModal(c, mode, opts = {}) {
         controls.querySelector('#btn-book-simple').onclick = asyncHandler(async () => {
           if (state.selectedSlots.length === 0) {
             showToast(formatCopyText(COPY.timetable.pleaseSelectSpots, { noun: seatNoun(groupName) }), 'warning');
-            return;
+            return failResult('no spot selected');
           }
           if (state.selectedSlots.length > availableCredits) {
             showToast(formatCopyText(COPY.timetable.simpleBookSelectedCredits, { credits: availableCredits, creditPlural: availableCredits !== 1 ? 's' : '', count: state.selectedSlots.length, noun: seatNoun(groupName), nounPlural: state.selectedSlots.length !== 1 ? 's' : '' }), 'warning');
-            return;
+            return failResult('not enough credits');
           }
           const btn = controls.querySelector('#btn-book-simple');
           if (isWithin12Hours(c.startAt) && btn.dataset.confirmState !== 'confirm') {
@@ -4949,7 +4971,7 @@ export async function openBookingModal(c, mode, opts = {}) {
                 btn.style.background = '';
               }
             }, 4000);
-            return;
+            return cancelResult(); // armed the "book soon" confirm
           }
           delete btn.dataset.confirmState;
           btn.disabled = true;
@@ -4970,7 +4992,7 @@ export async function openBookingModal(c, mode, opts = {}) {
               }
               results.push(r);
             }
-            if (results.length === 0) return;
+            if (results.length === 0) return failResult(COPY.timetable.bookingDeclined);
             const bookingRes = { ok: true, bookings: results, bookingId: results[0]?.bookingId, slotId: results[0]?.slotId };
             const bookedSlots = state.selectedSlots.slice(0, results.length);
             const bookedLabels = bookedSlots.map(id => {
@@ -4994,10 +5016,12 @@ export async function openBookingModal(c, mode, opts = {}) {
             }
             await refreshUserData(true);
             await refreshBookingState();
+            return okResult();
           } catch (err) {
             showToast(formatCopyText(COPY.timetable.bookingFailed, { error: err.message }), 'error');
             btn.disabled = false;
             btn.textContent = formatCopyText(COPY.timetable.bookSelected, { noun: nounCap });
+            return failResult(err);
           }
         });
       };
@@ -5082,7 +5106,7 @@ export async function openBookingModal(c, mode, opts = {}) {
         controls.querySelector('#btn-submit-quickbook').onclick = asyncHandler(async () => {
           if (state.selectedSlots.length === 0 && state.selectedRows.size === 0) {
             showToast(formatCopyText(COPY.timetable.pleaseSelectSpotOrRow, { noun: seatNoun(groupName) }), 'warning');
-            return;
+            return failResult('no spot selected');
           }
           const btn = controls.querySelector('#btn-submit-quickbook');
           const baseLabel = `${!opts.oneOffSpots && mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.quickBook}`;
@@ -5097,7 +5121,7 @@ export async function openBookingModal(c, mode, opts = {}) {
                 btn.style.background = '';
               }
             }, 4000);
-            return;
+            return cancelResult(); // armed the "book soon" confirm
           }
           delete btn.dataset.confirmState;
           btn.disabled = true;
@@ -5111,7 +5135,7 @@ export async function openBookingModal(c, mode, opts = {}) {
               prioritizeTogether: controls.querySelector('#quickbook-prioritize-together')?.checked ?? false,
             });
             const autoUpgrade = guestCount > 0 ? false : (controls.querySelector('#quickbook-auto-upgrade')?.checked ?? false);
-            if (!validateGuestDrafts(state.guestDrafts, guestCount).ok) return;
+            if (!validateGuestDrafts(state.guestDrafts, guestCount).ok) return failResult('guest details');
             const slots = [...state.selectedSlots];
             const rows = [...state.selectedRows];
             const requestedPlaces = qty - guestCount;
@@ -5121,7 +5145,7 @@ export async function openBookingModal(c, mode, opts = {}) {
             ]).size;
             if (!fallbackAny && preferredCapacity < requestedPlaces) {
               showToast(`Choose at least ${requestedPlaces} preferred spots or allow an available fallback.`, 'warning');
-              return;
+              return failResult('not enough preferred spots');
             }
             const booked = await quickBookClass(c.id, {
               preferredSlots: slots,
@@ -5136,7 +5160,7 @@ export async function openBookingModal(c, mode, opts = {}) {
             }, null, c.gymId);
             // `quickBookClass` owns the provider sequence and reports false if
             // no primary booking succeeded. Never publish a draft after that.
-            if (!booked) return;
+            if (!booked || booked.ok === false) return failResult(booked?.error);
             if (mapChanged() && c.studioId && !opts.oneOffSpots) {
               try {
                 await api.updateStudioPreferences(c.studioId, { preferredSlots: slots, preferredRows: rows }, c.gymId);
@@ -5146,8 +5170,10 @@ export async function openBookingModal(c, mode, opts = {}) {
               }
             }
             closeModal();
+            return okResult();
           } catch (err) {
             showToast(formatCopyText(COPY.timetable.quickBookError, { error: err.message }), 'error');
+            return failResult(err);
           } finally {
             btn.disabled = false;
             btn.textContent = baseLabel;
@@ -5309,9 +5335,11 @@ async function bookSeatDirect(eventId, slotId, callback, event, slot = null) {
     showToast(formatCopyText(COPY.timetable.spotBooked, { note: upgradeNote }), 'success');
     await refreshUserData(true);
     prefetchTimetableData(true);
+    return okResult();
   } catch (err) {
     haptic('error');
     showToast(formatCopyText(COPY.timetable.bookingFailed, { error: err.message }), 'error');
+    return failResult(err);
   }
 }
 
@@ -5359,6 +5387,7 @@ async function cancelBookingDirect(bookingId, isPenalty, btn, gymId) {
 
       await refreshUserData(true);
       await refreshBookingState();
+      return okResult();
     } catch (err) {
       haptic('error');
       showToast(formatCopyText(COPY.timetable.cancelFailed, { error: err.message }), 'error');
@@ -5367,14 +5396,14 @@ async function cancelBookingDirect(bookingId, isPenalty, btn, gymId) {
       btn.style.background = '';
       btn.style.borderColor = '';
       btn.style.color = '';
+      return failResult(err);
     }
   };
 
   // 60s grace period: cancel immediately, no confirmation
   if (btn.hasAttribute('data-grace-deadline')) {
     btn.removeAttribute('data-grace-deadline');
-    await performCancel();
-    return;
+    return performCancel();
   }
 
   if (btn.dataset.confirmState !== 'confirm') {
@@ -5397,11 +5426,11 @@ async function cancelBookingDirect(bookingId, isPenalty, btn, gymId) {
         btn.style.color = '';
       }
     }, 4000);
-    return;
+    return cancelResult(); // armed the confirm; the cancel itself has not run
   }
 
   btn.removeAttribute('data-confirm-state');
-  await performCancel();
+  return performCancel();
 }
 
 // Save scheduled auto-booking record to database
@@ -5505,7 +5534,7 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
         },
         warnings: err.warnings,
       });
-      if (!confirmed) return;
+      if (!confirmed) return cancelResult(); // member backed out of the overlap confirm
       queued = await api.addAutoBooking({ ...autoBookBody, confirmOverlap: true });
     }
 
@@ -5517,9 +5546,11 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
     }).forEach((t) => showToast(t.text, t.type));
     callback();
     renderTimetableGrid();
+    return okResult();
   } catch (err) {
     const failure = autoBookFailureToast(err);
     showToast(failure.text, failure.type);
+    return failResult(err);
   }
 }
 
@@ -5571,9 +5602,8 @@ export async function openDebugModal(event) {
     const matchingWaitlist = userWaitlists().find(w => matchesEvent(w, event)) || null;
 
     // Compute key values
-    const classRelease = getClassReleaseTime(event, userSettings);
-    const now = DateTime.now();
-    const isLive = event.alwaysBookable ? true : (classRelease ? now >= classRelease : true);
+    const classRelease = getClassReleaseTime(event);
+    const isLive = isReleaseOpen(event);
     const bookingCutoff = event.booking_cutoff || 'N/A';
     const extendedCutoff = event.extended_cutoff || 'N/A';
 

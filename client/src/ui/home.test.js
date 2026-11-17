@@ -607,11 +607,12 @@ describe('W6 Home favourites', () => {
 
     expect(primaryActionForEvent({ ...base, releaseAt: '2099-10-20T06:30:00Z' }).label).toBe(COPY.timetable.autoBook);
     expect(primaryActionForEvent({ ...base, releaseAt: '2000-10-20T06:30:00Z' }).label).toBe(COPY.timetable.book);
-    // An absent release is unknown and follows the timetable's permissive-open rule.
-    expect(primaryActionForEvent(base).label).toBe(COPY.timetable.book);
+    // An absent release is unknown: never treated as open, never a guessed instant.
+    expect(primaryActionForEvent(base).label).toBe(COPY.timetable.autoBook);
+    expect(primaryActionForEvent({ ...base, releaseAt: null }).label).toBe(COPY.timetable.autoBook);
 
     cache.eligibilityByGym = { 'psycle-london': { canBook: false, reason: 'No credits' } };
-    expect(primaryActionForEvent(base)).toMatchObject({ label: COPY.timetable.buyCredits, variant: 'danger' });
+    expect(primaryActionForEvent({ ...base, releaseAt: '2000-10-20T06:30:00Z' })).toMatchObject({ label: COPY.timetable.buyCredits, variant: 'danger' });
   });
 });
 

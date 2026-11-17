@@ -16,7 +16,7 @@ import { appConfig, initConfig } from './config';
 import { coldBootDestination, shouldOpenInviteImmediately } from './ui/onboarding-routing.js';
 import { restoreTeamInvite, pendingTeamInvite, prepareTeamInstall, finishTeamInviteHandoff, markTeamInviteSignup, syncTeamInviteSignup } from './team-invite-intent.js';
 import { shouldShowOnboarding, resumeOnboarding, getPostLoginDestination, isOnboardingActive, advanceAfterLogin, promoteInstallDismissal, offerInstallBeforeLogin } from './ui/onboarding';
-import { detectBookingWindow, noSept } from './lib';
+import { noSept } from './lib';
 import { indexFavourites } from './favourites.js';
 import { canBookAtAll, getIneligibleReason, unmeteredBadgeLabel } from './ui/credit-allowance.js';
 import { escapeHtml, gymBrand } from './ui/cards';
@@ -98,7 +98,6 @@ applyAppName();
 // Default settings — the single source of truth for new-user defaults.
 // Reset to this on logout so a new user never inherits the previous user's settings.
 const DEFAULT_SETTINGS = {
-  detectedBookingOffset: null,    // auto-detected booking window in days (null until detected)
   manualBookingWindowWeeks: null, // debug-only override (1-4 weeks), null = use detected
   autoUpgradeEnabled: true,
   autoUpgradeInterval: '15min',
@@ -130,7 +129,6 @@ export let cache = {
   autoBookings: null, // prefetch target for Auto-Book tab
   upgrades: undefined, // prefetch target for Auto-Book/Auto-Upgrade
   studioPrefs: null, // prefetch target for Auto-Book/Auto-Upgrade
-  bookingWindow: null, // last detected booking window { offsetDays, weeks, cutoffISO, ... } (default/first gym; see profilesByGym)
   // C3-17 / C3-18: per-gym, keyed by gym id. `profile` above is only "the first
   // linked gym's", kept for the few single-gym fallbacks; anything asking about
   // ONE gym reads these through profileForGym() / gymSetting().
@@ -1533,48 +1531,8 @@ export async function refreshUserData(force = false) {
     // Update credit badge in header
     updateCreditBadge(availableCredits);
 
-    // 4. Auto-detect each gym's booking window from ITS OWN profile cutoffs and
-    // persist it against that gym so the server scheduler reads the same window.
-    // The detector encodes the weekly-release model, so only gyms that use one.
-    for (const r of loaded) {
-      const kind = (linkedGyms.find((g) => (g.gym_id || g.id) === r.gymId)?.capabilities || {}).bookingWindow;
-      if (kind && kind !== 'rolling-weekly') continue;
-      await syncDetectedBookingWindow(r.profile, r.credits ?? (r.profile.available_credits || []), r.gymId);
-    }
-
   } catch (err) {
     console.error('[App] Failed to refresh user credentials:', err);
-  }
-}
-
-// Detect the booking window and persist it to settings when it changes. Stores the
-// full detection result on cache.bookingWindow for the Settings indicator to render.
-async function syncDetectedBookingWindow(profile, credits, gymId = null) {
-  try {
-    const detected = detectBookingWindow(profile, credits);
-    if (!detected) return;
-    // The Settings indicator reads this; with several gyms it holds the last
-    // detected gym's window, and the per-gym truth is cache.gymSettings[gymId].
-    cache.bookingWindow = detected;
-
-    // Persist the offset (read by the server scheduler) plus the full detection result
-    // (so the admin panel can render the same window the user sees). Re-persist when
-    // either the offset or the serialised window changes. Both keys are gym-scoped,
-    // so the comparison is against THIS gym's stored values (C3-18), not a blob
-    // that holds whichever gym was mirrored into it last.
-    const stored = (gymId && cache.gymSettings[gymId]) || userSettings;
-    const windowChanged = JSON.stringify(stored.bookingWindow) !== JSON.stringify(detected);
-    if (stored.detectedBookingOffset !== detected.offsetDays || windowChanged) {
-      // The window was derived from THIS profile's cutoffs, so it is saved
-      // against the gym the profile came from.
-      const newSettings = { detectedBookingOffset: detected.offsetDays, bookingWindow: detected };
-      await api.updateSettings(newSettings, gymId || profile.gymId || null);
-      if (gymId) cache.gymSettings[gymId] = { ...(cache.gymSettings[gymId] || {}), ...newSettings };
-      else Object.assign(userSettings, newSettings);
-      debugConsole(`[App] Detected booking window (${gymId || 'default'}): ${detected.weeks} week(s) / ${detected.offsetDays}d (${detected.source})`);
-    }
-  } catch (err) {
-    console.warn('[App] Booking window detection failed:', err.message);
   }
 }
 

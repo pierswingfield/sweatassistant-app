@@ -97,7 +97,6 @@ function emitStatusUpdate(userId, update) {
 
 // Sane bounds for a booking-window offset, in days after the release Monday.
 // A guard against a garbled offset, NOT a set of allowed tiers.
-// Mirrors client/src/lib.js MIN_OFFSET_DAYS / MAX_OFFSET_DAYS.
 const MIN_OFFSET_DAYS = 1;
 const MAX_OFFSET_DAYS = 35;
 
@@ -105,13 +104,12 @@ const MAX_OFFSET_DAYS = 35;
 // Psycle's window is no longer whole weeks (confirmed 2026-08-31: standard moved
 // to a fortnight, membership tiers extend by DAYS — +2/+3/+8). Detection no
 // longer snaps to these; they survive only for the debug week-override and the
-// pre-detection legacy path. Mirrors client/src/lib.js weeksToOffsetDays.
+// pre-detection legacy path.
 function weeksToOffsetDays(weeks) {
   const w = Math.min(4, Math.max(1, Math.round(weeks) || 1));
   return 8 + (w - 1) * 7;
 }
 
-// Mirrors client/src/lib.js clampOffsetDays.
 function clampOffsetDays(days) {
   const n = Math.round(Number(days));
   if (!Number.isFinite(n)) return 15;
@@ -120,9 +118,7 @@ function clampOffsetDays(days) {
 
 // Calculate booking offset in days based on settings.
 // Priority: debug manual override → auto-detected window → legacy manual toggles.
-// Mirrors client/src/lib.js getBookingOffset exactly. **Keep the two in step** —
-// a divergence here means auto-book fires at a different instant than the
-// countdown the user is watching.
+// The client copy was removed: it reads the server-stamped releaseAt.
 function getBookingOffset(settings = {}) {
   // Debug-only exact-day override (preferred — real windows aren't whole weeks).
   if (settings.debugMode && settings.manualBookingWindowDays) {

@@ -3,9 +3,17 @@
 // index.html before sending it, so document.title is already correct at first
 // paint; /api/config then supplies the same values to JS-rendered text
 // (onboarding, toasts, dynamic titles). No name is baked into the bundle.
-const templated = typeof document !== 'undefined' ? document.title : '';
+//
+// The name is read from <meta name="application-name">, NEVER document.title: the
+// Teams invite route (/t/:token) rewrites <title> to "You've been invited to a Team
+// on <app>", which leaked into every string built from the app name ("...on Dibs
+// won't save copies of your gym login details").
+export function readTemplatedAppName(doc = typeof document !== 'undefined' ? document : null) {
+  const name = doc?.querySelector?.('meta[name="application-name"]')?.getAttribute('content') || '';
+  return name && name !== '__APP_NAME__' ? name : '';
+}
 export const appConfig = {
-  appName: templated && templated !== '__APP_NAME__' ? templated : '',
+  appName: readTemplatedAppName(),
   publicHost: '',
 };
 

@@ -1,5 +1,5 @@
 import { nav } from '../nav-controller.js';
-import { gymLoginChoiceHtml, bindGymLoginChoice } from './gym-login-choice.js';
+import { gymLoginChoiceHtml, bindGymLoginChoice, setContinuePending } from './gym-login-choice.js';
 // first-run onboarding flow.
 //
 // Runs before login on first launch and guides the user through:
@@ -739,6 +739,9 @@ function stepGyms() {
           anchor: sheet.querySelector('.app-onb-link-form'), focusTarget: gymSel,
         });
         submitBtn.querySelector('span').textContent = submitLabel(gymSel.value);
+        setContinuePending(continueBtn, !!gymSel.value, { label: COPY.onboarding.continue, pendingLabel: COPY.onboarding.continueWithoutConnecting });
+        // "Set up later" already says it skips connecting, so it fades but keeps its label.
+        setContinuePending(skipBtn, !!gymSel.value, { label: COPY.onboarding.setupLater, pendingLabel: COPY.onboarding.setupLater });
       });
       if (submitBtn) {
         // Spinner while the gym verifies the login, a check once it is linked, then the next view;

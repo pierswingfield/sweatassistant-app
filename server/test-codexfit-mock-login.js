@@ -35,7 +35,9 @@ async function run() {
     const login = await provider.login({ email: 'dev@psycle.com', password: 'any-password' });
     assert.strictEqual(login.session.accessToken, 'mock-jwt-token');
     assert.strictEqual(login.profile.email, 'dev@psycle.com');
-    assert.strictEqual(login.profile.firstName, 'Dev');
+    // Mirrors the LIVE login (no `user`): names come from /profile, not from login.
+    assert.strictEqual(login.profile.firstName, undefined);
+    assert.strictEqual((await provider.getProfile(login.session)).firstName, 'Dev');
     assert.strictEqual(liveFetchCalls, 0, 'adapter login must not fetch the live Psycle API');
 
     await auth.handleSignup('fresh-codexfit-link@test.local', 'a-safe-password', require('./policies').CURRENT_ACCEPTANCE);

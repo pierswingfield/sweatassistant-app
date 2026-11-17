@@ -419,9 +419,20 @@ async function linkGymAccount(userId, gymId, email, password, rememberLogin = fa
   if (!gym.enabled) throw new Error(`Gym "${gymId}" is not available yet.`);
 
   const provider = getProvider(gymId);
-  const { session, profile } = await require('./gym-connection').withRecovery(userId, gymId, () => provider.login({ email, password }));
+  const { session, profile: loginProfile } = await require('./gym-connection').withRecovery(userId, gymId, () => provider.login({ email, password }));
   if (!session || !session.accessToken) {
     throw new Error('Gym login did not return a session');
+  }
+  // CodexFit's live login response has no `user`, so the login-derived profile has no
+  // names and onboarding could not prefill them. When names are missing, read the
+  // profile (enveloped /profile, unwrapped by the adapter). Best effort: a failure
+  // must never fail the link, it just leaves the names null as before.
+  let profile = loginProfile;
+  if (!(profile && (profile.firstName || profile.lastName))) {
+    try {
+      const full = await provider.getProfile(session);
+      if (full && (full.firstName || full.lastName || full.raw)) profile = { ...loginProfile, ...full };
+    } catch (_) { /* keep the login-derived profile */ }
   }
 
   const recovering = existingLink && existingLink.status !== 'active';

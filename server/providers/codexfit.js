@@ -225,9 +225,11 @@ class CodexFitProvider extends GymProvider {
         accessToken: MOCK_TOKEN,
         expiresAt: new Date(Date.now() + 365 * 864e5).toISOString(),
       };
-      // Keep the mock profile on the same adapter path as an authenticated
-      // production profile; request() recognises MOCK_TOKEN and never fetches.
-      const profile = await this.getProfile(session);
+      // Mirror the LIVE login response: it carries only { access_token } and NO
+      // `user` (a brand-new Psycle account stored profile_json '{}'), so names
+      // exist only on GET /profile. Returning the mock profile here hid that
+      // difference from every test; callers that need names must fetch /profile.
+      const profile = makeProfile({ email, raw: {} });
       return { session, profile, raw: { access_token: MOCK_TOKEN, mock: true } };
     }
 

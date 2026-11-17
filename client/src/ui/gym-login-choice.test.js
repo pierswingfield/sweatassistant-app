@@ -25,6 +25,17 @@ describe('setContinuePending', () => {
     expect(b.dataset.quiet).toBeUndefined();
     expect(b.classList.contains('is-pending-connect')).toBe(false);
   });
+  it('can fade Set up later while keeping its label', () => {
+    document.body.innerHTML = '<button class="app-btn-mini app-onb-skip-inline">Set up later</button>';
+    const b = document.querySelector('button');
+    const o = { label: 'Set up later', pendingLabel: 'Set up later' };
+    setContinuePending(b, true, o);
+    expect(b.textContent).toBe('Set up later');
+    expect(b.classList.contains('is-pending-connect')).toBe(true);
+    expect(b.disabled).toBe(false);
+    setContinuePending(b, false, o);
+    expect(b.classList.contains('is-pending-connect')).toBe(false);
+  });
   it('tolerates a missing button (no linked gym yet)', () => {
     expect(() => setContinuePending(null, true, opts)).not.toThrow();
   });

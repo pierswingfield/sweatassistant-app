@@ -740,6 +740,8 @@ function stepGyms() {
         });
         submitBtn.querySelector('span').textContent = submitLabel(gymSel.value);
         setContinuePending(continueBtn, !!gymSel.value, { label: COPY.onboarding.continue, pendingLabel: COPY.onboarding.continueWithoutConnecting });
+        // "Set up later" already says it skips connecting, so it fades but keeps its label.
+        setContinuePending(skipBtn, !!gymSel.value, { label: COPY.onboarding.setupLater, pendingLabel: COPY.onboarding.setupLater });
       });
       if (submitBtn) {
         // Spinner while the gym verifies the login, a check once it is linked, then the next view;

@@ -445,6 +445,11 @@ router.post('/users/:id/reset-password', authenticateAdmin, (req, res) => {
   }
 });
 
+// GET /api/admin/feedback?limit&offset — Send Feedback submissions, newest first (incl. follow-up email)
+router.get('/feedback', authenticateAdmin, (req, res) => {
+  res.json(require('./feedback').list({ limit: req.query.limit, offset: req.query.offset }));
+});
+
 // GET /api/admin/landing-stats?days=&includeBots=1 — M step 3 landing analytics (bots excluded by default)
 router.get('/landing-stats', authenticateAdmin, (req, res) => {
   res.json(require('./landing-events').stats({ days: req.query.days, includeBots: req.query.includeBots === '1' }));

@@ -364,6 +364,20 @@
     </table>
   </div>
 
+  <section id="feedback-log">
+    <h2>Feedback</h2>
+    <div class="table-wrap">
+      <table id="feedback-table">
+        <thead><tr><th>#</th><th>Time</th><th>Type</th><th>Title &amp; message</th><th>Follow-up email</th><th>Account</th><th>App / platform</th><th>GitHub</th></tr></thead>
+        <tbody id="feedback-tbody"><tr><td colspan="8" class="loading">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="btn" id="feedback-newer" type="button">Newer</button>
+      <button class="btn" id="feedback-older" type="button">Older</button>
+    </div>
+  </section>
+
   <section id="audit-log">
     <h2>Audit log</h2>
     <div class="table-wrap">
@@ -491,6 +505,7 @@
     document.getElementById('session-label').textContent = 'admin session';
     loadUsers();
     loadGymEditor();
+    loadFeedback(0);
     loadAudit(0);
   }
 
@@ -1233,6 +1248,36 @@
     geEl('ge-badge').textContent = g.overridden ? 'Using admin override' : 'Using registry values';
     geMsg('');
   }
+
+  const FEEDBACK_PAGE = 25;
+  let feedbackOffset = 0;
+  async function loadFeedback(offset) {
+    feedbackOffset = Math.max(0, offset);
+    const tbody = document.getElementById('feedback-tbody');
+    try {
+      const res = await apiFetch(`/api/admin/feedback?limit=${FEEDBACK_PAGE}&offset=${feedbackOffset}`);
+      const { feedback } = await res.json();
+      document.getElementById('feedback-newer').disabled = feedbackOffset === 0;
+      document.getElementById('feedback-older').disabled = feedback.length < FEEDBACK_PAGE;
+      const gh = (f) => f.github_issue_url && /^https:\/\/github\.com\//.test(f.github_issue_url)
+        ? `<a href="${escHtml(f.github_issue_url)}" target="_blank" rel="noopener noreferrer">#${escHtml(String(f.github_issue_number))}</a>`
+        : (f.github_error ? `<span style="color:var(--red)">${escHtml(f.github_error)}</span>` : '—');
+      tbody.innerHTML = feedback.length ? feedback.map(f => `<tr>
+        <td>${escHtml(String(f.id))}</td>
+        <td>${escHtml(new Date(f.created_at).toLocaleString('en-GB'))}</td>
+        <td>${escHtml(f.typeLabel)}</td>
+        <td style="max-width:420px"><strong>${escHtml(f.title)}</strong><div style="white-space:pre-wrap;font-size:12px;color:var(--text-muted);margin-top:4px">${escHtml(f.message)}</div></td>
+        <td>${f.email ? escHtml(f.email) : '—'}</td>
+        <td>${f.user_id == null ? '—' : `#${escHtml(String(f.user_id))} ${escHtml(f.account_email || '')}`}</td>
+        <td style="font-size:12px">${escHtml(f.app_version || '—')}${f.client_build ? ' · ' + escHtml(f.client_build) : ''}<br>${escHtml(f.platform || '')}</td>
+        <td>${gh(f)}</td></tr>`).join('')
+        : '<tr><td colspan="8" class="loading">No feedback yet.</td></tr>';
+    } catch (e) {
+      if (adminToken) tbody.innerHTML = `<tr><td colspan="8" class="loading" style="color:var(--red)">${escHtml(e.message)}</td></tr>`;
+    }
+  }
+  document.getElementById('feedback-newer').addEventListener('click', () => loadFeedback(feedbackOffset - FEEDBACK_PAGE));
+  document.getElementById('feedback-older').addEventListener('click', () => loadFeedback(feedbackOffset + FEEDBACK_PAGE));
 
   const AUDIT_PAGE = 25;
   let auditOffset = 0;

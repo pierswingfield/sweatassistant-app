@@ -3,7 +3,8 @@ import { MASCOT } from './teams-ui.js';
 import { api, apiFetch } from '../api';
 import { loadSpotMapGyms } from './spot-map-loading.js';
 import { mapRemovalWarning } from './spot-map-usage.js';
-import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole, loadGymContext, refreshUserData, updateDebugTerminalVisibility, getIsOffline } from '../main';
+import { renderFeedbackForm } from './feedback.js';
+import { currentUser, showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole, loadGymContext, refreshUserData, updateDebugTerminalVisibility, getIsOffline } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
 import { currentRoute, navigate, pathFor } from '../router.js';
 import { openSpotSetup } from './spot-setup.js';
@@ -1107,7 +1108,7 @@ function setupSettingsNavigation() {
   // were already rewritten to paths at boot (router.migrateLegacyHash).
   const routeSection = currentRoute().section || '';
   let initialSection = 'account';
-  if (['general', 'account', 'gyms', 'about', 'calendar', 'notifications', 'privacy', 'favourites'].includes(routeSection)) initialSection = routeSection;
+  if (['general', 'account', 'gyms', 'about', 'feedback', 'calendar', 'notifications', 'privacy', 'favourites'].includes(routeSection)) initialSection = routeSection;
 
   let currentSection = initialSection;
 
@@ -1140,6 +1141,16 @@ function setupSettingsNavigation() {
     if (sectionId === 'favourites') renderFavouritesPane();
     // T-1: Settings -> Privacy, "Who can see my classes" (live from GET /api/privacy/sharing).
     if (sectionId === 'privacy') import('./teams-privacy.js').then((m) => m.renderPrivacyPane()).catch(() => {});
+    // Send Feedback: rendered once, so a half-written message survives leaving the pane.
+    if (sectionId === 'feedback') {
+      const root = document.getElementById('app-feedback-root');
+      if (root && !root.dataset.rendered) {
+        root.dataset.rendered = 'true';
+        let stored = '';
+        try { stored = localStorage.getItem('appUserEmail') || ''; } catch { /* storage unavailable */ }
+        renderFeedbackForm(root, { accountEmail: currentUser?.email || stored });
+      }
+    }
 
     // On mobile, drill down
     layout.classList.add('show-pane');
@@ -1817,7 +1828,7 @@ function openAccountPasswordModal() {
 // shared cards.js icon set) rather than pasted into index.html so the sidebar uses
 // exactly the same stroke, size and currentColor rules as every other icon in the
 // app. Idempotent; per-gym entries lead with the gym's own mark instead (U1-8).
-const SETTINGS_MENU_ICONS = { general: 'sliders', calendar: 'calendar', notifications: 'bell', privacy: 'shield', favourites: 'heart', account: 'user', gyms: 'link', about: 'info' };
+const SETTINGS_MENU_ICONS = { general: 'sliders', calendar: 'calendar', notifications: 'bell', privacy: 'shield', favourites: 'heart', account: 'user', gyms: 'link', about: 'info', feedback: 'feedback' };
 export function decorateSettingsMenu() {
   document.querySelectorAll('.app-settings-menu > [data-settings-section]').forEach((item) => {
     const name = SETTINGS_MENU_ICONS[item.getAttribute('data-settings-section')];

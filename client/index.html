@@ -13,11 +13,19 @@
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <!-- Status-bar style is captured by iOS when the app is ADDED to the Home Screen. `default` for every
-       install (2026-11-17): black-translucent on a real iOS 26+ device opened the window short/offset (header
-       under the notch, black strip at the bottom). Installs that already captured black-translucent still get
-       html.sa-cover (safe-area.js) so their header clears the status bar; re-adding to Home Screen restores `default`. -->
+  <!-- WIP (branch wip/notch-area): Status-bar style is captured by iOS when the app is ADDED to the Home Screen.
+       iOS 26+ (Safari `Version/NN`) gets black-translucent so the page paints under the status bar (html.sa-cover,
+       safe-area.js); older iOS keeps `default`. On a real iOS 26+ device this REGRESSED (window opened scrolled by
+       the inset, header hidden, black gap) - see Documentation/Workstreams/notch-area-wip.md. Not for master. -->
   <meta name="apple-mobile-web-app-status-bar-style" content="default" id="app-sbs-meta">
+  <script>
+    (function () {
+      try {
+        var m = /Version\/(\d+)/.exec(navigator.userAgent);
+        if (m && parseInt(m[1], 10) >= 26) document.getElementById('app-sbs-meta').setAttribute('content', 'black-translucent');
+      } catch (e) {}
+    })();
+  </script>
   <meta name="apple-mobile-web-app-title" content="__APP_NAME__">
   <!-- Status bar / notch area colour. Two media-query-based tags let iOS
        pick the correct colour at initial render (before JS runs), avoiding

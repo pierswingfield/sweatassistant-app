@@ -529,6 +529,9 @@
               <h3 class="t-page-title" data-copy-text="navigation.settings">Settings</h3>
             </div>
             <nav class="app-settings-menu">
+              <button class="app-settings-menu-item app-settings-menu-feedback" data-settings-section="feedback">
+                <span class="menu-item-text">Send Feedback</span>
+              </button>
               <button class="app-settings-menu-item" data-settings-section="about">
                 <span class="menu-item-text" data-copy-text="static.about">About</span>
               </button>
@@ -573,6 +576,11 @@
             <!-- Scrollable content sections -->
             <div class="app-settings-section-panes">
               
+              <!-- SECTION: SEND FEEDBACK (rendered by ui/feedback.js on first open) -->
+              <div class="app-settings-section-pane" id="app-settings-pane-feedback">
+                <div id="app-feedback-root" class="app-feedback-root"></div>
+              </div>
+
               <!-- SECTION: ABOUT -->
               <div class="app-settings-section-pane" id="app-settings-pane-about">
                 <section class="app-settings-card app-about-tour">

@@ -283,6 +283,28 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_landing_events_ts ON landing_events(ts);
 
+  -- Send Feedback: one row per in-app submission. Written/read ONLY via server/feedback.js.
+  -- email is the OPTIONAL follow-up address the member typed; it never leaves this table
+  -- (the GitHub issue says only whether one was given). Deleted with the account.
+  CREATE TABLE IF NOT EXISTS feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    email TEXT,
+    app_version TEXT,
+    client_build TEXT,
+    platform TEXT,
+    user_agent TEXT,
+    created_at TEXT NOT NULL,
+    github_issue_number INTEGER,
+    github_issue_url TEXT,
+    github_error TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_feedback_user_created ON feedback(user_id, created_at);
+
   -- F-10-0: when each (user, gym) history was last pulled, and how it went.
   CREATE TABLE IF NOT EXISTS class_history_sync (
     user_id INTEGER NOT NULL,

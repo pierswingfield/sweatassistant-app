@@ -2,6 +2,14 @@ import { defineConfig } from 'vite';
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
+import { execSync } from 'child_process';
+
+// Send Feedback records which client build a report came from: the git short sha when the
+// build runs in a checkout, else the build date (the Docker build has no .git).
+function buildId() {
+  const date = new Date().toISOString().slice(0, 10);
+  try { return `${execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()}-${date}`; } catch { return date; }
+}
 
 // C7-2: client/public/sw.js hand-versioned its cache name,
 // so a forgotten bump shipped stale JS forever — the SW's own `activate`
@@ -122,6 +130,7 @@ function templateAppName() {
 
 export default defineConfig({
   plugins: [stampServiceWorker(), overlayLocalGymConfig(), templateAppName()],
+  define: { __APP_BUILD__: JSON.stringify(buildId()) },
   test: {
     environment: 'jsdom',
   },

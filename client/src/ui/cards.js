@@ -48,6 +48,7 @@ export const SVG_PATHS = {
   calendar: '<rect x="2.5" y="3.5" width="11" height="10" rx="2"/><path d="M2.5 7h11M5.5 2v3M10.5 2v3"/>',
   refresh: '<path d="M13 8a5 5 0 1 1-1.6-3.7"/><path d="M13 2.8v2.6h-2.6"/>',
   power: '<path d="M8 2v5.2"/><path d="M4.9 4.4a5 5 0 1 0 6.2 0"/>',
+  feedback: '<path d="M2.5 4.2A1.7 1.7 0 0 1 4.2 2.5h7.6a1.7 1.7 0 0 1 1.7 1.7v5.1a1.7 1.7 0 0 1-1.7 1.7H7l-3 2.5V11h.2a1.7 1.7 0 0 1-1.7-1.7Z"/><path d="M5.5 6h5M5.5 8h3"/>',
   bug: '<path d="M5.5 5.5a2.5 2.5 0 0 1 5 0v3a2.5 2.5 0 0 1-5 0Z"/><path d="M3 6.5h2.5M10.5 6.5H13M3 10h2.5M10.5 10H13M6 3.5l1-1M10 3.5l-1-1"/>',
   // discipline glyphs
   ride: '<circle cx="4.3" cy="11" r="2.5"/><circle cx="11.7" cy="11" r="2.5"/><path d="M4.3 11 7 5.5h2.5l2.2 5.5M7 5.5 6.2 4H4.5"/>',

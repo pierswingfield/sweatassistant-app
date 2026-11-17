@@ -409,6 +409,7 @@ app.use('/api/admin', adminRouter);
 app.use('/api', instructorPhotoRouter);
 app.use('/api', normalizedRouter);
 app.use('/api', teamsRoutes.router); // T-1 Teams
+app.use('/api', require('./feedback').router); // Send Feedback (stored; optional GitHub issue)
 
 // -------------------------------------------------------------
 // BFF AUTHENTICATION

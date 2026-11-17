@@ -394,6 +394,7 @@
 #app-helper-container .app-tab-header h3,
 #app-helper-container .app-settings-sidebar-header h3,
 #app-helper-container .ab-page-title,
+#app-helper-container .app-feedback-title,
 #app-helper-container .app-title-row h2,
 #app-helper-container .app-login-logo h1,
 #app-auth-title,
@@ -13587,6 +13588,106 @@ html.sa-cover .app-onboarding-container, html.sa-cover .app-login-container { he
   .app-hgym-arc, .app-hgym-glow { transition: none; }
   .app-hgym-ring.is-absorb { transform: none; }
   #app-helper-container .app-header.hgym-on, #app-helper-container .app-header.hgym-tall { transition: none; }
+}
+
+/* =========================================================================================
+   SEND FEEDBACK (Settings > Send Feedback; ui/feedback.js). The menu row is accent-tinted so it
+   stands out from its neighbours without competing with the active row; the pane is one card.
+   ========================================================================================= */
+#app-helper-container .app-settings-menu-item.app-settings-menu-feedback { color: var(--accent); font-weight: 600; }
+#app-helper-container .app-settings-menu-item.app-settings-menu-feedback .menu-item-lead {
+  border-radius: var(--radius-sm); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent);
+}
+#app-helper-container .app-settings-menu-item.app-settings-menu-feedback:hover { color: var(--accent-hover); background: color-mix(in srgb, var(--accent) 6%, transparent); }
+#app-helper-container .app-settings-menu-item.app-settings-menu-feedback.active { color: var(--nav-active); background: var(--nav-active-bg); }
+@media (max-width: 900px) {
+  #app-helper-container .app-settings-menu-item.app-settings-menu-feedback,
+  #app-helper-container .app-settings-menu-item.app-settings-menu-feedback.active {
+    background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  }
+  #app-helper-container .app-settings-menu-item.app-settings-menu-feedback::after { color: var(--accent); }
+}
+
+#app-helper-container .app-feedback-root { max-width: 680px; }
+#app-helper-container .app-settings-card.app-feedback-card {
+  padding: var(--space-6); border-radius: var(--radius-card); background: var(--surface);
+  border: 1px solid var(--border); box-shadow: var(--shadow-card); overflow: hidden;
+}
+#app-helper-container .app-feedback-hero {
+  margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-6)) var(--space-5); padding: var(--space-6) var(--space-6) var(--space-5);
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, var(--surface)), var(--surface));
+}
+#app-helper-container .app-feedback-badge {
+  display: inline-flex; align-items: center; height: 22px; padding: 0 10px; margin-bottom: var(--space-3);
+  border-radius: var(--radius-pill); font-size: var(--text-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+}
+#app-helper-container .app-settings-card .app-feedback-title { margin: 0; font-size: var(--text-2xl); color: var(--text); text-wrap: balance; }
+#app-helper-container .app-feedback-sub { margin: var(--space-2) 0 0; font-size: var(--text-base); line-height: 1.5; color: var(--text-secondary); }
+#app-helper-container .app-feedback-form { display: flex; flex-direction: column; gap: var(--space-5); }
+#app-helper-container .app-feedback-field { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; margin: 0; padding: 0; border: 0; }
+#app-helper-container .app-feedback-label { padding: 0; font-size: var(--text-sm); font-weight: 600; color: var(--text); }
+#app-helper-container .app-feedback-req { color: var(--accent); }
+#app-helper-container .app-feedback-optional { margin-left: 6px; font-weight: 500; font-size: var(--text-xs); color: var(--text-tertiary); }
+#app-helper-container .app-feedback-types { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+#app-helper-container .app-feedback-type { position: relative; display: block; cursor: pointer; min-width: 0; }
+#app-helper-container .app-feedback-type input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+#app-helper-container .app-feedback-type-body {
+  display: flex; align-items: center; gap: var(--space-2); min-height: 48px; padding: 10px 12px; box-sizing: border-box;
+  border-radius: var(--radius-control); border: 1px solid var(--border); background: var(--surface-inset);
+  font-size: var(--text-sm); font-weight: 600; color: var(--text-secondary);
+  transition: border-color var(--dur-base) var(--ease-out), background var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out);
+}
+#app-helper-container .app-feedback-type-ico {
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 30px; height: 30px;
+  border-radius: var(--radius-sm); background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text-secondary);
+}
+#app-helper-container .app-feedback-type-label { min-width: 0; line-height: 1.25; }
+#app-helper-container .app-feedback-type:hover .app-feedback-type-body { border-color: var(--border-strong); color: var(--text); }
+#app-helper-container .app-feedback-type input:checked + .app-feedback-type-body {
+  border-color: var(--accent); color: var(--text); background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+#app-helper-container .app-feedback-type input:checked + .app-feedback-type-body .app-feedback-type-ico { background: var(--accent-fill); color: var(--on-accent-fill); }
+#app-helper-container .app-feedback-type input:focus-visible + .app-feedback-type-body { outline: 2px solid var(--accent); outline-offset: 2px; }
+#app-helper-container .app-feedback-input {
+  width: 100%; min-width: 0; box-sizing: border-box; padding: 12px 14px; border-radius: var(--radius-control);
+  background: var(--surface-inset); border: 1px solid var(--border); color: var(--text); font: inherit; font-size: var(--text-base); outline: none;
+  transition: border-color var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
+}
+#app-helper-container .app-feedback-input::placeholder { color: var(--text-tertiary); }
+#app-helper-container .app-feedback-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+#app-helper-container .app-feedback-textarea { min-height: 140px; resize: vertical; line-height: 1.5; }
+#app-helper-container .app-feedback-meta { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+#app-helper-container .app-feedback-count { flex: 0 0 auto; margin-left: auto; font-size: var(--text-xs); color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+#app-helper-container .app-feedback-count.is-near { color: var(--warning); }
+#app-helper-container .app-feedback-error { margin: 0; font-size: var(--text-xs); font-weight: 600; color: var(--danger); }
+#app-helper-container .app-feedback-error:empty { display: none; }
+#app-helper-container .app-feedback-field.has-error .app-feedback-input,
+#app-helper-container .app-feedback-field.has-error .app-feedback-type-body { border-color: var(--danger); }
+#app-helper-container .app-feedback-followup { display: flex; flex-direction: column; gap: var(--space-3); padding-top: var(--space-5); border-top: 1px solid var(--border); }
+#app-helper-container .app-settings-card .app-feedback-section { margin: 0; font-family: var(--font-sans); font-size: var(--text-md); font-weight: 600; color: var(--text); }
+#app-helper-container .app-feedback-form-error {
+  margin: 0; padding: 10px 12px; border-radius: var(--radius-control); font-size: var(--text-sm); color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 9%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent);
+}
+#app-helper-container .app-feedback-submit { min-height: 48px; font-size: var(--text-md); }
+#app-helper-container .app-settings-card.app-feedback-thanks { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--space-2); padding: var(--space-8) var(--space-6); outline: none; }
+#app-helper-container .app-feedback-thanks-ico {
+  display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px; margin-bottom: var(--space-2);
+  border-radius: var(--radius-pill); color: var(--success); background: color-mix(in srgb, var(--success) 14%, transparent);
+  animation: app-feedback-pop 420ms var(--ease-spring, cubic-bezier(.34,1.56,.64,1)) both;
+}
+#app-helper-container .app-feedback-thanks .app-feedback-sub { max-width: 36ch; }
+#app-helper-container .app-feedback-again { margin-top: var(--space-4); min-height: 44px; padding: 0 var(--space-5); }
+@keyframes app-feedback-pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #app-helper-container .app-feedback-thanks-ico { animation: none; } }
+@media (max-width: 768px) {
+  #app-helper-container .app-settings-card.app-feedback-card { padding: var(--space-5) var(--space-4); }
+  #app-helper-container .app-feedback-hero { margin: calc(-1 * var(--space-5)) calc(-1 * var(--space-4)) var(--space-5); padding: var(--space-5) var(--space-4); }
+  #app-helper-container .app-settings-card .app-feedback-title { font-size: var(--text-xl); }
+  #app-helper-container .app-feedback-input { font-size: 16px; }
 }
 
 /* =========================================================================================

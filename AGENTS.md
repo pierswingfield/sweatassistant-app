@@ -42,7 +42,7 @@ App/
 ├── server/                  # Express.js backend
 │   ├── server.js            # Main server — routes, proxy, cart/checkout, SSE, rate limiters
 │   ├── auth.js              # CodexFit login, JWT issuance, auto-relogin on 401
-│   ├── db.js                # SQLite schema + CRUD (better-sqlite3, 28 tables)
+│   ├── db.js                # SQLite schema + CRUD (better-sqlite3, 29 tables)
 │   ├── crypto.js            # AES-256-GCM encrypt/decrypt for credentials (env key required)
 │   ├── scheduler.js         # Auto-book precision scheduler — queue-driven wake clock
 │   │                        #   (WP-I), priority tiers, SSE
@@ -72,6 +72,7 @@ App/
 │   ├── class-history.js     # ★ H-0 class-history store + sync (the ONLY reader/writer of class_history)
 │   ├── teams.js             # ★ T-1 Teams membership core: the ONLY reader/writer of teams/team_members/team_join_requests (roles, invite tokens stored hashed, requests, limits, last-Captain guard)
 │   ├── team-sharing.js      # T-1 per-Team share schema + D3 defaults; a MISSING key resolves to PRIVATE (opposite of capability flags)
+│   ├── feedback.js          # Send Feedback: ONLY reader/writer of `feedback`; POST /api/feedback (5/hour/account, DB-counted), optional GitHub issue with NO email/user id, admin list
 │   ├── teams-routes.js      # T-1 /api/teams/* + /api/privacy/sharing router and the invite rate limiters (per IP + per account)
 │   ├── landing-events.js    # M step 3: ONLY reader/writer of landing_events + public /_a/pv, /_a/go routes (cookieless, daily-hash visitors)
 │   ├── schedule-cache.js    # ★ Shared user-agnostic provider cache (SWR + single-flight)
@@ -284,7 +285,7 @@ The background services (auto-book scheduler, auto-upgrade poller, calendar feed
 | **Waitlists** | ✅ Functional | Join from timetable, leave from bookings, double-click confirm |
 | **Bookmarks** | ✅ Functional | Native CodexFit bookmarks, "favourites only" filter |
 | **Buy Credits** | ✅ Functional | Bundle cards, 8 filters, two-click cart → in-app Stripe checkout (website fallback for 3DS) |
-| **Settings** | ✅ Functional | General / Notifications / Account / Your Gyms / About, plus **one sidebar entry per linked gym**. Your Gyms is a connection table (health + last authenticated). No drawer, no gym switcher. |
+| **Settings** | ✅ Functional | Send Feedback (accent row, form -> POST /api/feedback) / General / Notifications / Account / Your Gyms / About, plus **one sidebar entry per linked gym**. Your Gyms is a connection table (health + last authenticated). No drawer, no gym switcher. |
 | **Debug Mode** | ✅ Functional | Per-class debug modal, debug log terminal, simulate release |
 | **Push Notifications** | ✅ Functional | VAPID, 5 types, per-user prefs, auto-generated keys, click deep-linking, open-app auto-refresh |
 | **Config Export/Import**| ✅ Functional | JSON configuration backup and restore |
@@ -486,10 +487,14 @@ DELETE /api/teams/:id/me            # Leave (last Captain leaving promotes the l
 PUT    /api/teams/:id/members/:memberRef  # Captain: { captain } (LAST_CAPTAIN guard)
 DELETE /api/teams/:id/members/:memberRef  # Captain: remove
 GET    /api/privacy/sharing         # "Who can see my classes": every Team, its share + pause, my pending requests
+
+# Send Feedback (server/feedback.js; UI: Settings > Send Feedback, client/src/ui/feedback.js)
+POST   /api/feedback                # { type: bug|gym|feature|general, title<=120, message<=5000, email?, build? } -> 201 { id }; 400 INVALID_FEEDBACK { errors }; 429 FEEDBACK_RATE_LIMITED (5/hour/account). Always stored; a GitHub issue is ALSO filed when GITHUB_FEEDBACK_TOKEN + GITHUB_FEEDBACK_REPO are set (title "[<Type>]: <title>", labels bug|gym-request|enhancement|question + feedback; body sections ### Type / Title / Message / Follow-up / Context, member text passed through `neutralise()` so @mentions, #123/GH-123 refs, headings, rules, fences and HTML cannot ping, link, close or break anything; template mirrored in `.github/ISSUE_TEMPLATE/feedback.md`). The issue NEVER carries the follow-up email, account email, user id or raw user agent (only "Email provided: yes/no (see admin feedback `#id`)" and an OS/browser summary); a GitHub failure/timeout (8 s) never fails the submission
+GET    /api/admin/feedback          # Admin: submissions newest first, incl. follow-up email (?limit<=500&offset)
 GET    /t/:token                    # (production) SPA shell with GENERIC Open Graph tags + Referrer-Policy: no-referrer
 ```
 
-## SQLite Schema (28 tables)
+## SQLite Schema (29 tables)
 
 | Table | Purpose | Key columns |
 |-------|---------|-------------|
@@ -516,6 +521,7 @@ GET    /t/:token                    # (production) SPA shell with GENERIC Open G
 | `teams` | T-1 Teams. Random text id; only `server/teams.js` reads/writes | `invite_token_hash` (SHA-256 of the 128-bit link token; the raw token is never stored), `invite_enabled`, `name`, `emoji`, `competition_enabled`, `created_by` (FK SET NULL) |
 | `team_members` | T-1 one row per (Team, account) | `member_ref` (per-Team opaque handle; the only member id in payloads), `is_captain`, `colour_index` (unique per Team, palette 16), `share_json` (`team-sharing.js`), `paused_until`, `joined_at`; `UNIQUE(team_id, user_id)`, cascades from `teams` and `users` |
 | `team_join_requests` | T-1 join requests | `status` (pending/approved/declined/withdrawn/expired), `blocked` (stored as declined), `share_json` (consent, applied on approval), `created_at`, `decided_by`, `decided_at`; 7-day decline cooldown, 14-day expiry |
+| `feedback` | Send Feedback submissions. Written/read ONLY via `server/feedback.js`; cascades on account delete | `user_id`, `type`, `title`, `message`, `email` (optional follow-up, admin-only, never sent to GitHub), `app_version`, `client_build`, `platform`, `user_agent`, `created_at`, `github_issue_number`/`github_issue_url`/`github_error` |
 | `server_kv` | Key-value store | `jwt_secret`, `vapid_public_key`, `vapid_private_key`, `locations_json`, `studio_name_map` |
 
 ## Client-Side Storage Schema (PWA)
@@ -553,5 +559,7 @@ IndexedDB database `app-cache` (v3) has two stores: `cache` (raw timetable event
 | `METRICS_TOKEN` | `server.js` | Bearer token for `GET /metrics` (Prometheus text). Alternative: a valid admin session JWT. If neither this nor `ADMIN_PASSWORD` is set, `/metrics` returns 503; it is never unauthenticated. |
 | `ADMIN_PASSWORD` | `admin.js` | Password for admin panel login. If absent, all `/api/admin/*` routes return 503. |
 | `APP_NAME` | `server/config.js` → all server modules + client via `/api/config` | App display name (default `Dibs`, renamed from Sweat Assistant 2026-10-24; host .env files set `Dibs Dev` / `Dibs Experiment`, defined ONLY in `config.js`). `index.html`, `manifest.json`, `sw.js` and `admin.html` carry the placeholder `__APP_NAME__`, templated per request (`server.js sendTemplated`; the `template-app-name` Vite plugin in dev). Never hardcode the name; `test-no-hardcoded-app-name.js` enforces it. |
+| `GITHUB_FEEDBACK_TOKEN` | `server/feedback.js` | Optional. Fine-grained PAT for ONE repo with Issues: read/write only. With `GITHUB_FEEDBACK_REPO`, each Send Feedback submission is also filed as an issue. Never logged. |
+| `GITHUB_FEEDBACK_REPO` | `server/feedback.js` | Optional. `owner/name` of the repo that receives feedback issues. Unset (either var) = DB only. |
 | `PUBLIC_HOST` | `server/config.js` → `calendar.js`, client via `/api/config` | Public domain for calendar feed URLs, UIDs and the CORS allowlist. **Required when `NODE_ENV=production`** (startup error otherwise); dev falls back to `localhost`. See `.env.example`. |
 | `CORS_ORIGINS` | `server/config.js` → `server.js` | Comma-separated browser-origin allowlist for CORS. Defaults to `https://$PUBLIC_HOST` + `http://$PUBLIC_HOST`. |

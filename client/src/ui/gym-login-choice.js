@@ -11,3 +11,13 @@ export function bindGymLoginChoice(container) {
   const notice = container.querySelector('[data-gym-login-notice]');
   if (checkbox && notice) checkbox.addEventListener('change', () => { notice.innerHTML = checkbox.checked ? rememberedNotice : sessionNotice; });
 }
+
+// A gym is picked but not connected yet: the footer Continue must not read like the "Connect" button
+// above it. Low emphasis (quiet outline + fade) but still a real, focusable, enabled button.
+export function setContinuePending(button, pending, { label, pendingLabel }) {
+  if (!button) return;
+  const span = button.querySelector('span') || button;
+  span.textContent = pending ? pendingLabel : label;
+  if (pending) { button.dataset.quiet = '1'; button.classList.add('is-pending-connect'); }
+  else { delete button.dataset.quiet; button.classList.remove('is-pending-connect'); }
+}

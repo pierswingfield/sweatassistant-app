@@ -116,6 +116,7 @@ export const COPY = Object.freeze({
     saveAndContinue: 'Save and continue',
     connectAnotherLower: 'Connect another gym',
     continue: 'Continue',
+    continueWithoutConnecting: 'Continue without connecting',
     setupLater: 'Set up later',
     connecting: 'Connecting…',
     connectionFailed: 'Connection failed',

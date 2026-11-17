@@ -11406,6 +11406,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   background: transparent; color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 .app-onb-footer .app-btn-mini { color: var(--text-secondary); }
+.app-onb-continue.is-pending-connect { opacity: 0.72; }
 .app-onb-top + .app-onb-sheet.app-onb-intro { justify-content: flex-start; }
 
 /* ---- hero medallion (the illustration): fixed aspect, never squashed ---- */

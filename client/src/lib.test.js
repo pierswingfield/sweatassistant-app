@@ -14,9 +14,8 @@ import { describe, it, expect } from 'vitest';
 import { DateTime } from 'luxon';
 import {
   getClassReleaseTime,
-  getBookingOffset,
-  detectBookingWindow,
-  clampOffsetDays,
+  isReleaseOpen,
+  soonestFutureRelease,
   formatCountdown,
   isFullWithoutWaitlist,
   formatFullDate,
@@ -51,25 +50,11 @@ describe('getClassReleaseTime — which world a class lives in', () => {
     expect(b.toMillis() - a.toMillis()).toBe(30 * 60 * 1000);
   });
 
-  it('falls back to the weekly model only for a gym positively known as rolling-weekly', () => {
+  it('resolves NO release (null) when the server stamped none, never a computed instant', () => {
+    // Even for a gym known as rolling-weekly: the client holds no policy.
     setLinkedGyms([{ gym_id: 'any-weekly-gym', capabilities: { bookingWindow: 'rolling-weekly' } }]);
-    const at = getClassReleaseTime({ start_at: '2026-09-15T19:30:00', gymId: 'any-weekly-gym' }, { detectedBookingOffset: 15 });
-    expect(at.setZone(LDN).weekday).toBe(1); // Monday
-    expect(at.setZone(LDN).hour).toBe(12);
-    const row = getClassReleaseTime({ start_at: '2026-09-15T19:30:00', gym_id: 'any-weekly-gym' }, { detectedBookingOffset: 15 });
-    expect(row).not.toBeNull();
-  });
-
-  it('resolves NO release (null) for unknown, per-class or continuous gyms, never a Psycle instant', () => {
-    setLinkedGyms([
-      { gym_id: 'pc', capabilities: { bookingWindow: 'per-class' } },
-      { gym_id: 'nocap' },
-    ]);
-    const start = { start_at: '2026-09-15T19:30:00' };
-    expect(getClassReleaseTime(start, { detectedBookingOffset: 15 })).toBeNull(); // no gym
-    expect(getClassReleaseTime({ ...start, gymId: 'pc' })).toBeNull();
-    expect(getClassReleaseTime({ ...start, gymId: 'nocap' })).toBeNull();
-    expect(getClassReleaseTime({ ...start, gymId: 'unlinked' })).toBeNull();
+    expect(getClassReleaseTime({ start_at: '2026-09-15T19:30:00', gymId: 'any-weekly-gym' })).toBeNull();
+    expect(getClassReleaseTime({ startAt: '2026-09-15T19:30:00+01:00', releaseAt: null })).toBeNull();
     expect(getClassReleaseTime('2026-09-15T19:30:00')).toBeNull();
     setLinkedGyms([]);
   });
@@ -82,72 +67,32 @@ describe('getClassReleaseTime — which world a class lives in', () => {
   });
 });
 
-describe('getBookingOffset — the window ends on a Tuesday', () => {
-  it('defaults to 15 days, so releaseMonday + offset is a Tuesday', () => {
-    // Booking for any given Tuesday opens on the Monday. A 14 here would hold
-    // Tuesday classes back a whole extra week for standard-tier members.
-    expect(getBookingOffset({})).toBe(15);
-    const monday = DateTime.fromISO('2026-09-14T12:00:00', { zone: LDN });
-    expect(monday.weekday).toBe(1);
-    expect(monday.plus({ days: getBookingOffset({}) }).weekday).toBe(2);
+describe('isReleaseOpen / soonestFutureRelease', () => {
+  const NOW = Date.parse('2026-09-10T12:00:00Z');
+  const past = { releaseAt: '2026-09-10T11:00:00Z' };
+  const future = { releaseAt: '2026-09-11T11:00:00Z' };
+  const later = { release_at: '2026-09-18T11:00:00Z' };
+
+  it('is open only for a past release', () => {
+    expect(isReleaseOpen(past, NOW)).toBe(true);
+    expect(isReleaseOpen(future, NOW)).toBe(false);
   });
 
-  it('uses a detected offset verbatim — no whole-week snapping', () => {
-    // Membership tiers extend by DAYS. Snapping 16/17 to 15 truncated two tiers
-    // and over-ran the standard one, in both directions.
-    for (const days of [15, 16, 17, 18, 22, 23]) {
-      expect(getBookingOffset({ detectedBookingOffset: days })).toBe(days);
-    }
+  it('treats a missing release as NOT open (unknown, never "open now")', () => {
+    expect(isReleaseOpen({}, NOW)).toBe(false);
+    expect(isReleaseOpen({ releaseAt: null }, NOW)).toBe(false);
+    expect(isReleaseOpen(null, NOW)).toBe(false);
   });
 
-  it('clamps an absurd stored offset rather than trusting it', () => {
-    expect(getBookingOffset({ detectedBookingOffset: 9999 })).toBe(35);
-    expect(clampOffsetDays(-5)).toBe(1);
+  it('an always-bookable class is open without a release', () => {
+    expect(isReleaseOpen({ alwaysBookable: true }, NOW)).toBe(true);
   });
 
-  it('lets a debug day-override win over detection', () => {
-    expect(getBookingOffset({ debugMode: true, manualBookingWindowDays: 17, detectedBookingOffset: 22 })).toBe(17);
-  });
-
-  it('ignores a debug override when debug mode is off', () => {
-    expect(getBookingOffset({ manualBookingWindowDays: 17, detectedBookingOffset: 22 })).toBe(22);
-  });
-});
-
-describe('detectBookingWindow — reads the cutoff, adjusts nothing', () => {
-  const release = DateTime.now().setZone(LDN).set({ weekday: 1, hour: 12, minute: 0, second: 0, millisecond: 0 });
-  const recentRelease = release > DateTime.now().setZone(LDN) ? release.minus({ weeks: 1 }) : release;
-
-  it('passes a day-granular tier through unsnapped', () => {
-    const w = detectBookingWindow({ booking_cutoff: recentRelease.plus({ days: 17 }).toISO() }, []);
-    expect(w.offsetDays).toBe(17);
-    expect(w.source).toBe('standard');
-  });
-
-  it('prefers the extended cutoff when extended booking is allowed', () => {
-    const w = detectBookingWindow({
-      booking_cutoff: recentRelease.plus({ days: 15 }).toISO(),
-      extended_cutoff: recentRelease.plus({ days: 23 }).toISO(),
-      metafields: { extended_booking_allowed: true },
-    }, []);
-    expect(w.offsetDays).toBe(23);
-    expect(w.extendedAllowed).toBe(true);
-  });
-
-  it('ignores credits entirely — that logic is gone from the core', () => {
-    // Psycle no longer issues Advanced Booking credits, and while it did, the
-    // "15-day floor" was Psycle's promotion wearing a platform-neutral shape.
-    const cutoff = recentRelease.plus({ days: 15 }).toISO();
-    const withCredits = detectBookingWindow({ booking_cutoff: cutoff }, [{ credit_type_id: 8, count: 3 }]);
-    const without = detectBookingWindow({ booking_cutoff: cutoff }, []);
-    expect(withCredits).toEqual(without);
-    expect(withCredits.source).not.toBe('credits');
-  });
-
-  it('returns null rather than guessing when the profile has no cutoff', () => {
-    expect(detectBookingWindow(null, [])).toBeNull();
-    expect(detectBookingWindow({}, [])).toBeNull();
-    expect(detectBookingWindow({ booking_cutoff: 'nonsense' }, [])).toBeNull();
+  it('soonestFutureRelease picks the nearest future instant and skips past and unknown', () => {
+    expect(soonestFutureRelease([later, {}, past, future], NOW).toUTC().toISO()).toBe('2026-09-11T11:00:00.000Z');
+    expect(soonestFutureRelease([past, {}], NOW)).toBeNull();
+    expect(soonestFutureRelease([], NOW)).toBeNull();
+    expect(soonestFutureRelease(null, NOW)).toBeNull();
   });
 });
 

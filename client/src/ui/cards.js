@@ -528,6 +528,44 @@ export function wireRailToggle(container) {
     });
     card._closeRail = () => apply(false);
     footer.appendChild(btn);
-    apply(openRailKey === railKey);
+    const restoreOpen = openRailKey === railKey;
+    // A re-rendered card that was open must come back already open, not
+    // animate 0 -> open again (the choppy replay on every gym's arrival).
+    if (restoreOpen) card.classList.add('is-rail-restoring');
+    apply(restoreOpen);
+    if (restoreOpen) {
+      void rail.offsetWidth; // commit the open state with transitions off
+      requestAnimationFrame(() => card.classList.remove('is-rail-restoring'));
+    }
+  });
+}
+
+/**
+ * Keyed list patching for card lists. Re-renders (each gym's data landing,
+ * pull-to-refresh) used to wipe the container and rebuild every card, which
+ * destroyed the open edit rail and restarted its width transition. A freshly
+ * built card whose markup matches the card already on screen for the same
+ * key is discarded and the live node is kept (untouched, so any running
+ * transition finishes); only new or changed cards are inserted. Call BEFORE
+ * wireRailToggle (the toggle button is added after the signature is taken).
+ */
+export function reconcileCards(container, cards) {
+  const key = (c) => `${c.dataset.gym || ''}:${c.classList.contains('is-waitlist') ? 'w' : 'b'}:${c.dataset.eventId || ''}:${c.querySelector('[data-id]')?.dataset.id || ''}`;
+  const live = new Map();
+  Array.from(container.children).forEach((c) => {
+    if (c.classList?.contains('ab-card') && c._cardSig !== undefined) live.set(c._cardKey, c);
+  });
+  const next = cards.map((c) => {
+    const k = key(c);
+    const sig = c.innerHTML + '|' + c.className;
+    const old = live.get(k);
+    if (old && old._cardSig === sig) { live.delete(k); return old; }
+    c._cardKey = k; c._cardSig = sig;
+    return c;
+  });
+  const keep = new Set(next);
+  Array.from(container.children).forEach((c) => { if (!keep.has(c)) c.remove(); });
+  next.forEach((node, i) => {
+    if (container.children[i] !== node) container.insertBefore(node, container.children[i] || null);
   });
 }

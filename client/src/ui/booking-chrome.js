@@ -163,8 +163,7 @@ function applyGuards(modal, gymId) {
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'app-btn app-bk-notice-action'; b.textContent = COPY.bookingFlow.reconnectAction;
       b.onclick = async () => {
-        history.back();
-        const s = await import('./settings.js');
+        const s = await import('./settings.js'); // the route change below closes this booking page itself
         window.switchTab?.('settings');
         s.openGymSettings?.(gymId);
       };

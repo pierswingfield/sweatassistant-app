@@ -24,6 +24,7 @@ import { goTeams } from './teams.js';
 import { openEditTeamPage } from './teams-edit.js';
 import { devicePushReady } from './device-push.js';
 import { validateWeeklyGoal, GOAL_MAX } from './teams-stats-model.js';
+import { asyncHandler, okResult, failResult } from './async-button.js';
 
 const PAUSE_LABEL = { '24h': 'pause24h', '7d': 'pause7d', indefinite: 'pauseIndefinite' };
 
@@ -215,7 +216,8 @@ export function renderMembers(host, ctx, refresh, { full = false } = {}) {
       </div>` : ''}</div>`;
   host.innerHTML = `
     <h2 class="tm-group-title">${escapeHtml(T.members)} <span class="tm-muted tm-sm tm-sans">${escapeHtml(fmt(T.membersCount, { count: members.length }))}</span></h2>
-    <div class="tm-list">${members.map(row).join('')}</div>`;
+    <div class="tm-list">${members.map(row).join('')}${captain ? `<button type="button" class="tm-li tm-li-link tm-invite-row" data-invite-members>${ICONS.share}<span class="tm-grow">${escapeHtml(T.inviteMembers)}</span></button>` : ''}</div>`;
+  host.querySelector('[data-invite-members]')?.addEventListener('click', asyncHandler(() => shareInvite(detail.team)));
   host.querySelectorAll('[data-member]').forEach((el) => {
     const m = members.find((x) => x.memberRef === el.getAttribute('data-member'));
     el.querySelector('[data-captain]')?.addEventListener('click', async (e) => {
@@ -311,7 +313,7 @@ export function openGoalPage(team, { onSaved = null } = {}) {
   const input = page.body.querySelector('input');
   const errEl = page.body.querySelector('.tm-field-error');
   input.value = team.weeklyGoal ? String(team.weeklyGoal) : '';
-  const fail = (msg, btn) => { if (btn) btn.disabled = false; errEl.textContent = msg; errEl.hidden = false; };
+  const fail = (msg, btn) => { if (btn) btn.disabled = false; errEl.textContent = msg; errEl.hidden = false; return failResult(msg); };
   const save = async (btn, weeklyGoal) => {
     if (btn) btn.disabled = true;
     try {
@@ -319,7 +321,8 @@ export function openGoalPage(team, { onSaved = null } = {}) {
       showToast(weeklyGoal == null ? T.goalCleared : T.saved, 'success');
       page.close();
       onSaved?.();
-    } catch (err) { fail(errorText(err), btn); }
+      return okResult();
+    } catch (err) { return fail(errorText(err), btn); }
   };
   const submit = (btn) => {
     const v = validateWeeklyGoal(input.value);

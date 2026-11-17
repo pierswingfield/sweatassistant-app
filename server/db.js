@@ -310,6 +310,21 @@ db.exec(`
     PRIMARY KEY (user_id, gym_id)
   );
 
+  -- Studio-cancelled bookings the member pressed "Remove" on. Pure display state: the
+  -- gym is never asked (a cancelled reservation cannot be cancelled again). booking_id is a
+  -- PROVIDER id, unique only inside a gym, hence gym_id NOT NULL with no default (WP-D6).
+  -- The hide is applied only while the provider still reports the booking cancelled; a row
+  -- for a booking that reads as live again is deleted on the next list (un-cancel reappears).
+  CREATE TABLE IF NOT EXISTS dismissed_cancelled_bookings (
+    user_id INTEGER NOT NULL,
+    gym_id TEXT NOT NULL,
+    booking_id TEXT NOT NULL,
+    dismissed_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (gym_id) REFERENCES gyms(id),
+    PRIMARY KEY (user_id, gym_id, booking_id)
+  );
+
   -- F-12: gym-neutral FAVOURITES for gyms with no native bookmarks. A favourite is a
   -- recurring slot (studio + weekday + start time in the class's zone), the same shape as
   -- CodexFit's native bookmark key so one API serves both. studio_id is a PROVIDER id,
@@ -620,6 +635,21 @@ function migrateSessionEncryption() {
 }
 migrateSessionEncryption();
 
+// Duplicate rows for one endpoint (written before addPushSubscription was an upsert)
+// each cost an extra push. Keep the newest row per endpoint.
+function dedupePushSubscriptions() {
+  try {
+    const seen = new Set(); let removed = 0;
+    for (const r of db.prepare('SELECT id, subscription FROM push_subscriptions ORDER BY id DESC').all()) {
+      let ep; try { ep = JSON.parse(r.subscription).endpoint; } catch (_) { continue; }
+      if (!ep) continue;
+      if (seen.has(ep)) { db.prepare('DELETE FROM push_subscriptions WHERE id = ?').run(r.id); removed++; } else seen.add(ep);
+    }
+    return removed;
+  } catch (_) { return 0; }
+}
+dedupePushSubscriptions();
+
 // Existing account links predate the per-account gym visibility switch.
 // Preserve their existing behavior when upgrading an established database.
 if (!db.prepare('PRAGMA table_info(user_gyms)').all().some((col) => col.name === 'account_enabled')) {
@@ -868,6 +898,7 @@ const ACCOUNT_SCOPED_SETTING_KEYS = new Set([
   'debugMode',            // app-level developer toggle
   'prefetchWeeks',
   'theme',
+  'headerGyms',           // how the app header shows gym chips: 'auto' | 'always' | 'never' (a display preference of the person)
   // `calendar` moved here on 2026-09-14. It WAS gym-scoped because the feed
   // token lived on user_gyms, which made the feed per-gym — one .ics URL per
   // gym, each showing a third of your week. A person has one calendar; they
@@ -1172,6 +1203,7 @@ module.exports = {
   // Direct access if needed
   db,
   migrateSessionEncryption, // boot migration, exported for its test
+  dedupePushSubscriptions,
   sessionAad,
   migrateAutoUpgradeSettingsScope,
   migrateCalendarSettingsToAccountScope,
@@ -1760,6 +1792,24 @@ module.exports = {
       .run(userId, g, String(slot.studioId), slot.dayOfWeek, slot.startTime).changes > 0;
   },
 
+  // Dismissed studio-cancelled bookings (display-only hide; see the table comment).
+  dismissCancelledBookings(userId, gymId, bookingIds) {
+    const g = resolveGymStrict(userId, gymId, 'dismissCancelledBookings');
+    const ins = db.prepare('INSERT OR IGNORE INTO dismissed_cancelled_bookings (user_id, gym_id, booking_id) VALUES (?, ?, ?)');
+    db.transaction(() => { for (const id of bookingIds) ins.run(userId, g, String(id)); })();
+    return bookingIds.length;
+  },
+  getDismissedCancelledBookingIds(userId, gymId = null) {
+    const g = resolveGymStrict(userId, gymId, 'getDismissedCancelledBookingIds');
+    return new Set(db.prepare('SELECT booking_id FROM dismissed_cancelled_bookings WHERE user_id = ? AND gym_id = ?')
+      .all(userId, g).map((r) => r.booking_id));
+  },
+  undismissBookings(userId, gymId, bookingIds) {
+    const g = resolveGymStrict(userId, gymId, 'undismissBookings');
+    const del = db.prepare('DELETE FROM dismissed_cancelled_bookings WHERE user_id = ? AND gym_id = ? AND booking_id = ?');
+    db.transaction(() => { for (const id of bookingIds) del.run(userId, g, String(id)); })();
+  },
+
   // Studio Preferences
   // studio_id is a PROVIDER id, so these MUST be gym-scoped: Psycle studio 138
   // and a JAB studio 138 are different rooms with different floor plans, and an
@@ -2235,9 +2285,28 @@ module.exports = {
     })();
   },
 
+  // Idempotent per device: one row per endpoint. A repeat subscribe for the same
+  // endpoint refreshes the stored keys instead of adding a row (each extra row was
+  // one extra push per notification). An endpoint belongs to one browser profile,
+  // so a row for it under another account is a stale one and is dropped.
+  // Returns { created } so the caller can send exactly one confirmation.
   addPushSubscription(userId, subscription) {
-    db.prepare('INSERT INTO push_subscriptions (user_id, subscription) VALUES (?, ?)')
-      .run(userId, JSON.stringify(subscription));
+    const endpoint = subscription && subscription.endpoint;
+    const json = JSON.stringify(subscription);
+    return db.transaction(() => {
+      if (typeof endpoint === 'string' && endpoint) {
+        const same = db.prepare('SELECT id, user_id, subscription FROM push_subscriptions').all()
+          .filter((r) => { try { return JSON.parse(r.subscription).endpoint === endpoint; } catch (_) { return false; } });
+        const mine = same.find((r) => r.user_id === userId);
+        for (const r of same) if (!mine || r.id !== mine.id) db.prepare('DELETE FROM push_subscriptions WHERE id = ?').run(r.id);
+        if (mine) {
+          db.prepare('UPDATE push_subscriptions SET subscription = ? WHERE id = ?').run(json, mine.id);
+          return { created: false };
+        }
+      }
+      db.prepare('INSERT INTO push_subscriptions (user_id, subscription) VALUES (?, ?)').run(userId, json);
+      return { created: true };
+    })();
   },
   deletePushSubscription(userId, endpoint) {
     // We need to parse JSON subscriptions to compare endpoints, or just match endpoints in subscription string
@@ -2668,7 +2737,8 @@ module.exports = {
     const tx = db.transaction(() => {
       for (const table of ['auto_bookings', 'auto_upgrades', 'studio_preferences', 'settings',
                            'booking_cache', 'waitlist_cache', 'calendar_classes', 'guest_booking_groups',
-                           'class_history', 'class_history_sync', 'favourites', 'booking_sync_state']) {
+                           'class_history', 'class_history_sync', 'favourites', 'booking_sync_state',
+                           'dismissed_cancelled_bookings']) {
         try { db.prepare(`DELETE FROM ${table} WHERE user_id = ? AND gym_id = ?`).run(userId, gymId); }
         catch (_) { /* table may predate its gym_id column on an old DB — skip */ }
       }

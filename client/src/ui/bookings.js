@@ -3,7 +3,7 @@ import { canForGym, getGymShortName, getDefaultGymId, formatSpotLabel } from '..
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, refreshUserData, updateCreditBadge, userSettings, gymSetting } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
-import { instructorInlineHtml, instructorNameLengthClass, icon, disciplineTag, trimLocation, seatNoun, stripClassNamePrefix, trendingUpIcon, pulseIcon, renderGymRail, equalizeDiscTagWidths, observeLocationWrap, wireRailToggle, shortSlotLabels, escapeHtml} from './cards';
+import { instructorInlineHtml, instructorNameLengthClass, icon, disciplineTag, trimLocation, seatNoun, stripClassNamePrefix, trendingUpIcon, pulseIcon, renderGymRail, equalizeDiscTagWidths, observeLocationWrap, wireRailToggle, reconcileCards, shortSlotLabels, escapeHtml} from './cards';
 import { isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept, zoneFor, formatInZone } from '../lib';
 import { invalidateApiCache } from '../cache';
 import { renderCardSkeletons, renderFloorPlanSkeleton } from './loading-skeleton.js';
@@ -11,6 +11,7 @@ import { instructorAvatar } from './tooltips.js';
 import { metadata, loadMetadata, getStudioMapInfo, pickStudioPrefs, rowGroupsForStudio, mobileRotationForStudio, frontForStudio, openGuestBookingModal } from './timetable';
 import { findActiveUpgradeForBooking, findUpgradeForSeat } from './gym-isolation.js';
 import { haptic } from './haptics.js';
+import { asyncHandler, okResult, failResult, cancelResult } from './async-button.js';
 import { COPY, formatCopyText } from '../copy.js';
 import { countPendingAutoBooks } from './autobook-nav.js';
 import { openPage as openNavPage, closePage as closeNavPage } from './modal-nav.js';
@@ -31,7 +32,7 @@ import { loadCancelInfo } from './cancel-penalty-info.js';
 import { resolveUpgradeGroup } from './upgrade-group.js';
 import { bookingSpotActions } from './booking-spot-actions.js';
 import { currentRoute } from '../router.js';
-import { BOOKINGS_VIEW_KEY, normalizeBookingsView, mergeBookingsTimeline } from './bookings-view.js';
+import { BOOKINGS_VIEW_KEY, normalizeBookingsView, resolveBookingsView, mergeBookingsTimeline } from './bookings-view.js';
 import { DateTime } from 'luxon';
 
 // Class starts within the free-cancel cutoff (12h). Edit is hidden inside this
@@ -114,7 +115,7 @@ export async function renderBookings(day = currentRoute().bookings?.day) {
 
   // Show cached data immediately if available (cache.upgrades is set after first load)
   const hasLoadedBefore = bookingsDataReady();
-  applyBookingsViewChrome(currentBookingsView());
+  applyBookingsViewChrome(effectiveBookingsView(cache.waitlists));
   if (hasLoadedBefore) {
     paintBookingLists(cache.bookings || [], cache.upgrades || [], cache.waitlists || []);
     focusBookingsDay(day);
@@ -317,11 +318,25 @@ function updateWaitlistAffordances() {
 // ── View mode: Combined (one chronological list) vs Separate (two sections) ──
 // Account-scoped setting `bookingsView` (server/db.js ACCOUNT_SCOPED_SETTING_KEYS).
 // Until settings load (or for junk values) the view is Combined.
-function currentBookingsView() {
-  return normalizeBookingsView(userSettings?.[BOOKINGS_VIEW_KEY]);
+const DESKTOP_BOOKINGS_QUERY = '(min-width: 769px)';
+function isDesktopBookings() {
+  return typeof window !== 'undefined' && !!window.matchMedia?.(DESKTOP_BOOKINGS_QUERY).matches;
 }
 
-function applyBookingsViewChrome(view) {
+function effectiveBookingsView(waitlists) {
+  return resolveBookingsView(userSettings?.[BOOKINGS_VIEW_KEY], {
+    desktop: isDesktopBookings(),
+    waitlistCount: Array.isArray(waitlists) ? waitlists.length : 0,
+  });
+}
+function repaintBookingsOnBreakpoint() {
+  if (bookingsDataReady()) paintBookingLists(cache.bookings || [], cache.upgrades || [], cache.waitlists || []);
+}
+window.matchMedia?.(DESKTOP_BOOKINGS_QUERY)?.addEventListener?.('change', repaintBookingsOnBreakpoint);
+
+function applyBookingsViewChrome(view, waitlists = cache.waitlists) {
+  const switchEl = document.getElementById('app-bookings-view-switch');
+  if (switchEl) switchEl.hidden = isDesktopBookings() || !(Array.isArray(waitlists) && waitlists.length);
   document.querySelectorAll('#app-bookings-view-switch [data-bookings-view]').forEach((btn) => {
     const on = btn.dataset.bookingsView === view;
     btn.classList.toggle('active', on);
@@ -335,8 +350,8 @@ function applyBookingsViewChrome(view) {
 }
 
 function paintBookingLists(bookings, upgrades, waitlists) {
-  const view = currentBookingsView();
-  applyBookingsViewChrome(view);
+  const view = effectiveBookingsView(waitlists);
+  applyBookingsViewChrome(view, waitlists);
   if (view === 'combined') {
     renderCombinedCards(bookings, upgrades, waitlists);
   } else {
@@ -354,7 +369,7 @@ async function setBookingsView(view) {
   if (bookingsDataReady()) {
     paintBookingLists(cache.bookings || [], cache.upgrades || [], cache.waitlists || []);
   } else {
-    applyBookingsViewChrome(next);
+    applyBookingsViewChrome(effectiveBookingsView(cache.waitlists));
   }
   try {
     // Account-scoped key: no gymId needed (and none would be right — the list is merged).
@@ -395,16 +410,13 @@ function renderCombinedCards(bookings, upgrades, waitlists) {
     updateWaitlistAffordances();
     return;
   }
-  container.innerHTML = '';
-  items.forEach((item) => {
-    if (item.kind === 'booking') {
-      container.appendChild(buildBookingCard(item.group, upgrades));
-    } else {
-      const card = buildWaitlistCard(item.waitlist);
-      card.classList.add('is-combined');
-      container.appendChild(card);
-    }
-  });
+  if (!container.querySelector(':scope > .ab-card')) container.innerHTML = '';
+  reconcileCards(container, items.map((item) => {
+    if (item.kind === 'booking') return buildBookingCard(item.group, upgrades);
+    const card = buildWaitlistCard(item.waitlist);
+    card.classList.add('is-combined');
+    return card;
+  }));
   equalizeDiscTagWidths(container);
   observeLocationWrap(container);
   wireRailToggle(container);
@@ -424,8 +436,8 @@ function renderBookingsCards(bookings, upgrades) {
     return;
   }
 
-  container.innerHTML = '';
-  groups.forEach(group => container.appendChild(buildBookingCard(group, upgrades)));
+  if (!container.querySelector(':scope > .ab-card')) container.innerHTML = '';
+  reconcileCards(container, groups.map(group => buildBookingCard(group, upgrades)));
   equalizeDiscTagWidths(container);
   observeLocationWrap(container);
   wireRailToggle(container);
@@ -623,23 +635,25 @@ function buildBookingCard(group, upgrades) {
     });
   });
 
-  // Studio-cancelled: no penalty check, no grace countdown. "Remove" asks the
-  // gym to clear the reservation; if the gym refuses, say so and keep the card.
+  // Studio-cancelled: no penalty check, no grace countdown. "Remove" hides the card
+  // server-side (the gym is never called; a cancelled booking cannot be cancelled again).
   if (cancelledByStudio) {
     const removeBtn = card.querySelector('.bk-cancel-btn');
-    removeBtn.addEventListener('click', async () => {
+    removeBtn.addEventListener('click', asyncHandler(async () => {
       removeBtn.disabled = true;
       try {
         const primary = group.bookings.find((booking) => !booking.isGuest) || group.bookings[0];
-        await api.cancel(bookingIdOf(primary), primary.gymId || group.event?.gymId);
+        await api.dismissCancelledBookings(group.bookings.map(bookingIdOf), primary.gymId || group.event?.gymId);
         await invalidateApiCache('/api/bookings');
         await refreshUserData(true);
         renderBookings();
+        return okResult();
       } catch (err) {
         removeBtn.disabled = false;
         showToast(COPY.bookings.dismissCancelledFailed, 'warning');
+        return failResult(err);
       }
-    });
+    }));
     return card;
   }
 
@@ -721,7 +735,7 @@ export function openBookingCancellationModal(group, onChange = renderBookings) {
   document.getElementById('app-booking-modal-close').onclick = close;
   modal.querySelector('.app-modal-overlay').onclick = close;
   body.innerHTML = `<div class="app-booking-action-chooser"><p class="app-card-desc">${COPY.bookings.cancelBookingPrompt}</p><button type="button" class="app-btn variant-danger" id="confirm-booking-cancel">${COPY.bookings.cancel}</button></div>`;
-  body.querySelector('#confirm-booking-cancel').onclick = async () => {
+  body.querySelector('#confirm-booking-cancel').onclick = asyncHandler(async () => {
     const button = body.querySelector('#confirm-booking-cancel');
     button.disabled = true;
     try {
@@ -737,12 +751,14 @@ export function openBookingCancellationModal(group, onChange = renderBookings) {
       await refreshUserData(true);
       close();
       onChange();
+      return okResult();
     } catch (err) {
       haptic('error');
       showToast(formatCopyText(COPY.bookings.cancellationFailed, { error: err.message }), 'error');
       button.disabled = false;
+      return failResult(err);
     }
-  };
+  });
 }
 
 // Two-tap confirm cancel for a whole class (all its booking records).
@@ -781,28 +797,29 @@ function wireCancelBooking(btn, card, group, within12h) {
       showToast(COPY.bookings.bookingCancelled, 'success');
       await refreshUserData(true);
       renderBookings();
+      return okResult();
     } catch (err) {
       haptic('error');
       showToast(formatCopyText(COPY.bookings.cancellationFailed, { error: err.message }), 'error');
       card.style.opacity = '1';
       card.querySelectorAll('button').forEach(b => b.disabled = false);
       labelSpan.textContent = COPY.bookings.cancel;
+      return failResult(err);
     }
   };
 
-  btn.addEventListener('click', async () => {
+  btn.addEventListener('click', asyncHandler(async () => {
     // Classes with multiple reservations need a chooser rather than the old
     // whole-class two-tap: a guest can be released without touching the member
     // spot, while the primary can never orphan a live guest.
     if (hasMultipleBookedSpots(group.bookings)) {
       openGroupedCancellationModal(group);
-      return;
+      return cancelResult(); // the chooser owns the cancellations
     }
     // 60s grace period: cancel immediately, no confirmation
     if (btn.hasAttribute('data-grace-deadline')) {
       btn.removeAttribute('data-grace-deadline');
-      await performCancel();
-      return;
+      return performCancel();
     }
     if (!confirmState) {
       haptic('medium');
@@ -816,12 +833,12 @@ function wireCancelBooking(btn, card, group, within12h) {
         labelSpan.textContent = COPY.bookings.cancel;
         btn.classList.remove('confirming');
       }, 3000);
-      return;
+      return cancelResult(); // armed the confirm; the cancel has not run
     }
     confirmState = false;
     btn.classList.remove('confirming');
-    await performCancel();
-  });
+    return performCancel();
+  }));
 }
 
 // A class can have a member reservation plus guest reservations.  The old
@@ -1151,7 +1168,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         </div>`;
 
       controls.querySelector('#bk-edit-close').onclick = closeModal;
-      controls.querySelector('#bk-edit-save').onclick = () => saveChanges(toAdd, toRemove);
+      controls.querySelector('#bk-edit-save').onclick = asyncHandler(() => saveChanges(toAdd, toRemove));
     };
 
     const renderGrid = () => {
@@ -1232,7 +1249,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
       if (selected.size > selfBookingLimit) {
         showToast(formatCopyText(COPY.bookingEditor.selfBookingLimitExceeded, { count: selfBookingLimit, plural: selfBookingLimit === 1 ? '' : 's' }), 'warning');
         renderControls();
-        return;
+        return failResult('too many spots');
       }
       const saveBtn = body.querySelector('#bk-edit-save');
       if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = COPY.static.saving; }
@@ -1293,12 +1310,14 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         closeModal();
         await refreshUserData(true);
         onChange();
+        return okResult();
       } catch (err) {
         haptic('error');
         showToast(formatCopyText(COPY.bookings.updateFailed, { noun, error: err.message }), 'error');
         closeModal();
         await refreshUserData(true);
         onChange();
+        return failResult(err);
       }
     };
 
@@ -1327,8 +1346,8 @@ function renderWaitlistsCards(waitlists) {
   }
 
   valid.sort((a, b) => new Date(a.event.startAt || a.event.start_at) - new Date(b.event.startAt || b.event.start_at));
-  container.innerHTML = '';
-  valid.forEach(w => container.appendChild(buildWaitlistCard(w)));
+  if (!container.querySelector(':scope > .ab-card')) container.innerHTML = '';
+  reconcileCards(container, valid.map(w => buildWaitlistCard(w)));
   equalizeDiscTagWidths(container);
   observeLocationWrap(container);
   wireRailToggle(container);
@@ -1392,7 +1411,7 @@ function buildWaitlistCard(w) {
   const leaveBtn = card.querySelector('.leave-wl-btn');
   const labelSpan = leaveBtn.querySelector('span');
   let confirmState = false;
-  leaveBtn.addEventListener('click', async () => {
+  leaveBtn.addEventListener('click', asyncHandler(async () => {
     if (!confirmState) {
       haptic('medium');
       confirmState = true;
@@ -1403,7 +1422,7 @@ function buildWaitlistCard(w) {
         labelSpan.textContent = COPY.bookings.leaveWaitlist;
         leaveBtn.classList.remove('confirming');
       }, 3000);
-      return;
+      return cancelResult(); // armed the confirm; nothing left yet
     }
     confirmState = false;
     leaveBtn.classList.remove('confirming');
@@ -1417,14 +1436,16 @@ function buildWaitlistCard(w) {
       showToast(COPY.bookings.leftWaitlist, 'success');
       await refreshUserData(true);
       renderBookings();
+      return okResult();
     } catch (err) {
       haptic('error');
       showToast(err.message, 'error');
       card.style.opacity = '1';
       card.querySelectorAll('button').forEach(b => b.disabled = false);
       labelSpan.textContent = COPY.bookings.leaveWaitlist;
+      return failResult(err);
     }
-  });
+  }));
 
   return card;
 }
@@ -1628,22 +1649,24 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
       body.querySelector('#upgrade-edit-map').onclick = () => showMap();
 
       const disableBtn = body.querySelector('#upgrade-disable');
-      if (disableBtn) disableBtn.onclick = async () => {
+      if (disableBtn) disableBtn.onclick = asyncHandler(async () => {
         try {
           showToast(COPY.bookings.disablingUpgrade, 'info');
           await api.deleteAutoUpgrade(existingUpgradeId);
           showToast(COPY.bookings.upgradeDisabled, 'success');
           closeModal();
           renderBookings();
+          return okResult();
         } catch (err) {
           showToast(err.message, 'error');
+          return failResult(err);
         }
-      };
+      });
 
-      body.querySelector('#upgrade-save').onclick = async () => {
+      body.querySelector('#upgrade-save').onclick = asyncHandler(async () => {
         if (state.slots.length === 0 && state.rows.length === 0) {
           showToast(formatCopyText(COPY.bookings.preferredSpotRequiredFor, { noun }), 'warning');
-          return;
+          return failResult('preferred spot required');
         }
         // Hidden option => never sent as true.
         const keepOriginalOnCutoff = showKeepOriginal && state.keepOriginal;
@@ -1653,7 +1676,7 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
             showToast(COPY.bookings.upgradeUpdated, 'success');
           } else {
             const grp = resolveUpgradeGroup(cache.bookings, { gymId, eventId, bookingId });
-            if (grp.kind === 'guest') { showToast(COPY.timetable.autoUpgradeGuestUnavailable, 'warning'); return; }
+            if (grp.kind === 'guest') { showToast(COPY.timetable.autoUpgradeGuestUnavailable, 'warning'); return cancelResult(); }
             await api.addAutoUpgrade({
               eventId, gymId: gymId || null, studioId: resolvedStudioId || null, bookingId, currentSlotId,
               className, groupName, instructorName, studioName, locationName, startAt,
@@ -1665,10 +1688,12 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
           }
           closeModal();
           renderBookings();
+          return okResult();
         } catch (err) {
           showToast(err.message, 'error');
+          return failResult(err);
         }
-      };
+      });
     };
 
     const showMap = () => {

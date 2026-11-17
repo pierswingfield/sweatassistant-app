@@ -141,25 +141,19 @@ registerWidget({
   },
 });
 
-/** Build one truthful, provider-published attendance row per linked gym. */
+/**
+ * One attendance row per linked gym that gave a valid answer. Zero is a valid answer
+ * (a gym never attended, e.g. a newly linked one) and adds 0 to the total. A gym whose
+ * request failed is simply omitted, quietly: nothing here reports "unavailable".
+ */
 export function getHomeStats(gyms, byGym = {}) {
   const rows = [];
-  let unavailable = 0;
-  let unsupported = false;
-  let failed = false;
   for (const gym of Array.isArray(gyms) ? gyms : []) {
     const gymId = gymIdOf(gym);
     if (!gymId) continue;
-    const data = byGym[gymId] || {};
-    if (data.attendanceUnsupported) { unavailable += 1; unsupported = true; continue; }
-    const attendance = data.attendance;
-    const rawTotal = attendance?.attendedTotal;
+    const rawTotal = (byGym[gymId] || {}).attendance?.attendedTotal;
     const total = Number(rawTotal);
-    if (rawTotal == null || rawTotal === '' || !Number.isInteger(total) || total < 0) {
-      unavailable += 1;
-      failed = true;
-      continue;
-    }
+    if (rawTotal == null || rawTotal === '' || !Number.isInteger(total) || total < 0) continue;
     rows.push({
       gymId,
       gymName: getGymShortName(gymId) || gym.shortName || gym.name || gymId,
@@ -169,7 +163,7 @@ export function getHomeStats(gyms, byGym = {}) {
       ...(isDisabledLinkedGym(gym) ? { hidden: true } : {}),
     });
   }
-  return { rows, partial: unavailable > 0, unsupported, failed };
+  return { rows, total: rows.reduce((sum, row) => sum + row.attendanceTotal, 0) };
 }
 
 /**
@@ -185,33 +179,21 @@ export function isDisabledLinkedGym(gym) {
   return enabled === 0 || enabled === false || gym.status === 'disabled';
 }
 
-/** Whether the activity widget asks /api/attendance-totals for this gym. Disabled gyms always count. */
-export function homeStatsWantsAttendance(gym) {
-  const gymId = gymIdOf(gym);
-  if (!gymId) return false;
-  return isDisabledLinkedGym(gym) || canForGym('attendanceTotals', gymId);
-}
-
-/** Show an all-gym total only when every linked gym has valid attendance. */
-export function getHomeActivityMeta({ rows, partial } = {}) {
-  if (partial || !Array.isArray(rows) || rows.length === 0) return '';
-  const total = rows.reduce((sum, row) => {
+/** The all-gym class total for the header. Always a figure: gyms with no answer or zero add 0. */
+export function getHomeActivityMeta({ rows } = {}) {
+  const total = (Array.isArray(rows) ? rows : []).reduce((sum, row) => {
     const count = Number(row?.attendanceTotal);
-    return Number.isSafeInteger(count) && count >= 0 ? sum + count : NaN;
+    return Number.isSafeInteger(count) && count >= 0 ? sum + count : sum;
   }, 0);
-  return Number.isSafeInteger(total) && total >= 0
-    ? formatCountLabel(total, 'class', 'classes')
-    : '';
+  return formatCountLabel(total, 'class', 'classes');
 }
 
 async function loadHomeStats(gyms) {
   const linked = (Array.isArray(gyms) ? gyms : []).filter((gym) => gymIdOf(gym));
+  // Every linked gym is asked: the server answers a gym that publishes no total, or is
+  // switched off, from its stored class history. A failed gym is dropped by allSettled.
   const settled = await Promise.allSettled(linked.map(async (gym) => {
     const gymId = gymIdOf(gym);
-    // Capabilities are held by gym-context while public linked-gym rows stay
-    // deliberately small. Resolve this known gym through that shared contract.
-    // A disabled gym is always asked: the server serves its stored history count.
-    if (!homeStatsWantsAttendance(gym)) return [gymId, { attendanceUnsupported: true }];
     const valid = (a) => a && a.attendedTotal != null && a.attendedTotal !== '' && Number.isInteger(Number(a.attendedTotal)) && Number(a.attendedTotal) >= 0;
     let attendance = null;
     try { attendance = await api.getAttendanceTotals(gymId, { loading: true }); } catch (_) { /* retried live below */ }
@@ -279,28 +261,21 @@ registerWidget({
   render(el, data) { renderPersonalStats(el, data); },
 });
 
+// Per-gym class totals plus the all-gym total in the header (restored: commit 46cd27c
+// had replaced this widget with the charts above).
 registerWidget({
-  id: 'attendance', order: 71, title: COPY.home.stats,
-  cacheKeys(ctx) {
-    const gyms = statsGyms(ctx);
-    const wanted = new Set(gyms.filter(homeStatsWantsAttendance).map(gymIdOf));
-    return uniqueGymIds(gyms).filter((id) => wanted.has(id)).map((id) => gymCacheKey('/api/attendance-totals', id));
-  },
+  id: 'attendance', order: 71, title: COPY.home.statsHistory,
+  cacheKeys(ctx) { return uniqueGymIds(statsGyms(ctx)).map((id) => gymCacheKey('/api/attendance-totals', id)); },
   headerMeta: getHomeActivityMeta,
   async load(ctx) { return loadHomeStats(statsGyms(ctx)); },
-  isEmpty: (data) => Array.isArray(data?.rows) && data.rows.length === 0 && !data.unsupported && !data.failed,
-  emptyText: COPY.home.statsNone,
+  isEmpty: () => false,
   render(el, data, ctx) {
+    const tiles = data.rows.filter((row) => !row.hidden && row.attendanceTotal > 0);
+    if (!tiles.length) return;
     const grid = document.createElement('div');
     grid.className = 'home-attendance-grid';
-    data.rows.filter((row) => !row.hidden).forEach((row) => grid.appendChild(attendanceTile(row, ctx)));
+    tiles.forEach((row) => grid.appendChild(attendanceTile(row, ctx)));
     el.appendChild(grid);
-    for (const text of [data.unsupported && COPY.home.statsUnsupported, data.failed && COPY.home.statsPartial].filter(Boolean)) {
-      const note = document.createElement('p');
-      note.className = 'home-stats-partial';
-      note.textContent = text;
-      el.appendChild(note);
-    }
   },
 });
 
@@ -1080,13 +1055,17 @@ function widgetCopy() {
 
 function renderConnectGym(root) {
   clearHomeUpcomingStrip();
-  root.innerHTML = `<div class="home-connect-gym"><h4></h4><p></p><button type="button" class="home-connect-btn"></button></div>`;
   const allDisabled = getAllLinkedGyms().length > 0;
-  root.querySelector('h4').textContent = allDisabled ? 'Your gyms are turned off' : COPY.home.connectGymTitle;
-  root.querySelector('p').textContent = allDisabled ? 'Turn a gym back on in Settings to see its classes, bookings and credits.' : COPY.home.connectGymBody;
-  const b = root.querySelector('button');
+  const section = document.createElement('section');
+  section.className = 'home-widget home-widget-connect-gym';
+  section.dataset.widgetId = 'connect-gym';
+  section.innerHTML = '<div class="home-widget-heading"><h3 class="home-widget-title"></h3></div><div data-widget-body><div class="home-teams-empty"><p></p><button type="button" class="tm-btn tm-btn-pill"></button></div></div>';
+  section.querySelector('h3').textContent = allDisabled ? 'Your gyms are turned off' : COPY.home.connectGymTitle;
+  section.querySelector('p').textContent = allDisabled ? 'Turn a gym back on in Settings to see its classes, bookings and credits.' : COPY.home.connectGymBody;
+  const b = section.querySelector('button');
   b.textContent = allDisabled ? 'Open Settings' : COPY.home.connectGymAction;
   b.addEventListener('click', () => goTo('settings'));
+  root.replaceChildren(section);
 }
 
 /** (Re)paint the whole page. Safe to call repeatedly; a newer call supersedes an older one. */

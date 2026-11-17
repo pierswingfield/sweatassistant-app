@@ -28,13 +28,12 @@ describe('renderGymSettingsSection', () => {
       gym: baseGym,
       settings: { autoUpgradeEnabled: true, autoUpgradeInterval: '15min' },
       credits: [{ count: 4 }, { count: 3 }],
-      bookingWindowText: '15 days',
       debugMode: true,
     });
 
     expect(root.textContent).toContain('Connection');
     expect(root.textContent).toContain('7 credits available');
-    expect(root.textContent).toContain('15 days');
+    expect(root.textContent).toContain('Set by your membership');
     expect(root.textContent).toContain('Auto-Upgrade Engine');
     expect(root.textContent).toContain('Preferred Spot Maps');
     expect(root.textContent).toContain('Profile Explorer');

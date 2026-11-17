@@ -254,6 +254,25 @@ check('getMilestones: CodexFit and MarianaTek normalize provider attendance; cap
   } finally { server.close(); }
 });
 
+check('attendance-totals: a gym with no published total (or no history) answers its stored count, never an error', async () => {
+  const HOMERUN = 'homerun-london'; // capabilities.attendanceTotals is false
+  const router = require('./routes-normalized');
+  const app = express(); app.use(express.json()); app.use('/api', router);
+  const server = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
+  try {
+    const uid = twoGymUser('stored-total');
+    db.linkGym(uid, HOMERUN, { encryptedPassword: 'enc:pw' });
+    const token = jwt.sign({ userId: uid, email: 'x@test.local' }, process.env.JWT_SECRET);
+    const get = (gym) => fetch(`http://127.0.0.1:${server.address().port}/api/attendance-totals`, { headers: { authorization: `Bearer ${token}`, 'x-gym-id': gym } });
+    const none = await get(HOMERUN);
+    assert.strictEqual(none.status, 200, 'unsupported capability is not an error');
+    const body = await none.json();
+    assert.deepStrictEqual([body.gymId, body.attendedTotal, body.source], [HOMERUN, 0, 'stored'], 'never attended counts as zero');
+    history.upsertEntries(uid, HOMERUN, [{ bookingId: 'h1', eventId: 'e1', status: 'attended', startAt: new Date(Date.now() - 864e5).toISOString(), name: 'Run' }]);
+    assert.strictEqual((await (await get(HOMERUN)).json()).attendedTotal, 1, 'uses stored class history');
+  } finally { server.close(); }
+});
+
 (async () => {
   let passed = 0;
   for (const { name, fn } of checks) {

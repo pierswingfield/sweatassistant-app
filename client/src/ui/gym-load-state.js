@@ -45,3 +45,8 @@ export function applyGymLoadState(root = document) {
     if (on) el.setAttribute('aria-busy', 'true'); else el.removeAttribute('aria-busy');
   });
 }
+
+/** Ids of the gyms with at least one request in flight (read-only view of the store). */
+export function loadingGymIds() {
+  return [...counts.keys()];
+}

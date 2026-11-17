@@ -21,6 +21,11 @@ export function installStaleScrollGuard() {
     requestAnimationFrame(resetWindowScroll);
     setTimeout(() => { if (!inputFocused()) resetWindowScroll(); }, 300); // orientation settles late
   };
+  // The document must never scroll (a non-zero window scroll shifts the whole fixed shell up on iOS
+  // standalone and exposes a black strip at the bottom): pin it on any window scroll and at start-up.
+  window.addEventListener('scroll', () => { if (!inputFocused()) resetWindowScroll(); }, { passive: true });
+  window.addEventListener('pageshow', run);
+  run();
   window.addEventListener('orientationchange', run);
   window.addEventListener('resize', run);
   window.visualViewport?.addEventListener('resize', run);

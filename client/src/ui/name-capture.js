@@ -103,6 +103,10 @@ export function onboardingNameSuggestion(settings, linkedGyms) {
   const firstName = saved || suggestion.firstName;
   const fromGym = !!suggestion.firstName && !!suggestion.sources.length
     && (!saved || saved.toLocaleLowerCase() === suggestion.firstName.toLocaleLowerCase());
-  return { firstName, lastName: typeof settings?.lastName === 'string' ? validPrefill(settings.lastName) : suggestion.lastName,
+  // An empty saved lastName (signup stores '') must not hide the gym's suggestion; a
+  // gym last name only pairs with a first name that came from, or matches, the same gym.
+  const savedLast = validPrefill(settings?.lastName);
+  const pairs = !saved || saved.toLocaleLowerCase() === suggestion.firstName.toLocaleLowerCase();
+  return { firstName, lastName: savedLast || (pairs ? suggestion.lastName : ''),
     sources: fromGym ? suggestion.sources : [] };
 }

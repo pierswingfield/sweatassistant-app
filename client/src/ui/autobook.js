@@ -6,7 +6,7 @@ import { showToast, cache, userSettings, refreshUserData, debugConsole } from '.
 import { getClassReleaseTime, noSept, zoneFor, formatInZone, formatOpensIn } from '../lib';
 import { DateTime } from 'luxon';
 import { renderStudioFloorPlan } from './spotmap';
-import { instructorInlineHtml, instructorNameLengthClass, cleanClassName, icon, disciplineTag, trimLocation, seatNoun, pulseIcon, renderGymRail, equalizeDiscTagWidths, observeLocationWrap, wireRailToggle, escapeHtml, gymBrand, gymChip } from './cards';
+import { instructorInlineHtml, instructorNameLengthClass, cleanClassName, icon, disciplineTag, trimLocation, seatNoun, pulseIcon, renderGymRail, equalizeDiscTagWidths, observeLocationWrap, wireRailToggle, reconcileCards, escapeHtml, gymBrand, gymChip } from './cards';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { ensureLiveStatusLine, setLiveStatusText } from './status-line.js';
 import { instructorAvatar } from './tooltips.js';
@@ -14,6 +14,7 @@ import { openBookingModal, renderTimetableGrid, pickStudioPrefs, metadata, loadM
 import { openPage as openNavPage, closePage as closeNavPage } from './modal-nav.js';
 import { applyBookingChrome, bookingContextEl } from './booking-chrome.js';
 import { bookingQuantityOptions, maxAttendeesPerClass } from './booking-limits.js';
+import { asyncHandler, okResult, failResult, cancelResult } from './async-button.js';
 
 let countdownInterval = null;
 let sseEventSource = null;
@@ -197,7 +198,7 @@ function renderAutoBookControls() {
   pauseBtn.innerHTML = isPaused
     ? `${icon('play', 14)}<span>${COPY.autoBook.resume}</span>`
     : `${icon('pause', 14)}<span>${COPY.autoBook.pause}</span>`;
-  pauseBtn.addEventListener('click', async () => {
+  pauseBtn.addEventListener('click', asyncHandler(async () => {
     pauseBtn.disabled = true;
     try {
       const newPaused = !userSettings.autoBookPaused;
@@ -207,12 +208,14 @@ function renderAutoBookControls() {
       userSettings.autoBookPaused = newPaused;
       showToast(newPaused ? COPY.autoBook.paused : COPY.autoBook.resumed, newPaused ? 'info' : 'success');
       renderAutoBookControls();
+      return okResult();
     } catch (err) {
       showToast(formatCopyText(COPY.autoBook.failed, { error: err.message }), 'error');
+      return failResult(err);
     } finally {
       pauseBtn.disabled = false;
     }
-  });
+  }));
 
   bar.appendChild(pauseBtn);
 
@@ -221,7 +224,7 @@ function renderAutoBookControls() {
     const simBtn = document.createElement('button');
     simBtn.className = 'ab-footer-btn';
     simBtn.innerHTML = `${icon('bolt', 14)}<span>${COPY.autoBook.simulateRelease}</span>`;
-    simBtn.addEventListener('click', async () => {
+    simBtn.addEventListener('click', asyncHandler(async () => {
       simBtn.disabled = true;
       simBtn.innerHTML = `${icon('bolt', 14)}<span>${COPY.autoBook.firing}</span>`;
       try {
@@ -229,13 +232,15 @@ function renderAutoBookControls() {
         showToast(COPY.autoBook.simulatedRelease, 'success');
         // Refresh queue/history after a short delay to let bookings complete
         setTimeout(() => renderAutoBookTab(), 4000);
+        return okResult();
       } catch (err) {
         showToast(formatCopyText(COPY.autoBook.failed, { error: err.message }), 'error');
+        return failResult(err);
       } finally {
         simBtn.disabled = false;
         simBtn.innerHTML = `${icon('bolt', 14)}<span>${COPY.autoBook.simulateRelease}</span>`;
       }
-    });
+    }));
     bar.appendChild(simBtn);
   }
 }
@@ -314,7 +319,8 @@ function renderQueue(queue) {
   } catch (e) { sig = null; }
   if (sig && container.__abSig === sig && container.childElementCount > 0) return;
   container.__abSig = sig;
-  container.innerHTML = '';
+  if (!container.querySelector(':scope > .ab-card')) container.innerHTML = '';
+  const builtCards = [];
   sorted.forEach(q => {
     const card = document.createElement('div');
     card.className = 'app-autobook-card ab-card';
@@ -377,7 +383,7 @@ function renderQueue(queue) {
           ? `<div class="ab-card-figure ${instructorNameLengthClass(instructorName)}">${instructorAvatar(instructorName, q.gym_id, instructorPhotoUrl) || ''}${instructorName ? `<span class="ab-card-instructor ${instructorNameLengthClass(instructorName)}">${escapeHtml(instructorName)}</span>` : ''}</div>` : ''}
         </div>
         <div class="ab-card-footer">
-          <span class="ab-countdown state-pending" data-start-at="${escapeHtml(q.start_at)}" data-gym-id="${escapeHtml(q.gym_id || '')}" ${(() => { const r = getClassReleaseTime(q, userSettings); return r ? `data-release-at="${escapeHtml(r.toISO())}"` : ''; })()}>
+          <span class="ab-countdown state-pending" data-start-at="${escapeHtml(q.start_at)}" data-gym-id="${escapeHtml(q.gym_id || '')}" ${(() => { const r = getClassReleaseTime(q); return r ? `data-release-at="${escapeHtml(r.toISO())}"` : ''; })()}>
             ${icon('clock', 13)}<span class="ab-countdown-val">…</span>
           </span>
           <div class="ab-chip-group"><span class="ab-spots-pill">${creditsNeeded} ${seatNoun(q.group_name)[0].toUpperCase() + seatNoun(q.group_name).slice(1)}${creditsNeeded !== 1 ? 's' : ''}</span></div>
@@ -399,8 +405,9 @@ function renderQueue(queue) {
       openAutoBookEditModal(q);
     });
 
-    container.appendChild(card);
+    builtCards.push(card);
   });
+  reconcileCards(container, builtCards);
 
   equalizeDiscTagWidths(container);
   observeLocationWrap(container);
@@ -416,7 +423,7 @@ function wireCancelAutoBook(btn, card, q) {
   const labelSpan = btn.querySelector('span');
   let confirmState = false;
 
-  btn.addEventListener('click', async () => {
+  btn.addEventListener('click', asyncHandler(async () => {
     if (!confirmState) {
       confirmState = true;
       labelSpan.textContent = COPY.autoBook.confirm;
@@ -426,7 +433,7 @@ function wireCancelAutoBook(btn, card, q) {
         labelSpan.textContent = COPY.bookings.cancel;
         btn.classList.remove('confirming');
       }, 3000);
-      return;
+      return cancelResult(); // armed the confirm; nothing removed yet
     }
     confirmState = false;
     btn.classList.remove('confirming');
@@ -438,13 +445,15 @@ function wireCancelAutoBook(btn, card, q) {
       await api.deleteAutoBooking(q.id);
       showToast(COPY.autoBook.removed, 'success');
       renderAutoBookTab();
+      return okResult();
     } catch (err) {
       showToast(formatCopyText(COPY.autoBook.failed, { error: err.message }), 'error');
       card.style.opacity = '1';
       card.querySelectorAll('button').forEach(b => b.disabled = false);
       labelSpan.textContent = COPY.bookings.cancel;
+      return failResult(err);
     }
-  });
+  }));
 }
 
 // Edit modal for updating an existing auto-book queue entry's configuration
@@ -501,8 +510,10 @@ async function removeAutoBookEntry(entryId, closeModal) {
     closeModal();
     renderAutoBookTab();
     renderTimetableGrid().catch(() => {});
+    return okResult();
   } catch (err) {
     showToast(formatCopyText(COPY.autoBook.failed, { error: err.message }), 'error');
+    return failResult(err);
   }
 }
 
@@ -529,8 +540,10 @@ async function saveAutoBookEdit(entryId, studioId, slots, rows, qty, bookAny, cl
     showToast(COPY.autoBook.updated, 'success');
     closeModal();
     renderAutoBookTab();
+    return okResult();
   } catch (err) {
     showToast(formatCopyText(COPY.autoBook.failed, { error: err.message }), 'error');
+    return failResult(err);
   }
 }
 
@@ -736,9 +749,7 @@ function updateCountdowns() {
     // classes on the same day open at different times, so there is no single
     // "next release" a card could be measured against.
     const stamped = el.getAttribute('data-release-at');
-    const classRelease = stamped
-      ? DateTime.fromISO(stamped)
-      : getClassReleaseTime({ start_at: startAt, gym_id: el.getAttribute('data-gym-id') }, userSettings);
+    const classRelease = stamped ? DateTime.fromISO(stamped) : null;
     if (!classRelease) { valEl.textContent = COPY.autoBook.releaseUnknown; return; }
     const diff = classRelease.toMillis() - Date.now();
 

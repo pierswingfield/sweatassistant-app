@@ -7,6 +7,7 @@ import { classifyAuthFailure } from './auth-failure.js';
 import { COPY, formatCopyText } from './copy.js';
 import { createProgressiveMerge } from './ui/progressive-merge.js';
 import { beginGymLoad as _beginGymLoad, endGymLoad as _endGymLoad } from './ui/gym-load-state.js';
+import { noteGymResponse, setGymProblem, syncLinkProblems } from './ui/gym-problem-state.js';
 import { assertMutationNetworkAvailable, isOfflineForMutation } from './network-write-guard.js';
 import { validateSelfBookingRequest } from './ui/booking-entitlement.js';
 
@@ -213,6 +214,9 @@ export async function apiFetch(endpoint, options = {}) {
 
   window.dispatchEvent(new CustomEvent('app-network-ok'));
 
+  // Header gym dot: a failed/throttled READ for a named gym is a loading problem; a good one clears it.
+  if (targetGym && ['GET', 'HEAD'].includes(String(options.method || 'GET').toUpperCase())) noteGymResponse(String(targetGym), res.status);
+
   // A 403 naming an unlinked gym means this call asked for a gym the account is
   // not linked to — it was unlinked, disabled, or this is a different account on
   // the same browser. With no ambient gym state there is nothing to clear, so
@@ -241,6 +245,7 @@ export async function apiFetch(endpoint, options = {}) {
     const decision = classifyAuthFailure(res.status, await peekJson(res), targetGym);
     if (decision.kind === 'gym') {
       console.warn(`[API] Gym "${decision.gymId || 'unknown'}" session expired — needs relogin.`);
+      if (decision.gymId) setGymProblem(decision.gymId, 'needs-relogin');
       if (noteUnavailable(decision.gymId)) {
         await clearApiCache();
         window.dispatchEvent(new CustomEvent('app-gym-needs-relogin', { detail: { gymId: decision.gymId } }));
@@ -475,7 +480,7 @@ export const api = {
         const response = await apiFetch('/api/my-gyms', { cache: 'no-store' });
         if (!response.ok) throw new Error('Failed to load your gyms');
         const fresh = await response.json();
-        const changed = updateConnectionStates(fresh.gyms);
+        const changed = updateConnectionStates(fresh.gyms); syncLinkProblems(fresh.gyms);
         if (changed) {
           await clearApiCache();
           window.dispatchEvent(new CustomEvent('app-gym-availability-changed'));
@@ -489,6 +494,7 @@ export const api = {
           const res = await apiFetch('/api/my-gyms');
           if (!res.ok) throw new Error('Failed to load your gyms');
           const fresh = await res.clone().json();
+          syncLinkProblems(fresh.gyms);
           if (updateConnectionStates(fresh.gyms)) {
             await clearApiCache();
             window.dispatchEvent(new CustomEvent('app-gym-availability-changed'));
@@ -517,7 +523,7 @@ export const api = {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Could not link that gym');
-    updateConnectionStates(data.gyms);
+    updateConnectionStates(data.gyms); syncLinkProblems(data.gyms);
     await clearApiCache();
     // `getMyGyms()` is a five-minute SWR read that defines Home's capabilities
     // and the no-gym route. A successful mutation must invalidate it before
@@ -947,6 +953,13 @@ export const api = {
   async cancel(bookingId, gymId = null) {
     const out = await this._command('/api/cancel', { bookingId }, COPY.api.cancelAction, gymId);
     announceBookingMutation({ type: 'cancel', bookingId, gymId });
+    return out;
+  },
+
+  // "Remove" on a studio-cancelled booking: hidden server-side, gym never called.
+  async dismissCancelledBookings(bookingIds, gymId = null) {
+    const out = await this._command('/api/bookings/dismiss-cancelled', { bookingIds }, COPY.api.cancelAction, gymId);
+    announceBookingMutation({ type: 'cancel', bookingId: bookingIds[0], gymId });
     return out;
   },
 

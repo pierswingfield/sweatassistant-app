@@ -127,7 +127,7 @@ export function renderGymSettingsSection(container, model, handlers = {}) {
     ? gym.bookingWindowSummary
     : bookingKind === 'per-class'
     ? COPY.gymSettings.publishedBookingWindow
-    : model.bookingWindowText || COPY.gymSettings.detectingMembership;
+    : COPY.gymSettings.membershipBookingWindow;
 
   container.dataset.gymId = gym.gym_id || gym.id || '';
   // Prefer the gym's theme-aware CSS token over the raw config hex. The config

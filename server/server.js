@@ -6,7 +6,7 @@ const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const cancelRebookPolicy = require('./cancel-rebook-policy');
 const db = require('./db');
-const { normaliseNameSettings, dropInvalidNameSettings } = require('./user-text');
+const { normaliseNameSettings, normaliseHeaderGymsSetting, dropInvalidNameSettings } = require('./user-text');
 const { log, requestLogger } = require('./logger');
 const metrics = require('./metrics');
 const auth = require('./auth');
@@ -480,8 +480,18 @@ app.post('/api/push/subscribe', authenticateToken, (req, res) => {
   if (!subscription) {
     return res.status(400).json({ message: 'Subscription object required' });
   }
-  db.addPushSubscription(req.userId, subscription);
-  res.json({ success: true });
+  if (typeof subscription.endpoint !== 'string' || !subscription.endpoint) {
+    return res.status(400).json({ message: 'Subscription endpoint required' });
+  }
+  const { created } = db.addPushSubscription(req.userId, subscription);
+  res.json({ success: true, created });
+  // Exactly one confirmation per enable action, to the new device only, after the
+  // response so the client never waits on the push round-trip. A repeat subscribe
+  // for a known endpoint (double tap, retry) sends nothing.
+  if (created) {
+    require('./notifications').sendGenericTest(req.userId, { onlyEndpoint: subscription.endpoint })
+      .catch((err) => console.error('[Push] confirmation failed:', err.message));
+  }
 });
 
 app.post('/api/push/unsubscribe', authenticateToken, (req, res) => {
@@ -989,7 +999,7 @@ app.put('/api/settings', authenticateToken, (req, res) => {
     // and is only needed when the patch touches a gym-scoped key.
     // T-1: firstName/lastName are shown to teammates, so they pass the shared
     // person-name rule (server/user-text.js) and are stored normalised.
-    try { normaliseNameSettings(req.body); } catch (e) {
+    try { normaliseNameSettings(req.body); normaliseHeaderGymsSetting(req.body); } catch (e) {
       return res.status(400).json({ code: e.code, message: e.message });
     }
     db.setUserSettings(req.userId, req.body);

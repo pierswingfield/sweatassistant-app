@@ -56,6 +56,21 @@ function normaliseNameSettings(patch) {
   return patch;
 }
 
+const HEADER_GYMS_VALUES = Object.freeze(['auto', 'always', 'never']);
+
+/** `headerGyms` must be one of auto|always|never: a typo must not become a silent permanent 'auto'. */
+function normaliseHeaderGymsSetting(patch) {
+  if (!patch || typeof patch !== 'object') return patch;
+  if (!Object.prototype.hasOwnProperty.call(patch, 'headerGyms')) return patch;
+  if (!HEADER_GYMS_VALUES.includes(patch.headerGyms)) {
+    const err = new Error(`headerGyms must be one of: ${HEADER_GYMS_VALUES.join(', ')}.`);
+    err.status = 400;
+    err.code = 'INVALID_SETTING';
+    throw err;
+  }
+  return patch;
+}
+
 /** Same rule for an untrusted import: invalid name keys are dropped, not fatal. */
 function dropInvalidNameSettings(patch) {
   if (!patch || typeof patch !== 'object') return patch;
@@ -64,6 +79,7 @@ function dropInvalidNameSettings(patch) {
     const r = checkPersonName(patch[key], { label });
     if (r.ok) patch[key] = r.value; else delete patch[key];
   }
+  if (patch.headerGyms !== undefined && !HEADER_GYMS_VALUES.includes(patch.headerGyms)) delete patch.headerGyms;
   return patch;
 }
 
@@ -90,4 +106,5 @@ function skeleton(input) {
   return out;
 }
 
-module.exports = { PERSON_NAME_MAX, skeleton, checkPersonName, normaliseNameSettings, dropInvalidNameSettings };
+module.exports = {
+  normaliseHeaderGymsSetting, PERSON_NAME_MAX, skeleton, checkPersonName, normaliseNameSettings, dropInvalidNameSettings };

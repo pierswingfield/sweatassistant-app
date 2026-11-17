@@ -3,13 +3,16 @@
 // T-2 brings the list's class summaries; T-3 the dashboard widgets (teams-dashboard.js).
 // T-4 adds Team stats (renderTeamStats in teams-dashboard.js, models in teams-stats-model.js).
 
+import { headerBarHtml, headerActionHtml } from './header-bar.js';
 import { currentRoute } from '../router.js';
+import { nav } from '../nav-controller.js';
 import { teamsApi } from '../teams-api.js';
 import { escapeHtml } from './cards.js';
 import { showToast } from '../main.js';
 import { teamCardModel, teamCardHtml } from './teams-card.js';
 import { pitchHtml } from './teams-pitch.js';
 import { getGymShortName } from '../gym-context.js';
+import { asyncHandler, cancelResult } from './async-button.js';
 import {
   orderTeams, canOfferPin, canTogglePin, pinsUsed,
   consumePendingInvite, TEAMS_HOME_PATH,
@@ -35,7 +38,7 @@ if (typeof window !== 'undefined') window.addEventListener('app-logout-triggered
 
 function root() { return document.getElementById('app-teams-root'); }
 
-/** Navigate within the Teams tab (pushes history, re-renders via switchTab). */
+/** Navigate within the Teams tab (the nav controller pushes a level or pops back; re-renders via switchTab). */
 export function goTeams(route, { replace = false } = {}) {
   activeInvite = null;
   window.switchTab?.('teams', { teams: route, history: replace ? 'replace' : 'push' });
@@ -57,7 +60,7 @@ export async function initTeams({ preserve = false } = {}) {
     const token = route.view === 'invite' ? route.token : activeInvite;
     activeInvite = token;
     if (route.view === 'invite') {
-      try { history.replaceState(history.state, '', TEAMS_HOME_PATH); } catch (_) { /* keep the URL */ }
+      try { nav.replaceUrl(TEAMS_HOME_PATH); } catch (_) { /* keep the URL */ }
     }
     const { renderInvite } = await import('./teams-join.js');
     if (!stale()) await renderInvite(el, token, { stale });
@@ -215,12 +218,11 @@ async function renderTeamPage(el, teamId, { stale }) {
   const manageAria = pending ? `${T.manageAria}. ${fmt(T.requestsWaiting, { count: pending })}` : T.manageAria;
 
   el.innerHTML = `<div class="tm-team-page" data-team-id="${escapeHtml(team.id)}">
-    <div class="tm-dash-top">
-      <a class="tm-back" href="/teams" data-back aria-label="${escapeHtml(T.backAria)}"><span aria-hidden="true">‹</span> ${escapeHtml(T.back)}</a>
-      <span class="tm-grow"></span>
-      ${isCaptain ? `<button type="button" class="tm-icon-btn tm-head-btn" data-share aria-label="${escapeHtml(T.shareAria)}">${ICONS.share}<span class="tm-head-txt">${escapeHtml(T.share)}</span></button>` : ''}
-      <button type="button" class="tm-icon-btn tm-head-btn" data-manage aria-label="${escapeHtml(manageAria)}">${ICONS.manage}<span class="tm-head-txt">${escapeHtml(T.manage)}</span>${pending ? `<span class="tm-count tm-head-count" aria-hidden="true">${pending}</span>` : ''}</button>
-    </div>
+    ${headerBarHtml({
+      sticky: true, className: 'tm-dash-top', // no title: the team name lives in the hero card below
+      back: { label: T.back, aria: T.backAria, href: '/teams' },
+      actionsHtml: `${isCaptain ? headerActionHtml({ iconHtml: ICONS.share, label: T.invite, aria: T.shareAria, attrs: 'data-share' }) : ''}${headerActionHtml({ iconHtml: ICONS.manage, label: T.manage, aria: manageAria, attrs: 'data-manage', badge: pending })}`,
+    })}
     <div class="tm-dash">
       <div class="tm-dash-col">
         <section class="tm-card tm-hero">
@@ -243,12 +245,13 @@ async function renderTeamPage(el, teamId, { stale }) {
     </div>
   </div>`;
 
-  el.querySelector('[data-back]').addEventListener('click', (e) => { e.preventDefault(); stopDashboardTimers(); goTeams({ view: 'list' }); requestAnimationFrame(() => root()?.animate?.([{ opacity: .3, transform: 'translateX(-10px)' }, { opacity: 1, transform: 'translateX(0)' }], { duration: 220, easing: 'ease-out' })); });
-  el.querySelector('[data-share]')?.addEventListener('click', () => shareInvite(team));
-  el.querySelector('[data-manage]').addEventListener('click', async () => {
+  el.querySelector('[data-back]').addEventListener('click', (e) => { e.preventDefault(); stopDashboardTimers(); if (nav.canGoBack()) nav.back({ source: 'button' }); else goTeams({ view: 'list' }); requestAnimationFrame(() => root()?.animate?.([{ opacity: .3, transform: 'translateX(-10px)' }, { opacity: 1, transform: 'translateX(0)' }], { duration: 220, easing: 'ease-out' })); });
+  el.querySelector('[data-share]')?.addEventListener('click', asyncHandler(() => shareInvite(team)));
+  el.querySelector('[data-manage]').addEventListener('click', asyncHandler(async () => {
     const { openManage } = await import('./teams-manage.js');
     openManage(team.id, { onChange: () => initTeams() });
-  });
+    return cancelResult(); // opened the Manage page; nothing completed on this button
+  }));
   el.querySelector('[data-unhide]')?.addEventListener('click', async (e) => {
     e.currentTarget.disabled = true;
     try { await teamsApi.updateMe(team.id, { pause: null }); } catch (err) { showToast(errorText(err), 'error'); }

@@ -7,6 +7,7 @@
 import { escapeHtml } from '../escape-html.js';
 import { teamsApi } from '../teams-api.js';
 import { showToast } from '../main.js';
+import { okResult, failResult, cancelResult } from './async-button.js';
 import { T, ICONS, teamAvatar, errorText, openTeamsPage, setFooter } from './teams-ui.js';
 import { suggestionsHtml, emojiPickerHtml } from './teams-create.js';
 import { checkStep, liveNameError } from './teams-create-model.js';
@@ -103,13 +104,13 @@ export function openEditTeamPage(team, { onSaved = null } = {}) {
   });
 
   const submit = async (btn) => {
-    if (saving) return;
+    if (saving) return cancelResult();
     const n = checkStep('name', { name: input.value });
-    if (!n.ok) { showNameError(n.error); input.focus(); return; }
+    if (!n.ok) { showNameError(n.error); input.focus(); return failResult(n.error); }
     const e = checkStep('emoji', { emoji: draft.emoji });
-    if (typedInvalid || !e.ok) { emojiErr.textContent = T.emojiInvalid; emojiErr.hidden = false; return; }
+    if (typedInvalid || !e.ok) { emojiErr.textContent = T.emojiInvalid; emojiErr.hidden = false; return failResult(T.emojiInvalid); }
     const changes = editChanges(team, { name: n.value, emoji: e.value || '' });
-    if (!Object.keys(changes).length) { page.close(); return; }
+    if (!Object.keys(changes).length) { page.close(); return cancelResult(); } // nothing changed
     saving = true;
     if (btn) btn.disabled = true;
     try {
@@ -117,10 +118,12 @@ export function openEditTeamPage(team, { onSaved = null } = {}) {
       showToast(T.saved, 'success');
       page.close();
       onSaved?.();
+      return okResult();
     } catch (err) {
       saving = false;
       if (btn) btn.disabled = false;
       showToast(errorText(err), 'error');
+      return failResult(err);
     }
   };
   input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); submit(null); } });

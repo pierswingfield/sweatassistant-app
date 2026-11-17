@@ -2,6 +2,7 @@
 // the member is in, what it can see, and quick Edit sharing / Pause / Leave. Pending join
 // requests are deliberately NOT listed here (§5.6: only the link page shows them).
 
+import { okResult, failResult } from './async-button.js';
 import { teamsApi } from '../teams-api.js';
 import { escapeHtml } from './cards.js';
 import { showToast } from '../main.js';
@@ -101,8 +102,9 @@ function openPausePage(t, name) {
   const page = openTeamsPage({ title: T.hideMe, onClose: () => renderPrivacyPane() });
   page.body.innerHTML = `<h2 class="tm-group-title">${escapeHtml(name)}</h2><p class="tm-group-help">${escapeHtml(T.pauseHelp)}</p>`;
   const choose = (pause) => async () => {
-    try { await teamsApi.updateMe(t.id, { pause }); } catch (err) { showToast(errorText(err), 'error'); return; }
+    try { await teamsApi.updateMe(t.id, { pause }); } catch (err) { showToast(errorText(err), 'error'); return failResult(err); }
     page.close();
+    return okResult();
   };
   setFooter(page, [
     { label: T.pause24h, kind: 'ghost', onClick: choose('24h') },

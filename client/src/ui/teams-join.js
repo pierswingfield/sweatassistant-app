@@ -5,6 +5,7 @@
 // the ONLY place a pending request is shown. Declined, blocked and removed all read as the
 // neutral "You aren't a member of this Team." The token is never logged.
 
+import { headerBarHtml } from './header-bar.js';
 import { teamsApi } from '../teams-api.js';
 import { escapeHtml } from './cards.js';
 import { showToast } from '../main.js';
@@ -14,7 +15,7 @@ import { goTeams } from './teams.js';
 
 function shell(el, { title = T.inviteTitle, hero = '', below = '', actions = [] }) {
   el.innerHTML = `<div class="tm-invite">
-    <div class="tm-dash-top"><a class="tm-back" href="/teams" data-back aria-label="${escapeHtml(T.backAria)}"><span aria-hidden="true">‹</span> ${escapeHtml(T.back)}</a><span class="tm-grow"></span></div>
+    ${headerBarHtml({ sticky: true, className: 'tm-dash-top', title: '', back: { label: T.back, aria: T.backAria, href: '/teams' } })}
     <section class="tm-card tm-invite-card">
       <h2 class="tm-invite-heading">${escapeHtml(title)}</h2>
       ${hero}
@@ -22,7 +23,7 @@ function shell(el, { title = T.inviteTitle, hero = '', below = '', actions = [] 
       <div class="tm-invite-actions">${actions.map((a, i) => `<button type="button" class="tm-btn tm-btn-block ${a.kind ? `tm-btn-${a.kind}` : ''}" data-action="${i}">${escapeHtml(a.label)}</button>`).join('')}</div>
     </section>
   </div>`;
-  el.querySelector('[data-back]').addEventListener('click', (e) => { e.preventDefault(); goTeams({ view: 'list' }); });
+  el.querySelector('[data-back]').addEventListener('click', (e) => { e.preventDefault(); goTeams({ view: 'list' }, { replace: true }); }); // the invite is a view of the Teams root, so Back leaves it for the list
   el.querySelectorAll('[data-action]').forEach((b) => b.addEventListener('click', () => actions[Number(b.getAttribute('data-action'))].onClick(b)));
 }
 

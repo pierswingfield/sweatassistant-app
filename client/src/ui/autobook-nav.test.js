@@ -1,18 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { countPendingAutoBooks, autoBookBackAction, autoBookBackTarget, bookingsNavActive } from './autobook-nav.js';
+import { countPendingAutoBooks, bookingsNavActive } from './autobook-nav.js';
 import { parseLocation } from '../url-state.js';
 import { pathFor } from '../router.js';
 import { resolve } from 'node:path';
 
 describe('T8 Auto-Book mobile routing', () => {
-  it('Back pops history when the member arrived from any in-app tab (T12: Home included)', () => {
-    for (const t of ['my-bookings', 'home', 'class-timetable', 'teams', 'settings']) expect(autoBookBackAction(t)).toBe('history-back');
-  });
-  it('Back falls back to Bookings when there is no in-app tab behind it (deep link, push click)', () => {
-    for (const t of [null, undefined, '', 'auto-book']) expect(autoBookBackAction(t)).toBe('replace-bookings');
-  });
   it('a deep link to /auto-book still resolves to the auto-book tab', () => {
     const r = parseLocation('/auto-book');
     expect(r.valid).toBe(true);
@@ -39,12 +33,4 @@ describe('T8 Auto-Book mobile routing', () => {
   });
 });
 
-describe('autoBookBackTarget', () => {
-  it('records the previous tab only for a push into Auto-Book from another tab', () => {
-    expect(autoBookBackTarget('push', 'auto-book', 'home')).toBe('home');
-    for (const m of ['none', 'replace']) expect(autoBookBackTarget(m, 'auto-book', 'home')).toBeNull();
-    expect(autoBookBackTarget('push', 'my-bookings', 'home')).toBeNull();
-    expect(autoBookBackTarget('push', 'auto-book', null)).toBeNull();
-    expect(autoBookBackTarget('push', 'auto-book', 'auto-book')).toBeNull();
-  });
-});
+// Back from Auto-Book is nav.back() (parent chain bookings -> auto-book on mobile): see nav-stack.test.js.

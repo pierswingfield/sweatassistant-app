@@ -26,8 +26,9 @@ function initWebPush() {
 
 const vapidPublicKey = initWebPush();
 
-async function sendNotification(userId, title, body, data = {}, { retryFailures = false } = {}) {
-  const subscriptions = db.getPushSubscriptions(userId);
+async function sendNotification(userId, title, body, data = {}, { retryFailures = false, onlyEndpoint = null } = {}) {
+  let subscriptions = db.getPushSubscriptions(userId);
+  if (onlyEndpoint) subscriptions = subscriptions.filter((r) => { try { return JSON.parse(r.subscription).endpoint === onlyEndpoint; } catch (_) { return false; } });
   if (subscriptions.length === 0) {
     console.log(`[Push] No push subscriptions found for user ${userId}. Skipping notification.`);
     return;

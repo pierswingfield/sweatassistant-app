@@ -1,13 +1,15 @@
 // Shared mobile "modal -> full-screen page" helper (modal-to-fullscreen-spec, Batch 1).
 //
 // At <= 768px an opened modal becomes a page: it gets `.app-page` (the CSS block in
-// styles.css keys off that class, so un-wired modals are untouched), a history entry
-// (hardware/iOS back closes it), a body scroll lock, dialog semantics, focus handling,
+// styles.css keys off that class, so un-wired modals are untouched), a level on the app's back
+// stack (nav-controller.js owns history: hardware/browser back, the header Back and the iOS
+// edge swipe all close it through nav.back()), a body scroll lock, dialog semantics, focus handling,
 // Escape, and the visual-viewport height variable. On wider screens openPage/closePage
 // reproduce the previous `display:flex` + `.show` contract exactly.
 
 import { COPY } from '../copy.js';
 import { closeAllRails } from './cards.js';
+import { nav } from '../nav-controller.js';
 
 const MQ = '(max-width: 768px)';
 const HIDE_MS = 300;
@@ -19,13 +21,22 @@ let savedScrollY = 0;
 let savedScrollEl = null;
 let seq = 0;
 let listening = false;
-let pendingPops = 0; // history.back() calls we issued ourselves
 
 export function isMobile() {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(MQ).matches;
 }
 
 export function openPageCount() { return stack.length; }
+
+/** The topmost open page element (for the edge-swipe drag), and the page just beneath it, if any. */
+export function topPageEl() {
+  const pages = stack.filter((e) => !e.layer && e.el);
+  return pages.length ? pages[pages.length - 1].el : null;
+}
+export function belowTopPageEl() {
+  const pages = stack.filter((e) => !e.layer && e.el);
+  return pages.length > 1 ? pages[pages.length - 2].el : null;
+}
 
 // ── scroll lock (counter based; iOS ignores overflow:hidden on body) ─────────
 function lockScroll() {
@@ -113,8 +124,6 @@ function onKeyDown(e) {
 function ensureListeners() {
   if (listening) return;
   listening = true;
-  // Capture + registered at import: must run before main.js's tab-routing popstate handler.
-  window.addEventListener('popstate', onPopState, true);
   document.addEventListener('keydown', onKeyDown, true);
   document.addEventListener('focusin', onFocusIn);
   window.visualViewport?.addEventListener('resize', syncVvh);
@@ -122,19 +131,22 @@ function ensureListeners() {
 }
 
 // ── teardown ────────────────────────────────────────────────────────────────
-function hide(el, entry) {
+function hide(el, entry, instant = false) {
+  // `instant`: the edge-swipe gesture already slid the page away (or a route change closed it), so
+  // skip the slide-out; the element is removed on the next frame.
+  if (instant) el.classList.add('app-page-instant');
   el.classList.remove('show');
   clearTimeout(timers.get(el));
   timers.set(el, setTimeout(() => {
     if (entry.remove) el.remove();
     else if (entry.hadInlineHidden) el.style.display = 'none';
-    el.classList.remove('app-page');
+    el.classList.remove('app-page', 'app-page-instant');
     el.style.removeProperty('--vvh');
     el.style.removeProperty('--vvt');
-  }, HIDE_MS));
+  }, instant ? 0 : HIDE_MS));
 }
 
-function teardown(entry) {
+function teardown(entry, ctx = {}) {
   const i = stack.indexOf(entry);
   if (i === -1) return;
   stack.splice(i, 1);
@@ -145,7 +157,7 @@ function teardown(entry) {
     return;
   }
   const { el } = entry;
-  hide(el, entry);
+  hide(el, entry, !!ctx.instant);
   el.removeAttribute('aria-modal');
   el.removeAttribute('role');
   unlockScroll();
@@ -154,7 +166,7 @@ function teardown(entry) {
   try { entry.opts.onClose?.(); } catch (e) { console.error('[modal-nav] onClose failed', e); }
 }
 
-// Retire a page that was replaced: same visual teardown as `teardown`, but no history or scroll-lock work.
+// Retire a page that was replaced: same visual teardown as `teardown`, but no back-stack or scroll-lock work.
 function retire(entry) {
   const { el } = entry;
   hide(el, entry);
@@ -168,32 +180,27 @@ async function guardOk(entry) {
   try { return (await entry.opts.canClose()) !== false; } catch (_) { return true; }
 }
 
-// X / back button / Escape: guard, then pop our history entry (popstate tears down).
+// X / back button / Escape: guard, then pop our level on the back stack (the controller tears down).
 async function requestClose(entry, force = false) {
   if (!force && !(await guardOk(entry))) return;
-  if (stack[stack.length - 1] === entry && history.state?.appNavId === entry.id) {
-    pendingPops++;
-    entry.skipGuard = true;
-    history.back();
+  if (stack[stack.length - 1] === entry && entry.rec && nav.top() === entry.rec) {
+    nav.back({ force: true, source: 'close' });
   } else {
+    if (entry.rec) nav.remove(entry.rec);
     teardown(entry);
   }
 }
 
-async function onPopState(e) {
-  if (pendingPops > 0) pendingPops--;
-  const depth = history.state?.appNavDepth || 0;
-  if (stack.length <= depth) return; // forward nav or unrelated pop: not ours
-  e.appNavHandled = true;
-  while (stack.length > depth) {
-    const top = stack[stack.length - 1];
-    if (!top.skipGuard && !(await guardOk(top))) {
-      // Cancel the pop: put the entry back and leave the page open.
-      history.pushState({ appNavId: top.id, appNavDepth: stack.length }, '');
-      return;
-    }
-    teardown(top);
-  }
+// The nav record for one open page/layer: the controller calls onPop when the level is popped (by
+// Back, the browser/OS, the edge swipe, or a route change) and canClose before a user-initiated pop.
+function navRecord(entry) {
+  return {
+    kind: entry.layer ? 'layer' : 'page',
+    key: entry.id,
+    canClose: () => guardOk(entry),
+    guarded: !!entry.opts.canClose,
+    onPop: (ctx) => teardown(entry, ctx || {}),
+  };
 }
 
 if (typeof window !== 'undefined') ensureListeners();
@@ -261,10 +268,11 @@ export function openPage(el, opts = {}) {
     title.setAttribute('tabindex', '-1');
   }
   if (opts.closeFooter) ensureCloseFooter(el, entry);
-  if (replacing) {
-    history.replaceState({ appNavId: id, appNavDepth: stack.indexOf(entry) + 1 }, '');
+  if (replacing && replacing.rec) {
+    entry.rec = navRecord(entry);
+    nav.replaceEntry(replacing.rec, entry.rec);
   } else {
-    history.pushState({ appNavId: id, appNavDepth: stack.length }, '');
+    entry.rec = nav.push(navRecord(entry));
     lockScroll();
   }
   applyInert();
@@ -371,15 +379,15 @@ export function pushLayer(opts = {}) {
   const id = opts.id || `layer-${++seq}`;
   const entry = { el: null, id, opts, layer: true, skipGuard: false };
   stack.push(entry);
-  history.pushState({ appNavId: id, appNavDepth: stack.length }, '');
+  entry.rec = nav.push(navRecord(entry));
   if (opts.lock) lockScroll();
   return {
     // Programmatic dismissal (work finished): no guard.
     release() {
       if (!stack.includes(entry)) return;
-      if (stack[stack.length - 1] === entry && history.state?.appNavId === id) {
-        pendingPops++; entry.skipGuard = true; history.back();
-      } else teardown(entry);
+      if (stack[stack.length - 1] === entry && entry.rec && nav.top() === entry.rec) {
+        nav.back({ force: true, source: 'release' });
+      } else { if (entry.rec) nav.remove(entry.rec); teardown(entry); }
     },
     // User-initiated dismissal (header Back): runs opts.canClose first.
     close() { return stack.includes(entry) ? requestClose(entry) : undefined; },
@@ -399,5 +407,5 @@ export function closePage(el, { force = true } = {}) {
 // Test hook.
 export function _resetForTests() {
   desktopLayers.length = 0;
-  stack.length = 0; lockCount = 0; pendingPops = 0; seq = 0; savedScrollEl = null; savedScrollY = 0;
+  stack.length = 0; lockCount = 0; seq = 0; nav._reset(); savedScrollEl = null; savedScrollY = 0;
 }

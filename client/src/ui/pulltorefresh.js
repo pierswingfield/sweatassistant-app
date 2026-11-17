@@ -188,7 +188,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
 
   function onTouchStart(e) {
     if (isRefreshing) return;
-    if (e.touches.length !== 1) return;
+    if (e.touches.length !== 1 || e.__edgeBack) return; // the left-edge zone is the swipe-back gesture's
 
     startY = e.touches[0].clientY;
     startX = e.touches[0].clientX;

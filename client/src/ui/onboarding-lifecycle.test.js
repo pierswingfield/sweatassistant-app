@@ -26,7 +26,8 @@ beforeEach(() => {
 });
 afterEach(() => { document.body.innerHTML = ''; });
 const feature = (name) => document.querySelector(`[data-feature="${name}"]`);
-const ready = async () => vi.waitFor(() => expect(document.querySelectorAll('.app-onb-feature-status')).toHaveLength(4));
+// The name step's Save button plays its pending + success states (async-button.js) before advancing.
+const ready = async () => vi.waitFor(() => expect(document.querySelectorAll('.app-onb-feature-status')).toHaveLength(4), { timeout: 3000 });
 const finish = () => document.querySelector('.app-onb-finish').click();
 
 describe('optional setup lifecycle', () => {

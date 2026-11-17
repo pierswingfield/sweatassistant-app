@@ -13,16 +13,19 @@
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <!-- Status-bar style is captured by iOS when the app is ADDED to the Home Screen. `default` for every
+       install (2026-11-17): black-translucent on a real iOS 26+ device opened the window short/offset (header
+       under the notch, black strip at the bottom). Installs that already captured black-translucent still get
+       html.sa-cover (safe-area.js) so their header clears the status bar; re-adding to Home Screen restores `default`. -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" id="app-sbs-meta">
   <meta name="apple-mobile-web-app-title" content="__APP_NAME__">
   <!-- Status bar / notch area colour. Two media-query-based tags let iOS
        pick the correct colour at initial render (before JS runs), avoiding
        a black notch in light mode. applyTheme() in main.js overrides both
-       tags for manual light/dark modes. On iOS 26+ theme-color is ignored
-       and Safari samples body background-color at render time — the inline
-       script below sets data-theme before first paint to cover that path. -->
+       tags for manual light/dark modes. This serves Android and desktop Chrome only: iOS 26+
+       ignores theme-color, and an installed iOS 26+ app paints its own band (html.sa-cover). -->
   <meta name="theme-color" content="#eee7da" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#161310" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#050505" media="(prefers-color-scheme: dark)">
   <!-- Pre-JS fallbacks only: main.js syncThemeColorMeta() replaces both with one live tag
        holding the header's resolved background whenever the theme changes. -->
   <script>
@@ -43,10 +46,10 @@
        themed before JS via prefers-color-scheme + the data-theme the script below sets, and it can never
        block forever: `app-ready` is added by main.js after checkAuth, or by the 3s timeout here. -->
   <style id="app-boot-css">
-    html { background: #161310; }
+    html { background: #050505; }
     @media (prefers-color-scheme: light) { html:not([data-theme="dark"]) { background: #f6f1e8; } }
     html[data-theme="light"] { background: #f6f1e8; }
-    html[data-theme="dark"] { background: #161310; }
+    html[data-theme="dark"] { background: #050505; }
     html:not(.app-ready) body > * { visibility: hidden !important; }
     html:not(.app-ready)::after {
       content: ''; position: fixed; top: 50%; left: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px;
@@ -184,7 +187,19 @@
       </div>
       <div class="app-header-actions" id="app-header-user-status">
         <span class="app-user-email ui-user-email" data-copy-text="static.headerLoading"></span>
-        <div class="app-credit-badges ui-header-credits" id="app-header-credits"></div>
+        <div class="app-hgym" id="app-hgym" data-mode="plain" data-state="collapsed">
+          <div class="app-credit-badges ui-header-credits app-hgym-strip" id="app-header-credits" role="group" aria-label="Your gyms" data-copy-aria-label="shell.hgymGroup"></div>
+          <button type="button" class="app-hgym-ring" id="app-hgym-ring" hidden aria-expanded="false" aria-controls="app-header-credits">
+            <svg viewBox="0 0 36 36" aria-hidden="true" focusable="false">
+              <defs><filter id="app-hgym-blur" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.2"/></filter></defs>
+              <circle class="app-hgym-track" cx="18" cy="18" r="14" pathLength="100"></circle>
+              <circle class="app-hgym-glow" cx="18" cy="18" r="14" pathLength="100" filter="url(#app-hgym-blur)"></circle>
+              <circle class="app-hgym-arc" cx="18" cy="18" r="14" pathLength="100"></circle>
+            </svg>
+            <span class="app-hgym-attn" aria-hidden="true" hidden></span>
+          </button>
+          <span class="app-hgym-live" id="app-hgym-live" aria-live="polite"></span>
+        </div>
       </div>
     </header>
 
@@ -334,7 +349,7 @@
 
         <button type="button" class="bk-autobook-bar" id="app-bookings-autobook-bar" data-goto-tab="auto-book">
           <svg class="bk-autobook-icon" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M18,11a1,1,0,0,1-1,1,5,5,0,0,0-5,5,1,1,0,0,1-2,0,5,5,0,0,0-5-5,1,1,0,0,1,0-2,5,5,0,0,0,5-5,1,1,0,0,1,2,0,5,5,0,0,0,5,5A1,1,0,0,1,18,11Z"/><path d="M19,24a1,1,0,0,1-1,1,2,2,0,0,0-2,2,1,1,0,0,1-2,0,2,2,0,0,0-2-2,1,1,0,0,1,0-2,2,2,0,0,0,2-2,1,1,0,0,1,2,0,2,2,0,0,0,2,2A1,1,0,0,1,19,24Z"/><path d="M28,17a1,1,0,0,1-1,1,4,4,0,0,0-4,4,1,1,0,0,1-2,0,4,4,0,0,0-4-4,1,1,0,0,1,0-2,4,4,0,0,0,4-4,1,1,0,0,1,2,0,4,4,0,0,0,4,4A1,1,0,0,1,28,17Z"/></svg>
-          <span class="bk-autobook-label" data-copy-text="static.navAutoBook">Auto-Book</span>
+          <span class="bk-autobook-label" data-copy-text="static.autoBookQueueTitle">Auto-Book Queue</span>
           <span class="bk-autobook-count" id="app-bookings-autobook-count" hidden></span>
           <svg class="bk-autobook-chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 5 16 12 9 19"/></svg>
         </button>
@@ -375,12 +390,13 @@
 
       <!-- AUTO-BOOK TAB PANEL -->
       <section id="app-panel-auto-book" class="app-tab-content" style="display: none;">
-        <div class="ab-mobile-header">
-          <button type="button" class="app-settings-back-btn ab-back-btn" id="app-autobook-back-btn">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-            <span data-copy-text="static.back">Back</span>
+        <div class="ab-mobile-header app-hbar app-hbar-sticky">
+          <button type="button" class="app-settings-back-btn ab-back-btn app-hbar-back" id="app-autobook-back-btn">
+            <svg class="app-hbar-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            <span class="app-hbar-back-txt" data-copy-text="static.back">Back</span>
           </button>
-          <h3 class="ab-mobile-title" data-copy-text="static.navAutoBook">Auto-Book</h3>
+          <h3 class="ab-mobile-title app-hbar-title" data-copy-text="static.navAutoBook">Auto-Book</h3>
+          <div class="app-hbar-actions"></div>
         </div>
         <!-- Global Release Countdown banner -->
         <div class="app-countdown-banner ab-banner">
@@ -545,12 +561,13 @@
           <div class="app-settings-content">
             
             <!-- Back button for mobile view -->
-            <div class="app-settings-mobile-header">
-              <button id="app-settings-back-btn" class="app-settings-back-btn">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-                <span data-copy-text="static.back">Back</span>
+            <div class="app-settings-mobile-header app-hbar app-hbar-sticky">
+              <button id="app-settings-back-btn" class="app-settings-back-btn app-hbar-back">
+                <svg class="app-hbar-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                <span class="app-hbar-back-txt" data-copy-text="static.back">Back</span>
               </button>
-              <h4 id="app-settings-section-title" data-copy-text="static.general">General</h4>
+              <h4 id="app-settings-section-title" class="app-hbar-title" data-copy-text="static.general">General</h4>
+              <div class="app-hbar-actions"></div>
             </div>
 
             <!-- Scrollable content sections -->
@@ -589,6 +606,15 @@
                       <button class="app-segmented-btn" data-theme-mode="auto" data-copy-text="static.auto">Auto</button>
                       <button class="app-segmented-btn" data-theme-mode="light" data-copy-text="static.light">Light</button>
                       <button class="app-segmented-btn" data-theme-mode="dark" data-copy-text="static.dark">Dark</button>
+                    </div>
+                  </div>
+                  <div class="app-settings-card">
+                    <h4 data-copy-text="static.headerGymsTitle">Show gyms in app header</h4>
+                    <p class="app-card-desc" data-copy-text="static.headerGymsHelp">Choose how gym loading indicators and credits appear in the app header. By default, many logos may collapse to show a simpler view.</p>
+                    <div class="app-segmented" id="app-header-gyms-segmented" role="group" aria-label="Show gyms in app header" data-copy-aria-label="static.headerGymsLabel">
+                      <button type="button" class="app-segmented-btn" data-header-gyms="auto" data-copy-text="static.headerGymsAuto">Automatic</button>
+                      <button type="button" class="app-segmented-btn" data-header-gyms="always" data-copy-text="static.headerGymsAlways">Always</button>
+                      <button type="button" class="app-segmented-btn" data-header-gyms="never" data-copy-text="static.headerGymsNever">Never</button>
                     </div>
                   </div>
                   <div class="app-settings-card">

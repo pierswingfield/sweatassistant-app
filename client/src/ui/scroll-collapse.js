@@ -7,7 +7,7 @@
 // cool-down after each toggle or programmatic scroll (merge-in anchor restore), and rubber-band
 // samples (scrollTop < 0 or > max) being ignored outright.
 
-export const COLLAPSE_TUNING = Object.freeze({ deadZone: 12, edgeZone: 32, topZone: 4 });
+export const COLLAPSE_TUNING = Object.freeze({ deadZone: 12, edgeZone: 32, topZone: 4, minTravel: 12, shortReveal: 6 });
 
 /**
  * `holdExpanded` (optional): the user is mid-interaction with something the collapse would hide (landscape: the search
@@ -17,10 +17,21 @@ export const COLLAPSE_TUNING = Object.freeze({ deadZone: 12, edgeZone: 32, topZo
  */
 export function nextCollapseState(s, t = COLLAPSE_TUNING) {
   const { top, max, anchor, collapsed, busy, modalOpen, headerH, holdExpanded } = s;
-  // Too short to scroll meaningfully: never collapsed.
-  if (max < headerH + 48) return { collapsed: false, anchor: 0 };
+  // Practically nothing to scroll (under minTravel): never collapsed.
+  if (max < t.minTravel) return { collapsed: false, anchor: 0 };
   // iOS rubber-band: not real scrolling.
   if (top < 0 || top > max) return { collapsed, anchor };
+  // Short page (e.g. a Teams list of one or two): the whole scroll range sits inside the edge zones, so the normal
+  // rules could never collapse it. Scrolling to deadZone collapses (a short page ends at its bottom, which is not a
+  // bounce). Revealing must NOT wait for the top (that only happens when the rubber band settles, ~1 s after the
+  // finger lifts): it follows upward travel from the lowest point reached, like every longer page.
+  if (max < headerH + 48) {
+    if (modalOpen || holdExpanded || top <= t.topZone) return { collapsed: false, anchor: top };
+    if (busy) return { collapsed, anchor: top };
+    if (!collapsed) return top >= Math.min(t.deadZone, max) ? { collapsed: true, anchor: top } : { collapsed, anchor: top };
+    if (anchor - top >= t.shortReveal) return { collapsed: false, anchor: top };
+    return { collapsed, anchor: Math.max(anchor, top) };
+  }
   if (modalOpen || holdExpanded || top <= t.topZone) return { collapsed: false, anchor: top };
   if (busy) return { collapsed, anchor: top };                       // settle, then re-baseline
   if (top >= max - t.edgeZone) return { collapsed, anchor: top };    // bottom bounce zone: keep state

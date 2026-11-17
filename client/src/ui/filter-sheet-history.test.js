@@ -61,7 +61,7 @@ describe('filter drawer history', () => {
     expect(h.ctx.onSheetClosed).toHaveBeenCalledTimes(1);
     expect(isFilterSheetHoldingHistory()).toBe(false);
     expect(location.pathname + location.search).toBe('/timetable?gym=g1&instructor=g1:1');
-    expect(history.state.appNavId).toBeUndefined();
+    expect(history.state.appNavId).not.toBe('filter-sheet'); // the drawer's level is gone
     expect(history.state.manualFilter).toBe(true);
     expect(restored).toEqual([]);   // the drawer's own pop is consumed by modal-nav
     expect(h.state.instructors).toEqual(['g1:1']);
@@ -78,17 +78,16 @@ describe('filter drawer history', () => {
     expect(restored).toEqual([]);
   });
 
-  it('a later Back steps to the pre-drawer filters (one entry per drawer session)', async () => {
+  it('mobile filter edits never add a back entry (decision 3): the drawer session only rewrites the URL', async () => {
     const h = harness();
     await openDrawerAndPick(h);
+    const len = history.length;
     h.ctx.toggle('instructors', 'g1:2');
     document.querySelector('.fr-done').click();
     await tick();
     expect(location.search).toBe('?gym=g1&instructor=g1:1,g1:2');
-    history.back();
-    await tick();
-    expect(location.search).toBe('?gym=g1');
-    expect(restored).toEqual(['/timetable?gym=g1']);
+    expect(history.length).toBe(len); // the layer was popped; no filter entry was added
+    expect(restored).toEqual([]);
   });
 
   it('desktop (no history layer) commits on close without a pop', async () => {

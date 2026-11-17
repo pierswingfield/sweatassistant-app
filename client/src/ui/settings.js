@@ -4,11 +4,10 @@ import { api, apiFetch } from '../api';
 import { loadSpotMapGyms } from './spot-map-loading.js';
 import { mapRemovalWarning } from './spot-map-usage.js';
 import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole, loadGymContext, refreshUserData, updateDebugTerminalVisibility, getIsOffline } from '../main';
-import { getBookingOffset, describeBookingWindow } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
 import { currentRoute, navigate, pathFor } from '../router.js';
 import { openSpotSetup } from './spot-setup.js';
-import { isScrollBusy } from './scroll-state.js';
+import { nav } from '../nav-controller.js';
 import { cacheGet, resetTimetableForGymChange, rowGroupsForStudio, mobileRotationForStudio, frontForStudio } from './timetable';
 import { clearApiCache, invalidateApiCache, accountScopedKey } from '../cache.js';
 import { renderGymSettingsSection as renderGymSettingsSectionView } from './gym-settings-section.js';
@@ -22,6 +21,9 @@ import { appConfig } from '../config.js';
 import { openPage as openNavPage, closePage as closeNavPage, isMobile } from './modal-nav.js';
 import { initFavouritesPane, renderFavouritesPane } from './favourites-pane.js';
 import { cleanNameField, inferNames } from './name-capture.js';
+import * as headerGyms from './header-gyms.js';
+import { normaliseSetting as normaliseHeaderGymsSetting } from './header-gyms-state.js';
+import { asyncHandler, okResult, failResult, cancelResult } from './async-button.js';
 
 let loadedProfile = null;
 let activeSpotEditorOverlay = null;
@@ -918,7 +920,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
         removeBtn.className = 'app-btn-mini';
         removeBtn.style.cssText = 'font-size:12px;padding:4px 10px;background:color-mix(in srgb, var(--danger) 10%, transparent);border-color:color-mix(in srgb, var(--danger) 25%, transparent);color:var(--danger);';
         removeBtn.textContent = COPY.spotMaps.remove;
-        removeBtn.addEventListener('click', async () => {
+        removeBtn.addEventListener('click', asyncHandler(async () => {
           // In-app two-tap confirm (same pattern as Unlink gym): first tap arms the button and shows what depends
           // on the map inline; second tap removes. Disarms after 6s.
           if (removeBtn.dataset.armed !== '1') {
@@ -943,7 +945,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
             removeBtn.textContent = COPY.settings.confirmRemove;
             clearTimeout(removeBtn._armTimer);
             removeBtn._armTimer = setTimeout(() => { delete removeBtn.dataset.armed; removeBtn.textContent = COPY.spotMaps.remove; note?.remove(); }, 6000);
-            return;
+            return cancelResult(); // armed the confirm; nothing removed yet
           }
           clearTimeout(removeBtn._armTimer);
           removeBtn.disabled = true;
@@ -953,12 +955,14 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
             showToast(COPY.settings.defaultsRemoved, 'success');
             if (!isMobile()) onClose();
             openManageSpotMapsModal(options);
+            return okResult();
           } catch (err) {
             showToast(formatCopyText(COPY.settings.actionFailed, { error: err.message }), 'error');
             removeBtn.disabled = false;
             removeBtn.textContent = COPY.spotMaps.remove;
+            return failResult(err);
           }
-        });
+        }));
         btns.appendChild(removeBtn);
       }
 
@@ -1105,13 +1109,9 @@ function setupSettingsNavigation() {
   let initialSection = 'account';
   if (['general', 'account', 'gyms', 'about', 'calendar', 'notifications', 'privacy', 'favourites'].includes(routeSection)) initialSection = routeSection;
 
-  let navHistory = [];
   let currentSection = initialSection;
 
-  const activateSection = (sectionId, pushHistory = true) => {
-    if (pushHistory && currentSection && currentSection !== sectionId) {
-      navHistory.push(currentSection);
-    }
+  const activateSection = (sectionId) => {
     if (sectionId === 'about' && (currentSection !== 'about' || !layout.dataset.aboutMascotChosen)) {
       const image = document.querySelector('.app-about-guide img');
       if (image) {
@@ -1145,11 +1145,13 @@ function setupSettingsNavigation() {
     layout.classList.add('show-pane');
   };
 
-  // U4-19: keep /settings/:section in step with the visible pane. Initial activation
-  // never touches the URL; user clicks push an entry, programmatic selection replaces.
-  const syncSectionUrl = (sectionId, replace) => {
+  // U4-19: keep /settings/:section in step with the visible pane. Initial activation never touches
+  // the URL. The nav controller turns the section URL into the right back-stack change: from the
+  // menu a pane is a drill-down level (Menu > Pane), Gyms > a gym is one more level, a deep link
+  // gets its whole parent chain, and on desktop (panes side by side) it only rewrites the URL.
+  const syncSectionUrl = (sectionId) => {
     if (document.getElementById('app-panel-settings')?.style.display === 'none') return; // not the visible tab
-    navigate(pathFor({ tab: 'settings', section: sectionId }), { replace });
+    navigate(pathFor({ tab: 'settings', section: sectionId }));
   };
 
   // ONE delegated listener on the menu, so entries added later (the per-gym
@@ -1157,88 +1159,37 @@ function setupSettingsNavigation() {
   layout.addEventListener('click', (event) => {
     const item = event.target.closest('.app-settings-menu-item');
     if (!item || !layout.contains(item)) return;
-    navHistory = [];
     const id = item.getAttribute('data-settings-section');
-    activateSection(id, false);
-    syncSectionUrl(id, false);
+    activateSection(id);
+    syncSectionUrl(id);
   });
   // Exposed so renderGymsCard can select a gym's pane after creating it.
-  layout.__activateSettingsSection = (id, { sync = true, history = true } = {}) => { activateSection(id, history); if (sync) syncSectionUrl(id, true); };
-  // Back/forward: apply the section (or the bare menu on mobile) without touching history.
+  layout.__activateSettingsSection = (id, { sync = true } = {}) => { activateSection(id); if (sync) syncSectionUrl(id); };
+  // Back/forward/swipe: apply the section (or the bare menu on mobile). The nav controller has
+  // already settled history; this only paints.
   layout.__applySettingsRoute = (section) => {
-    navHistory = []; // URL navigation owns its own history; do not accumulate pane hops.
     if (!section) { layout.classList.remove('show-pane'); return; }
     if (section.startsWith('gym-')) { openGymSettings(section.slice(4), true); return; }
-    activateSection(section, false);
+    activateSection(section);
   };
 
-  layout.querySelector('[data-about-account]')?.addEventListener('click', () => { activateSection('account'); syncSectionUrl('account', false); });
+  // About > "your account": a real extra level, so Back returns to About (not the menu).
+  layout.querySelector('[data-about-account]')?.addEventListener('click', () => {
+    activateSection('account');
+    if (window.matchMedia('(max-width: 768px)').matches) nav.pushRoute({ key: 'settings:account', url: '/settings/account' });
+    else syncSectionUrl('account');
+  });
 
-  // Attach mobile back button listener
+  // Mobile Back arrow: one level up the app's back stack (the shared header bar goes through nav.back()).
   if (backBtn) {
     backBtn.addEventListener('click', () => {
-      if (navHistory.length > 0) {
-        const prev = navHistory.pop();
-        activateSection(prev, false);
-        syncSectionUrl(prev, false);
-      } else {
-        layout.classList.remove('show-pane');
-        navigate('/settings', { replace: true });
-      }
+      if (nav.canGoBack()) { nav.back({ source: 'button' }); return; }
+      layout.classList.remove('show-pane');
+      navigate('/settings', { replace: true });
     });
   }
 
-  // iOS-style left-edge swipe back (pane -> menu). Mobile only; reuses the back button's
-  // handler for the actual navigation. Passive listeners: horizontal drags are claimed via
-  // `touch-action: pan-y` on the content, so vertical scrolling is untouched. Requires
-  // horizontal dominance and a distance/velocity threshold, and never starts while the
-  // shared scroll clock (header transition) is busy.
-  const content = layout.querySelector('.app-settings-content');
-  if (content && backBtn) {
-    const EDGE = 28, COMMIT = 90;
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
-    let sx = 0, sy = 0, st = 0, dx = 0, tracking = false, locked = false;
-    const reset = (animate) => {
-      content.style.transition = animate && !reduce.matches ? 'transform .22s ease' : 'none';
-      content.style.transform = '';
-    };
-    content.addEventListener('touchstart', (e) => {
-      tracking = false; locked = false;
-      if (!window.matchMedia('(max-width: 768px)').matches || !layout.classList.contains('show-pane')) return;
-      if (e.touches.length !== 1 || isScrollBusy()) return;
-      const t = e.touches[0];
-      if (t.clientX > EDGE) return;               // must begin at the left edge
-      sx = t.clientX; sy = t.clientY; st = performance.now(); dx = 0; tracking = true;
-      content.style.transition = 'none';
-    }, { passive: true });
-    content.addEventListener('touchmove', (e) => {
-      if (!tracking) return;
-      const t = e.touches[0];
-      const mx = t.clientX - sx, my = t.clientY - sy;
-      if (!locked) {
-        if (Math.abs(my) > 10 && Math.abs(my) > Math.abs(mx)) { tracking = false; reset(false); return; } // vertical scroll wins
-        if (mx > 10 && mx > Math.abs(my) * 1.5) locked = true; else return;                                // horizontal dominance
-      }
-      dx = Math.max(0, mx);
-      content.style.transform = `translateX(${dx}px)`;
-    }, { passive: true });
-    const end = () => {
-      if (!tracking) return;
-      tracking = false;
-      const fast = dx / Math.max(1, performance.now() - st) > 0.5; // px/ms
-      if (locked && (dx > COMMIT || (fast && dx > 30))) {
-        if (reduce.matches) { reset(false); backBtn.click(); return; }
-        content.style.transition = 'transform .18s ease';
-        content.style.transform = `translateX(${window.innerWidth}px)`;
-        setTimeout(() => { backBtn.click(); reset(false); }, 180);
-      } else {
-        reset(true);
-      }
-      locked = false;
-    };
-    content.addEventListener('touchend', end, { passive: true });
-    content.addEventListener('touchcancel', end, { passive: true });
-  }
+  // The iOS left-edge swipe back lives in ui/edge-swipe-back.js (one gesture for every level).
 
   // Set initial state
   activateSection(initialSection);
@@ -1625,7 +1576,6 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
       link.status === 'needs_relogin' ? undefined : api.getMembership(gymId).catch(() => undefined), // undefined = unknown
       link.status === 'needs_relogin' ? undefined : api.getNormalizedCredits(gymId).catch(() => undefined),
     ]);
-    const bookingWindowText = describeBookingWindow(getBookingOffset(settings), null);
 
     const rerender = () => renderGymSettingsSection(gymId, container).catch(err => debugConsole('[Settings] Gym section refresh failed:', err.message));
     renderGymSettingsSectionView(container, {
@@ -1634,7 +1584,6 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
       settings,
       membership,
       credits,
-      bookingWindowText,
       debugMode: !!userSettings.debugMode,
     }, {
       onEnabledChange: async (enabled, input) => {
@@ -1678,10 +1627,10 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
           modal.body.innerHTML = `<p>${escapeHtml(appConfig.appName)} will remove your saved gym login details and keep your current session. You’ll need to log in again occasionally. Auto-Book, Auto-Upgrade and syncing will pause for this gym when its session expires.</p><div class="app-settings-btn-row"><button class="app-btn" data-keep-login>Keep saved login</button><button class="app-btn variant-danger" data-forget-login>Forget gym login</button></div><p data-forget-error role="alert"></p>`;
           modal.open({ id: 'forget-gym-login', back: true });
           modal.body.querySelector('[data-keep-login]').onclick = modal.close;
-          modal.body.querySelector('[data-forget-login]').onclick = async () => {
-            try { await api.forgetGymLogin(gymId); modal.close(); await renderGymsCard(); }
-            catch (err) { modal.body.querySelector('[data-forget-error]').textContent = err.message; }
-          };
+          modal.body.querySelector('[data-forget-login]').onclick = asyncHandler(async () => {
+            try { await api.forgetGymLogin(gymId); modal.close(); await renderGymsCard(); return okResult(); }
+            catch (err) { modal.body.querySelector('[data-forget-error]').textContent = err.message; return failResult(err); }
+          });
           return;
         }
         if (action === 'reauth') return openLinkGymModal(gymId, link);
@@ -1775,7 +1724,7 @@ export function openLinkGymModal(gymId, existing, addable = []) {
   bindGymLoginChoice(body);
   const errEl = body.querySelector('#app-link-gym-error');
   const submit = body.querySelector('#app-link-gym-submit');
-  submit.onclick = async () => {
+  submit.onclick = asyncHandler(async () => {
     const targetGym = isReauth ? gymId : body.querySelector('#app-link-gym-id')?.value;
     const email = body.querySelector('#app-link-gym-email').value.trim();
     const password = body.querySelector('#app-link-gym-password').value;
@@ -1783,7 +1732,7 @@ export function openLinkGymModal(gymId, existing, addable = []) {
     if (!targetGym || !email || !password) {
       errEl.textContent = COPY.auth.requiredGymCredentials;
       errEl.style.display = 'block';
-      return;
+      return failResult(COPY.auth.requiredGymCredentials);
     }
     submit.disabled = true;
     submit.textContent = COPY.settings.checking;
@@ -1801,13 +1750,15 @@ export function openLinkGymModal(gymId, existing, addable = []) {
       // list loadGymContext just set.
       syncAfterGymSetChange().catch(() => {});
       Promise.all([renderGymsCard(), renderGymSettingsSection(isReauth ? gymId : targetGym)]).catch(() => {});
+      return okResult();
     } catch (err) {
       errEl.textContent = err.message;
       errEl.style.display = 'block';
       submit.disabled = false;
       submit.textContent = isReauth ? COPY.settings.reauthenticate : COPY.settings.link;
+      return failResult(err);
     }
-  };
+  });
 }
 
 function openAccountPasswordModal() {
@@ -1838,9 +1789,9 @@ function openAccountPasswordModal() {
 
   const errEl = body.querySelector('#app-pw-error');
   const submit = body.querySelector('#app-pw-submit');
-  const fail = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; };
+  const fail = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; return failResult(msg); };
 
-  submit.onclick = async () => {
+  submit.onclick = asyncHandler(async () => {
     errEl.style.display = 'none';
     const current = body.querySelector('#app-pw-current').value;
     const next = body.querySelector('#app-pw-new').value;
@@ -1853,12 +1804,13 @@ function openAccountPasswordModal() {
       await api.changeAccountPassword(current, next);
       showToast(COPY.settings.accountPasswordChanged, 'success');
       close();
+      return okResult();
     } catch (err) {
-      fail(err.message);
       submit.disabled = false;
       submit.textContent = COPY.settings.changePasswordButton;
+      return fail(err.message);
     }
-  };
+  });
 }
 
 // U1-10: a leading SVG glyph on each static Settings entry. Injected here (from the
@@ -1890,7 +1842,7 @@ export async function openGymSettings(gymId, fromHistory = false) {
   for (let i = 0; i < 40; i++) {
     const item = [...layout.querySelectorAll('[data-gym-nav]')].find((el) => el.getAttribute('data-gym-nav') === String(gymId));
     if (item && layout.__activateSettingsSection) {
-      layout.__activateSettingsSection(`gym-${gymId}`, { sync: !fromHistory, history: !fromHistory });
+      layout.__activateSettingsSection(`gym-${gymId}`, { sync: !fromHistory });
       return;
     }
     await new Promise((r) => setTimeout(r, 50));
@@ -1902,6 +1854,7 @@ export async function initSettings() {
   loadSettingsInputs();
   setupSettingsListeners();
   setupThemeToggle();
+  setupHeaderGymsToggle();
   setupNotificationPrefs();
   updateTestNotifCardVisibility();
   // Konami listener is attached on first profile explorer modal open via setupExplorerKonamiListener()
@@ -1952,6 +1905,40 @@ function setupThemeToggle() {
     btn.addEventListener('click', () => {
       setTheme(btn.dataset.themeMode);
       sync();
+    });
+  });
+  sync();
+}
+
+// ─── Show gyms in app header (Automatic / Always / Never) ────────────────────
+function setupHeaderGymsToggle() {
+  const group = document.getElementById('app-header-gyms-segmented');
+  if (!group || group.dataset.listener) return;
+  group.dataset.listener = 'true';
+  const sync = () => {
+    const active = normaliseHeaderGymsSetting(userSettings.headerGyms);
+    group.querySelectorAll('.app-segmented-btn').forEach((btn) => {
+      const on = btn.dataset.headerGyms === active;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-pressed', String(on));
+    });
+  };
+  group.querySelectorAll('.app-segmented-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const prev = userSettings.headerGyms;
+      const next = btn.dataset.headerGyms;
+      if (normaliseHeaderGymsSetting(prev) === next) return;
+      userSettings.headerGyms = next;
+      headerGyms.setMode(next);
+      sync();
+      try {
+        await api.updateSettings({ headerGyms: next });
+      } catch (err) {
+        userSettings.headerGyms = prev;
+        headerGyms.setMode(prev);
+        sync();
+        showToast(COPY.settings.headerGymsSaveFailed, 'error');
+      }
     });
   });
   sync();
@@ -2290,7 +2277,7 @@ function setupSettingsListeners() {
   const exportBtn = document.getElementById('app-settings-export-btn');
   if (exportBtn && !exportBtn.dataset.listener) {
     exportBtn.dataset.listener = 'true';
-    exportBtn.addEventListener('click', async () => {
+    exportBtn.addEventListener('click', asyncHandler(async () => {
       try {
         showToast(COPY.settings.configExporting, 'info');
         const config = await api.exportConfig();
@@ -2307,10 +2294,12 @@ function setupSettingsListeners() {
         URL.revokeObjectURL(url);
         
         showToast(COPY.settings.configExported, 'success');
+        return okResult();
       } catch (err) {
         showToast(formatCopyText(COPY.settings.exportFailed, { error: err.message }), 'error');
+        return failResult(err);
       }
-    });
+    }));
   }
 
   // Import config file triggers
@@ -2404,7 +2393,7 @@ function setupSettingsListeners() {
   const deleteDataBtn = document.getElementById('app-delete-data-btn');
   if (deleteDataBtn && !deleteDataBtn.dataset.listener) {
     deleteDataBtn.dataset.listener = 'true';
-    deleteDataBtn.addEventListener('click', async () => {
+    deleteDataBtn.addEventListener('click', asyncHandler(async () => {
       if (deleteDataBtn.dataset.confirmState !== 'confirm') {
         deleteDataBtn.dataset.confirmState = 'confirm';
         deleteDataBtn.textContent = COPY.settings.confirmDelete;
@@ -2420,7 +2409,7 @@ function setupSettingsListeners() {
             deleteDataBtn.style.borderColor = '';
           }
         }, 5000);
-        return;
+        return cancelResult(); // armed the confirm; nothing deleted yet
       }
       delete deleteDataBtn.dataset.confirmState;
       deleteDataBtn.disabled = true;
@@ -2431,11 +2420,13 @@ function setupSettingsListeners() {
         localStorage.removeItem('appLocalToken');
         try { localStorage.removeItem('appPendingTeamInvite'); } catch (_) { /* T-1: drop a stashed invite on sign-out */ }
         setTimeout(() => { window.location.reload(); }, 1500);
+        return okResult();
       } catch (err) {
         showToast(formatCopyText(COPY.settings.deleteFailed, { error: err.message }), 'error');
         deleteDataBtn.disabled = false;
         deleteDataBtn.textContent = COPY.settings.deleteData;
+        return failResult(err);
       }
-    });
+    }));
   }
 }

@@ -11,8 +11,9 @@ import { escapeHtml } from '../escape-html.js';
 import { teamsApi } from '../teams-api.js';
 import { showToast } from '../main.js';
 import { defaultShare } from './teams-model.js';
+import { asyncHandler, okResult, failResult } from './async-button.js';
 import {
-  T, fmt, ICONS, teamAvatar, errorText, openTeamsPage, setFooter, shareInvite, renderSharingSheet,
+  T, fmt, ICONS, teamAvatar, errorText, openTeamsPage, setFooter, shareInvite, copyInvite, renderSharingSheet,
 } from './teams-ui.js';
 import {
   stepProgress, previousStep, liveNameError, checkStep, suggestionSet, EMOJI_CHOICES,
@@ -65,8 +66,11 @@ export function readyHtml(team) {
     <div class="tm-cf-captain"><span class="tm-cf-captain-ico">${CROWN}</span><span>${captain}</span></div>
     <p class="tm-cf-cta">${escapeHtml(T.readyCta)}</p>
     <div class="tm-cf-actions">
-      <button type="button" class="tm-btn tm-btn-primary tm-btn-pill tm-btn-block tm-cf-share" data-cf-share>${ICONS.share}<span>${escapeHtml(T.share)}</span></button>
-      <button type="button" class="tm-btn tm-btn-ghost tm-btn-pill tm-btn-block" data-cf-go>${escapeHtml(T.goToTeam)}</button>
+      <div class="tm-cf-pair">
+        <button type="button" class="tm-btn tm-btn-primary tm-btn-pill tm-cf-btn" data-cf-share>${ICONS.share}<span>${escapeHtml(T.share)}</span></button>
+        <button type="button" class="tm-btn tm-btn-primary tm-btn-pill tm-cf-btn" data-cf-copy>${ICONS.copy}<span>${escapeHtml(T.copy)}</span></button>
+      </div>
+      <button type="button" class="tm-btn tm-btn-ghost tm-btn-pill tm-btn-block tm-cf-btn" data-cf-go>${escapeHtml(T.goToTeam)}</button>
     </div>`;
 }
 
@@ -225,11 +229,13 @@ export function openCreateTeamFlow({ onCreated = () => {}, onGoToTeam = () => {}
             created = res;
             try { onCreated(res.team); } catch (_) { /* list refresh is best effort */ }
             stepReady(res);
+            return okResult();
           } catch (err) {
             btn.disabled = false;
             backBtn.disabled = false;
             btn.textContent = T.createAction;
             showToast(errorText(err), 'error');
+            return failResult(err);
           }
         },
       },
@@ -241,7 +247,8 @@ export function openCreateTeamFlow({ onCreated = () => {}, onGoToTeam = () => {}
     page.setTitle(T.readyHeading); // visually hidden (.is-untitled); keeps the dialog labelled
     shell('ready', readyHtml(team));
     setFooter(page, []);
-    page.body.querySelector('[data-cf-share]').addEventListener('click', () => shareInvite(team, { url: inviteToken }));
+    page.body.querySelector('[data-cf-share]').addEventListener('click', asyncHandler(() => shareInvite(team, { url: inviteToken })));
+    page.body.querySelector('[data-cf-copy]').addEventListener('click', asyncHandler(() => copyInvite(team, { url: inviteToken })));
     page.body.querySelector('[data-cf-go]').addEventListener('click', () => page.closeThen(() => onGoToTeam(team)));
   };
 

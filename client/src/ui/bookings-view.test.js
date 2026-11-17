@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeBookingsView, mergeBookingsTimeline, DEFAULT_BOOKINGS_VIEW, BOOKINGS_VIEW_KEY } from './bookings-view.js';
+import { normalizeBookingsView, resolveBookingsView, mergeBookingsTimeline, DEFAULT_BOOKINGS_VIEW, BOOKINGS_VIEW_KEY } from './bookings-view.js';
 import { groupBookingsByEvent } from './upcoming.js';
 
 const booking = (id, startAt, gymId = 'psycle-london') => ({ bookingId: `b${id}`, event: { id: String(id), gymId, startAt } });
@@ -52,5 +52,19 @@ describe('mergeBookingsTimeline', () => {
     const merged = mergeBookingsTimeline([], [{ event: { id: '1', start_at: '2026-11-03T10:00:00Z' } }]);
     expect(merged).toHaveLength(1);
     expect(merged[0].startMs).toBe(Date.parse('2026-11-03T10:00:00Z'));
+  });
+});
+
+describe('resolveBookingsView (desktop / no-waitlist rules)', () => {
+  it('desktop is always separate, whatever is saved', () => {
+    expect(resolveBookingsView('combined', { desktop: true, waitlistCount: 0 })).toBe('separate');
+    expect(resolveBookingsView('combined', { desktop: true, waitlistCount: 3 })).toBe('separate');
+  });
+  it('mobile with no waitlists shows the plain list, ignoring the saved preference', () => {
+    expect(resolveBookingsView('separate', { desktop: false, waitlistCount: 0 })).toBe('combined');
+  });
+  it('mobile with waitlists honours the saved preference', () => {
+    expect(resolveBookingsView('separate', { desktop: false, waitlistCount: 2 })).toBe('separate');
+    expect(resolveBookingsView(undefined, { desktop: false, waitlistCount: 2 })).toBe('combined');
   });
 });

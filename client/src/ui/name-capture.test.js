@@ -84,4 +84,10 @@ describe('T-1 first and last name inference (PLAN-teams §5.8)', () => {
     expect(onboardingNameSuggestion({}, [...gyms, { gym_name: 'Beta', first_name: 'Robin' }]).sources).toEqual([]);
     expect(onboardingNameSuggestion({}, [{ gym_name: 'Alpha', gym_email: 'alex@example.com' }]).firstName).toBe('');
   });
+
+  it('an empty saved lastName does not hide the gym suggestion, and never pairs with a different first name', () => {
+    const g = [{ gym_name: 'Alpha', first_name: 'Alex', last_name: 'Smith' }];
+    expect(onboardingNameSuggestion({ firstName: '', lastName: '' }, g)).toEqual({ firstName: 'Alex', lastName: 'Smith', sources: ['Alpha'] });
+    expect(onboardingNameSuggestion({ firstName: 'Robin', lastName: '' }, g).lastName).toBe('');
+  });
 });

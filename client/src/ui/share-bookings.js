@@ -46,6 +46,7 @@ export function buildShareItems({ bookings = [], waitlists = [], autoBooks = [] 
     const k = key(gymId, eventId);
     if (seen.has(k)) continue;
     seen.add(k);
+    if (b.isCancelled === true || e.isCancelled === true) continue; // studio-cancelled: never shared (seen blocks a stale auto-book too)
     items.push(baseItem('confirmed', gymId, eventId, startOf(e), zoneFor(e, gymId),
       e.name || e.event_type?.name, e.discipline || e.event_type?.group?.name,
       e.locationName || e.studio?.location?.name, e.instructors?.[0]?.name || e.instructor?.full_name));
@@ -58,6 +59,7 @@ export function buildShareItems({ bookings = [], waitlists = [], autoBooks = [] 
     const k = key(gymId, eventId);
     if (seen.has(k)) continue;
     seen.add(k);
+    if (w.isCancelled === true || e.isCancelled === true) continue; // studio-cancelled: never shared (seen blocks a stale auto-book too)
     items.push(baseItem('waitlist', gymId, eventId, startOf(e), zoneFor(e, gymId),
       e.name || e.event_type?.name, e.discipline || e.event_type?.group?.name,
       e.locationName || e.studio?.location?.name, e.instructors?.[0]?.name || e.instructor?.full_name));

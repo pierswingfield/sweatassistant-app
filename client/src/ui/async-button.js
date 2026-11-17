@@ -14,6 +14,16 @@
 //    holds the visual, never the work), then a check-mark morph on success or a gentle
 //    shake on error before the label returns.
 //
+//    The outcome is EXPLICIT, reported by the action itself to the button that started it
+//    (never inferred from toasts or haptics, which are global and would let one button show
+//    another's result when two actions overlap):
+//      resolve (anything)        -> success: check morph
+//      resolve failResult()/{ok:false} -> handled failure: shake, label restored
+//      resolve cancelResult()      -> user cancelled / nothing happened (closed a confirm,
+//                                   armed a two-tap confirm, opened a modal instead of
+//                                   completing): quiet restore, no check, no shake
+//      throw / reject            -> error: shake (rethrown unless rethrow:false)
+//
 // The action may rewrite the button's label (existing flows set "Booking…" etc.):
 // the indicator lives in its own child, re-attached if the label rewrite removes it.
 
@@ -29,6 +39,19 @@ const INDICATOR_SVG = '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="t
   + '<circle class="abtn-ring" cx="12" cy="12" r="9"></circle>'
   + '<path class="abtn-check" d="M6.5 12.5l3.6 3.6L17.6 8.4"></path>'
   + '</svg>';
+
+// ---- Explicit outcomes ----
+const CANCEL_MARK = '__abtnCancelled';
+/** The action finished normally. Optional: any resolved value that is not failResult()/cancelResult() is a success. */
+export function okResult(value) { return { ok: true, value }; }
+/** A handled failure (the flow already told the user why): shake and restore. */
+export function failResult(error) { return { ok: false, error: error?.message || error || null }; }
+/** The user backed out or nothing was done (confirm closed, modal opened instead): quiet restore. */
+export function cancelResult() { return { ok: false, [CANCEL_MARK]: true, cancelled: true }; }
+export const isCancelled = (r) => !!(r && typeof r === 'object' && r[CANCEL_MARK] === true);
+export const isFailure = (r) => !!(r && typeof r === 'object' && r.ok === false && !isCancelled(r));
+/** Classify a resolved value. */
+export function outcomeOf(r) { return isCancelled(r) ? 'cancelled' : isFailure(r) ? 'failed' : 'success'; }
 
 const delay = (ms) => new Promise((r) => setTimeout(r, Math.max(0, ms)));
 const now = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
@@ -198,17 +221,13 @@ export function waitUntilSettled(btn, timeoutMs = 8000) {
  *   successMs     (550)
  *   errorMs       (420)
  *   successLabel / errorLabel  announced via aria-live when given
- *   isError(result) -> bool   treat a resolved result as a failure (default: result === false)
- *   isSuccess(result) -> bool play the check only when true (else settle quietly)
  *   settle()      -> Element|Element[]|null  the button(s) that replaced `btn` when the
  *                       action re-rendered it; they get the success morph instead
  *   rethrow       (true) rethrow a thrown error after the error state plays
  *   indicator     (true) false: aria-busy + single-flight only (icon buttons with their own look)
- *   hapticOutcome (false) for flows that report their own outcome through haptics.js and
- *                       swallow errors into a toast: an 'error' haptic during the run is a
- *                       failure; a check plays only after a 'success'/'warning' haptic or a
- *                       re-render (settle), otherwise the button just settles (e.g. it opened
- *                       a modal or armed a confirm)
+ *
+ * The action's own result decides the outcome (see the header): success by default,
+ * failResult()/{ok:false} shakes, cancelResult() restores quietly, a throw errors.
  */
 export function runButton(btn, fn, opts = {}) {
   if (!btn) return Promise.resolve(fn ? fn() : undefined);
@@ -216,8 +235,7 @@ export function runButton(btn, fn, opts = {}) {
   if (existing) return existing;
   const {
     minPendingMs = 350, showDelayMs = 0, success = true, successMs = 550, errorMs = 420,
-    successLabel, errorLabel, isError = (r) => r === false, settle, rethrow = true, indicator = true,
-    hapticOutcome = false, isSuccess,
+    successLabel, errorLabel, settle, rethrow = true, indicator = true,
   } = opts;
 
   const snap = indicator ? snapshot(btn) : null;
@@ -233,23 +251,17 @@ export function runButton(btn, fn, opts = {}) {
   let showTimer = null;
   if (showDelayMs > 0) showTimer = setTimeout(show, showDelayMs); else show();
 
-  const seen = new Set();
-  const onHaptic = (e) => { if (e?.detail?.type) seen.add(e.detail.type); };
-  const listen = hapticOutcome && typeof window !== 'undefined';
-  if (listen) window.addEventListener('app-haptic', onHaptic);
-
   // Call synchronously: a handler that does its work in the same tick (arming a two-tap
   // confirm, a validation message, closing a page) needs no async state and must not lock
   // the button against an immediate next tap.
   let ret; let syncThrown = null;
   try { ret = fn(); } catch (err) { syncThrown = err || new Error('failed'); }
   if (!(ret && typeof ret.then === 'function')) {
-    if (listen) window.removeEventListener('app-haptic', onHaptic);
     clearTimeout(showTimer);
     unlockVisual(btn);
     releaseWidth(btn, snap);
     btn.removeAttribute('aria-busy');
-    const failed = syncThrown != null || isError(ret) || (hapticOutcome && seen.has('error'));
+    const failed = syncThrown != null || isFailure(ret);
     if (failed) { if (errorLabel) announce(errorLabel); if (indicator) playError(btn, errorMs); }
     if (syncThrown && rethrow) return Promise.reject(syncThrown);
     return Promise.resolve(syncThrown ? undefined : ret);
@@ -258,13 +270,11 @@ export function runButton(btn, fn, opts = {}) {
   const p = (async () => {
     let result; let thrown = null;
     try { result = await ret; } catch (err) { thrown = err || new Error('failed'); }
-    finally { if (listen) window.removeEventListener('app-haptic', onHaptic); }
     clearTimeout(showTimer);
 
     if (shownAt != null) await delay(minPendingMs - (now() - shownAt));
-    const failed = thrown != null || isError(result) || (hapticOutcome && seen.has('error'));
-    const confirmed = (!hapticOutcome || seen.has('success') || seen.has('warning'))
-      && (typeof isSuccess !== 'function' || !!isSuccess(result));
+    const failed = thrown != null || isFailure(result);
+    const confirmed = thrown == null && !isCancelled(result);
 
     try {
       if (failed) {
@@ -272,7 +282,7 @@ export function runButton(btn, fn, opts = {}) {
         if (errorLabel) announce(errorLabel);
         if (indicator && (shownAt != null || btn.isConnected)) await playError(btn, errorMs);
       } else {
-        if (successLabel) announce(successLabel);
+        if (successLabel && confirmed) announce(successLabel);
         const replaced = confirmed && typeof settle === 'function' ? [].concat(settle() || []).filter((el) => el && el !== btn) : [];
         if (replaced.length) {
           unlockVisual(btn);
@@ -302,14 +312,14 @@ export function runButton(btn, fn, opts = {}) {
 }
 
 /**
- * An onclick handler that runs `fn(event)` through runButton on the clicked button. For flows
- * that report their own outcome (toasts/haptics) the defaults suit: spinner only past 120 ms,
- * a check only after a success signal, never a rethrow into the event loop.
+ * An onclick handler that runs `fn(event)` through runButton on the clicked button. `fn` must
+ * return its own outcome (see the header): spinner only past 120 ms, a check on success,
+ * a shake on failResult(), a quiet restore on cancelResult(), never a rethrow into the event loop.
  */
 export function asyncHandler(fn, opts = {}) {
   return (e) => {
     const btn = e?.currentTarget;
-    return runButton(btn, () => fn(e), { showDelayMs: 120, hapticOutcome: true, rethrow: false, ...opts });
+    return runButton(btn, () => fn(e), { showDelayMs: 120, rethrow: false, ...opts });
   };
 }
 

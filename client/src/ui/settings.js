@@ -4,7 +4,6 @@ import { api, apiFetch } from '../api';
 import { loadSpotMapGyms } from './spot-map-loading.js';
 import { mapRemovalWarning } from './spot-map-usage.js';
 import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole, loadGymContext, refreshUserData, updateDebugTerminalVisibility, getIsOffline } from '../main';
-import { getBookingOffset, describeBookingWindow } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
 import { currentRoute, navigate, pathFor } from '../router.js';
 import { openSpotSetup } from './spot-setup.js';
@@ -24,7 +23,7 @@ import { initFavouritesPane, renderFavouritesPane } from './favourites-pane.js';
 import { cleanNameField, inferNames } from './name-capture.js';
 import * as headerGyms from './header-gyms.js';
 import { normaliseSetting as normaliseHeaderGymsSetting } from './header-gyms-state.js';
-import { asyncHandler } from './async-button.js';
+import { asyncHandler, okResult, failResult, cancelResult } from './async-button.js';
 
 let loadedProfile = null;
 let activeSpotEditorOverlay = null;
@@ -946,7 +945,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
             removeBtn.textContent = COPY.settings.confirmRemove;
             clearTimeout(removeBtn._armTimer);
             removeBtn._armTimer = setTimeout(() => { delete removeBtn.dataset.armed; removeBtn.textContent = COPY.spotMaps.remove; note?.remove(); }, 6000);
-            return;
+            return cancelResult(); // armed the confirm; nothing removed yet
           }
           clearTimeout(removeBtn._armTimer);
           removeBtn.disabled = true;
@@ -956,10 +955,12 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
             showToast(COPY.settings.defaultsRemoved, 'success');
             if (!isMobile()) onClose();
             openManageSpotMapsModal(options);
+            return okResult();
           } catch (err) {
             showToast(formatCopyText(COPY.settings.actionFailed, { error: err.message }), 'error');
             removeBtn.disabled = false;
             removeBtn.textContent = COPY.spotMaps.remove;
+            return failResult(err);
           }
         }));
         btns.appendChild(removeBtn);
@@ -1575,7 +1576,6 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
       link.status === 'needs_relogin' ? undefined : api.getMembership(gymId).catch(() => undefined), // undefined = unknown
       link.status === 'needs_relogin' ? undefined : api.getNormalizedCredits(gymId).catch(() => undefined),
     ]);
-    const bookingWindowText = describeBookingWindow(getBookingOffset(settings), null);
 
     const rerender = () => renderGymSettingsSection(gymId, container).catch(err => debugConsole('[Settings] Gym section refresh failed:', err.message));
     renderGymSettingsSectionView(container, {
@@ -1584,7 +1584,6 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
       settings,
       membership,
       credits,
-      bookingWindowText,
       debugMode: !!userSettings.debugMode,
     }, {
       onEnabledChange: async (enabled, input) => {
@@ -1629,8 +1628,8 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
           modal.open({ id: 'forget-gym-login', back: true });
           modal.body.querySelector('[data-keep-login]').onclick = modal.close;
           modal.body.querySelector('[data-forget-login]').onclick = asyncHandler(async () => {
-            try { await api.forgetGymLogin(gymId); modal.close(); await renderGymsCard(); }
-            catch (err) { modal.body.querySelector('[data-forget-error]').textContent = err.message; }
+            try { await api.forgetGymLogin(gymId); modal.close(); await renderGymsCard(); return okResult(); }
+            catch (err) { modal.body.querySelector('[data-forget-error]').textContent = err.message; return failResult(err); }
           });
           return;
         }
@@ -1733,7 +1732,7 @@ export function openLinkGymModal(gymId, existing, addable = []) {
     if (!targetGym || !email || !password) {
       errEl.textContent = COPY.auth.requiredGymCredentials;
       errEl.style.display = 'block';
-      return;
+      return failResult(COPY.auth.requiredGymCredentials);
     }
     submit.disabled = true;
     submit.textContent = COPY.settings.checking;
@@ -1751,11 +1750,13 @@ export function openLinkGymModal(gymId, existing, addable = []) {
       // list loadGymContext just set.
       syncAfterGymSetChange().catch(() => {});
       Promise.all([renderGymsCard(), renderGymSettingsSection(isReauth ? gymId : targetGym)]).catch(() => {});
+      return okResult();
     } catch (err) {
       errEl.textContent = err.message;
       errEl.style.display = 'block';
       submit.disabled = false;
       submit.textContent = isReauth ? COPY.settings.reauthenticate : COPY.settings.link;
+      return failResult(err);
     }
   });
 }
@@ -1788,7 +1789,7 @@ function openAccountPasswordModal() {
 
   const errEl = body.querySelector('#app-pw-error');
   const submit = body.querySelector('#app-pw-submit');
-  const fail = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; };
+  const fail = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; return failResult(msg); };
 
   submit.onclick = asyncHandler(async () => {
     errEl.style.display = 'none';
@@ -1803,10 +1804,11 @@ function openAccountPasswordModal() {
       await api.changeAccountPassword(current, next);
       showToast(COPY.settings.accountPasswordChanged, 'success');
       close();
+      return okResult();
     } catch (err) {
-      fail(err.message);
       submit.disabled = false;
       submit.textContent = COPY.settings.changePasswordButton;
+      return fail(err.message);
     }
   });
 }
@@ -2292,8 +2294,10 @@ function setupSettingsListeners() {
         URL.revokeObjectURL(url);
         
         showToast(COPY.settings.configExported, 'success');
+        return okResult();
       } catch (err) {
         showToast(formatCopyText(COPY.settings.exportFailed, { error: err.message }), 'error');
+        return failResult(err);
       }
     }));
   }
@@ -2405,7 +2409,7 @@ function setupSettingsListeners() {
             deleteDataBtn.style.borderColor = '';
           }
         }, 5000);
-        return;
+        return cancelResult(); // armed the confirm; nothing deleted yet
       }
       delete deleteDataBtn.dataset.confirmState;
       deleteDataBtn.disabled = true;
@@ -2416,10 +2420,12 @@ function setupSettingsListeners() {
         localStorage.removeItem('appLocalToken');
         try { localStorage.removeItem('appPendingTeamInvite'); } catch (_) { /* T-1: drop a stashed invite on sign-out */ }
         setTimeout(() => { window.location.reload(); }, 1500);
+        return okResult();
       } catch (err) {
         showToast(formatCopyText(COPY.settings.deleteFailed, { error: err.message }), 'error');
         deleteDataBtn.disabled = false;
         deleteDataBtn.textContent = COPY.settings.deleteData;
+        return failResult(err);
       }
     }));
   }

@@ -24,7 +24,7 @@ import { goTeams } from './teams.js';
 import { openEditTeamPage } from './teams-edit.js';
 import { devicePushReady } from './device-push.js';
 import { validateWeeklyGoal, GOAL_MAX } from './teams-stats-model.js';
-import { asyncHandler } from './async-button.js';
+import { asyncHandler, okResult, failResult } from './async-button.js';
 
 const PAUSE_LABEL = { '24h': 'pause24h', '7d': 'pause7d', indefinite: 'pauseIndefinite' };
 
@@ -313,7 +313,7 @@ export function openGoalPage(team, { onSaved = null } = {}) {
   const input = page.body.querySelector('input');
   const errEl = page.body.querySelector('.tm-field-error');
   input.value = team.weeklyGoal ? String(team.weeklyGoal) : '';
-  const fail = (msg, btn) => { if (btn) btn.disabled = false; errEl.textContent = msg; errEl.hidden = false; };
+  const fail = (msg, btn) => { if (btn) btn.disabled = false; errEl.textContent = msg; errEl.hidden = false; return failResult(msg); };
   const save = async (btn, weeklyGoal) => {
     if (btn) btn.disabled = true;
     try {
@@ -321,7 +321,8 @@ export function openGoalPage(team, { onSaved = null } = {}) {
       showToast(weeklyGoal == null ? T.goalCleared : T.saved, 'success');
       page.close();
       onSaved?.();
-    } catch (err) { fail(errorText(err), btn); }
+      return okResult();
+    } catch (err) { return fail(errorText(err), btn); }
   };
   const submit = (btn) => {
     const v = validateWeeklyGoal(input.value);

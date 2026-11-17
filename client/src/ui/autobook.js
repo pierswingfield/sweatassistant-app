@@ -14,7 +14,7 @@ import { openBookingModal, renderTimetableGrid, pickStudioPrefs, metadata, loadM
 import { openPage as openNavPage, closePage as closeNavPage } from './modal-nav.js';
 import { applyBookingChrome, bookingContextEl } from './booking-chrome.js';
 import { bookingQuantityOptions, maxAttendeesPerClass } from './booking-limits.js';
-import { asyncHandler } from './async-button.js';
+import { asyncHandler, okResult, failResult, cancelResult } from './async-button.js';
 
 let countdownInterval = null;
 let sseEventSource = null;
@@ -208,8 +208,10 @@ function renderAutoBookControls() {
       userSettings.autoBookPaused = newPaused;
       showToast(newPaused ? COPY.autoBook.paused : COPY.autoBook.resumed, newPaused ? 'info' : 'success');
       renderAutoBookControls();
+      return okResult();
     } catch (err) {
       showToast(formatCopyText(COPY.autoBook.failed, { error: err.message }), 'error');
+      return failResult(err);
     } finally {
       pauseBtn.disabled = false;
     }
@@ -230,8 +232,10 @@ function renderAutoBookControls() {
         showToast(COPY.autoBook.simulatedRelease, 'success');
         // Refresh queue/history after a short delay to let bookings complete
         setTimeout(() => renderAutoBookTab(), 4000);
+        return okResult();
       } catch (err) {
         showToast(formatCopyText(COPY.autoBook.failed, { error: err.message }), 'error');
+        return failResult(err);
       } finally {
         simBtn.disabled = false;
         simBtn.innerHTML = `${icon('bolt', 14)}<span>${COPY.autoBook.simulateRelease}</span>`;
@@ -379,7 +383,7 @@ function renderQueue(queue) {
           ? `<div class="ab-card-figure ${instructorNameLengthClass(instructorName)}">${instructorAvatar(instructorName, q.gym_id, instructorPhotoUrl) || ''}${instructorName ? `<span class="ab-card-instructor ${instructorNameLengthClass(instructorName)}">${escapeHtml(instructorName)}</span>` : ''}</div>` : ''}
         </div>
         <div class="ab-card-footer">
-          <span class="ab-countdown state-pending" data-start-at="${escapeHtml(q.start_at)}" data-gym-id="${escapeHtml(q.gym_id || '')}" ${(() => { const r = getClassReleaseTime(q, userSettings); return r ? `data-release-at="${escapeHtml(r.toISO())}"` : ''; })()}>
+          <span class="ab-countdown state-pending" data-start-at="${escapeHtml(q.start_at)}" data-gym-id="${escapeHtml(q.gym_id || '')}" ${(() => { const r = getClassReleaseTime(q); return r ? `data-release-at="${escapeHtml(r.toISO())}"` : ''; })()}>
             ${icon('clock', 13)}<span class="ab-countdown-val">…</span>
           </span>
           <div class="ab-chip-group"><span class="ab-spots-pill">${creditsNeeded} ${seatNoun(q.group_name)[0].toUpperCase() + seatNoun(q.group_name).slice(1)}${creditsNeeded !== 1 ? 's' : ''}</span></div>
@@ -429,7 +433,7 @@ function wireCancelAutoBook(btn, card, q) {
         labelSpan.textContent = COPY.bookings.cancel;
         btn.classList.remove('confirming');
       }, 3000);
-      return;
+      return cancelResult(); // armed the confirm; nothing removed yet
     }
     confirmState = false;
     btn.classList.remove('confirming');
@@ -441,11 +445,13 @@ function wireCancelAutoBook(btn, card, q) {
       await api.deleteAutoBooking(q.id);
       showToast(COPY.autoBook.removed, 'success');
       renderAutoBookTab();
+      return okResult();
     } catch (err) {
       showToast(formatCopyText(COPY.autoBook.failed, { error: err.message }), 'error');
       card.style.opacity = '1';
       card.querySelectorAll('button').forEach(b => b.disabled = false);
       labelSpan.textContent = COPY.bookings.cancel;
+      return failResult(err);
     }
   }));
 }
@@ -504,8 +510,10 @@ async function removeAutoBookEntry(entryId, closeModal) {
     closeModal();
     renderAutoBookTab();
     renderTimetableGrid().catch(() => {});
+    return okResult();
   } catch (err) {
     showToast(formatCopyText(COPY.autoBook.failed, { error: err.message }), 'error');
+    return failResult(err);
   }
 }
 
@@ -532,8 +540,10 @@ async function saveAutoBookEdit(entryId, studioId, slots, rows, qty, bookAny, cl
     showToast(COPY.autoBook.updated, 'success');
     closeModal();
     renderAutoBookTab();
+    return okResult();
   } catch (err) {
     showToast(formatCopyText(COPY.autoBook.failed, { error: err.message }), 'error');
+    return failResult(err);
   }
 }
 
@@ -739,9 +749,7 @@ function updateCountdowns() {
     // classes on the same day open at different times, so there is no single
     // "next release" a card could be measured against.
     const stamped = el.getAttribute('data-release-at');
-    const classRelease = stamped
-      ? DateTime.fromISO(stamped)
-      : getClassReleaseTime({ start_at: startAt, gym_id: el.getAttribute('data-gym-id') }, userSettings);
+    const classRelease = stamped ? DateTime.fromISO(stamped) : null;
     if (!classRelease) { valEl.textContent = COPY.autoBook.releaseUnknown; return; }
     const diff = classRelease.toMillis() - Date.now();
 

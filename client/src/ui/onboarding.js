@@ -24,7 +24,7 @@ import { setGymCatalogue } from '../gym-context.js';
 import { COPY, formatCopyText, appCopy } from '../copy.js';
 import { setupGuideHtml } from './setup-guide.js';
 import { escapeHtml, gymLogoBanner } from './cards';
-import { runButton, pressAndAdvance } from './async-button.js';
+import { runButton, pressAndAdvance, okResult, failResult, cancelResult } from './async-button.js';
 import { enableAutoUpgradeForGyms, gymsWithPreferredSlots, gymsWithAutoUpgradeOn, getPostLoginDestination as choosePostLoginDestination, detectInstallContext, shouldOfferInstall, hasSavedAccountName } from './onboarding-routing.js';
 import { cleanNameField, onboardingNameSuggestion } from './name-capture.js';
 import { startGymLogoDiscovery, setGymLogoDiscoveryVisible } from './gym-logo-strip.js';
@@ -756,7 +756,7 @@ function stepGyms() {
           if (!gymId || !email || !password) {
           errorEl.textContent = COPY.onboarding.gymCredentialsRequired;
             errorEl.style.display = 'block';
-            return false;
+            return failResult(COPY.onboarding.gymCredentialsRequired);
           }
 
           errorEl.style.display = 'none';
@@ -768,14 +768,14 @@ function stepGyms() {
             showToast(COPY.notifications.gymConnectedToast, 'success');
             await loadData();
             addingAnother = false;
-            return true;
+            return okResult();
           } catch (err) {
             errorEl.textContent = err.message || COPY.onboarding.connectionFailed;
             errorEl.style.display = 'block';
             submitBtn.querySelector('span').textContent = submitLabel(gymId);
-            return false;
+            return failResult(err);
           }
-        }, { rethrow: false }).then((linked) => { if (linked) render(); }));
+        }, { rethrow: false }).then((r) => { if (r?.ok === true) render(); }));
       }
     };
 
@@ -793,7 +793,7 @@ function stepName() {
     let linkedGyms = [];
     let settings = {};
     try {
-      const [mine, saved] = await Promise.all([api.getMyGyms(), api.getSettings()]);
+      const [mine, saved] = await Promise.all([api.getMyGyms({ refresh: true }), api.getSettings()]);
       linkedGyms = mine.gyms || mine || [];
       settings = saved || {};
     } catch (_) {
@@ -829,30 +829,30 @@ function stepName() {
     let saving = false;
     const saveBtn = sheet.querySelector('.app-onb-name-save');
     const saveNow = async () => {
-      if (saving) return false;
+      if (saving) return cancelResult();
       const firstName = cleanNameField(firstInput.value);
       const lastName = cleanNameField(lastInput.value);
       if (!firstName) {
         errorEl.textContent = COPY.onboarding.nameRequired;
         errorEl.style.display = 'block';
         firstInput.focus();
-        return false;
+        return failResult(COPY.onboarding.nameRequired);
       }
       errorEl.style.display = 'none';
       try {
         saving = true;
         await api.updateSettings({ firstName, lastName });
-        return true;
+        return okResult();
       } catch (err) {
         saving = false;
         errorEl.textContent = err.message || COPY.onboarding.connectionFailed;
         errorEl.style.display = 'block';
-        return false;
+        return failResult(err);
       }
     };
     // Spinner while saving, a check once saved, then pending until the next step is on screen.
     const save = () => runButton(saveBtn, saveNow, { rethrow: false })
-      .then((ok) => { if (ok) pressAndAdvance(saveBtn, resolve); });
+      .then((r) => { if (r?.ok === true) pressAndAdvance(saveBtn, resolve); });
     saveBtn.addEventListener('click', save);
     for (const input of [firstInput, lastInput]) {
       input.addEventListener('keydown', (event) => { if (event.key === 'Enter') save(); });
@@ -896,8 +896,9 @@ function stepNotifications() {
         try {
           await togglePushSubscription();
         } catch (_) {}
-        return typeof Notification !== 'undefined' && Notification.permission === 'granted';
-      }, { isError: () => false, isSuccess: (granted) => granted, rethrow: false })
+        // Denied or unsupported is not a failure here: restore quietly and move on.
+        return typeof Notification !== 'undefined' && Notification.permission === 'granted' ? okResult() : cancelResult();
+      }, { rethrow: false })
         .then(() => pressAndAdvance(btn, resolve));
     });
   });
@@ -938,10 +939,10 @@ async function stepCalendar() {
 
       const copyBtn = sheet.querySelector('.app-onb-copy-ics');
       if (copyBtn && icsUrl) {
-        copyBtn.addEventListener('click', () => runButton(copyBtn, () => navigator.clipboard.writeText(icsUrl).then(() => true), {
+        copyBtn.addEventListener('click', () => runButton(copyBtn, () => navigator.clipboard.writeText(icsUrl).then(() => okResult()), {
           rethrow: false, successMs: 500, successLabel: COPY.onboarding.copied,
-        }).then((copied) => {
-          if (!copied) return;
+        }).then((r) => {
+          if (r?.ok !== true) return;
           copyBtn.textContent = COPY.onboarding.copied;
           setTimeout(() => { copyBtn.textContent = COPY.onboarding.copyFeedUrl; }, 2000);
         }));
@@ -963,7 +964,7 @@ async function stepCalendar() {
     // Spinner while the feed is created, a check, then the subscribe links; a failure shakes and moves on.
     enableBtn.addEventListener('click', () => {
       let res = null;
-      runButton(enableBtn, async () => { res = await api.enableCalendar({}); }, { rethrow: false })
+      runButton(enableBtn, async () => { res = await api.enableCalendar({}); return okResult(); }, { rethrow: false })
         .then(() => { if (res) showSubscribe(res.links || null); else resolve(); });
     });
     sheet.querySelector('.app-onb-skip-inline').addEventListener('click', (e) => pressAndAdvance(e.currentTarget, resolve));

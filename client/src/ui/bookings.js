@@ -11,7 +11,7 @@ import { instructorAvatar } from './tooltips.js';
 import { metadata, loadMetadata, getStudioMapInfo, pickStudioPrefs, rowGroupsForStudio, mobileRotationForStudio, frontForStudio, openGuestBookingModal } from './timetable';
 import { findActiveUpgradeForBooking, findUpgradeForSeat } from './gym-isolation.js';
 import { haptic } from './haptics.js';
-import { asyncHandler } from './async-button.js';
+import { asyncHandler, okResult, failResult, cancelResult } from './async-button.js';
 import { COPY, formatCopyText } from '../copy.js';
 import { countPendingAutoBooks } from './autobook-nav.js';
 import { openPage as openNavPage, closePage as closeNavPage } from './modal-nav.js';
@@ -647,9 +647,11 @@ function buildBookingCard(group, upgrades) {
         await invalidateApiCache('/api/bookings');
         await refreshUserData(true);
         renderBookings();
+        return okResult();
       } catch (err) {
         removeBtn.disabled = false;
         showToast(COPY.bookings.dismissCancelledFailed, 'warning');
+        return failResult(err);
       }
     }));
     return card;
@@ -749,10 +751,12 @@ export function openBookingCancellationModal(group, onChange = renderBookings) {
       await refreshUserData(true);
       close();
       onChange();
+      return okResult();
     } catch (err) {
       haptic('error');
       showToast(formatCopyText(COPY.bookings.cancellationFailed, { error: err.message }), 'error');
       button.disabled = false;
+      return failResult(err);
     }
   });
 }
@@ -793,12 +797,14 @@ function wireCancelBooking(btn, card, group, within12h) {
       showToast(COPY.bookings.bookingCancelled, 'success');
       await refreshUserData(true);
       renderBookings();
+      return okResult();
     } catch (err) {
       haptic('error');
       showToast(formatCopyText(COPY.bookings.cancellationFailed, { error: err.message }), 'error');
       card.style.opacity = '1';
       card.querySelectorAll('button').forEach(b => b.disabled = false);
       labelSpan.textContent = COPY.bookings.cancel;
+      return failResult(err);
     }
   };
 
@@ -808,13 +814,12 @@ function wireCancelBooking(btn, card, group, within12h) {
     // spot, while the primary can never orphan a live guest.
     if (hasMultipleBookedSpots(group.bookings)) {
       openGroupedCancellationModal(group);
-      return;
+      return cancelResult(); // the chooser owns the cancellations
     }
     // 60s grace period: cancel immediately, no confirmation
     if (btn.hasAttribute('data-grace-deadline')) {
       btn.removeAttribute('data-grace-deadline');
-      await performCancel();
-      return;
+      return performCancel();
     }
     if (!confirmState) {
       haptic('medium');
@@ -828,11 +833,11 @@ function wireCancelBooking(btn, card, group, within12h) {
         labelSpan.textContent = COPY.bookings.cancel;
         btn.classList.remove('confirming');
       }, 3000);
-      return;
+      return cancelResult(); // armed the confirm; the cancel has not run
     }
     confirmState = false;
     btn.classList.remove('confirming');
-    await performCancel();
+    return performCancel();
   }));
 }
 
@@ -1244,7 +1249,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
       if (selected.size > selfBookingLimit) {
         showToast(formatCopyText(COPY.bookingEditor.selfBookingLimitExceeded, { count: selfBookingLimit, plural: selfBookingLimit === 1 ? '' : 's' }), 'warning');
         renderControls();
-        return;
+        return failResult('too many spots');
       }
       const saveBtn = body.querySelector('#bk-edit-save');
       if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = COPY.static.saving; }
@@ -1305,12 +1310,14 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         closeModal();
         await refreshUserData(true);
         onChange();
+        return okResult();
       } catch (err) {
         haptic('error');
         showToast(formatCopyText(COPY.bookings.updateFailed, { noun, error: err.message }), 'error');
         closeModal();
         await refreshUserData(true);
         onChange();
+        return failResult(err);
       }
     };
 
@@ -1415,7 +1422,7 @@ function buildWaitlistCard(w) {
         labelSpan.textContent = COPY.bookings.leaveWaitlist;
         leaveBtn.classList.remove('confirming');
       }, 3000);
-      return;
+      return cancelResult(); // armed the confirm; nothing left yet
     }
     confirmState = false;
     leaveBtn.classList.remove('confirming');
@@ -1429,12 +1436,14 @@ function buildWaitlistCard(w) {
       showToast(COPY.bookings.leftWaitlist, 'success');
       await refreshUserData(true);
       renderBookings();
+      return okResult();
     } catch (err) {
       haptic('error');
       showToast(err.message, 'error');
       card.style.opacity = '1';
       card.querySelectorAll('button').forEach(b => b.disabled = false);
       labelSpan.textContent = COPY.bookings.leaveWaitlist;
+      return failResult(err);
     }
   }));
 
@@ -1647,15 +1656,17 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
           showToast(COPY.bookings.upgradeDisabled, 'success');
           closeModal();
           renderBookings();
+          return okResult();
         } catch (err) {
           showToast(err.message, 'error');
+          return failResult(err);
         }
       });
 
       body.querySelector('#upgrade-save').onclick = asyncHandler(async () => {
         if (state.slots.length === 0 && state.rows.length === 0) {
           showToast(formatCopyText(COPY.bookings.preferredSpotRequiredFor, { noun }), 'warning');
-          return;
+          return failResult('preferred spot required');
         }
         // Hidden option => never sent as true.
         const keepOriginalOnCutoff = showKeepOriginal && state.keepOriginal;
@@ -1665,7 +1676,7 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
             showToast(COPY.bookings.upgradeUpdated, 'success');
           } else {
             const grp = resolveUpgradeGroup(cache.bookings, { gymId, eventId, bookingId });
-            if (grp.kind === 'guest') { showToast(COPY.timetable.autoUpgradeGuestUnavailable, 'warning'); return; }
+            if (grp.kind === 'guest') { showToast(COPY.timetable.autoUpgradeGuestUnavailable, 'warning'); return cancelResult(); }
             await api.addAutoUpgrade({
               eventId, gymId: gymId || null, studioId: resolvedStudioId || null, bookingId, currentSlotId,
               className, groupName, instructorName, studioName, locationName, startAt,
@@ -1677,8 +1688,10 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
           }
           closeModal();
           renderBookings();
+          return okResult();
         } catch (err) {
           showToast(err.message, 'error');
+          return failResult(err);
         }
       });
     };

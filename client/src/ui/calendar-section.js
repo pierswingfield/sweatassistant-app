@@ -16,7 +16,7 @@ import { showToast, getIsOffline } from '../main';
 import { escapeHtml, icon } from './cards';
 import { COPY, appCopy, formatCopyText } from '../copy.js';
 import { openPage as openNavPage, closePage as closeNavPage } from './modal-nav.js';
-import { asyncHandler } from './async-button.js';
+import { asyncHandler, okResult, failResult, cancelResult } from './async-button.js';
 
 // Simplified inline marks (no hotlinking). They approximate the Apple and Google
 // Calendar app icons; they are not pixel-faithful reproductions.
@@ -182,16 +182,18 @@ export async function renderCalendarSection(targetContainer = null, { context = 
 
       // webcal:// is the only subscribe scheme iOS/macOS register. webcals:// is not, so Safari on iOS
       // answers it with "the address is invalid".
-      if (action === 'apple') { if (links.webcal) window.location.href = links.webcal; return; }
-      if (action === 'google') { if (links.google) openCalendarProvider(links.google); return; }
+      // Both hand off to another app, so there is nothing to confirm on this button.
+      if (action === 'apple') { if (links.webcal) window.location.href = links.webcal; return cancelResult(); }
+      if (action === 'google') { if (links.google) openCalendarProvider(links.google); return cancelResult(); }
       if (action === 'copy') {
         try {
           await navigator.clipboard.writeText(links.https || '');
           showToast(COPY.calendar.linkCopied, 'success');
+          return okResult();
         } catch (_) {
           showToast(COPY.calendar.copyFailed, 'error');
+          return failResult('copy failed');
         }
-        return;
       }
 
       button.disabled = true;
@@ -205,8 +207,10 @@ export async function renderCalendarSection(targetContainer = null, { context = 
             : COPY.calendar.refreshing,
           'success'
         );
+        return okResult();
       } catch (err) {
         showToast(err.message, 'error');
+        return failResult(err);
       } finally {
         button.disabled = false;
         await rerender();

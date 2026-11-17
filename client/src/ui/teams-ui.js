@@ -13,7 +13,7 @@ import { getAllLinkedGyms, getGymShortName } from '../gym-context.js';
 import { showToast } from '../main.js';
 import { teamsApi } from '../teams-api.js';
 import { formatInZone, dayKeyInZone, deviceZone } from '../lib.js';
-import { runButton } from './async-button.js';
+import { runButton, okResult, failResult, cancelResult } from './async-button.js';
 import {
   avatarColourIndex, initials, SHARE_ROWS, normaliseShare, applyShareChange, inviteUrlOn, isIndefinitePause, sharingLevel,
 } from './teams-model.js';
@@ -274,8 +274,9 @@ export function setFooter(page, buttons) {
     btn.className = `tm-btn ${b.kind ? `tm-btn-${b.kind}` : ''} tm-btn-block`;
     btn.textContent = b.label;
     if (b.disabled) btn.disabled = true;
-    // Tactile async footer (DESIGN.md §6.5.1): pending while onClick's work runs, a check after a success toast.
-    btn.addEventListener('click', () => runButton(btn, () => b.onClick?.(btn), { showDelayMs: 120, hapticOutcome: true, rethrow: false }));
+    // Tactile async footer (DESIGN.md §6.5.1): pending while onClick's work runs; an async onClick
+    // returns okResult()/failResult()/cancelResult() and the button shows exactly that.
+    btn.addEventListener('click', () => runButton(btn, () => b.onClick?.(btn), { showDelayMs: 120, rethrow: false }));
     page.footer.appendChild(btn);
   }
   return [...page.footer.querySelectorAll('button')];
@@ -337,15 +338,15 @@ async function resolveInviteLink(team, knownUrl) {
 /** Copy the invite message to the clipboard (never opens the share sheet); falls back to a copy-by-hand page. */
 export async function copyInvite(team, { url: knownUrl = null } = {}) {
   const link = await resolveInviteLink(team, knownUrl);
-  if (!link) return false;
+  if (!link) return failResult('no invite link');
   const payload = inviteSharePayload(team, {
     url: link, appName: appConfig.appName, textTemplate: T.shareText, titleTemplate: T.shareTitle, format: formatCopyText,
   });
   try {
     await navigator.clipboard.writeText(inviteClipboardText(payload));
     showToast(T.inviteCopied, 'success');
-    return true;
-  } catch (_) { showLinkPage(link); return false; }
+    return okResult();
+  } catch (_) { showLinkPage(link); return cancelResult(); } // clipboard blocked: a copy-by-hand page opened instead
 }
 
 function showLinkPage(link) {
@@ -360,20 +361,21 @@ function showLinkPage(link) {
 
 export async function shareInvite(team, { url: knownUrl = null } = {}) {
   const link = await resolveInviteLink(team, knownUrl);
-  if (!link) return;
+  if (!link) return failResult('no invite link');
   // "You're invited to <app>! Join my Team 🏃 Run Club." Plain text for the share sheet.
   const payload = inviteSharePayload(team, {
     url: link, appName: appConfig.appName, textTemplate: T.shareText, titleTemplate: T.shareTitle, format: formatCopyText,
   });
   if (navigator.share && (!navigator.canShare || navigator.canShare(payload))) {
-    try { await navigator.share(payload); return; } catch (err) { if (err && err.name === 'AbortError') return; }
+    try { await navigator.share(payload); return okResult(); } catch (err) { if (err && err.name === 'AbortError') return cancelResult(); } // sheet dismissed
   }
   try {
     await navigator.clipboard.writeText(inviteClipboardText(payload));
     showToast(T.inviteCopied, 'success');
-    return;
+    return okResult();
   } catch (_) { /* clipboard blocked: show it */ }
   showLinkPage(link);
+  return cancelResult(); // a copy-by-hand page opened instead
 }
 
 // ---- sharing sheet (§3) ----------------------------------------------------------------------

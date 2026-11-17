@@ -11,7 +11,7 @@ import { escapeHtml } from '../escape-html.js';
 import { teamsApi } from '../teams-api.js';
 import { showToast } from '../main.js';
 import { defaultShare } from './teams-model.js';
-import { asyncHandler } from './async-button.js';
+import { asyncHandler, okResult, failResult } from './async-button.js';
 import {
   T, fmt, ICONS, teamAvatar, errorText, openTeamsPage, setFooter, shareInvite, copyInvite, renderSharingSheet,
 } from './teams-ui.js';
@@ -229,11 +229,13 @@ export function openCreateTeamFlow({ onCreated = () => {}, onGoToTeam = () => {}
             created = res;
             try { onCreated(res.team); } catch (_) { /* list refresh is best effort */ }
             stepReady(res);
+            return okResult();
           } catch (err) {
             btn.disabled = false;
             backBtn.disabled = false;
             btn.textContent = T.createAction;
             showToast(errorText(err), 'error');
+            return failResult(err);
           }
         },
       },

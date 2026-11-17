@@ -12,7 +12,7 @@ import { showToast } from '../main.js';
 import { teamCardModel, teamCardHtml } from './teams-card.js';
 import { pitchHtml } from './teams-pitch.js';
 import { getGymShortName } from '../gym-context.js';
-import { asyncHandler } from './async-button.js';
+import { asyncHandler, cancelResult } from './async-button.js';
 import {
   orderTeams, canOfferPin, canTogglePin, pinsUsed,
   consumePendingInvite, TEAMS_HOME_PATH,
@@ -250,6 +250,7 @@ async function renderTeamPage(el, teamId, { stale }) {
   el.querySelector('[data-manage]').addEventListener('click', asyncHandler(async () => {
     const { openManage } = await import('./teams-manage.js');
     openManage(team.id, { onChange: () => initTeams() });
+    return cancelResult(); // opened the Manage page; nothing completed on this button
   }));
   el.querySelector('[data-unhide]')?.addEventListener('click', async (e) => {
     e.currentTarget.disabled = true;

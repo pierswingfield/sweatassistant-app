@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { runButton, asyncHandler, pressAndAdvance, waitUntilSettled, isButtonBusy, installPressFeedback } from './async-button.js';
+import {
+  runButton, asyncHandler, pressAndAdvance, waitUntilSettled, isButtonBusy, installPressFeedback,
+  okResult, failResult, cancelResult, isCancelled, isFailure, outcomeOf,
+} from './async-button.js';
 
 const mkBtn = (label = 'Book') => {
   const b = document.createElement('button');
@@ -117,31 +120,112 @@ describe('runButton', () => {
     expect(document.querySelector('.abtn-live').textContent).toBe('Failed');
   });
 
-  it('rethrow:false swallows; a false result counts as an error', async () => {
+  it('a handled failure (failResult / {ok:false}) shakes, restores, and resolves with that result', async () => {
+    const btn = mkBtn();
+    const res = failResult('declined');
+    const p = runButton(btn, async () => res, { minPendingMs: 0, rethrow: false, errorLabel: 'Declined' });
+    await vi.advanceTimersByTimeAsync(5);
+    expect(btn.classList.contains('abtn-error')).toBe(true);
+    expect(btn.classList.contains('abtn-success')).toBe(false);
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBe(res);
+    expect(btn.classList.contains('abtn-error')).toBe(false);
+    expect(btn.hasAttribute('aria-busy')).toBe(false);
+    expect(document.querySelector('.abtn-live').textContent).toBe('Declined');
+
+    const raw = runButton(btn, async () => ({ ok: false }), { minPendingMs: 0, rethrow: false });
+    await vi.advanceTimersByTimeAsync(5);
+    expect(btn.classList.contains('abtn-error')).toBe(true);
+    await vi.runAllTimersAsync(); await raw;
+  });
+
+  it('a bare false or undefined result is NOT a failure: only an explicit outcome decides', async () => {
     const btn = mkBtn();
     const p = runButton(btn, async () => false, { minPendingMs: 0, rethrow: false });
     await vi.advanceTimersByTimeAsync(5);
-    expect(btn.classList.contains('abtn-error')).toBe(true);
-    await vi.runAllTimersAsync();
-    await expect(p).resolves.toBe(false);
+    expect(btn.classList.contains('abtn-error')).toBe(false);
+    expect(btn.classList.contains('abtn-success')).toBe(true);
+    await vi.runAllTimersAsync(); await p;
   });
 
-  it('hapticOutcome: an error haptic fails the run; no success signal means no check', async () => {
+  it('cancelResult restores quietly: no check, no shake, no announcement', async () => {
     const btn = mkBtn();
-    const fail = runButton(btn, async () => { window.dispatchEvent(new CustomEvent('app-haptic', { detail: { type: 'error' } })); }, { minPendingMs: 0, hapticOutcome: true });
-    await vi.advanceTimersByTimeAsync(5);
-    expect(btn.classList.contains('abtn-error')).toBe(true);
-    await vi.runAllTimersAsync(); await fail;
+    const seen = new Set();
+    const obs = new MutationObserver(() => ['abtn-success', 'abtn-error'].forEach((c) => btn.classList.contains(c) && seen.add(c)));
+    obs.observe(btn, { attributes: true, attributeFilter: ['class'] });
+    const p = runButton(btn, async () => cancelResult(), { minPendingMs: 0, rethrow: false, successLabel: 'Done', errorLabel: 'Failed' });
+    await vi.runAllTimersAsync();
+    const r = await p;
+    obs.disconnect();
+    expect(isCancelled(r)).toBe(true);
+    expect(seen.size).toBe(0);
+    expect(btn.hasAttribute('aria-busy')).toBe(false);
+    expect(btn.querySelector('.abtn-ind')).toBeNull();
+    expect(btn.textContent).toBe('Book');
+    expect(document.querySelector('.abtn-live')).toBeNull();
+  });
 
-    const quiet = runButton(btn, async () => undefined, { minPendingMs: 0, hapticOutcome: true });
+  it('a cancelled settle() run never flashes the replacement', async () => {
+    const btn = mkBtn(); const next = mkBtn('Next');
+    const settle = vi.fn(() => next);
+    const p = runButton(btn, async () => cancelResult(), { minPendingMs: 0, settle });
+    await vi.runAllTimersAsync(); await p;
+    expect(settle).not.toHaveBeenCalled();
+    expect(next.classList.contains('abtn-success')).toBe(false);
+  });
+
+  it('toasts and haptics no longer drive the outcome', async () => {
+    const btn = mkBtn();
+    const err = runButton(btn, async () => { window.dispatchEvent(new CustomEvent('app-haptic', { detail: { type: 'error' } })); return okResult(); }, { minPendingMs: 0 });
+    await vi.advanceTimersByTimeAsync(5);
+    expect(btn.classList.contains('abtn-error')).toBe(false);
+    expect(btn.classList.contains('abtn-success')).toBe(true);
+    await vi.runAllTimersAsync(); await err;
+    const ok = runButton(btn, async () => { window.dispatchEvent(new CustomEvent('app-haptic', { detail: { type: 'success' } })); return failResult(); }, { minPendingMs: 0, rethrow: false });
     await vi.advanceTimersByTimeAsync(5);
     expect(btn.classList.contains('abtn-success')).toBe(false);
-    await vi.runAllTimersAsync(); await quiet;
-
-    const ok = runButton(btn, async () => { window.dispatchEvent(new CustomEvent('app-haptic', { detail: { type: 'success' } })); }, { minPendingMs: 0, hapticOutcome: true });
-    await vi.advanceTimersByTimeAsync(5);
-    expect(btn.classList.contains('abtn-success')).toBe(true);
+    expect(btn.classList.contains('abtn-error')).toBe(true);
     await vi.runAllTimersAsync(); await ok;
+  });
+
+  it('concurrent runs on two buttons each show their OWN outcome', async () => {
+    const a = mkBtn('A'); const b = mkBtn('B');
+    const da = deferred(); const db = deferred();
+    const pa = runButton(a, () => da.promise, { minPendingMs: 0, rethrow: false });
+    const pb = runButton(b, () => db.promise, { minPendingMs: 0, rethrow: false });
+    // A's flow reports a failure (and fires an error haptic); B's succeeds (success haptic) while A is still pending.
+    window.dispatchEvent(new CustomEvent('app-haptic', { detail: { type: 'error' } }));
+    db.resolve(okResult());
+    await vi.advanceTimersByTimeAsync(5);
+    expect(b.classList.contains('abtn-success')).toBe(true);
+    expect(b.classList.contains('abtn-error')).toBe(false);
+    expect(a.classList.contains('abtn-busy')).toBe(true); // A is untouched by B finishing
+    da.resolve(failResult('nope'));
+    await vi.advanceTimersByTimeAsync(5);
+    expect(a.classList.contains('abtn-error')).toBe(true);
+    expect(a.classList.contains('abtn-success')).toBe(false);
+    await vi.runAllTimersAsync(); await Promise.all([pa, pb]);
+
+    // And the other way round: A succeeds, B is cancelled, with the signals crossed.
+    const da2 = deferred(); const db2 = deferred();
+    const pa2 = runButton(a, () => da2.promise, { minPendingMs: 0, rethrow: false });
+    const pb2 = runButton(b, () => db2.promise, { minPendingMs: 0, rethrow: false });
+    da2.resolve(okResult()); db2.resolve(cancelResult());
+    await vi.advanceTimersByTimeAsync(5);
+    expect(a.classList.contains('abtn-success')).toBe(true);
+    expect(b.classList.contains('abtn-success')).toBe(false);
+    expect(b.classList.contains('abtn-error')).toBe(false);
+    await vi.runAllTimersAsync(); await Promise.all([pa2, pb2]);
+  });
+
+  it('classifies outcomes', () => {
+    expect(outcomeOf(okResult())).toBe('success');
+    expect(outcomeOf(undefined)).toBe('success');
+    expect(outcomeOf(true)).toBe('success');
+    expect(outcomeOf(failResult('x'))).toBe('failed');
+    expect(outcomeOf({ ok: false })).toBe('failed');
+    expect(outcomeOf(cancelResult())).toBe('cancelled');
+    expect(isFailure(cancelResult())).toBe(false);
   });
 
   it('re-attaches the spinner when the action rewrites the label, and locks the width', async () => {

@@ -22,6 +22,7 @@ const classes = [
   cls('5', '2026-11-05T07:30:00+00:00', [A, B, ME]),
   cls('6', '2026-11-06T07:15:00+00:00', [{ memberRef: 'a', kind: 'queued' }]),
   cls('7', '2026-11-12T07:15:00+00:00', [A, B]),                      // beyond the week
+  cls('8', '2026-11-11T07:15:00+00:00', [A]),                         // today+7: the last day
 ];
 
 describe('statusAt and classDayKey', () => {
@@ -47,23 +48,27 @@ describe('todaysWorkouts', () => {
 
 describe('weekDays and the strip', () => {
   const days = weekDays(classes, { now: NOW, zone: 'Europe/London' });
-  it('covers seven days from today and drops classes outside', () => {
+  it('covers tomorrow..today+7, excludes today, and drops classes outside', () => {
     expect(days).toHaveLength(7);
-    expect(days[0]).toMatchObject({ date: '2026-11-04', weekday: 'Wed', dayNum: 4, isToday: true });
+    expect(days[0]).toMatchObject({ date: '2026-11-05', weekday: 'Thu', dayNum: 5, isToday: false });
+    expect(days[6].date).toBe('2026-11-11');
     expect(days.flatMap((d) => d.classes).map((c) => c.key)).not.toContain('7');
-    expect(days[0].memberRefs).toEqual(['b', 'a', 'me']);
-    expect(days[2].classes.map((c) => c.key)).toEqual(['6']);
+    expect(days.flatMap((d) => d.classes).map((c) => c.key)).not.toContain('1');
+    expect(days[6].classes.map((c) => c.key)).toEqual(['8']);
+    expect(days[0].memberRefs).toEqual(['a', 'b', 'me']);
+    expect(days[1].classes.map((c) => c.key)).toEqual(['6']);
   });
   it('opens on the day with the next class', () => {
     expect(initialDayIndex(days, NOW)).toBe(0);
-    const late = Date.parse('2026-11-04T23:00:00Z');
-    expect(initialDayIndex(weekDays(classes, { now: late, zone: 'Europe/London' }), late)).toBe(1);
+    const late = Date.parse('2026-11-06T23:00:00Z');
+    expect(initialDayIndex(weekDays(classes, { now: late, zone: 'Europe/London' }), late)).toBe(4);
     expect(initialDayIndex(weekDays([], { now: NOW, zone: 'Europe/London' }), NOW)).toBe(0);
   });
   it('shows at most 3 rows, then See more', () => {
-    expect(visibleWeekRows(days[0].classes, false)).toMatchObject({ hidden: 1 });
-    expect(visibleWeekRows(days[0].classes, false).rows).toHaveLength(3);
-    expect(visibleWeekRows(days[0].classes, true)).toMatchObject({ hidden: 0 });
+    const four = [1, 2, 3, 4].map((n) => ({ key: String(n) }));
+    expect(visibleWeekRows(four, false)).toMatchObject({ hidden: 1 });
+    expect(visibleWeekRows(four, false).rows).toHaveLength(3);
+    expect(visibleWeekRows(four, true)).toMatchObject({ hidden: 0 });
     expect(visibleWeekRows(days[1].classes, false).hidden).toBe(0);
   });
 });
@@ -130,7 +135,7 @@ describe('memberProfile', () => {
       recent: [cls('r1', '2026-11-01T08:00:00Z', [A]), cls('r2', '2026-11-02T08:00:00Z', [A]), cls('r3', '2026-11-02T09:00:00Z', [B])],
     };
     const p = memberProfile('a', data, { now: NOW });
-    expect(p.upcoming.map((r) => r.cls.key)).toEqual(['2', '3', '5', '6', '7']);
+    expect(p.upcoming.map((r) => r.cls.key)).toEqual(['2', '3', '5', '6', '8', '7']);
     expect(p.upcoming[0].spot).toBe('Bike 14');
     expect(p.upcoming[3].kind).toBe('queued');
     expect(p.recent.map((r) => r.cls.key)).toEqual(['r2', 'r1']);

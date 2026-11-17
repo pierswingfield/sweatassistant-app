@@ -1,4 +1,6 @@
 import { connectionEpoch, connectionStates, isGymAvailable } from '../gym-availability.js';
+import { resetWindowScroll } from '../scroll-reset.js';
+import { timetableEntryPlan, isResultSetChangeReason } from './timetable-entry.js';
 import { api } from '../api';
 import { invalidateApiCache } from '../cache.js';
 import { appConfig } from '../config.js';
@@ -70,7 +72,7 @@ import { bookGuestAfterPrimary as bookGuestAfterPrimaryStep } from './quickbook-
 import { orderCompanionSlots, orderTogetherSlots } from './companion-slots.js';
 import { guestFieldsHtml, wireGuestFields } from './guest-fields.js';
 import { renderStudioFloorPlan } from './spotmap.js';
-import { chipsFor, teamChipHtml, wireTeamChip, loadTeamChips, resetTeamChips } from './team-chips.js';
+import { chipsFor, chipKey, teamChipHtml, wireTeamChip, loadTeamChips, resetTeamChips } from './team-chips.js';
 import { teamsApi } from '../teams-api.js';
 import { EDGE_PX, isEdgeSwipeActive } from './edge-swipe-back.js';
 import { currentRoute, commitFilterChange, commitNow, replaceCurrent, pathFor } from '../router.js';
@@ -783,6 +785,7 @@ export function resetToDefaultFilters() {
   setFilterState(copyOf(savedFilterState));
   if (getSearchQuery()) setSearchQuery('');
   overlayActive = false; overlayDropped = 0;
+  selectedTimetableDate = null; // back to today
   urlReplaceOnce = true;
   document.getElementById('app-url-overlay-banner')?.remove();
   document.getElementById('app-timetable-filters-container')?.classList.remove('app-overlay-active');
@@ -801,14 +804,24 @@ export function clearUrlOverlay() {
 export function _overlayStateForTest() { return { overlayActive, savedFilterState }; }
 
 // Initializer
+let timetableInitialised = false;
 export async function initTimetable() {
   const initStartedAt = timetablePerfNow();
-  loadStoredFilters();
-  // U4-19: entering the tab from a URL that carries timetable params applies them as an overlay
-  // once metadata is available (render). Otherwise the saved defaults stand.
-  overlayActive = false; overlayDropped = 0; lastSynced = null; urlReplaceOnce = true;
   const r = currentRoute();
-  pendingUrlTimetable = r.tab === 'class-timetable' ? r.timetable : null;
+  // Switching away and back keeps day, filters and overlay; only a first entry or a URL that names
+  // its own params starts over (timetable-entry.js). Re-tapping the open tab is resetToDefaultFilters().
+  const resume = timetableEntryPlan({ initialised: timetableInitialised, routeTimetable: r.tab === 'class-timetable' ? r.timetable : null }) === 'resume';
+  timetableInitialised = true;
+  lastSynced = null; urlReplaceOnce = true; // re-write the URL from the kept state on the next render
+  if (resume) {
+    pendingUrlTimetable = null;
+  } else {
+    loadStoredFilters();
+    // U4-19: entering the tab from a URL that carries timetable params applies them as an overlay
+    // once metadata is available (render). Otherwise the saved defaults stand.
+    overlayActive = false; overlayDropped = 0;
+    pendingUrlTimetable = r.tab === 'class-timetable' ? r.timetable : null;
+  }
   setupDropdownFilters();
   refreshTeamChips();
   await prefetchTimetableData();
@@ -1472,6 +1485,7 @@ function setupFilterEventListeners() {
         updateTriggerLabel('app-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
       }
 
+      scrollResultsToTop();
       renderTimetableGrid();
     };
   });
@@ -1498,6 +1512,7 @@ function setupFilterEventListeners() {
           selectedEventTypes = [];
           updateTriggerLabel('app-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
         }
+        scrollResultsToTop();
         renderTimetableGrid();
       };
     }
@@ -1515,6 +1530,7 @@ function setupFilterEventListeners() {
         bookmarksFilterBtn.classList.remove('active');
         bookmarksFilterBtn.textContent = COPY.static.bookmarked;
       }
+      scrollResultsToTop();
       renderTimetableGrid();
     };
   }
@@ -1541,6 +1557,7 @@ function setupFilterEventListeners() {
         bookmarksFilterBtn.textContent = COPY.static.bookmarked;
       }
 
+      scrollResultsToTop();
       renderTimetableGrid();
       showToast(COPY.timetable.allFiltersCleared, 'success');
     };
@@ -1923,7 +1940,18 @@ function announceTimetableRendered() { window.dispatchEvent(new Event('app-timet
 
 let ttStaggerPlayed = false;
 
+// A search or filter change swaps the result set, so show it from the top (panel body AND list; desktop and mobile).
+// Never called for tab returns or background re-renders.
+export function scrollResultsToTop() {
+  try {
+    document.querySelector('main.app-body')?.scrollTo?.(0, 0);
+    document.getElementById('app-timetable-grid')?.scrollTo?.(0, 0);
+    resetWindowScroll();
+  } catch (e) { /* jsdom */ }
+}
+
 export async function renderTimetableGrid(reason = 'interaction') {
+  if (isResultSetChangeReason(reason)) scrollResultsToTop();
   const renderStartedAt = timetablePerfNow();
   const ttGrid = document.getElementById('app-timetable-grid');
   if (!ttGrid) return;
@@ -2248,6 +2276,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
     reason,
     eventCount: sortedEvents.length,
   });
+  if (isResultSetChangeReason(reason)) scrollResultsToTop(); // rows just changed height
   // F-12: let read-only views of the loaded schedule (Settings > Favourites) repaint when it changes.
   announceTimetableRendered();
 }
@@ -2419,7 +2448,7 @@ function buildEventRow(event, autoBookedIds) {
   });
 
   // T-5: teammates booked into this class (escaped markup; '' when none).
-  const teamChip = teamChipHtml(chipsFor(event));
+  const teamChip = teamChipHtml(chipsFor(event), chipKey(event));
 
   // === MOBILE TIMETABLE — PWA MOBILE LAYOUT (added Jun 2026; delete this block to revert) ===
   if (window.matchMedia('(max-width: 768px)').matches) {

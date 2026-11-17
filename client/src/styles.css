@@ -5836,17 +5836,15 @@ html, body, * {
   }
 
   #app-container.app-hdr-hidden .app-header { transform: translateY(-100%); pointer-events: none; } }
-/* Gym logo on its brand plate; the count beside it sits flat (no fill). */
+/* Gym logo on its brand plate; the count beside it sits flat (no fill). ONE fixed square plate for every gym:
+   the header always renders the 1:1 mark, contained and centred, so chips never differ in size or shape. */
 .app-hgb-logo {
   display: inline-flex; align-items: center; justify-content: center;
-  height: 14px; padding: 0 5px; border-radius: 999px; flex-shrink: 0;
+  width: 18px; height: 18px; padding: 3px; box-sizing: border-box; border-radius: 6px; flex: none; overflow: hidden;
 }
-.app-hgb-logo img { height: 7px; width: auto; display: block; }
-.app-hgb-logo-text { font-size: 7px; font-weight: 700; color: #fff; text-transform: uppercase; }
-.app-hgb-logo .gym-logo--square { display: none; }
-.app-badges-compact .app-hgb-logo .gym-logo--half { display: none; }
-.app-badges-compact .app-hgb-logo .gym-logo--square { display: block; }
-.app-badges-compact .app-hgb-logo { padding: 0 4px; }
+.app-hgb-logo .gym-logo { display: block; width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; transform: none; }
+.app-hgb-logo svg.gym-logo-inline { width: 100%; height: 100%; }
+.app-hgb-logo .fr-mark-text { font-size: 10px; font-weight: 700; line-height: 1; color: #fff; text-transform: uppercase; }
 .app-header-gym-badge[data-gym] .app-hgb-pill,
 .app-hgb-pill { background: none !important; padding: 0; color: var(--text) !important; }
 .app-header-gym-badge[data-gym] .app-hgb-pill.inactive,
@@ -9298,9 +9296,7 @@ html[data-hdr-hidden] { background: var(--bg); }
 
 /* Inline sprite logos (<svg><use>): sized exactly like the <img> wordmarks they replace, always visible. */
 svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !important; overflow: visible; }
-.app-hgb-logo svg.gym-logo-inline { height: 7px; width: auto; }
 /* The header pill never applied the optical --logo-scale (it is for plates); keep it that way. */
-.app-hgb-logo .gym-logo { transform: none; }
 
 
 /* ---- Batch I ---- */
@@ -9486,9 +9482,6 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
 }
 .app-tt-seg.primary.variant-autoupgrade .app-seg-ico { margin: 0 !important; }
 
-/* Header pill for squareMark gyms: oblong pill with the short A mark (the normal logo imgs are hidden). */
-.app-hgb-logo.is-markonly { padding: 0 9px; }
-.app-hgb-logo.is-markonly .gym-logo--half { display: block !important; height: 9px; width: auto; }
 /* Square mark glyph in the filter pane's gym dots: 20% smaller than before. */
 
 /* 
@@ -12368,7 +12361,8 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 #app-helper-container .tt-team-badge:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-#app-helper-container .tt-team-name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* line-height 1.4 + block padding: overflow:hidden (for the ellipsis) clipped descenders at the badge's line-height:1 */
+#app-helper-container .tt-team-name { overflow: hidden; text-overflow: ellipsis; min-width: 0; line-height: 1.4; padding-block: 3px; }
 #app-helper-container .tt-team-more { font-weight: 700; color: var(--text-secondary); margin-left: 2px; flex: 0 0 auto; }
 #app-helper-container .tt-stack { display: inline-flex; align-items: center; position: relative; isolation: isolate; flex: 0 0 auto; }
 #app-helper-container .tt-av {
@@ -12727,10 +12721,11 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 
 /* Today's workouts: logo with the tick as a small corner badge */
 #app-helper-container .tm-tw-lead .tm-tw-check {
-  position: absolute; right: -4px; bottom: -3px; width: 16px; height: 16px; background: var(--success); color: #fff;
+  position: absolute; right: -4px; bottom: -3px; width: 16px; height: 16px; background: color-mix(in srgb, var(--success) 22%, var(--surface)); color: var(--success);
   box-shadow: 0 0 0 2px var(--surface);
 }
 #app-helper-container .tm-tw-lead .tm-tw-check svg { width: 10px; height: 10px; }
+#app-helper-container .tm-tw.is-done .tm-tw-time, #app-helper-container .tm-tw.is-done .tm-tw-title, #app-helper-container .tm-tw.is-done .tm-tw-who { opacity: .55; }
 
 /* This week: each class is its own tinted tile */
 #app-helper-container .tm-wrows { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
@@ -12840,6 +12835,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container .tm-hero-state .tm-stack .tm-av + .tm-av { margin-left: -7px; }
 #app-helper-container .tm-workouts { list-style: none; margin: 0; padding: 0; }
 #app-helper-container .tm-workout { padding: 7px 0 9px; }
+#app-helper-container #tm-week-classes .tm-workout { padding-top: 12px; padding-bottom: 14px; }
 #app-helper-container .tm-workout + .tm-workout { border-top: 1px solid color-mix(in srgb, var(--text) 7%, transparent); }
 #app-helper-container .tm-workout-main {
   display: grid; grid-template-columns: minmax(48px, max-content) minmax(0, 1fr) minmax(0, .65fr) 16px;

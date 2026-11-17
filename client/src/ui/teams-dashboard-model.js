@@ -70,7 +70,7 @@ export function todaysWorkouts(classes, { now }) {
 }
 
 /**
- * This week (§5.3 item 3): seven days from today in the viewer's zone. Each day lists
+ * This week (§5.3 item 3): the seven days after today (tomorrow..today+7) in the viewer's zone; today is Today's workouts. Each day lists
  * its classes (any attendee kind) and the distinct members on it, for the strip's dots.
  */
 export function weekDays(classes, { now, zone = 'UTC', days = WEEK_DAYS }) {
@@ -80,8 +80,8 @@ export function weekDays(classes, { now, zone = 'UTC', days = WEEK_DAYS }) {
   const out = [];
   const index = new Map();
   for (let i = 0; i < days; i++) {
-    const d = base.plus({ days: i });
-    const day = { date: d.toISODate(), weekday: d.toFormat('ccc'), dayNum: d.day, isToday: i === 0, classes: [], memberRefs: [] };
+    const d = base.plus({ days: i + 1 });
+    const day = { date: d.toISODate(), weekday: d.toFormat('ccc'), dayNum: d.day, isToday: false, classes: [], memberRefs: [] };
     index.set(day.date, day);
     out.push(day);
   }

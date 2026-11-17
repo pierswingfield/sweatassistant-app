@@ -472,6 +472,7 @@ function playTabEnter(panel, fromId, toId) {
 // opts.history: 'push' (default: a user-initiated change; the nav controller pushes a drill-down level or
 // re-bases the back stack to [Home, tab]), 'replace' (swap the current level), or 'none' (boot / back:
 // the URL already says where we are). opts.section: settings pane.
+let savedTimetableScroll = null; // { body, grid } captured when leaving the Timetable tab
 function switchTab(tabId, opts = {}) {
   let historyMode = opts.history || 'push';
   // TEMP: credits hidden unless debugMode (restore by removing gate)
@@ -480,9 +481,12 @@ function switchTab(tabId, opts = {}) {
   // well as its classes so a later scroll can hide it again.
   resetHeaderAutoHide();
   cancelPullToRefresh();
-  // Leaving the timetable ends search: its own filter scope is dropped and the normal filters return.
-  if (tabId !== 'class-timetable') import('./ui/timetable-search-state.js').then(m => { if (m.inSearchScope()) import('./ui/timetable').then(t => t.exitSearch()); });
+  // Search (text + picked suggestion filter) now survives leaving the tab; a re-tap of Timetable resets it.
   const prevTabId = currentTabId;
+  // Remember where the Timetable was scrolled so coming back restores it (re-tapping resets instead).
+  if (prevTabId === 'class-timetable' && tabId !== 'class-timetable') {
+    savedTimetableScroll = { body: document.querySelector('main.app-body')?.scrollTop || 0, grid: document.querySelector('#app-timetable-grid')?.scrollTop || 0 };
+  }
   if (prevTabId === 'teams' && currentRoute().teams?.view === 'team') lastTeamsRoute = { ...currentRoute().teams };
   const preserveTeams = tabId === 'teams' && prevTabId !== 'teams' && !opts.teams && !!lastTeamsRoute;
   if (preserveTeams) opts = { ...opts, teams: lastTeamsRoute };
@@ -517,8 +521,10 @@ function switchTab(tabId, opts = {}) {
   // Each tab starts at the top (window on mobile, inner scroller on desktop).
   try {
     resetWindowScroll();
-    bodyScroller?.scrollTo?.(0, 0);
-    document.querySelector('#app-timetable-grid')?.scrollTo?.(0, 0);
+    if (!(tabId === 'class-timetable' && savedTimetableScroll)) {
+      bodyScroller?.scrollTo?.(0, 0);
+      document.querySelector('#app-timetable-grid')?.scrollTo?.(0, 0);
+    }
   } catch (e) { /* jsdom */ }
 
   // U4-19: the tab lives in the PATH (/bookings, /settings/about ...) so refresh, back/forward
@@ -549,7 +555,12 @@ async function triggerTabRender(tabId, { preserveTeams = false } = {}) {
       initHome();
     } else if (tabId === 'class-timetable') {
       const { initTimetable } = await import('./ui/timetable');
-      initTimetable();
+      const keep = savedTimetableScroll; savedTimetableScroll = null;
+      const done = initTimetable();
+      if (keep) {
+        const restore = () => { try { const b = document.querySelector('main.app-body'), g = document.querySelector('#app-timetable-grid'); if (b) b.scrollTop = keep.body; if (g) g.scrollTop = keep.grid; } catch (e) { /* jsdom */ } };
+        restore(); requestAnimationFrame(restore); done.then(restore, () => {});
+      }
     } else if (tabId === 'my-bookings') {
       const { renderBookings } = await import('./ui/bookings');
       renderBookings();
@@ -580,6 +591,7 @@ tabButtons.forEach(btn => {
     // Re-tapping Timetable while already on the Timetable tab restores default filters.
     if (tabId === 'class-timetable' && currentTabId === 'class-timetable') {
       import('./ui/timetable.js').then(m => m.resetToDefaultFilters?.());
+      try { document.querySelector('main.app-body')?.scrollTo?.(0, 0); document.querySelector('#app-timetable-grid')?.scrollTo?.(0, 0); } catch (e) { /* jsdom */ }
       return;
     }
     // Re-tapping Settings while already in the Settings area (mobile) returns to the settings menu.
@@ -977,24 +989,12 @@ function sumCredits(credits) {
   }, 0);
 }
 
-// Gym logo on the gym's brand plate. Both wordmark sizes are always in the DOM;
-// `.app-badges-compact` on the container (see fitHeaderBadges) picks the mark.
-// Assets and plate come from the same presentation contract gymBrand() reads.
-function gymBadgeLogo(gymId, shortName) {
-  const half = gymBrand(gymId, 'half');
+// Gym logo on the gym's brand plate. The header ALWAYS uses the 1:1 (square) form on one fixed-size square
+// plate, so every gym's chip is the same size and shape (DESIGN.md logo-variant policy: one variant per surface).
+// A gym with no mark asset gets its first letter (gymBrand's own fallback), never another form.
+function gymBadgeLogo(gymId) {
   const square = gymBrand(gymId, 'square');
-  const style = `style="background:${half.brandBg}"`;
-  const isText = (b) => b.logo.includes('-text"');
-  // No wordmark asset but a mark: the pill shows the mark alone.
-  if (isText(half) && !isText(square)) return `<span class="app-hgb-logo is-markonly" aria-hidden="true" ${style}>${square.logo.replace('gym-logo--square', 'gym-logo--half')}</span>`;
-  // Neutral/text-only gym: the name on its plate.
-  if (isText(half)) {
-    return `<span class="app-hgb-logo" aria-hidden="true" ${style}><span class="app-hgb-logo-text">${escapeHtml(half.name || shortName)}</span></span>`;
-  }
-  // Wide-wordmark gyms: 'half' already IS the short mark, so the pill shows only that.
-  if (half.isMark) return `<span class="app-hgb-logo is-markonly" aria-hidden="true" ${style}>${half.logo}</span>`;
-  // Otherwise the half wordmark, swapped for the square mark when `.app-badges-compact` is set on the container.
-  return `<span class="app-hgb-logo" aria-hidden="true" ${style}>${half.logo}${square.logo}</span>`;
+  return `<span class="app-hgb-logo" aria-hidden="true" style="background:${square.brandBg}">${square.logo}</span>`;
 }
 
 function renderGymBadge(container, gymId, shortName, isMetered, total, credits) {
@@ -1003,7 +1003,7 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
   badge.className = 'app-header-gym-badge';
   badge.setAttribute('data-gym', gymId);
   if (isMetered) {
-    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="app-hgb-pill">${escapeHtml(total)}<span class="app-hgb-unit"> ${COPY.shell.creditUnit}</span></span>`;
+    badge.innerHTML = `${gymBadgeLogo(gymId)}<span class="app-hgb-pill">${escapeHtml(total)}<span class="app-hgb-unit"> ${COPY.shell.creditUnit}</span></span>`;
     badge.title = formatCopyText(COPY.shell.creditBadgeTitle, { gymName: shortName, total, plural: total !== 1 ? 's' : '' });
   } else if (canBookAtAll(gymId)) {
     // "Active" alone reads as "this is the currently-selected gym" rather than
@@ -1014,13 +1014,13 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
     // eligibility hasn't loaded yet (same unknown-defaults-ON rule as
     // capabilities), but never shown once the server has confirmed this
     // account has no active membership at this gym.
-    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="app-hgb-pill member">${escapeHtml(unmeteredBadgeLabel(gymId))}</span>`;
+    badge.innerHTML = `${gymBadgeLogo(gymId)}<span class="app-hgb-pill member">${escapeHtml(unmeteredBadgeLabel(gymId))}</span>`;
     badge.title = formatCopyText(COPY.shell.membershipBadgeTitle, { gymName: shortName });
   } else {
     // C3-3: an unmetered gym with no active membership (and no usable
     // credits) is a real, confirmed state — showing "Member" here was the
     // bug this branch exists to fix, not a permissive default to preserve.
-    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="app-hgb-pill">${COPY.shell.noMembershipBadge}</span>`;
+    badge.innerHTML = `${gymBadgeLogo(gymId)}<span class="app-hgb-pill">${COPY.shell.noMembershipBadge}</span>`;
     badge.title = formatCopyText(COPY.shell.ineligibleBadgeTitle, { gymName: shortName, reason: getIneligibleReason(gymId) || COPY.shell.noActiveMembership });
   }
   // The chip is a shortcut to that gym's own Settings pane (the credit modal it

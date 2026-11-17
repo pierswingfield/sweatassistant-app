@@ -34,6 +34,7 @@ import { nav } from './nav-controller.js';
 import { initEdgeSwipeBack } from './ui/edge-swipe-back.js';
 import { initSafeArea } from './safe-area.js';
 import { installPressFeedback } from './ui/async-button.js';
+import { createToastStack } from './ui/toast-stack.js';
 
 installStaleScrollGuard();
 
@@ -246,6 +247,11 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
 });
 
 // --- TOAST NOTIFICATIONS ---
+let toastStack = null;
+function getToastStack(container) {
+  if (!toastStack || toastStack.container !== container) { toastStack = createToastStack(container); toastStack.container = container; }
+  return toastStack;
+}
 export function showToast(message, type = 'info') {
   // In-flight tactile buttons (async-button.js) read a flow's outcome from its success/error toast.
   if (type === 'success' || type === 'error') {
@@ -253,14 +259,6 @@ export function showToast(message, type = 'info') {
   }
   const container = document.getElementById('app-toast-container');
   if (!container) return;
-
-  // Dismiss any existing toasts gracefully so only one clean canopy is active
-  container.querySelectorAll('.app-toast').forEach((t) => {
-    t.classList.remove('show');
-    t.style.transform = 'translateY(-100%)';
-    t.style.opacity = '0';
-    setTimeout(() => t.remove(), 260);
-  });
 
   const toast = document.createElement('div');
   toast.className = `app-toast ${type}`;
@@ -294,14 +292,8 @@ export function showToast(message, type = 'info') {
   inner.append(iconEl, msgEl, closeBtn);
   toast.appendChild(inner);
 
-  let hideTimer = null;
-  const dismiss = () => {
-    if (hideTimer) clearTimeout(hideTimer);
-    toast.classList.remove('show');
-    toast.style.transform = 'translateY(-100%)';
-    toast.style.opacity = '0';
-    setTimeout(() => toast.remove(), 320);
-  };
+  let handle = null;
+  const dismiss = () => handle?.dismiss();
   closeBtn.addEventListener('click', dismiss);
 
   // Swipe up to dismiss gesture
@@ -331,39 +323,20 @@ export function showToast(message, type = 'info') {
     if (!isTrackingTouch) return;
     isTrackingTouch = false;
     if (currentTouchDelta < -18) {
-      dismiss();
+      toast.style.transition = '';
+      dismiss(); // exit animates on from the dragged position
     } else {
       toast.style.transition = '';
       toast.style.transform = '';
     }
   }, { passive: true });
 
-  // Auto-hide: pause on hover for desktop users reading long text
-  const scheduleAutoDismiss = () => {
-    // Every variant auto-dismisses; errors linger longer so they can be read.
-    if (hideTimer) clearTimeout(hideTimer);
-    hideTimer = setTimeout(dismiss, type === 'error' ? 6000 : 4000);
-  };
-  // Tap anywhere on the toast to dismiss it.
+  // Tap anywhere on the toast to dismiss it; every variant auto-dismisses, errors linger longer.
   toast.addEventListener('click', dismiss);
+  toast.addEventListener('mouseenter', () => handle?.pause());
+  toast.addEventListener('mouseleave', () => handle?.resume());
 
-  toast.addEventListener('mouseenter', () => {
-    if (hideTimer) clearTimeout(hideTimer);
-  });
-  toast.addEventListener('mouseleave', () => {
-    scheduleAutoDismiss();
-  });
-
-  container.appendChild(toast);
-
-  // Animate in
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      toast.classList.add('show');
-    });
-  });
-
-  scheduleAutoDismiss();
+  handle = getToastStack(container).show(toast, { duration: type === 'error' ? 6000 : 4000 });
 }
 
 // --- DEBUG LOG TERMINAL ---

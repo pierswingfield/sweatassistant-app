@@ -72,20 +72,63 @@ function insert(userId, v, ctx) {
   return Number(info.lastInsertRowid);
 }
 
+const ZWJ = '\u200d';
+
+/**
+ * Make member-written text safe to drop into an issue body as-is: nothing in it may ping
+ * anyone, link or close an issue, or break the template's own markdown. Visible text is
+ * unchanged apart from a zero-width joiner after `@` / `#` and a backslash before a leading
+ * heading, rule or quote marker.
+ */
+function neutralise(text) {
+  return String(text || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') // no raw HTML / hidden comments
+    .replace(/@(?=[\w-])/g, `@${ZWJ}`) // @user, @org/team
+    .replace(/#(?=\d)/g, `#${ZWJ}`) // #123, owner/repo#123, "fixes #123"
+    .replace(/\b(GH)-(?=\d)/gi, `$1${ZWJ}-`) // GH-123
+    .split('\n')
+    .map((line) => line
+      .replace(/^(\s{0,3})(#{1,6}(?:\s|$))/, '$1\\$2') // "### Title" inside a message is not a section
+      .replace(/^(\s{0,3})((?:[-*_=]\s*){3,})$/, '$1\\$2') // a rule or setext underline
+      .replace(/^(\s{0,3})(```|~~~)/, '$1\\$2')) // an unbalanced fence would swallow the rest
+    .join('\n');
+}
+
+/** "iOS 18.0 · Safari 18.0": OS and browser with major.minor only, no device model or build. */
+function uaSummary(ua = '') {
+  const s = String(ua);
+  const ver = (re) => { const m = s.match(re); return m ? m[1].replace(/_/g, '.').split('.').slice(0, 2).join('.') : ''; };
+  const os = /iPhone|iPad|iPod/.test(s) ? `iOS ${ver(/OS (\d+[_.]\d+)/)}` : /Android/.test(s) ? `Android ${ver(/Android (\d+(?:\.\d+)?)/)}`
+    : /Mac OS X/.test(s) ? `macOS ${ver(/Mac OS X (\d+[_.]\d+)/)}` : /Windows NT/.test(s) ? `Windows NT ${ver(/Windows NT (\d+\.\d+)/)}`
+      : /Linux/.test(s) ? 'Linux' : 'Other';
+  const browser = /Edg\//.test(s) ? `Edge ${ver(/Edg\/(\d+\.\d+)/)}` : /CriOS\//.test(s) ? `Chrome ${ver(/CriOS\/(\d+\.\d+)/)}`
+    : /Chrome\//.test(s) ? `Chrome ${ver(/Chrome\/(\d+\.\d+)/)}` : /FxiOS\/|Firefox\//.test(s) ? `Firefox ${ver(/(?:FxiOS|Firefox)\/(\d+\.\d+)/)}`
+      : /Safari\//.test(s) ? `Safari ${ver(/Version\/(\d+\.\d+)/)}` : 'Other';
+  return `${os.trim()} · ${browser.trim()}`;
+}
+
+function utcStamp(iso) {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? 'unknown' : `${d.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+}
+
 /** The issue payload. Pure, so the suite can assert no personal data reaches it. */
 function issuePayload(row) {
   const t = TYPES[row.type];
+  const ref = '`#' + row.id + '`'; // code span: never links to issue #id
   const body = [
-    row.message,
-    '',
-    '---',
-    `- Type: ${t.label}`,
-    `- App version: ${row.app_version || 'unknown'}${row.client_build ? ` (build ${row.client_build})` : ''}`,
+    '### Type', '', t.label, '',
+    '### Title', '', neutralise(row.title), '',
+    '### Message', '', neutralise(row.message), '',
+    '### Follow-up', '', `Email provided: ${row.email ? 'yes' : 'no'} (see admin feedback ${ref})`, '',
+    '### Context', '',
+    `- App version: \`${row.app_version || 'unknown'}\`${row.client_build ? ` (build \`${row.client_build}\`)` : ''}`,
     `- Platform: ${row.platform || 'unknown'}`,
-    `- Follow-up email provided: ${row.email ? 'yes' : 'no'} (see admin feedback #${row.id})`,
-    `- Feedback id: ${row.id}`,
+    `- User agent: ${uaSummary(row.user_agent)}`,
+    `- Feedback id: ${ref}`,
+    `- Submitted: ${utcStamp(row.created_at)}`,
   ].join('\n');
-  return { title: `[${t.label}] ${row.title}`, body, labels: [t.ghLabel, 'feedback'] };
+  return { title: `[${t.label}]: ${row.title}`, body, labels: [t.ghLabel, 'feedback'] };
 }
 
 function githubConfig() {
@@ -171,4 +214,4 @@ router.post('/feedback', authenticateToken, async (req, res) => {
   }
 });
 
-module.exports = { router, validate, submit, list, issuePayload, createIssue, platformOf, setFetchForTests, TYPES, LIMITS, RATE };
+module.exports = { router, validate, submit, list, issuePayload, createIssue, platformOf, neutralise, uaSummary, setFetchForTests, TYPES, LIMITS, RATE };

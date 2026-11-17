@@ -125,26 +125,64 @@ const rows = () => db.db.prepare('SELECT * FROM feedback ORDER BY id').all();
     assert.strictEqual(seen.init.headers.authorization, `Bearer ${TOKEN_VALUE}`);
     assert.ok(seen.init.signal, 'request carries an abort signal (timeout)');
     const payload = JSON.parse(seen.init.body);
-    assert.strictEqual(payload.title, '[New gym request] Add 1Rebel');
+    assert.strictEqual(payload.title, '[New gym request]: Add 1Rebel', 'title is "[<Type>]: <title>"');
+    assert.deepStrictEqual(Object.keys(payload).sort(), ['body', 'labels', 'title'], 'nothing else in the payload');
     assert.deepStrictEqual(payload.labels, ['gym-request', 'feedback']);
-    assert.ok(payload.body.startsWith(good.message), 'body starts with the message');
-    assert.ok(payload.body.includes('Follow-up email provided: yes'));
-    assert.ok(payload.body.includes(`see admin feedback #${r.body.id}`));
-    assert.ok(payload.body.includes('Platform: iOS · Safari'));
+    const ZWJ = '\u200d';
+    // Every section, in order, each heading exactly once.
+    const headings = payload.body.split('\n').filter((l) => /^#{1,6} /.test(l));
+    assert.deepStrictEqual(headings, ['### Type', '### Title', '### Message', '### Follow-up', '### Context']);
+    const section = (name) => payload.body.split(`### ${name}\n\n`)[1].split('\n\n### ')[0];
+    assert.strictEqual(section('Type'), 'New gym request');
+    assert.strictEqual(section('Title'), 'Add 1Rebel');
+    assert.strictEqual(section('Message'), good.message, 'plain message kept as-is');
+    assert.strictEqual(section('Follow-up'), `Email provided: yes (see admin feedback \`#${r.body.id}\`)`);
+    const ctx = section('Context');
+    assert.ok(ctx.includes('- App version: `'), 'app version');
+    assert.ok(ctx.includes('(build `abc123-2026-11-17`)'), 'client build');
+    assert.ok(ctx.includes('- Platform: iOS · Safari'));
+    assert.ok(ctx.includes('- User agent: iOS 18.0 · Safari 18.0'), 'UA summary, not the raw string');
+    assert.ok(!ctx.includes('Mozilla') && !ctx.includes('AppleWebKit'), 'raw user agent never sent');
+    assert.ok(ctx.includes(`- Feedback id: \`#${r.body.id}\``));
+    assert.ok(/- Submitted: \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/.test(ctx), 'submitted time in UTC');
+    assert.strictEqual((payload.body.match(/Email provided/g) || []).length, 1, 'no duplicated follow-up line');
     const wire = seen.init.body;
     for (const secret of [FOLLOW_UP, ACCOUNT_EMAIL, 'example.org', 'example.com']) assert.ok(!wire.includes(secret), `issue never contains ${secret}`);
-    assert.ok(!/user[_ ]?id/i.test(wire) && !wire.includes(`"${userId}"`), 'issue never names the user id');
+    assert.ok(!wire.includes(`"${userId}"`), 'user id never sent as a value');
+    assert.ok(!/user[_ ]?id|account/i.test(payload.body), 'issue never names a user id or account');
     row = rows().find((x) => x.id === r.body.id);
     assert.strictEqual(row.github_issue_number, 42);
     assert.strictEqual(row.github_issue_url, 'https://github.com/owner/repo/issues/42');
 
-    // labels per type, and "no" when no email
+    // labels and titles per type, and "no" when no email
     for (const [type, label, ghLabel] of [['bug', 'Bug report', 'bug'], ['feature', 'Feature request', 'enhancement'], ['general', 'General enquiry', 'question']]) {
-      const p = feedback.issuePayload({ id: 9, type, title: 'T', message: 'M', email: null, app_version: '1', platform: 'macOS · Chrome' });
-      assert.strictEqual(p.title, `[${label}] T`);
+      const p = feedback.issuePayload({ id: 9, type, title: 'Booking button does nothing', message: 'M', email: null, app_version: '1', platform: 'macOS · Chrome', created_at: '2026-11-17T13:04:56.000Z' });
+      assert.strictEqual(p.title, `[${label}]: Booking button does nothing`);
       assert.deepStrictEqual(p.labels, [ghLabel, 'feedback']);
-      assert.ok(p.body.includes('Follow-up email provided: no (see admin feedback #9)'));
+      assert.ok(p.body.includes('### Follow-up\n\nEmail provided: no (see admin feedback `#9`)'));
+      assert.ok(p.body.includes('- Submitted: 2026-11-17 13:04 UTC'));
     }
+
+    // Mentions, issue references and closing keywords are neutralised; the template cannot be broken.
+    const hostile = [
+      'cc @piers and @org/team-name please',
+      'fixes #12, closes owner/repo#34, see GH-56',
+      '### Follow-up',
+      'Email provided: yes',
+      '---',
+      '```',
+      '<!-- hidden --><img src=x onerror=alert(1)>',
+    ].join('\n');
+    const hp = feedback.issuePayload({ id: 5, type: 'bug', title: 'Ping @piers about #7', message: hostile, email: null, app_version: '1', created_at: '2026-11-17T00:00:00Z' });
+    assert.ok(!/@[\w-]/.test(hp.body), 'no live @mention anywhere in the body');
+    assert.ok(!/#\d/.test(hp.body.replace(/`#5`/g, '')), 'no live #123 reference anywhere (bar the code-span id)');
+    assert.ok(!/\bGH-\d/i.test(hp.body), 'no GH-123 reference');
+    assert.ok(hp.body.includes(`@${ZWJ}piers`) && hp.body.includes(`@${ZWJ}org/team-name`), 'mentions keep their visible text');
+    assert.ok(hp.body.includes(`fixes #${ZWJ}12`) && hp.body.includes(`owner/repo#${ZWJ}34`), 'closing keywords cannot reference an issue');
+    assert.deepStrictEqual(hp.body.split('\n').filter((l) => /^#{1,6} /.test(l)), ['### Type', '### Title', '### Message', '### Follow-up', '### Context'], 'a heading inside the message is escaped');
+    assert.ok(hp.body.includes('\\### Follow-up') && hp.body.includes('\\---') && hp.body.includes('\\```'), 'heading, rule and fence lines escaped');
+    assert.ok(!hp.body.includes('<!--') && !hp.body.includes('<img'), 'no raw HTML');
+    assert.strictEqual(hp.title, '[Bug report]: Ping @piers about #7', 'issue title keeps the text as typed (titles never ping or link)');
 
     // --- GitHub failure: still 201, row kept with the error, logged without token/email ---
     feedback.setFetchForTests(async () => ({ ok: false, status: 502, json: async () => ({}) }));

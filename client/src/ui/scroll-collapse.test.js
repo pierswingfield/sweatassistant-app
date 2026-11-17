@@ -31,8 +31,20 @@ describe('nextCollapseState', () => {
     expect(nextCollapseState({ ...base, collapsed: true, anchor: 215, top: 240, holdExpanded: true }).collapsed).toBe(false);
     expect(nextCollapseState({ ...base, top: 215, holdExpanded: false }).collapsed).toBe(true);
   });
+  it('collapses on a short page (a Teams list of three, max 15) and reveals on upward travel, not only at the top', () => {
+    const short = { ...base, max: 15, anchor: 0, top: 15 };
+    expect(nextCollapseState(short).collapsed).toBe(true);
+    expect(nextCollapseState({ ...short, top: 8 }).collapsed).toBe(false);
+    // collapsed at the bottom of a short page: 5pt up is noise, 6pt up reveals immediately (no wait for top)
+    expect(nextCollapseState({ ...short, collapsed: true, anchor: 15, top: 10 }).collapsed).toBe(true);
+    expect(nextCollapseState({ ...short, collapsed: true, anchor: 15, top: 9 })).toEqual({ collapsed: false, anchor: 9 });
+    // the anchor follows the lowest point while collapsed
+    expect(nextCollapseState({ ...short, collapsed: true, anchor: 12, top: 14 })).toEqual({ collapsed: true, anchor: 14 });
+    expect(nextCollapseState({ ...short, collapsed: true, top: 2 }).collapsed).toBe(false);
+    expect(nextCollapseState({ ...short, modalOpen: true }).collapsed).toBe(false);
+  });
   it('is never collapsed on a page too short to scroll, or with a modal open', () => {
-    expect(nextCollapseState({ ...base, max: 80, collapsed: true, top: 60 })).toEqual({ collapsed: false, anchor: 0 });
+    expect(nextCollapseState({ ...base, max: 8, collapsed: true, top: 6 })).toEqual({ collapsed: false, anchor: 0 });
     expect(nextCollapseState({ ...base, modalOpen: true, collapsed: true, top: 300 }).collapsed).toBe(false);
   });
 });

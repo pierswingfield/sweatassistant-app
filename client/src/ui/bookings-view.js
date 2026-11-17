@@ -12,6 +12,14 @@ export function normalizeBookingsView(value) {
   return BOOKINGS_VIEWS.includes(value) ? value : DEFAULT_BOOKINGS_VIEW;
 }
 
+// The control only means something on mobile with at least one waitlist entry. Desktop always
+// shows bookings and waitlists separately; mobile with no waitlists shows the plain bookings list.
+// Neither case reads the saved preference (it is kept, just not applied).
+export function resolveBookingsView(savedView, { desktop, waitlistCount }) {
+  if (desktop) return 'separate';
+  if (!waitlistCount) return 'combined';
+  return normalizeBookingsView(savedView);
+}
 function startMs(event) {
   const t = Date.parse(event?.startAt || event?.start_at || '');
   return Number.isFinite(t) ? t : NaN;

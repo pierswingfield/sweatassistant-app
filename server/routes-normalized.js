@@ -736,15 +736,55 @@ router.post('/swap', authenticateToken, async (req, res) => {
   }
 });
 
+// Drop studio-cancelled bookings the member removed. A dismissal is honoured only while
+// the booking is still reported cancelled: one that now reads as live (the studio
+// reinstated the class) is shown again and its dismissal is deleted. Display only:
+// booking-sync, the calendar and notifications read the provider list, not this.
+function applyCancelledDismissals(userId, gymId, bookings) {
+  const dismissed = db.getDismissedCancelledBookingIds(userId, gymId);
+  if (!dismissed.size) return bookings;
+  const revived = [];
+  const out = bookings.filter((b) => {
+    const id = String(b && b.bookingId);
+    if (!dismissed.has(id)) return true;
+    if (b.isCancelled === true || (b.event && b.event.isCancelled === true)) return false;
+    revived.push(id);
+    return true;
+  });
+  if (revived.length) db.undismissBookings(userId, gymId, revived);
+  return out;
+}
+
 // GET /api/bookings — normalized active bookings. NOTE: for CodexFit these come
 // back WITHOUT embedded event details (see providers/codexfit.js listBookings
 // doc comment) — callers needing full metadata should join via /api/events/:id
 // or /api/timetable, same as the existing client already does for the raw proxy.
 router.get('/bookings', authenticateToken, readLimiter, async (req, res) => {
   try {
-    const { provider, session } = resolveContext(req.userId);
-    const bookings = await withRelogin(req.userId, session, (s) => provider.listBookings(s));
+    const { gymId, provider, session } = resolveContext(req.userId);
+    const bookings = applyCancelledDismissals(req.userId, gymId,
+      await withRelogin(req.userId, session, (s) => provider.listBookings(s)));
     res.json({ bookings });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// POST /api/bookings/dismiss-cancelled  { bookingIds: string[] } — "Remove" on a
+// studio-cancelled booking. Hides it for this user + gym; the gym is NEVER called (a
+// cancelled reservation cannot be cancelled again, which is why routing this through
+// /api/cancel failed). The hide holds only while the provider keeps reporting the booking
+// cancelled (see applyCancelledDismissals), so it needs no check here.
+router.post('/bookings/dismiss-cancelled', authenticateToken, (req, res) => {
+  try {
+    const ids = req.body && req.body.bookingIds;
+    if (!Array.isArray(ids) || !ids.length || ids.length > 20
+      || ids.some((id) => (typeof id !== 'string' && typeof id !== 'number') || !String(id) || String(id).length > 64)) {
+      return res.status(400).json({ message: 'bookingIds must be 1-20 booking ids' });
+    }
+    const gymId = resolveGymOnly(req.userId);
+    db.dismissCancelledBookings(req.userId, gymId, ids.map(String));
+    res.json({ ok: true });
   } catch (err) {
     handleError(res, err);
   }
@@ -913,21 +953,28 @@ router.get('/bundles', authenticateToken, extrasLimiter, async (req, res) => {
 });
 
 // GET /api/attendance-totals — provider-published attended total, this week/month/year and
-// milestones (gyms with capabilities.attendanceTotals; 501 otherwise). F-10-8 "provided" stats.
+// milestones (gyms with capabilities.attendanceTotals). Any other case answers the stored
+// class-history count (source: 'stored'), never an error. F-10-8 "provided" stats.
 router.get('/attendance-totals', authenticateToken, readLimiter, async (req, res) => {
   try {
-    const disabledGymId = resolveGymOnly(req.userId);
-    if (gymOutbound.isOutboundBlocked(disabledGymId, req.userId)) {
-      // Disabled gym/link: the provider is never asked, so the all-time total is the
-      // stored class history (same counted statuses as /history's summary). Served
-      // whatever the gym's capability, so Home's total always includes this gym.
-      const stored = classHistory.summary(req.userId, disabledGymId);
-      return res.json({ gymId: disabledGymId, attendedTotal: stored.classCount, milestones: [], source: 'stored', disabled: true });
+    const gymId = resolveGymOnly(req.userId);
+    // The stored class-history count: the answer for a disabled gym (the provider is never
+    // asked), for a gym that publishes no attended total, and when the provider is down.
+    // Zero is a valid answer (a gym never attended), never an error, so Home's all-gym
+    // total can always be summed.
+    const stored = (extra = {}) => res.json({
+      gymId, attendedTotal: classHistory.summary(req.userId, gymId).classCount, milestones: [], source: 'stored', ...extra,
+    });
+    if (gymOutbound.isOutboundBlocked(gymId, req.userId)) return stored({ disabled: true });
+    if (!getGymConfig(gymId)?.capabilities?.attendanceTotals) return stored();
+    try {
+      const { provider, session } = resolveContext(req.userId);
+      const totals = await withRelogin(req.userId, session, (s) => provider.getMilestones(s));
+      return res.json({ gymId, ...totals });
+    } catch (err) {
+      if (err && (err.code === 'GYM_REQUIRED' || err.code === 'NO_GYM_LINKED')) throw err;
+      return stored();
     }
-    const { gymId, provider, session } = resolveContext(req.userId);
-    requireCapability(gymId, 'attendanceTotals');
-    const totals = await withRelogin(req.userId, session, (s) => provider.getMilestones(s));
-    res.json({ gymId, ...totals });
   } catch (err) {
     handleError(res, err);
   }

@@ -23,6 +23,15 @@ describe('share-bookings', () => {
     ]);
   });
 
+  it('never shares a studio-cancelled booking (flag on booking or event), nor its stale auto-book', () => {
+    const items = buildShareItems({
+      bookings: [booking(1, 5), booking(2, 6, { isCancelled: true }), { ...booking(3, 7), isCancelled: true }],
+      waitlists: [booking(4, 8, { isCancelled: true })],
+      autoBooks: [{ event_id: 2, gym_id: 'psycle-london', start_at: iso(6), status: 'pending', class_name: 'RIDE 45' }],
+    });
+    expect(items.map((i) => i.eventId)).toEqual(['1']);
+  });
+
   it('counts extra spots on one event as one class', () => {
     const items = buildShareItems({ bookings: [booking(1, 5), booking(1, 5)] });
     expect(items).toHaveLength(1);

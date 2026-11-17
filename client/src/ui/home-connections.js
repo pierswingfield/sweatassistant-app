@@ -1,3 +1,4 @@
+import { nav } from '../nav-controller.js';
 import { COPY } from '../copy.js';
 import { escapeHtml, gymSquareChip } from './cards.js';
 
@@ -26,7 +27,7 @@ export const homeConnectionsWidget = {
     if (button) {
       const url = new URL(location.href);
       url.searchParams.delete('reconnect');
-      history.replaceState(history.state, '', url.pathname + url.search + url.hash);
+      nav.replaceUrl(url.pathname + url.search + url.hash);
       queueMicrotask(() => button.click());
     }
   },

@@ -10,7 +10,7 @@
 // A tap while a flow is in progress (modal open, request in flight) is ignored.
 export async function quickBookTap({ armed, busy, immediate = false, gate, arm, run }) {
   if (busy) return 'ignored';
-  if (armed) { arm(); return 'confirmed'; } // arm() on an armed button runs it
+  if (armed) { await arm(); return 'confirmed'; } // arm() on an armed button runs it (awaited so the button can show progress)
   const outcome = await gate();
   if (!outcome) return 'cancelled';
   if (outcome === 'acknowledged') { await run({ overlapAcknowledged: true }); return 'ran'; }

@@ -1,3 +1,4 @@
+import { nav } from '../nav-controller.js';
 import { gymLoginChoiceHtml, bindGymLoginChoice } from './gym-login-choice.js';
 // first-run onboarding flow.
 //
@@ -23,6 +24,7 @@ import { setGymCatalogue } from '../gym-context.js';
 import { COPY, formatCopyText, appCopy } from '../copy.js';
 import { setupGuideHtml } from './setup-guide.js';
 import { escapeHtml, gymLogoBanner } from './cards';
+import { runButton, pressAndAdvance } from './async-button.js';
 import { enableAutoUpgradeForGyms, gymsWithPreferredSlots, gymsWithAutoUpgradeOn, getPostLoginDestination as choosePostLoginDestination, detectInstallContext, shouldOfferInstall, hasSavedAccountName } from './onboarding-routing.js';
 import { cleanNameField, onboardingNameSuggestion } from './name-capture.js';
 import { startGymLogoDiscovery, setGymLogoDiscoveryVisible } from './gym-logo-strip.js';
@@ -282,7 +284,7 @@ async function finish({ completed = true } = {}) {
   container().innerHTML = '';
   container().classList.remove('is-entering');
   const invite = pendingTeamInvite();
-  history.replaceState(history.state, '', invite ? `/t/${invite}` : finishDestination);
+  nav.replaceUrl(invite ? `/t/${invite}` : finishDestination);
   await initApp();
   if (location.pathname === '/') {
     // Home's greeting is mounted asynchronously and survives widget refreshes.
@@ -400,16 +402,15 @@ function stepIntro() {
     };
 
     c.querySelectorAll('[data-auth-mode]').forEach((button) => button.addEventListener('click', () => {
-      requestedAuthMode = button.dataset.authMode;
-      resolve();
+      pressAndAdvance(button, () => { requestedAuthMode = button.dataset.authMode; resolve(); });
     }));
     dots.forEach((d, di) => d.addEventListener('click', () => goto(di)));
-    c.querySelector('.app-onb-skip')?.addEventListener('click', resolve);
+    c.querySelector('.app-onb-skip')?.addEventListener('click', (e) => pressAndAdvance(e.currentTarget, resolve));
 
     // Touch swipe
     let startX = 0, dragging = false;
     const carousel = c.querySelector('.app-onb-carousel');
-    carousel.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; dragging = true; }, { passive: true });
+    carousel.addEventListener('touchstart', (e) => { if (e.__edgeBack) return; startX = e.touches[0].clientX; dragging = true; }, { passive: true });
     carousel.addEventListener('touchend', (e) => {
       if (!dragging) return;
       dragging = false;
@@ -503,17 +504,17 @@ function stepInstall() {
       hero: ICON.phone,
     });
 
-    sheet.querySelector('.app-onb-skip-inline').addEventListener('click', () => { markInstallPending(); if (teamFirstFlow && isLoggedIn()) promoteInstallDismissal(); resolve(); });
+    sheet.querySelector('.app-onb-skip-inline').addEventListener('click', (e) => pressAndAdvance(e.currentTarget, () => { markInstallPending(); if (teamFirstFlow && isLoggedIn()) promoteInstallDismissal(); resolve(); }));
     const installBtn = sheet.querySelector('.app-onb-install');
     if (installBtn && promptEvent) {
-      installBtn.addEventListener('click', async () => {
-        installBtn.disabled = true;
+      // Pressed and pending while the browser's own install sheet is up, then on to the next step.
+      installBtn.addEventListener('click', () => pressAndAdvance(installBtn, async () => {
         try {
           promptEvent.prompt();
           await promptEvent.userChoice;
         } catch (_) {}
         resolve();
-      });
+      }, { showDelayMs: 0 }));
     }
   });
 }
@@ -542,7 +543,7 @@ function stepAuthChoice() {
       footer: `<button class="app-btn-primary app-onb-auth" type="button" data-auth-mode="login">${O.logInButton}</button><button class="app-btn-secondary app-onb-auth" type="button" data-auth-mode="signup">${O.createAccountButton}</button>`,
       onBack: () => resolve('back'),
     });
-    sheet.querySelectorAll('[data-auth-mode]').forEach((b) => b.addEventListener('click', () => { requestedAuthMode = b.dataset.authMode; resolve(); }));
+    sheet.querySelectorAll('[data-auth-mode]').forEach((b) => b.addEventListener('click', () => pressAndAdvance(b, () => { requestedAuthMode = b.dataset.authMode; resolve(); })));
   });
 }
 
@@ -721,11 +722,11 @@ function stepGyms() {
 
       const continueBtn = sheet.querySelector('.app-onb-continue');
       if (continueBtn) {
-        continueBtn.addEventListener('click', resolve);
+        continueBtn.addEventListener('click', () => pressAndAdvance(continueBtn, resolve));
       }
       const skipBtn = sheet.querySelector('.app-onb-skip-inline');
       if (skipBtn) {
-        skipBtn.addEventListener('click', resolve);
+        skipBtn.addEventListener('click', () => pressAndAdvance(skipBtn, resolve));
       }
 
       bindGymLoginChoice(sheet);
@@ -740,7 +741,9 @@ function stepGyms() {
         submitBtn.querySelector('span').textContent = submitLabel(gymSel.value);
       });
       if (submitBtn) {
-        submitBtn.addEventListener('click', async () => {
+        // Spinner while the gym verifies the login, a check once it is linked, then the next view;
+        // a missing field or a refused login shakes the button.
+        submitBtn.addEventListener('click', () => runButton(submitBtn, async () => {
           const gymSelect = sheet.querySelector('#app-onb-gym-select');
           const emailInput = sheet.querySelector('#app-onb-gym-email');
           const passInput = sheet.querySelector('#app-onb-gym-password');
@@ -753,11 +756,10 @@ function stepGyms() {
           if (!gymId || !email || !password) {
           errorEl.textContent = COPY.onboarding.gymCredentialsRequired;
             errorEl.style.display = 'block';
-            return;
+            return false;
           }
 
           errorEl.style.display = 'none';
-          submitBtn.disabled = true;
           submitBtn.querySelector('span').textContent = COPY.onboarding.connecting;
 
           try {
@@ -766,14 +768,14 @@ function stepGyms() {
             showToast(COPY.notifications.gymConnectedToast, 'success');
             await loadData();
             addingAnother = false;
-            render();
+            return true;
           } catch (err) {
             errorEl.textContent = err.message || COPY.onboarding.connectionFailed;
             errorEl.style.display = 'block';
-            submitBtn.disabled = false;
             submitBtn.querySelector('span').textContent = submitLabel(gymId);
+            return false;
           }
-        });
+        }, { rethrow: false }).then((linked) => { if (linked) render(); }));
       }
     };
 
@@ -825,28 +827,33 @@ function stepName() {
     const lastInput = sheet.querySelector('#app-onb-last-name');
     const errorEl = sheet.querySelector('.app-onb-name-error');
     let saving = false;
-    const save = async () => {
-      if (saving) return;
+    const saveBtn = sheet.querySelector('.app-onb-name-save');
+    const saveNow = async () => {
+      if (saving) return false;
       const firstName = cleanNameField(firstInput.value);
       const lastName = cleanNameField(lastInput.value);
       if (!firstName) {
         errorEl.textContent = COPY.onboarding.nameRequired;
         errorEl.style.display = 'block';
         firstInput.focus();
-        return;
+        return false;
       }
       errorEl.style.display = 'none';
       try {
-        saving = true; sheet.querySelector(".app-onb-name-save").disabled = true;
+        saving = true;
         await api.updateSettings({ firstName, lastName });
-        resolve();
+        return true;
       } catch (err) {
-        saving = false; sheet.querySelector(".app-onb-name-save").disabled = false;
+        saving = false;
         errorEl.textContent = err.message || COPY.onboarding.connectionFailed;
         errorEl.style.display = 'block';
+        return false;
       }
     };
-    sheet.querySelector('.app-onb-name-save').addEventListener('click', save);
+    // Spinner while saving, a check once saved, then pending until the next step is on screen.
+    const save = () => runButton(saveBtn, saveNow, { rethrow: false })
+      .then((ok) => { if (ok) pressAndAdvance(saveBtn, resolve); });
+    saveBtn.addEventListener('click', save);
     for (const input of [firstInput, lastInput]) {
       input.addEventListener('keydown', (event) => { if (event.key === 'Enter') save(); });
     }
@@ -867,7 +874,7 @@ function stepNotifications() {
         body: `<p class="app-onb-lead">${appCopy(COPY.onboarding.iosNotificationHelp)}</p>`,
         footer: `<button class="app-btn-primary app-onb-continue" type="button"><span>${COPY.onboarding.continue}</span></button>`,
       });
-      sheet.querySelector('.app-onb-continue').addEventListener('click', resolve);
+      sheet.querySelector('.app-onb-continue').addEventListener('click', (e) => pressAndAdvance(e.currentTarget, resolve));
       return;
     }
 
@@ -880,12 +887,18 @@ function stepNotifications() {
         <button class="app-btn-mini app-onb-skip-inline" type="button">${COPY.onboarding.maybeLater}</button>`,
     });
 
-    sheet.querySelector('.app-onb-skip-inline').addEventListener('click', resolve);
-    sheet.querySelector('.app-onb-notif-enable').addEventListener('click', async () => {
-      try {
-        await togglePushSubscription();
-      } catch (_) {}
-      resolve();
+    sheet.querySelector('.app-onb-skip-inline').addEventListener('click', (e) => pressAndAdvance(e.currentTarget, resolve));
+    sheet.querySelector('.app-onb-notif-enable').addEventListener('click', (event) => {
+      const btn = event.currentTarget;
+      // Pending through the browser's permission prompt; a check only if push really is on.
+      runButton(btn, async () => {
+        btn.querySelector('span').textContent = COPY.notifications.enablingPush;
+        try {
+          await togglePushSubscription();
+        } catch (_) {}
+        return typeof Notification !== 'undefined' && Notification.permission === 'granted';
+      }, { isError: () => false, isSuccess: (granted) => granted, rethrow: false })
+        .then(() => pressAndAdvance(btn, resolve));
     });
   });
 }
@@ -925,16 +938,16 @@ async function stepCalendar() {
 
       const copyBtn = sheet.querySelector('.app-onb-copy-ics');
       if (copyBtn && icsUrl) {
-        copyBtn.addEventListener('click', async () => {
-          try {
-            await navigator.clipboard.writeText(icsUrl);
-            copyBtn.textContent = COPY.onboarding.copied;
-            setTimeout(() => { copyBtn.textContent = COPY.onboarding.copyFeedUrl; }, 2000);
-          } catch (_) {}
-        });
+        copyBtn.addEventListener('click', () => runButton(copyBtn, () => navigator.clipboard.writeText(icsUrl).then(() => true), {
+          rethrow: false, successMs: 500, successLabel: COPY.onboarding.copied,
+        }).then((copied) => {
+          if (!copied) return;
+          copyBtn.textContent = COPY.onboarding.copied;
+          setTimeout(() => { copyBtn.textContent = COPY.onboarding.copyFeedUrl; }, 2000);
+        }));
       }
 
-      sheet.querySelector('.app-onb-continue').addEventListener('click', resolve);
+      sheet.querySelector('.app-onb-continue').addEventListener('click', (e) => pressAndAdvance(e.currentTarget, resolve));
     };
 
     const sheet = renderSheet({
@@ -947,16 +960,13 @@ async function stepCalendar() {
     });
 
     const enableBtn = sheet.querySelector('.app-onb-cal-enable');
-    enableBtn.addEventListener('click', async () => {
-      enableBtn.disabled = true;
-      try {
-        const res = await api.enableCalendar({});
-        showSubscribe(res.links || null);
-      } catch (_) {
-        resolve();
-      }
+    // Spinner while the feed is created, a check, then the subscribe links; a failure shakes and moves on.
+    enableBtn.addEventListener('click', () => {
+      let res = null;
+      runButton(enableBtn, async () => { res = await api.enableCalendar({}); }, { rethrow: false })
+        .then(() => { if (res) showSubscribe(res.links || null); else resolve(); });
     });
-    sheet.querySelector('.app-onb-skip-inline').addEventListener('click', resolve);
+    sheet.querySelector('.app-onb-skip-inline').addEventListener('click', (e) => pressAndAdvance(e.currentTarget, resolve));
   });
 }
 
@@ -976,7 +986,7 @@ async function stepSpotMaps() {
         <button class="app-btn-mini app-onb-skip-inline" type="button">${COPY.onboarding.maybeLater}</button>`,
     });
 
-    sheet.querySelector('.app-onb-skip-inline').addEventListener('click', resolve);
+    sheet.querySelector('.app-onb-skip-inline').addEventListener('click', (e) => pressAndAdvance(e.currentTarget, resolve));
     sheet.querySelector('.app-onb-setup').addEventListener('click', () => {
       openManageSpotMapsModal({ zIndex: 1000000, onDone: resolve });
     });
@@ -1142,13 +1152,19 @@ function stepFeatures() {
   let leaving = false;
   c.querySelector('.app-onb-finish').addEventListener('click', (event) => {
     if (leaving || upgradePending) return;
-    leaving = true; event.currentTarget.disabled = true; finish();
+    // Pressed and pending until the app has actually replaced setup (finish() awaits a server save).
+    leaving = true; pressAndAdvance(event.currentTarget, () => finish(), { timeoutMs: 8000 });
   });
 
   notificationCard.addEventListener('click', async (event) => {
-    if (event.target.closest('[data-feature-action="notifications"]')) {
-      try { await togglePushSubscription(); } catch (_) { /* denial and unsupported states stay optional */ }
-      await refreshStatus();
+    const trigger = event.target.closest('[data-feature-action="notifications"]');
+    if (trigger) {
+      if (trigger.disabled) return;
+      await runButton(trigger, async () => {
+        trigger.textContent = COPY.notifications.enablingPush;
+        try { await togglePushSubscription(); } catch (_) { /* denial and unsupported states stay optional */ }
+        await refreshStatus();
+      }, { success: false, rethrow: false });
     }
   });
   calendarCard.addEventListener('click', (event) => {

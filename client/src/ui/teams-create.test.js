@@ -45,6 +45,12 @@ describe('create flow markup (T10)', () => {
     expect(html).toContain('You&#39;re the captain of <b>&lt;img src=x onerror=1&gt;</b>.');
     expect(html).toContain('Your Team is ready!');
   });
+
+  it('puts Share and Copy side by side above a full-width Go to Team', () => {
+    const html = flow.readyHtml({ name: 'Run Club', emoji: '' });
+    expect(html).toMatch(/tm-cf-pair[\s\S]*data-cf-share[\s\S]*data-cf-copy[\s\S]*data-cf-go/);
+    expect(html).toContain('<span>Copy</span>');
+  });
 });
 
 describe('create flow walk-through (T10)', () => {

@@ -7,11 +7,13 @@ import { appConfig } from '../config.js';
 import { inviteSharePayload, inviteClipboardText } from './teams-create-model.js';
 import { escapeHtml, gymSquareChip, gymDot } from './cards.js';
 import { openPage, closePage } from './modal-nav.js';
+import { BACK_ARROW } from './header-bar.js';
 import { teamAvatarHtml } from './team-avatar.js';
 import { getAllLinkedGyms, getGymShortName } from '../gym-context.js';
 import { showToast } from '../main.js';
 import { teamsApi } from '../teams-api.js';
 import { formatInZone, dayKeyInZone, deviceZone } from '../lib.js';
+import { runButton } from './async-button.js';
 import {
   avatarColourIndex, initials, SHARE_ROWS, normaliseShare, applyShareChange, inviteUrlOn, isIndefinitePause, sharingLevel,
 } from './teams-model.js';
@@ -119,6 +121,7 @@ export function memberCountLabel(n) {
 const svg = (paths, size = 22) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 export const ICONS = {
   share: svg('<path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>'),
+  copy: svg('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/>'),
   manage: svg('<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>'),
   sort: svg('<path d="M7 4v16M3 16l4 4 4-4"/><path d="M17 20V4M13 8l4-4 4 4"/>', 20),
   pin: '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M15 3l6 6-3 1-4 4 1 5-2 2-4-5-5 5-1-1 5-5-5-4 2-2 5 1 4-4Z"/></svg>',
@@ -206,16 +209,16 @@ let pageSeq = 0;
  * A Teams page: full-screen on mobile (modal-nav), centred card on desktop.
  * Returns { overlay, body, footer, close, setTitle }.
  */
-export function openTeamsPage({ id, title, back = true, wide = false, onClose = null } = {}) {
+export function openTeamsPage({ id, title, back = true, wide = false, onClose = null, backLabel = '' } = {}) {
   const overlay = document.createElement('div');
   overlay.className = `app-ovl tm-ovl${wide ? ' tm-ovl-wide' : ''}`;
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.innerHTML = `
     <div class="app-ovl-card tm-ovl-card">
-      <div class="app-ovl-header tm-ovl-header">
-        <h3 data-nav-title class="tm-ovl-title"></h3>
-        <button type="button" class="tm-ovl-close" data-nav-close aria-label="${escapeHtml(COPY.credits.closeModal)}">×</button>
+      <div class="app-ovl-header tm-ovl-header${backLabel ? ' app-hbar tm-ovl-hbar' : ''}">
+        <h3 data-nav-title class="tm-ovl-title${backLabel ? ' app-hbar-title' : ''}"></h3>
+        <button type="button" class="tm-ovl-close${backLabel ? ' app-hbar-back' : ''}" data-nav-close aria-label="${escapeHtml(COPY.credits.closeModal)}">${backLabel ? `<span class="tm-ovl-x" aria-hidden="true">×</span>${BACK_ARROW}<span class="app-hbar-back-txt">${escapeHtml(backLabel)}</span>` : '×'}</button>
       </div>
       <div class="app-ovl-body tm-ovl-body"></div>
       <div class="tm-ovl-footer" hidden></div>
@@ -271,7 +274,8 @@ export function setFooter(page, buttons) {
     btn.className = `tm-btn ${b.kind ? `tm-btn-${b.kind}` : ''} tm-btn-block`;
     btn.textContent = b.label;
     if (b.disabled) btn.disabled = true;
-    btn.addEventListener('click', () => b.onClick?.(btn));
+    // Tactile async footer (DESIGN.md §6.5.1): pending while onClick's work runs, a check after a success toast.
+    btn.addEventListener('click', () => runButton(btn, () => b.onClick?.(btn), { showDelayMs: 120, hapticOutcome: true, rethrow: false }));
     page.footer.appendChild(btn);
   }
   return [...page.footer.querySelectorAll('button')];
@@ -317,16 +321,46 @@ export function confirmPage({ title, body, confirmLabel, danger = false, typeToC
  * Captains: native share sheet where available, else copy to the clipboard, else show the
  * link in a page to copy by hand. The URL is never logged.
  */
-export async function shareInvite(team, { url: knownUrl = null } = {}) {
+async function resolveInviteLink(team, knownUrl) {
   let url = knownUrl;
   if (!url) {
     let info;
-    try { info = await teamsApi.getInvite(team.id); } catch (err) { showToast(errorText(err, T.shareFailed), 'error'); return; }
-    if (!info.enabled) { showToast(T.linkOff, 'warning'); return; }
+    try { info = await teamsApi.getInvite(team.id); } catch (err) { showToast(errorText(err, T.shareFailed), 'error'); return null; }
+    if (!info.enabled) { showToast(T.linkOff, 'warning'); return null; }
     url = info.url;
   }
   const link = inviteUrlOn(window.location.origin, url);
-  if (!link) { showToast(T.shareFailed, 'error'); return; }
+  if (!link) { showToast(T.shareFailed, 'error'); return null; }
+  return link;
+}
+
+/** Copy the invite message to the clipboard (never opens the share sheet); falls back to a copy-by-hand page. */
+export async function copyInvite(team, { url: knownUrl = null } = {}) {
+  const link = await resolveInviteLink(team, knownUrl);
+  if (!link) return false;
+  const payload = inviteSharePayload(team, {
+    url: link, appName: appConfig.appName, textTemplate: T.shareText, titleTemplate: T.shareTitle, format: formatCopyText,
+  });
+  try {
+    await navigator.clipboard.writeText(inviteClipboardText(payload));
+    showToast(T.inviteCopied, 'success');
+    return true;
+  } catch (_) { showLinkPage(link); return false; }
+}
+
+function showLinkPage(link) {
+  const page = openTeamsPage({ title: T.linkLabel });
+  page.body.innerHTML = '<label class="tm-field"><span class="tm-field-label"></span><input type="text" class="tm-input" readonly></label>';
+  page.body.querySelector('.tm-field-label').textContent = T.linkLabel;
+  const input = page.body.querySelector('input');
+  input.value = link;
+  setFooter(page, [{ label: T.done, kind: 'primary', onClick: () => page.close() }]);
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+}
+
+export async function shareInvite(team, { url: knownUrl = null } = {}) {
+  const link = await resolveInviteLink(team, knownUrl);
+  if (!link) return;
   // "You're invited to <app>! Join my Team 🏃 Run Club." Plain text for the share sheet.
   const payload = inviteSharePayload(team, {
     url: link, appName: appConfig.appName, textTemplate: T.shareText, titleTemplate: T.shareTitle, format: formatCopyText,
@@ -339,13 +373,7 @@ export async function shareInvite(team, { url: knownUrl = null } = {}) {
     showToast(T.inviteCopied, 'success');
     return;
   } catch (_) { /* clipboard blocked: show it */ }
-  const page = openTeamsPage({ title: T.linkLabel });
-  page.body.innerHTML = '<label class="tm-field"><span class="tm-field-label"></span><input type="text" class="tm-input" readonly></label>';
-  page.body.querySelector('.tm-field-label').textContent = T.linkLabel;
-  const input = page.body.querySelector('input');
-  input.value = link;
-  setFooter(page, [{ label: T.done, kind: 'primary', onClick: () => page.close() }]);
-  setTimeout(() => { input.focus(); input.select(); }, 50);
+  showLinkPage(link);
 }
 
 // ---- sharing sheet (§3) ----------------------------------------------------------------------

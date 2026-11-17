@@ -16,12 +16,12 @@ let renderHomeFavouriteCard;
 let getHomeStats;
 let getHomeActivityMeta;
 let isDisabledLinkedGym;
-let homeStatsWantsAttendance;
 let primaryActionForEvent;
 let actionGlyph;
 let formatInZone;
 let syncHomeDesktopFlow;
 let homeLayout;
+let renderHome;
 let homeRegistry;
 let mountWidget;
 let cache;
@@ -39,7 +39,7 @@ beforeAll(async () => {
   }
   ({ cache } = await import('../main.js'));
   ({ formatInZone } = await import('../lib.js'));
-  ({ countPendingAutoBooks, getHomeCreditRows, getHomeBookLinks, groupHomeGymLinks, getHomeTopInstructorRows, getHomeFavouriteRows, getHomeStats, getHomeActivityMeta, isDisabledLinkedGym, homeStatsWantsAttendance, getHomeFavouriteStatus, renderHomeFavouriteCard, syncHomeDesktopFlow, homeLayout } = await import('./home.js'));
+  ({ countPendingAutoBooks, getHomeCreditRows, getHomeBookLinks, groupHomeGymLinks, getHomeTopInstructorRows, getHomeFavouriteRows, getHomeStats, getHomeActivityMeta, isDisabledLinkedGym, getHomeFavouriteStatus, renderHomeFavouriteCard, syncHomeDesktopFlow, homeLayout, renderHome } = await import('./home.js'));
   ({ primaryActionForEvent, actionGlyph } = await import('./timetable.js'));
   ({ registry: homeRegistry, mountWidget } = await import('./widget-registry.js'));
 });
@@ -662,59 +662,67 @@ describe('W8 Home stats', () => {
     { gym_id: 'aarmy', shortName: 'AARMY' },
   ];
 
-  it('keeps one provider attendance tile per gym, including a known zero', () => {
+  it('keeps a row per answering gym, including a known zero, and sums them', () => {
     setLinkedGyms(gyms);
     const stats = getHomeStats(gyms, {
       'psycle-london': { attendance: { attendedTotal: 129 } },
       'jab-boxing': { attendance: { attendedTotal: 0 } },
       'aarmy': { attendance: { attendedTotal: 389 } },
     });
-    expect(stats).toMatchObject({ partial: false });
+    expect(stats.total).toBe(518);
     expect(stats.rows).toEqual([
       { gymId: 'psycle-london', gymName: 'Psycle', attendanceTotal: 129 },
       { gymId: 'jab-boxing', gymName: 'JAB', attendanceTotal: 0 },
       { gymId: 'aarmy', gymName: 'AARMY', attendanceTotal: 389 },
     ]);
+    expect(getHomeActivityMeta(stats)).toBe('518 classes');
   });
 
-  it('shows a cumulative header total only when every linked gym has valid attendance', () => {
-    const widget = homeRegistry.list().find((item) => item.id === 'stats');
-    const complete = getHomeStats(gyms, {
-      'psycle-london': { attendance: { attendedTotal: 1 } },
+  it('always renders a total: zero gyms, failed gyms and no answers add 0', () => {
+    expect(getHomeActivityMeta({ rows: [{ attendanceTotal: 1 }] })).toBe('1 class');
+    expect(getHomeActivityMeta({ rows: [{ attendanceTotal: 4 }, { attendanceTotal: Infinity }] })).toBe('4 classes');
+    expect(getHomeActivityMeta({ rows: [] })).toBe('0 classes');
+    expect(getHomeActivityMeta(getHomeStats(gyms, {}))).toBe('0 classes');
+    expect(getHomeActivityMeta(getHomeStats(gyms, { 'psycle-london': { attendance: { attendedTotal: 0 } } }))).toBe('0 classes');
+  });
+
+  it('titles the widgets "Your stats" and "Your class history", and never shows an unavailable note', async () => {
+    const { COPY } = await import('../copy.js');
+    expect(COPY.home.stats).toBe('Your stats');
+    expect(COPY.home.statsHistory).toBe('Your class history');
+    expect(homeRegistry.list().find((item) => item.id === 'stats').title).toBe('Your stats');
+    const widget = homeRegistry.list().find((item) => item.id === 'attendance');
+    expect(widget.title).toBe('Your class history');
+    expect(JSON.stringify(COPY.home)).not.toMatch(/not available for some gyms/i);
+    const el = document.createElement('div');
+    const data = getHomeStats(gyms, {
+      'psycle-london': { attendance: { attendedTotal: 7 } },
       'jab-boxing': { attendance: { attendedTotal: 0 } },
-      aarmy: { attendance: { attendedTotal: 899 } },
+      // aarmy: request failed, no answer
     });
-    expect(getHomeActivityMeta(complete)).toBe('900 classes');
-    expect(getHomeActivityMeta({ rows: [{ attendanceTotal: 1 }], partial: false })).toBe('1 class');
-    expect(getHomeActivityMeta({ rows: [{ attendanceTotal: 4 }, { attendanceTotal: Infinity }], partial: false })).toBe('');
-    expect(getHomeActivityMeta({ rows: [{ attendanceTotal: 4 }], partial: true })).toBe('');
-    expect(getHomeActivityMeta({ rows: [], partial: false })).toBe('');
+    widget.render(el, data, { openGymSettings() {} });
+    expect(el.querySelectorAll('.home-attendance-tile')).toHaveLength(1);
+    expect(el.textContent).not.toMatch(/not available|could not be loaded/i);
+    expect(widget.headerMeta(data)).toBe('7 classes');
+    const empty = document.createElement('div');
+    widget.render(empty, getHomeStats(gyms, {}), { openGymSettings() {} });
+    expect(empty.children).toHaveLength(0);
+    expect(widget.isEmpty(getHomeStats(gyms, {}))).toBe(false);
   });
 
-  it('always asks for a disabled gym (registry or link) so its stored total counts', () => {
+  it('counts a gym that is linked but switched off (registry or member) in the total with no tile', () => {
     expect(isDisabledLinkedGym({ gym_id: 'x', gym_enabled: 0 })).toBe(true);
     expect(isDisabledLinkedGym({ gym_id: 'x', gym_enabled: 1, status: 'disabled' })).toBe(true);
     expect(isDisabledLinkedGym({ gym_id: 'x', gym_enabled: 1, status: 'active' })).toBe(false);
-    expect(homeStatsWantsAttendance({ gym_id: 'no-such-capability-gym', gym_enabled: 0 })).toBe(true);
-    const stats = getHomeStats([...gyms, { gym_id: 'old-gym', shortName: 'Old', gym_enabled: 0 }], {
-      'psycle-london': { attendance: { attendedTotal: 1 } },
-      'jab-boxing': { attendance: { attendedTotal: 2 } },
-      aarmy: { attendance: { attendedTotal: 3 } },
-      'old-gym': { attendance: { attendedTotal: 4, source: 'stored', disabled: true } },
-    });
-    expect(getHomeActivityMeta(stats)).toBe('10 classes');
-  });
-
-  it('counts a gym the member switched off in the total but shows it no tile', () => {
+    expect(isDisabledLinkedGym({ gym_id: 'jab-boxing', account_enabled: 1 })).toBe(false);
     const off = { gym_id: 'jab-boxing', shortName: 'JAB', account_enabled: 0 };
     expect(isDisabledLinkedGym(off)).toBe(true);
-    expect(isDisabledLinkedGym({ gym_id: 'jab-boxing', account_enabled: 1 })).toBe(false);
-    expect(homeStatsWantsAttendance({ gym_id: 'no-such-capability-gym', account_enabled: 0 })).toBe(true);
-    const stats = getHomeStats([{ gym_id: 'psycle-london', name: 'Psycle' }, off], {
+    const stats = getHomeStats([...gyms.slice(0, 1), off, { gym_id: 'old-gym', shortName: 'Old', gym_enabled: 0 }], {
       'psycle-london': { attendance: { attendedTotal: 5 } },
       'jab-boxing': { attendance: { attendedTotal: 3, source: 'stored', disabled: true } },
+      'old-gym': { attendance: { attendedTotal: 4, source: 'stored', disabled: true } },
     });
-    expect(getHomeActivityMeta(stats)).toBe('8 classes');
+    expect(getHomeActivityMeta(stats)).toBe('12 classes');
     expect(stats.rows.filter((row) => !row.hidden).map((row) => row.gymId)).toEqual(['psycle-london']);
   });
 
@@ -723,23 +731,18 @@ describe('W8 Home stats', () => {
       unknown: { attendance: { attendedTotal: null }, history: { summary: { classCount: 42 } } },
     });
     expect(stats.rows).toEqual([]);
-    expect(stats.partial).toBe(true);
+    expect(stats.total).toBe(0);
   });
 
-  it('keeps confirmed tiles when another gym attendance request fails', () => {
+  it('keeps confirmed rows when another gym attendance request fails', () => {
     const stats = getHomeStats(gyms, {
       'psycle-london': { attendance: { attendedTotal: 12 } },
       'jab-boxing': {},
       'aarmy': { attendance: { attendedTotal: 3 } },
     });
-    expect(stats.rows).toEqual([
-      { gymId: 'psycle-london', gymName: 'Psycle', attendanceTotal: 12 },
-      { gymId: 'aarmy', gymName: 'AARMY', attendanceTotal: 3 },
-    ]);
-    expect(stats.partial).toBe(true);
+    expect(stats.rows.map((r) => r.gymId)).toEqual(['psycle-london', 'aarmy']);
+    expect(stats.total).toBe(15);
   });
-
-
 });
 
 describe('Home booked-classes widget visibility and waitlist line', () => {
@@ -756,5 +759,18 @@ describe('Home booked-classes widget visibility and waitlist line', () => {
     const now = Date.parse('2026-10-25T12:00:00Z');
     expect(countUpcomingWaitlists([{ event: { startAt: '2026-10-26T09:00:00Z' } }, { event: { startAt: '2026-10-24T09:00:00Z' } }], now)).toBe(1);
     expect(countUpcomingWaitlists(null, now)).toBeNull();
+  });
+});
+
+describe('Home with no gym linked', () => {
+  it('renders the Connect a gym prompt as a standard Home widget with a Settings action', async () => {
+    document.body.innerHTML = '<section id="app-panel-home"><div id="app-home-widgets"></div></section>';
+    setLinkedGyms([]);
+    await renderHome();
+    const section = document.querySelector('#app-home-widgets > section.home-widget');
+    expect(section.querySelector('h3.home-widget-title').textContent).toBe(COPY.home.connectGymTitle);
+    expect(section.querySelector('p').textContent).toBe(COPY.home.connectGymBody);
+    expect(section.querySelector('button.tm-btn-pill').textContent).toBe(COPY.home.connectGymAction);
+    expect(section.querySelector('.home-connect-gym, .home-connect-btn')).toBeNull();
   });
 });

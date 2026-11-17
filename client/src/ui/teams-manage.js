@@ -24,6 +24,7 @@ import { goTeams } from './teams.js';
 import { openEditTeamPage } from './teams-edit.js';
 import { devicePushReady } from './device-push.js';
 import { validateWeeklyGoal, GOAL_MAX } from './teams-stats-model.js';
+import { asyncHandler } from './async-button.js';
 
 const PAUSE_LABEL = { '24h': 'pause24h', '7d': 'pause7d', indefinite: 'pauseIndefinite' };
 
@@ -215,7 +216,8 @@ export function renderMembers(host, ctx, refresh, { full = false } = {}) {
       </div>` : ''}</div>`;
   host.innerHTML = `
     <h2 class="tm-group-title">${escapeHtml(T.members)} <span class="tm-muted tm-sm tm-sans">${escapeHtml(fmt(T.membersCount, { count: members.length }))}</span></h2>
-    <div class="tm-list">${members.map(row).join('')}</div>`;
+    <div class="tm-list">${members.map(row).join('')}${captain ? `<button type="button" class="tm-li tm-li-link tm-invite-row" data-invite-members>${ICONS.share}<span class="tm-grow">${escapeHtml(T.inviteMembers)}</span></button>` : ''}</div>`;
+  host.querySelector('[data-invite-members]')?.addEventListener('click', asyncHandler(() => shareInvite(detail.team)));
   host.querySelectorAll('[data-member]').forEach((el) => {
     const m = members.find((x) => x.memberRef === el.getAttribute('data-member'));
     el.querySelector('[data-captain]')?.addEventListener('click', async (e) => {

@@ -57,6 +57,7 @@ import { confirmOverlap } from './overlap-modal.js';
 import { quickBookTap } from './quickbook-flow.js';
 import { redactSensitivePayload } from '../redact.js';
 import { haptic } from './haptics.js';
+import { runButton, waitUntilSettled, asyncHandler } from './async-button.js';
 import { keepOriginalForAutoCreate } from './autoupgrade-setup.js';
 import { openPage as openNavPage, closePage as closeNavPage, pushLayer, setDesktopBack, isMobile } from './modal-nav.js';
 import { applyBookingChrome, mountBookingContext, bannerEl } from './booking-chrome.js';
@@ -71,6 +72,7 @@ import { guestFieldsHtml, wireGuestFields } from './guest-fields.js';
 import { renderStudioFloorPlan } from './spotmap.js';
 import { chipsFor, teamChipHtml, wireTeamChip, loadTeamChips, resetTeamChips } from './team-chips.js';
 import { teamsApi } from '../teams-api.js';
+import { EDGE_PX, isEdgeSwipeActive } from './edge-swipe-back.js';
 import { currentRoute, commitFilterChange, commitNow, replaceCurrent, pathFor } from '../router.js';
 import { stateToUrlTimetable, urlToState, savedToState, sameFilters, overlayLabels, guardedSaveDefaults, emptyFilterState } from './timetable-url-sync.js';
 
@@ -433,7 +435,7 @@ function renderWeekStrip(carousel, daysWithEvents) {
     // drags are handled in JS (finger-follow + a short transition), so a tap is ALWAYS an ordinary click.
     let sx = null, sy = 0, st = 0, dx = 0, drag = false, decided = false, w = 0, lastDragEnd = 0;
     scroller.addEventListener('touchstart', (e) => {
-      if (e.touches.length !== 1) { sx = null; return; }
+      if (e.touches.length !== 1 || e.__edgeBack || isEdgeSwipeActive()) { sx = null; return; }
       const p = e.touches[0];
       sx = p.clientX; sy = p.clientY; st = performance.now(); dx = 0; drag = false; decided = false; w = scroller.clientWidth || 1;
     }, { passive: true });
@@ -559,7 +561,8 @@ function wireTimetableSwipe() {
   const grid = document.getElementById('app-timetable-grid');
   if (!grid || swipeWired) return;
   swipeWired = true;
-  const EDGE = 20, THRESHOLD = 48;
+  const THRESHOLD = 48;
+  const EDGE = EDGE_PX; // the left-edge zone belongs to the swipe-back gesture
   const BLOCK = '.app-mobile-seg, .app-mobile-menu, .app-mobile-ellipsis, button, a, input, select, textarea, [data-no-swipe]';
   let sx = 0, sy = 0, st = 0, dx = 0, tracking = false, locked = false;
   const reduce = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -574,7 +577,7 @@ function wireTimetableSwipe() {
     tracking = false; locked = false;
     if (!window.matchMedia('(max-width: 768px)').matches || e.touches.length !== 1) return;
     const t = e.touches[0];
-    if (t.clientX <= EDGE) return;
+    if (t.clientX <= EDGE || e.__edgeBack || isEdgeSwipeActive()) return;
     if (e.target.closest?.(BLOCK) || hScrollable(e.target)) return;
     sx = t.clientX; sy = t.clientY; st = performance.now(); dx = 0; tracking = true;
   }, { passive: true });
@@ -2480,7 +2483,8 @@ function buildEventRow(event, autoBookedIds) {
   if (heartEl) {
     heartEl.onclick = (e) => {
       e.stopPropagation();
-      toggleFavourite(event, e.currentTarget);
+      const h = e.currentTarget;
+      runButton(h, () => toggleFavourite(event, h), { indicator: false, rethrow: false });
     };
   }
 
@@ -2623,8 +2627,7 @@ function twoTapConfirm(btn, confirmLabel, run) {
     delete btn.dataset.confirmState;
     btn.classList.remove('confirming');
     if (btn.dataset.origLabel != null) { btn.textContent = btn.dataset.origLabel; delete btn.dataset.origLabel; }
-    run();
-    return;
+    return run(); // returned so a tactile button can show the run's progress
   }
   haptic('light');
   btn.dataset.confirmState = 'confirm';
@@ -2875,7 +2878,7 @@ async function doQuickBook(event, btn) {
       const { prefs, hasPrefs } = await resolveStudioPrefs(event);
       const { hasMap } = getStudioMapInfo(event);
       if (!hasPrefs && hasMap) { openBookingModal(event, 'quickbook', opts); return; }
-      quickBookClass(event.id, {
+      await quickBookClass(event.id, {
         preferredSlots: prefs.preferredSlots || [],
         preferredRows: prefs.preferredRows || [],
         requiredCount: 1, bookAny: true,
@@ -2932,7 +2935,7 @@ async function doAutoBookToggle(event, btn, isScheduled) {
   }
   // Same defaults as one-tap Quick-Book: one place, the member's own book-any setting, together off.
   if (autoBookTapAction({ hasMap, hasPrefs }) === 'queue-now') {
-    saveAutoBookPreferences(event, prefs.preferredSlots || [], prefs.preferredRows || [], 1, prefs.bookAny !== false, () => {});
+    await saveAutoBookPreferences(event, prefs.preferredSlots || [], prefs.preferredRows || [], 1, prefs.bookAny !== false, () => {});
     return;
   }
   openBookingModal(event, 'autobook'); // no saved map: the shared setup flow
@@ -3032,6 +3035,43 @@ async function doLeaveWaitlist(waitlistId, btn, gymId = null) {
     btn.disabled = false;
     btn.textContent = orig;
   }
+}
+
+// ---- Tactile CTAs (DESIGN.md §6.5.1) ------------------------------------------------
+// Every row CTA runs through runButton: pressed state, spinner while the request is in flight,
+// then the re-rendered row's button arrives with a check (success) or the old one shakes
+// (error). The flows themselves are unchanged; they already report outcome via haptics.
+function ctaKey(event, role) { return `${event.gymId || ''}|${event.id}|${role}`; }
+function visibleCtas(key) {
+  return [...document.querySelectorAll('[data-tt-key]')]
+    .filter((el) => el.dataset.ttKey === key && el.offsetParent !== null && !el.classList.contains('is-blank'));
+}
+function bindCta(btn, run, event, role) {
+  btn.dataset.ttKey = ctaKey(event, role);
+  btn.onclick = (e) => { e.stopPropagation(); runCta(btn, () => run(btn), event); };
+}
+function runCta(btn, fn, event) {
+  return runButton(btn, async () => {
+    const result = await fn();
+    // Some flows re-render later (a background timetable refresh) and leave the old button
+    // disabled until then: stay pending until the replacement arrives.
+    await waitUntilSettled(btn, 8000);
+    // A refresh can paint twice (cached rows, then fresh ones): let the row settle before
+    // the replacement gets its check, or the check lands on a button that is about to go.
+    if (!btn.isConnected) {
+      const primary = ctaKey(event, 'primary');
+      for (let i = 0, prev = null; i < 8; i += 1) {
+        await new Promise((r) => setTimeout(r, 180));
+        const cur = visibleCtas(primary)[0] || null;
+        if (cur && cur === prev) break;
+        prev = cur;
+      }
+    }
+    return result;
+  }, {
+    showDelayMs: 120, hapticOutcome: true, rethrow: false,
+    settle: () => (btn.isConnected ? null : [...visibleCtas(ctaKey(event, 'primary')), ...visibleCtas(ctaKey(event, 'secondary'))].slice(0, 1)),
+  });
 }
 
 // Unicode (non-emoji) glyph that prefixes certain action labels.
@@ -3175,7 +3215,7 @@ function buildDesktopActions(model, event, debugMode, isBookmarked = false) {
   setSegLabel(pbtn, model.primary.label);
   if (model.primary.title) { pbtn.title = model.primary.title; pbtn.setAttribute('aria-label', model.primary.title); }
   if (model.primary.disabled) pbtn.disabled = true;
-  else if (model.primary.run) pbtn.onclick = (e) => { e.stopPropagation(); model.primary.run(pbtn); };
+  else if (model.primary.run) bindCta(pbtn, model.primary.run, event, 'primary');
   if (model.primary.blank) { pbtn.classList.add('is-blank'); pbtn.setAttribute('aria-hidden', 'true'); pbtn.tabIndex = -1; }
   group.appendChild(pbtn);
 
@@ -3198,7 +3238,7 @@ function buildDesktopActions(model, event, debugMode, isBookmarked = false) {
     sbtn.className = `app-tt-seg secondary variant-${model.secondary.variant}`;
     setSegLabel(sbtn, model.secondary.label);
     if (model.secondary.disabled) sbtn.disabled = true;
-    else if (model.secondary.run) sbtn.onclick = (e) => { e.stopPropagation(); model.secondary.run(sbtn); };
+    else if (model.secondary.run) bindCta(sbtn, model.secondary.run, event, 'secondary');
     if (model.secondary.graceDeadline) {
       sbtn.setAttribute('data-grace-deadline', model.secondary.graceDeadline);
       sbtn.classList.add('grace-cancel');
@@ -3428,7 +3468,7 @@ function buildMobileClassRow(event, ctx, model) {
 
   const mobileHeart = card.querySelector('.app-timetable-heart');
   if (mobileHeart) {
-    mobileHeart.onclick = (e) => { e.stopPropagation(); toggleFavourite(event, e.currentTarget); };
+    mobileHeart.onclick = (e) => { e.stopPropagation(); const h = e.currentTarget; runButton(h, () => toggleFavourite(event, h), { indicator: false, rethrow: false }); };
   }
 
   // Mobile shows exactly ONE visible action button (the rest collapse into
@@ -3464,7 +3504,7 @@ function buildMobileClassRow(event, ctx, model) {
   if (mobilePrimary.title) { pbtn.title = mobilePrimary.title; pbtn.setAttribute('aria-label', mobilePrimary.title); }
   if (mobilePrimary.blank) { pbtn.classList.add('is-blank'); pbtn.setAttribute('aria-hidden', 'true'); pbtn.tabIndex = -1; }
   if (mobilePrimary.disabled) pbtn.disabled = true;
-  else if (mobilePrimary.run) pbtn.onclick = (e) => { e.stopPropagation(); mobilePrimary.run(pbtn); };
+  else if (mobilePrimary.run) bindCta(pbtn, mobilePrimary.run, event, 'primary');
   if (mobilePrimary.graceDeadline) {
     pbtn.setAttribute('data-grace-deadline', mobilePrimary.graceDeadline);
     pbtn.classList.add('grace-cancel');
@@ -3899,7 +3939,7 @@ export async function openGuestBookingModal(c) {
         },
       });
     }
-    submit.onclick = async () => {
+    submit.onclick = asyncHandler(async () => {
       const email = body.querySelector('#guest-booking-email').value.trim();
       submit.disabled = true;
       submit.textContent = COPY.timetable.booking;
@@ -3915,7 +3955,7 @@ export async function openGuestBookingModal(c) {
         submit.disabled = false;
         submit.textContent = COPY.bookings.guestBookingSubmit;
       }
-    };
+    });
   } catch (err) {
     body.innerHTML = `<div class="app-card-error u-empty-24">${escapeHtml(formatCopyText(COPY.bookings.guestBookingError, { error: err.message }))}</div>`;
   }
@@ -4783,7 +4823,7 @@ export async function openBookingModal(c, mode, opts = {}) {
           controls.addEventListener('input', () => controls.__refreshEditCta?.());
           controls.addEventListener('change', () => controls.__refreshEditCta?.());
         }
-        saveCta.onclick = () => {
+        saveCta.onclick = asyncHandler(() => {
           if (opts.autoBookEdit && saveCta.dataset.dirty === '0') { closeModal(); return; }
           const qty = parseInt(controls.querySelector('#autobook-qty')?.value || state.qty) || 1;
           const { bookAny: fallbackAny, prioritizeTogether } = normalizeGroupOptions({
@@ -4812,11 +4852,10 @@ export async function openBookingModal(c, mode, opts = {}) {
             return;
           }
           if (opts.autoBookEdit?.onSubmit) {
-            opts.autoBookEdit.onSubmit({ slots: preferredSlots, rows: preferredRows, qty, bookAny: fallbackAny, prioritizeTogether, autoUpgrade, guests, close: closeModal });
-            return;
+            return opts.autoBookEdit.onSubmit({ slots: preferredSlots, rows: preferredRows, qty, bookAny: fallbackAny, prioritizeTogether, autoUpgrade, guests, close: closeModal });
           }
-          saveAutoBookPreferences(c, preferredSlots, preferredRows, qty, fallbackAny, closeModal, isLive, autoUpgrade, !opts.oneOffSpots, prioritizeTogether, guests);
-        };
+          return saveAutoBookPreferences(c, preferredSlots, preferredRows, qty, fallbackAny, closeModal, isLive, autoUpgrade, !opts.oneOffSpots, prioritizeTogether, guests);
+        });
 
       };
 
@@ -4889,7 +4928,7 @@ export async function openBookingModal(c, mode, opts = {}) {
           };
         }
 
-        controls.querySelector('#btn-book-simple').onclick = async () => {
+        controls.querySelector('#btn-book-simple').onclick = asyncHandler(async () => {
           if (state.selectedSlots.length === 0) {
             showToast(formatCopyText(COPY.timetable.pleaseSelectSpots, { noun: seatNoun(groupName) }), 'warning');
             return;
@@ -4960,7 +4999,7 @@ export async function openBookingModal(c, mode, opts = {}) {
             btn.disabled = false;
             btn.textContent = formatCopyText(COPY.timetable.bookSelected, { noun: nounCap });
           }
-        };
+        });
       };
 
       updateSimpleBookControls();
@@ -5040,7 +5079,7 @@ export async function openBookingModal(c, mode, opts = {}) {
 
         controls.querySelector('[data-au-setup]')?.addEventListener('click', () => openSetupChild());
         wireGuestFields(controls, { state, count: guestPlacesFor(selectedQty), cta: controls.querySelector('#btn-submit-quickbook') })();
-        controls.querySelector('#btn-submit-quickbook').onclick = async () => {
+        controls.querySelector('#btn-submit-quickbook').onclick = asyncHandler(async () => {
           if (state.selectedSlots.length === 0 && state.selectedRows.size === 0) {
             showToast(formatCopyText(COPY.timetable.pleaseSelectSpotOrRow, { noun: seatNoun(groupName) }), 'warning');
             return;
@@ -5113,7 +5152,7 @@ export async function openBookingModal(c, mode, opts = {}) {
             btn.disabled = false;
             btn.textContent = baseLabel;
           }
-        };
+        });
 
         controls.querySelector('#quickbook-fallback-any').onchange = (event) => {
           Object.assign(state, applyFallbackChange(state, event.target.checked));

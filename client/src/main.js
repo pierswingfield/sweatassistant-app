@@ -22,12 +22,18 @@ import { canBookAtAll, getIneligibleReason, unmeteredBadgeLabel } from './ui/cre
 import { escapeHtml, gymBrand } from './ui/cards';
 import { installBookingState } from './ui/booking-state.js';
 import { applyGymLoadState, onGymLoadChange } from './ui/gym-load-state.js';
+import { gymProblem, anyGymProblem, onGymProblemChange, syncLinkProblems } from './ui/gym-problem-state.js';
+import * as headerGyms from './ui/header-gyms.js';
 import { applyStaticCopy } from './copy.js';
 import { COPY, formatCopyText } from './copy.js';
 import { resetWindowScroll, installStaleScrollGuard } from './scroll-reset.js';
 import { syncTabScrollState } from './tab-scroll-state.js';
 import { parseTeamsPath, stashPendingInvite, consumePendingInvite, clearPendingInvite } from './ui/teams-model.js';
-import { autoBookBackAction, autoBookBackTarget } from './ui/autobook-nav.js';
+import { initHeaderBars } from './ui/header-bar.js';
+import { nav } from './nav-controller.js';
+import { initEdgeSwipeBack } from './ui/edge-swipe-back.js';
+import { initSafeArea } from './safe-area.js';
+import { installPressFeedback } from './ui/async-button.js';
 
 installStaleScrollGuard();
 
@@ -98,7 +104,8 @@ const DEFAULT_SETTINGS = {
   autoUpgradeByDefault: true,     // auto-upgrade spots after every booking by default
   autoUpgradeKeepOriginalByDefault: false,
   debugMode: false,
-  prefetchWeeks: 4
+  prefetchWeeks: 4,
+  headerGyms: 'auto'              // how the app header shows gym chips: auto | always | never
 };
 
 // Global App State
@@ -206,8 +213,9 @@ export function applyTheme(mode = getTheme()) {
 // what the design tokens say (light #EBEAE4 / #F4F2EC, dark #070A12 / #090D16).
 function headerBackgroundHex() {
   const cs = getComputedStyle(document.documentElement);
-  const name = document.documentElement.hasAttribute('data-hdr-hidden') ? '--page-solid' : '--header-solid';
-  return (cs.getPropertyValue(name).trim() || '#161310').toLowerCase();
+  // Android / desktop Chrome only (iOS ignores theme-color). Always the header colour: the page-colour
+  // switch on header hide only flickered the Android bar.
+  return (cs.getPropertyValue('--header-solid').trim() || '#050505').toLowerCase();
 }
 // iOS does not re-read a media-scoped <meta name="theme-color"> when its content
 // attribute changes, so drop the static tags and REPLACE one unscoped tag each time.
@@ -239,6 +247,10 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
 
 // --- TOAST NOTIFICATIONS ---
 export function showToast(message, type = 'info') {
+  // In-flight tactile buttons (async-button.js) read a flow's outcome from its success/error toast.
+  if (type === 'success' || type === 'error') {
+    try { window.dispatchEvent(new CustomEvent('app-haptic', { detail: { type, source: 'toast' } })); } catch (_) {}
+  }
   const container = document.getElementById('app-toast-container');
   if (!container) return;
 
@@ -452,8 +464,7 @@ window.switchTab = switchTab;
 
 // The currently active tab — used by the shared pull-to-refresh dispatcher.
 let currentTabId = null;
-// T8: the tab we arrived from, so the mobile Auto-Book Back button can pop history when that was Bookings.
-let previousTabId = null;
+// Returning to Teams reopens the Team page that was showing when the member left the tab.
 let lastTeamsRoute = null;
 window.addEventListener('app-logout-triggered', () => { lastTeamsRoute = null; });
 
@@ -487,8 +498,9 @@ function playTabEnter(panel, fromId, toId) {
   setTimeout(done, 400);
 }
 
-// opts.history: 'push' (default: a user-initiated tab change adds an entry), 'replace',
-// or 'none' (boot / popstate: the URL already says where we are). opts.section: settings pane.
+// opts.history: 'push' (default: a user-initiated change; the nav controller pushes a drill-down level or
+// re-bases the back stack to [Home, tab]), 'replace' (swap the current level), or 'none' (boot / back:
+// the URL already says where we are). opts.section: settings pane.
 function switchTab(tabId, opts = {}) {
   let historyMode = opts.history || 'push';
   // TEMP: credits hidden unless debugMode (restore by removing gate)
@@ -504,8 +516,6 @@ function switchTab(tabId, opts = {}) {
   const preserveTeams = tabId === 'teams' && prevTabId !== 'teams' && !opts.teams && !!lastTeamsRoute;
   if (preserveTeams) opts = { ...opts, teams: lastTeamsRoute };
   if (tabId === 'teams' && opts.teams?.view === 'list') lastTeamsRoute = null;
-  // Back may only pop history when this switch pushed an entry on top of another in-app tab.
-  previousTabId = autoBookBackTarget(historyMode, tabId, prevTabId);
   currentTabId = tabId;
   const targetPanelId = `app-panel-${tabId}`;
 
@@ -562,6 +572,7 @@ function routeDiffers(tabId, section, teams) {
 
 async function triggerTabRender(tabId, { preserveTeams = false } = {}) {
   try {
+    await nav.idle(); // a back-stack re-base may still be settling the URL the tab reads
     if (tabId === 'home') {
       const { initHome } = await import('./ui/home');
       initHome();
@@ -605,16 +616,18 @@ tabButtons.forEach(btn => {
     if ((tabId === 'settings' || group.includes('settings')) && (currentTabId === 'settings' || currentTabId === 'about')
         && window.matchMedia('(max-width: 900px)').matches) {
       const lay = document.querySelector('.app-settings-layout');
-      if (lay && lay.classList.contains('show-pane')) { lay.classList.remove('show-pane'); return; }
+      if (lay && lay.classList.contains('show-pane')) { navigate('/settings'); lay.classList.remove('show-pane'); return; }
     }
     switchTab(tabId, tabId === 'teams' && currentTabId === 'teams' ? { teams: { view: 'list' } } : {});
   });
 });
 
+initHeaderBars();
 // T8: mobile Bookings -> Auto-Book bar, and the Auto-Book page's Back button.
 document.getElementById('app-bookings-autobook-bar')?.addEventListener('click', () => switchTab('auto-book'));
 document.getElementById('app-autobook-back-btn')?.addEventListener('click', () => {
-  if (autoBookBackAction(previousTabId) === 'history-back') history.back();
+  // Auto-Book's parent is Bookings (mobile): the stack always has it below, deep link or not.
+  if (nav.canGoBack()) nav.back({ source: 'button' });
   else switchTab('my-bookings', { history: 'replace' });
 });
 
@@ -622,6 +635,7 @@ document.getElementById('app-autobook-back-btn')?.addEventListener('click', () =
 // Most mobile tabs scroll inside <main class="app-body">. The timetable's class
 // rows use their own scrollport so its pinned date/filter rails do not bounce.
 async function refreshActiveTab() {
+  headerGyms.markStrong(); // chips return to full strength, then fade again
   try {
     if (currentTabId === 'home') {
       await invalidateApiCache('/api/auto-book');
@@ -697,6 +711,7 @@ async function refreshActiveTab() {
       const settings = await api.getSettings();
       if (settings && Object.keys(settings).length > 0) {
         Object.assign(userSettings, settings);
+        headerGyms.setMode(userSettings.headerGyms);
         updateAccountNav();
       }
       const { initSettings } = await import('./ui/settings');
@@ -912,51 +927,67 @@ async function activeRegistration(timeoutMs = 10000) {
   return reg;
 }
 
-export async function togglePushSubscription() {
-  if (!serviceWorkerRegistration) return;
+// Single-flight: a second tap (or the onboarding handler plus a card handler)
+// while one toggle is running joins it instead of starting another, which used
+// to subscribe twice and store two rows (two pushes per notification).
+let pushToggleInFlight = null;
 
+function setPushBusy(busy) {
+  const btn = document.getElementById('app-push-toggle-btn');
+  if (!btn) return;
+  btn.disabled = busy;
+  btn.setAttribute('aria-busy', busy ? 'true' : 'false');
+  if (busy) btn.textContent = COPY.notifications.enablingPush || 'Enabling…';
+}
+
+export function togglePushSubscription() {
+  if (!serviceWorkerRegistration) return Promise.resolve();
+  if (pushToggleInFlight) return pushToggleInFlight;
+  pushToggleInFlight = runPushToggle().finally(() => { pushToggleInFlight = null; });
+  return pushToggleInFlight;
+}
+
+async function runPushToggle() {
+  setPushBusy(true);
   try {
-    const registration = await activeRegistration();
-    if (!registration) throw new Error(`${COPY.notifications.workerNotReady} (${swStateSummary(serviceWorkerRegistration)}${swInstallTrail()})`);
-    const subscription = await registration.pushManager.getSubscription();
-    const toggleBtn = document.getElementById('app-push-toggle-btn');
-    toggleBtn.disabled = true;
-
-    if (subscription) {
-      // Unsubscribe
-      await subscription.unsubscribe();
-      await api.unsubscribePush(subscription.endpoint);
+    // Permission first and synchronously from the tap (iOS wants it inside the
+    // gesture), while the key fetch and worker activation run alongside it
+    // instead of before it. Previously the activation wait (up to 10 s on a
+    // fresh Home Screen install) ran before the prompt.
+    const existing = serviceWorkerRegistration.active
+      ? await serviceWorkerRegistration.pushManager.getSubscription().catch(() => null)
+      : null;
+    if (existing) {
+      await existing.unsubscribe();
+      await api.unsubscribePush(existing.endpoint);
       showToast(COPY.notifications.pushDisabled, 'info');
-    } else {
-      // Request permissions
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
-        throw new Error(COPY.notifications.permissionDenied);
-      }
-
-      // Get VAPID public key from server
-      const vapidKeyStr = await api.getVapidPublicKey();
-      const convertedKey = urlBase64ToUint8Array(vapidKeyStr);
-
-      // Subscribe on push server
-      const newSub = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: convertedKey
-      });
-
-      // Save on server
-      await api.subscribePush(newSub);
-      showToast(COPY.notifications.pushEnabledToast, 'success');
-      
-      // Fire a test push to verify it works
-      setTimeout(() => api.triggerPushTest(), 500);
+      return;
     }
+    const permissionP = Notification.permission === 'granted' ? Promise.resolve('granted') : Notification.requestPermission();
+    const keyP = api.getVapidPublicKey();
+    const regP = activeRegistration();
+    keyP.catch(() => {}); regP.catch(() => {});
+    const permission = await permissionP;
+    if (permission !== 'granted') throw new Error(COPY.notifications.permissionDenied);
+    const registration = await regP;
+    if (!registration) throw new Error(`${COPY.notifications.workerNotReady} (${swStateSummary(serviceWorkerRegistration)}${swInstallTrail()})`);
+    // A subscription may already exist (activation raced the check above): reuse it.
+    let sub = await registration.pushManager.getSubscription();
+    if (!sub) {
+      sub = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(await keyP),
+      });
+    }
+    // The server stores one row per endpoint and sends the single confirmation
+    // push itself; the UI does not wait for that push.
+    await api.subscribePush(sub);
+    showToast(COPY.notifications.pushEnabledToast, 'success');
   } catch (err) {
     console.error('[Push] Toggle failed:', err);
     showToast(err.message, 'error');
   } finally {
-    const toggleBtn = document.getElementById('app-push-toggle-btn');
-    toggleBtn.disabled = false;
+    setPushBusy(false);
     updatePushStatusUI();
   }
 }
@@ -1029,9 +1060,12 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
     switchTab('settings');
     import('./ui/settings').then((m) => m.openGymSettings(gymId)).catch((err) => console.error('Open gym settings failed:', err));
   };
+  badge.insertAdjacentHTML('afterbegin', '<span class="app-hgb-bg" aria-hidden="true"></span>'); // the fading plate (see styles.css)
+  badge.dataset.shortName = shortName;
   container.appendChild(badge);
   // U4-2: a chip rebuilt mid-load must keep animating.
   applyGymLoadState(container);
+  applyGymProblemState(container);
   fitHeaderBadges(true);
   requestAnimationFrame(() => fitHeaderBadges(true)); // re-check once layout has settled
 }
@@ -1041,6 +1075,42 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
 // only compares against that cache, with 24px hysteresis so it cannot oscillate.
 // U4-2: header chips double as per-gym loading indicators (state in gym-load-state.js).
 onGymLoadChange(() => applyGymLoadState(document.getElementById('app-header-credits')));
+onGymProblemChange(() => { const box = document.getElementById('app-header-credits'); applyGymProblemState(box); syncHeaderGyms(); });
+
+/**
+ * Header gym dot: a chip with a LOADING problem (login needed, re-login paused, throttled, load failed) swaps its
+ * pill for the problem and reads in the warning colour (the existing `.inactive` pill). Zero credits / no
+ * membership are ordinary balances and never touch this. Idempotent; the normal pill is restored when it clears.
+ */
+const GYM_PROBLEM_COPY = {
+  'needs-relogin': { label: COPY.shell.gymLabelRelogin, title: COPY.shell.gymTitleRelogin },
+  'relogin-suspended': { label: COPY.shell.gymLabelRelogin, title: COPY.shell.gymTitleSuspended },
+  throttled: { label: COPY.shell.gymLabelThrottled, title: COPY.shell.gymTitleThrottled },
+  'load-failed': { label: COPY.shell.gymLabelFailed, title: COPY.shell.gymTitleFailed },
+};
+function applyGymProblemState(root) {
+  if (!root || !root.querySelectorAll) return;
+  root.querySelectorAll('.app-header-gym-badge[data-gym]').forEach((chip) => {
+    const pill = chip.querySelector('.app-hgb-pill');
+    if (!pill) return;
+    const kind = gymProblem(chip.getAttribute('data-gym'));
+    if ((chip.dataset.problem || '') === (kind || '')) return;
+    const name = chip.dataset.shortName || chip.getAttribute('data-gym');
+    if (kind) {
+      if (chip.dataset.problem === undefined) { chip.dataset.pillHtml = pill.innerHTML; chip.dataset.pillClass = pill.className; chip.dataset.title = chip.title; }
+      chip.dataset.problem = kind;
+      pill.className = 'app-hgb-pill inactive';
+      pill.textContent = GYM_PROBLEM_COPY[kind].label;
+      chip.title = formatCopyText(GYM_PROBLEM_COPY[kind].title, { gymName: name });
+    } else {
+      pill.className = chip.dataset.pillClass || 'app-hgb-pill';
+      pill.innerHTML = chip.dataset.pillHtml || '';
+      chip.title = chip.dataset.title || '';
+      delete chip.dataset.problem; delete chip.dataset.pillHtml; delete chip.dataset.pillClass; delete chip.dataset.title;
+    }
+  });
+}
+document.addEventListener('hgym-mode', () => requestAnimationFrame(() => fitHeaderBadges(true)));
 let fullBadgesWidth = 0;
 let badgeFitObserver = null;
 function fitHeaderBadges(remeasure) {
@@ -1048,6 +1118,7 @@ function fitHeaderBadges(remeasure) {
   const header = document.querySelector('.app-header');
   if (!box || !header) return;
   const wasCompact = box.classList.contains('app-badges-compact');
+  if (headerGyms.getMode() === 'collapsible') return; // overlay strip: sized by its own CSS, measured on expand
   if (remeasure) {
     box.classList.remove('app-badges-compact');
     const kids = [...box.children];
@@ -1062,6 +1133,10 @@ function fitHeaderBadges(remeasure) {
     - (title ? title.getBoundingClientRect().width : 0) - emailW - 16;
   const compact = wasCompact ? fullBadgesWidth + 24 > avail : fullBadgesWidth > avail;
   box.classList.toggle('app-badges-compact', compact);
+  // Collapsed strips are hidden (zero widths): never measure them. Plain-mode overflow scrolls instead of clipping.
+  if (headerGyms.getMode() === 'plain') {
+    headerGyms.setOverflow(box.scrollWidth > box.clientWidth + 1 && box.clientWidth > 0);
+  }
   if (!badgeFitObserver && typeof ResizeObserver !== 'undefined') {
     badgeFitObserver = new ResizeObserver(() => fitHeaderBadges(false));
     badgeFitObserver.observe(header);
@@ -1076,14 +1151,34 @@ function fitHeaderBadges(remeasure) {
 // gyms each badge needs ITS OWN gym's balance, which `availableCredits` can't
 // provide — those are fetched here via `api.getCreditsByGym()`.
 export async function updateCreditBadge(availableCredits = null) {
+  try { return await updateCreditBadgeInner(availableCredits); } finally { syncHeaderGyms(); }
+}
+
+/** Tell the header ring which chips exist and whether any gym has a LOADING problem (never zero credits / no membership). */
+function syncHeaderGyms() {
+  const box = document.getElementById('app-header-credits');
+  if (!box) return;
+  const chips = [...box.querySelectorAll('.app-header-gym-badge[data-gym]')];
+  headerGyms.syncGyms(chips.map((c) => c.getAttribute('data-gym')), anyGymProblem(chips.map((c) => c.getAttribute('data-gym'))));
+}
+
+async function updateCreditBadgeInner(availableCredits = null) {
   const creditsContainer = document.getElementById('app-header-credits');
   if (!creditsContainer) return;
 
   const linked = getLinkedGyms();
+  // Gyms whose login was rejected have no usable session (so no balance), but still get a chip so the
+  // problem is visible in the header (the pill reads "Log in", see applyGymProblemState).
+  const broken = getAllLinkedGyms().filter((g) => g.account_enabled !== 0 && g.account_enabled !== false && g.status === 'needs_relogin');
+  const renderBroken = () => broken.forEach((gym) => {
+    const gymId = gym.gym_id || gym.id;
+    renderGymBadge(creditsContainer, gymId, gym.shortName || gym.name || gymId, gym.capabilities?.metered !== false, 0, []);
+  });
 
   if (!linked || linked.length === 0) {
     if (getAllLinkedGyms().length) {
       creditsContainer.innerHTML = '';
+      renderBroken();
       return;
     }
     const credits = availableCredits || cache.credits || [];
@@ -1102,6 +1197,7 @@ export async function updateCreditBadge(availableCredits = null) {
     creditsContainer.innerHTML = '';
     cache.creditsByGym = { [gymId]: credits };
     renderGymBadge(creditsContainer, gymId, gym.shortName || gym.name || gymId, gym.capabilities?.metered !== false, total, credits);
+    renderBroken();
     debugLog(`Credits updated: ${total} total for ${gymId}`, 'info');
     return;
   }
@@ -1123,6 +1219,7 @@ export async function updateCreditBadge(availableCredits = null) {
     const total = sumCredits(credits);
     renderGymBadge(creditsContainer, gymId, gym.shortName || gym.name || gymId, gym.capabilities?.metered !== false, total, credits);
   });
+  renderBroken();
   debugLog(`Credits updated per-gym across ${linked.length} linked gyms`, 'info');
 }
 
@@ -1327,6 +1424,7 @@ export async function loadGymContext({ refresh = false } = {}) {
     // called) and fans theming/copy out across every linked gym instead of
     // guessing one (`applyGymFonts`/`applyGymNames`).
     setLinkedGyms(linkedFull);
+    syncLinkProblems(linkedFull);
     if (linkedFull.length > 0) {
       debugLog(`Linked gyms: ${linkedFull.map((g) => `${g.name} (${Object.entries(g.capabilities || {}).filter(([, v]) => v === true).map(([k]) => k).join(', ') || 'no flags'})`).join('; ')}`, 'info');
     }
@@ -1447,6 +1545,7 @@ export async function refreshUserData(force = false) {
     const settings = first.gymSettings || (gymIds.length ? null : await api.getSettings());
     if (settings && Object.keys(settings).length > 0) {
       Object.assign(userSettings, settings);
+      headerGyms.setMode(userSettings.headerGyms);
         updateAccountNav();
     }
 
@@ -1581,17 +1680,20 @@ export async function initApp() {
   // member was on if the URL was reset to the bare root in between. A URL that already names a page wins.
   {
     const rt = takeReturnTo();
-    if (rt && location.pathname === '/' && !location.search && !location.hash) history.replaceState(history.state, '', rt);
+    if (rt && location.pathname === '/' && !location.search && !location.hash) nav.replaceUrl(rt);
   }
   // T-1 (PLAN-teams.md §5.6): an invite link opened while signed out resumes here once the
   // member has logged in or signed up (and finished onboarding). The token is never logged.
   {
     const pendingInvite = consumePendingInvite(safeLocalStorage()); // single use: removed as it is acted on
     if (pendingInvite && !(parseTeamsPath(location.pathname)?.view === 'invite')) {
-      history.replaceState(history.state, '', `/t/${pendingInvite}`);
+      nav.replaceUrl(`/t/${pendingInvite}`);
     }
   }
   if (parseTeamsPath(location.pathname)?.view === 'invite') await finishTeamInviteHandoff();
+  // Make the back stack and browser history agree with the URL (deep link -> parent chain, reload).
+  await nav.boot();
+  initEdgeSwipeBack();
   const route = currentRoute();
   applyCreditsTabGate(); // TEMP: credits hidden unless debugMode (restore by removing gate)
   // The URL already names the tab ('none'); an unknown path is normalised to Home ('replace').
@@ -1712,6 +1814,7 @@ function showLogin() {
   // user, which would skip the Object.assign merge and leave stale values.
   Object.keys(userSettings).forEach(k => delete userSettings[k]);
   Object.assign(userSettings, DEFAULT_SETTINGS);
+  headerGyms.setMode(DEFAULT_SETTINGS.headerGyms);
   updateAccountNav();
   // Per-gym copies belong to the previous account too.
   cache.profilesByGym = {};
@@ -2026,7 +2129,7 @@ window.addEventListener('app-logout-triggered', () => {
   finishTeamInviteHandoff().catch(() => {});
   clearPendingInvite(safeLocalStorage()); // T-1: an invite stashed for one account never resumes for the next
   // ...and the /t/<token> must not be re-stashed by showLogin() for the NEXT account.
-  if (parseTeamsPath(location.pathname)) { try { history.replaceState(null, '', '/'); } catch (_) { /* keep */ } }
+  if (parseTeamsPath(location.pathname)) { try { nav.replaceUrl('/'); } catch (_) { /* keep */ } }
   setCacheKeyPrefix('');
   clearApiCache().catch(() => {});
   showToast(COPY.auth.sessionExpired, 'warning');
@@ -2060,8 +2163,8 @@ document.addEventListener('visibilitychange', refreshGymConnections);
 window.addEventListener('pageshow', refreshGymConnections);
 window.addEventListener('online', refreshGymConnections);
 
-// Back/forward: apply the tab/section from the path. modal-nav's capture-phase popstate
-// listener runs first and flags events it consumed (appNavHandled); the router skips those.
+// Back/forward/swipe: the nav controller (the only popstate consumer) pops pages and layers itself and
+// calls this once the top level is a route, so just paint the tab/section it landed on.
 initRouter((route) => {
   const tab = route.valid ? route.tab : 'home';
   // Same-tab timetable back/forward (day/filter entries): repaint from the URL, no tab churn or refetch.
@@ -2096,7 +2199,7 @@ function initHeaderAutoHide() {
     return app && header;
   };
   const measure = () => {
-    if (els() && header.offsetHeight) app.style.setProperty('--app-header-h', header.offsetHeight + 'px');
+    if (els() && header.offsetHeight) app.style.setProperty('--app-header-h', (header.offsetHeight - headerGyms.headerExtraPx()) + 'px');
     // The timetable list scrolls UNDER the glass filter block, so it reserves the block's
     // expanded height as padding (styles.css). Only sample the expanded face, never the compact one.
     if (app) {
@@ -2112,6 +2215,7 @@ function initHeaderAutoHide() {
   const setHidden = (hide) => {
     if (!els() || hide === hidden) return;
     hidden = hide;
+    if (hide) headerGyms.onHeaderHidden();
     app.classList.toggle('app-hdr-hidden', hide && mode().hideHeader); // landscape keeps its top tab bar
     // Landscape phones hide the search/filter bars entirely while compact: take them out of the focus order and the a11y tree.
     const fbars = document.getElementById('app-timetable-filters-container');
@@ -2196,6 +2300,9 @@ document.addEventListener('DOMContentLoaded', () => {
     Promise.race([document.fonts?.ready ?? Promise.resolve(), new Promise((r) => setTimeout(r, 1200))])
   ).then(() => requestAnimationFrame(reveal));
   initTooltips();
+  initSafeArea();
+  installPressFeedback(); // app-wide tactile press state (DESIGN.md §6.5.1)
+  headerGyms.initHeaderGyms();
   initHeaderAutoHide();
 
   // Global Esc-to-close for all modals

@@ -129,8 +129,8 @@
 :root {
   color-scheme: dark;
 
-  --bg: #161616;
-  --page-solid: #161616;
+  --bg: #050505;          /* Soft OLED (2026-11-15): near-black page in dark, app-wide */
+  --page-solid: #050505;
   --header-solid: #101010;
   --surface: #202020;
   --surface-2: rgba(255, 238, 215, 0.045);
@@ -1801,7 +1801,7 @@ html, body, * {
     margin-top: calc(var(--app-header-h, 47px) + 8px);
   }
 
-  #app-helper-container #app-panel-home .home-widget + .home-widget { margin-top: 32px !important; }
+  #app-helper-container #app-panel-home .home-widget + .home-widget { margin-top: 48px !important; }
 
   #app-helper-container #app-panel-home .home-favourites-strip {
     --home-rail-bleed: max(8px, var(--sa-l), var(--sa-r));
@@ -1991,9 +1991,10 @@ html, body, * {
     font-size: var(--tt-mobile-meta-size);
   }
 
-  #app-container.app-hdr-hidden .app-sticky-top { top: calc(-1 * (var(--app-header-h, 47px) + var(--hdr-gap, 12px) + var(--hdr-extra, 8px))); }
+  #app-container.app-hdr-hidden .app-sticky-top { top: calc(-1 * (var(--hdr-hide-d, var(--app-header-h, 47px)) + var(--hdr-gap, 12px) + var(--hdr-extra, 8px))); }
 
-  #app-helper-container .app-settings-content { touch-action: pan-y; will-change: transform; }
+  /* Back navigation (ui/edge-swipe-back.js): the swipe drags this surface itself; no touch-action or
+     standing will-change here (the gesture sets will-change only while dragging). */
 
   #app-helper-container .app-mobile-top-line .ab-disc-tag { padding: 1px 6px; }
 
@@ -6511,6 +6512,10 @@ html, body, * {
   gap: 6px;
   min-width: 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  /* Both axes: the row scrolls sideways, but a vertical swipe that starts on the chips must still scroll the page. */
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
@@ -6628,6 +6633,7 @@ html, body, * {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.ab-card.is-rail-restoring > .ab-card-rail { transition: none !important; }
 @media (prefers-reduced-motion: reduce) {
   .ab-card-rail, .ab-card.is-rail-open > .ab-card-rail { transition: none; }
 }
@@ -8791,7 +8797,7 @@ html, body, * {
    syncThemeColorMeta in main.js). A fixed cap sits above content and stays put when the
    header slides away (it is independent of the header's transform), and html/body carry the
    same colour so any overscroll at the top shows it too; content areas keep their own --bg. */
-:root { --page-solid: #161616; --header-solid: #101010; --header-solid-bg: var(--header-solid); }
+:root { --page-solid: #050505; --header-solid: #101010; --header-solid-bg: var(--header-solid); }
 :root[data-theme="light"], :root:not([data-theme="dark"]) { --header-solid-bg: var(--header-solid); }
 html { background: var(--header-solid-bg); }
 
@@ -10651,7 +10657,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   font-size: var(--text-xl); line-height: var(--lh-snug); letter-spacing: 0; margin: 0;
 }
 @media (max-width: 768px) {
-  #app-helper-container #app-panel-home .home-widget + .home-widget { margin-top: var(--space-4) !important; }
+  #app-helper-container #app-panel-home .home-widget + .home-widget { margin-top: 48px !important; }
   #app-helper-container #app-panel-home .home-widget .home-widget-heading { margin-bottom: var(--space-3) !important; }
 }
 
@@ -11321,10 +11327,10 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 /* Warm aurora (the landing hero's blobs, static): soft clay + ochre washes the glass has something to blur. */
 .app-onboarding-container::before {
   content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background:
+  background: var(--onb-aurora,
     radial-gradient(70vmax 70vmax at 0% -5%, color-mix(in srgb, var(--accent-fill) 30%, transparent), transparent 68%),
     radial-gradient(56vmax 56vmax at 105% 42%, color-mix(in srgb, var(--feat-quickbook) 18%, transparent), transparent 68%),
-    radial-gradient(64vmax 64vmax at 15% 108%, color-mix(in srgb, var(--accent-fill) 22%, transparent), transparent 68%);
+    radial-gradient(64vmax 64vmax at 15% 108%, color-mix(in srgb, var(--accent-fill) 22%, transparent), transparent 68%));
 }
 
 /* ---- glass surfaces ---- */
@@ -11406,7 +11412,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 .app-onb-hero {
   position: relative; flex: 0 0 auto; align-self: center; width: var(--onb-ico-hero); height: var(--onb-ico-hero); aspect-ratio: 1;
   border-radius: 50%; display: grid; place-items: center; color: var(--accent);
-  box-shadow: var(--onb-glass-shadow), 0 0 0 8px color-mix(in srgb, var(--accent-fill) 10%, transparent);
+  box-shadow: var(--onb-glass-shadow), 0 0 0 8px var(--onb-hero-halo, color-mix(in srgb, var(--accent-fill) 10%, transparent));
 }
 .app-onb-hero svg { flex: none; width: var(--onb-glyph-hero); height: var(--onb-glyph-hero); display: block; }
 .app-onb-hero.is-seal { background: var(--accent-fill); color: var(--on-accent-fill); }
@@ -11416,9 +11422,9 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 
 /* ---- icon scale: every glyph box has a fixed aspect and cannot shrink ---- */
 .app-onb-icon, .app-onb-perk-icon, .app-onb-reason-icon, .app-install-ico { flex: 0 0 auto; aspect-ratio: 1; display: grid; place-items: center; }
-.app-onb-icon, .app-onb-feature-heading .app-onb-icon { width: var(--onb-ico-card); height: var(--onb-ico-card); margin: 0; border-radius: 14px; color: var(--accent); background: color-mix(in srgb, var(--accent-fill) 14%, transparent); }
+.app-onb-icon, .app-onb-feature-heading .app-onb-icon { width: var(--onb-ico-card); height: var(--onb-ico-card); margin: 0; border-radius: 14px; color: var(--accent); background: var(--onb-icon-tile, color-mix(in srgb, var(--accent-fill) 14%, transparent)); }
 .app-onb-icon svg, .app-onb-feature-heading .app-onb-icon svg { flex: none; width: var(--onb-glyph-card); height: var(--onb-glyph-card); display: block; }
-.app-onb-perk-icon, .app-onb-reason-icon, .app-install-ico { width: var(--onb-ico-row); height: var(--onb-ico-row); border-radius: 12px; color: var(--accent); background: color-mix(in srgb, var(--accent-fill) 14%, transparent); border: 0; }
+.app-onb-perk-icon, .app-onb-reason-icon, .app-install-ico { width: var(--onb-ico-row); height: var(--onb-ico-row); border-radius: 12px; color: var(--accent); background: var(--onb-icon-tile, color-mix(in srgb, var(--accent-fill) 14%, transparent)); border: 0; }
 .app-onb-perk-icon svg, .app-onb-reason-icon svg, .app-install-ico svg { flex: none; width: var(--onb-glyph-row); height: var(--onb-glyph-row); display: block; }
 .app-install-step::before { flex: 0 0 24px; width: 24px; height: 24px; aspect-ratio: 1; }
 
@@ -11430,7 +11436,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 .app-onb-slide-welcome { gap: 8px; }
 .app-onb-perks { gap: 10px; margin-top: 10px; }
 .app-onb-perk { position: relative; border: 1px solid var(--border); border-radius: 18px; padding: 12px; --perk: var(--accent); backdrop-filter: none; -webkit-backdrop-filter: none; }
-.app-onb-perk-icon { color: var(--accent); background: color-mix(in srgb, var(--accent-fill) 14%, transparent); border: 0; }
+.app-onb-perk-icon { color: var(--accent); background: var(--onb-icon-tile, color-mix(in srgb, var(--accent-fill) 14%, transparent)); border: 0; }
 .app-onb-gyms-line { margin-top: 10px; }
 
 /* ---- forms / lists inside the glass card ---- */
@@ -11513,10 +11519,10 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 }
 .app-login-container::before {
   content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background:
+  background: var(--onb-aurora,
     radial-gradient(70vmax 70vmax at 0% -5%, color-mix(in srgb, var(--accent-fill) 30%, transparent), transparent 68%),
     radial-gradient(56vmax 56vmax at 105% 42%, color-mix(in srgb, var(--feat-quickbook) 18%, transparent), transparent 68%),
-    radial-gradient(64vmax 64vmax at 15% 108%, color-mix(in srgb, var(--accent-fill) 22%, transparent), transparent 68%);
+    radial-gradient(64vmax 64vmax at 15% 108%, color-mix(in srgb, var(--accent-fill) 22%, transparent), transparent 68%));
 }
 .app-login-container .app-login-card {
   max-width: 440px; gap: 16px; justify-content: center;
@@ -11624,7 +11630,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
     transition: transform var(--dur-slow-header) var(--ease-header);
   }
   #app-container.app-hdr-hidden .app-body.app-timetable-active .app-sticky-top {
-    transform: translate3d(0, calc(-1 * var(--app-header-h, 41px)), 0);
+    transform: translate3d(0, calc(-1 * var(--hdr-hide-d, var(--app-header-h, 41px))), 0);
   }
   #app-container.app-tt-moving .app-body.app-timetable-active .app-sticky-top,
   #app-container.app-tt-moving .app-header { will-change: transform; }
@@ -11819,6 +11825,10 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container .bk-view-toolbar .app-share-btn { margin-left: auto; }
 @media (max-width: 768px) {
   #app-helper-container .bk-view-switch .app-segmented-btn { min-height: 34px; }
+}
+/* Desktop always shows bookings and waitlists separately: no view control. */
+@media (min-width: 769px) {
+  #app-helper-container .bk-view-switch { display: none !important; }
 }
 @media (min-width: 900px) {
   #app-panel-my-bookings > .bk-view-toolbar { grid-column: 1 / -1; margin: 0 !important; }
@@ -12016,6 +12026,8 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container .tm-back span { font-size: 26px; line-height: 1; }
 #app-helper-container .tm-head-btn { color: var(--text); }
 #app-helper-container .tm-head-txt { display: none; font-weight: 600; font-size: var(--text-base); }
+#app-helper-container .tm-head-labeled { width: auto; padding: 0 12px; gap: 6px; border-color: var(--border-strong); }
+#app-helper-container .tm-head-labeled .tm-head-txt { display: inline; }
 @media (min-width: 769px) {
   #app-helper-container .tm-head-btn { border-color: var(--border-strong); padding: 0 14px; }
   #app-helper-container .tm-head-txt { display: inline; }
@@ -12269,7 +12281,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container .tm-tw-list { list-style: none; margin: 0; padding: 0; }
 #app-helper-container .tm-tw { display: flex; align-items: center; gap: 12px; padding: 10px 0; min-height: 52px; }
 #app-helper-container .tm-tw + .tm-tw { border-top: 1px solid var(--border); }
-#app-helper-container .tm-tw-lead { flex: 0 0 48px; display: inline-grid; place-items: center; }
+#app-helper-container .tm-tw-lead { position: relative; display: inline-grid; place-items: center; }
 #app-helper-container .tm-tw-time { font-weight: 700; font-size: var(--text-md); color: var(--text); font-variant-numeric: tabular-nums; }
 #app-helper-container .tm-tw-title { display: block; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
 #app-helper-container .tm-tw-who { display: block; font-size: var(--text-sm); color: var(--text); margin-top: 1px; }
@@ -12473,9 +12485,11 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
     min-height: 48px;
     margin: 0 0 12px;
     padding: 0 14px;
-    border: 1px solid var(--border);
+    /* Same quiet glass recipe as the Home tiles (.home-credits-tile etc.): no extra blur layer. */
+    border: 1px solid color-mix(in srgb, var(--border-strong) 75%, transparent);
     border-radius: 14px;
-    background: var(--surface-inset);
+    background: linear-gradient(155deg, color-mix(in srgb, var(--orb-hi) 28%, transparent), transparent 65%), color-mix(in srgb, var(--surface) 91%, var(--tone-ink) 9%);
+    box-shadow: inset 0 1px 0 var(--orb-hi), 0 3px 10px color-mix(in srgb, var(--tone-ink) 7%, transparent);
     color: var(--text);
     font: inherit;
     font-weight: 700;
@@ -12483,7 +12497,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
   }
-  #app-helper-container .bk-autobook-bar:active { background: color-mix(in srgb, var(--accent) 10%, var(--surface-inset)); }
+  #app-helper-container .bk-autobook-bar:active { border-color: var(--border-strong); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
   #app-helper-container .bk-autobook-bar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   #app-helper-container .bk-autobook-icon { width: 20px; height: 20px; flex: 0 0 auto; color: var(--accent); }
   #app-helper-container .bk-autobook-label { flex: 1 1 auto; font-size: 15px; }
@@ -12659,8 +12673,11 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container .tm-cf-captain-ico { flex: 0 0 auto; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: var(--accent-fill); color: var(--on-accent-fill); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22); }
 #app-helper-container .tm-cf-cta { margin: 4px 0 0; font-family: var(--font-sans); max-width: 32ch; color: var(--text); font-size: 18px; line-height: 1.45; font-weight: 500; }
 #app-helper-container .tm-cf-actions { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 360px; margin-top: 2px; }
-#app-helper-container .tm-cf-share { min-height: 52px; font-size: 17px; }
-#app-helper-container .tm-cf-share svg { width: 20px; height: 20px; }
+#app-helper-container .tm-cf-pair { display: flex; gap: 10px; width: 100%; }
+#app-helper-container .tm-cf-pair .tm-cf-btn { flex: 1 1 0; min-width: 0; }
+#app-helper-container .tm-cf-btn { min-height: 52px; font-size: 17px; }
+#app-helper-container .tm-cf-btn svg { width: 20px; height: 20px; }
+#app-helper-container .tm-invite-row { color: var(--accent); font-weight: 600; gap: 12px; }
 /* The ready page has no visible title (the dialog stays labelled for assistive tech). */
 .tm-ovl.is-untitled .tm-ovl-title { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 .tm-ovl.is-untitled .tm-ovl-header { border-bottom-color: transparent; }
@@ -12707,7 +12724,6 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container .tm-mem-gyms { display: inline-flex; max-width: none; flex-wrap: nowrap; gap: 0; align-self: center; }
 
 /* Today's workouts: logo with the tick as a small corner badge */
-#app-helper-container .tm-tw-lead { flex: 0 0 48px; }
 #app-helper-container .tm-tw-lead .tm-tw-check {
   position: absolute; right: -4px; bottom: -3px; width: 16px; height: 16px; background: var(--success); color: #fff;
   box-shadow: 0 0 0 2px var(--surface);
@@ -12828,9 +12844,9 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   align-items: baseline; gap: 9px; width: 100%; min-height: 36px; padding: 4px 0; border: 0; background: transparent; color: var(--text); text-align: left; font: inherit; cursor: pointer;
 }
 #app-helper-container .tm-workout-main:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
-#app-helper-container .tm-workout-time { font-size: 14px; font-weight: 750; font-variant-numeric: tabular-nums; white-space: nowrap; }
-#app-helper-container .tm-workout-name { font-size: 14px; font-weight: 600; line-height: 1.3; max-width: 28ch; }
-#app-helper-container .tm-workout-inst { font-size: 12px; color: var(--text-secondary); text-align: right; justify-self: end; max-width: 17ch; }
+#app-helper-container .tm-workout-time { font-size: 13px; font-weight: 750; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#app-helper-container .tm-workout-name { font-size: 13px; font-weight: 600; line-height: 1.3; }
+#app-helper-container .tm-workout-inst { font-size: 13px; font-weight: 400; color: var(--text-secondary); text-align: right; justify-self: end; width: auto; max-width: none; }
 #app-helper-container .tm-workout-name, #app-helper-container .tm-workout-inst { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #app-helper-container .tm-workout-mark { color: var(--text-tertiary); align-self: center; display: inline-flex; }
 #app-helper-container .tm-workout-mark svg { width: 16px; height: 16px; }
@@ -12868,8 +12884,11 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container .fade-right { --fade-right: transparent; }
 #app-helper-container :is(#app-bookings-list, #app-waitlists-list) .ab-rail-toggle::after { display: none; }
 #app-helper-container .fr-gymquick-btn.is-off { border: 1px solid var(--border-strong); }
-#app-helper-container .ab-rail-toggle { border-left: 0 !important; }
-#app-helper-container #app-bookings-list .ab-chip-group, #app-helper-container #app-waitlists-list .ab-chip-group { overflow-x: auto; overflow-y: hidden; touch-action: pan-x; padding-block: 2px; }
+/* The Edit toggle keeps its full border (a dropped left border let the chip group's edge fade read as covering the button's left edge) and
+   sits at the footer's right even with no chip group beside it (studio-cancelled cards): `#app-helper-container *` margin:0 beat the base margin-left:auto. */
+#app-helper-container .ab-card-footer > .ab-rail-toggle { margin-left: auto; }
+#app-helper-container .ab-card-footer > .ab-chip-group { margin-right: 6px; }
+#app-helper-container #app-bookings-list .ab-chip-group, #app-helper-container #app-waitlists-list .ab-chip-group { overflow-x: auto; overflow-y: hidden; touch-action: pan-x pan-y; overscroll-behavior-x: contain; padding-block: 2px; }
 #app-helper-container .bk-view-toolbar { margin-top: 0; margin-bottom: 5px; }
 #app-helper-container .app-account-initials { width: 24px; height: 24px; display: inline-grid; place-items: center; border: 1.5px solid currentColor; border-radius: 50%; font: 650 10px/1 var(--font-sans); letter-spacing: -.03em; background: color-mix(in srgb, currentColor 7%, transparent); box-shadow: inset 0 1px 0 #ffffff22; }
 #app-helper-container .app-account-nav-name { max-width: 10ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -12884,7 +12903,6 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   #app-helper-container .app-settings-active .show-pane .app-settings-section-panes { padding-top: 0; }
   #app-helper-container .app-settings-layout:not(.show-pane) .app-settings-sidebar { padding-bottom: calc(var(--nav-clear) + 24px) !important; }
   #app-helper-container #app-panel-my-bookings { gap: 6px; }
-  #app-helper-container .tm-workout-main { gap: 7px; grid-template-columns: minmax(46px, max-content) minmax(0, 1fr) minmax(0, .65fr) 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
   #app-helper-container .tm-workout-details, #app-helper-container .tm-gym-reveal { transition: none; }
@@ -12909,21 +12927,20 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 
 /* Revision: Today keeps its timeline; the week has distinct compact fields. */
 #app-helper-container .tm-workout { padding: 6px 0; cursor: pointer; }
-#app-helper-container .tm-workout-main { grid-template-columns: 24px 46px minmax(0, 1fr) minmax(0, .65fr) 14px; gap: 7px; min-height: 30px; padding: 0; align-items: center; }
+#app-helper-container .tm-workout-main { grid-template-columns: 24px max-content minmax(0, 1fr) max-content 14px; gap: 7px; min-height: 30px; padding: 0; align-items: center; }
 #app-helper-container .tm-workout-gym { grid-column: 1; display: flex; align-items: center; }
 #app-helper-container .tm-workout-gym .app-gym-mark { width: 24px; height: 24px; }
-#app-helper-container .tm-workout-time { grid-column: 2; font-size: 12px; }
+#app-helper-container .tm-workout-time { grid-column: 2; }
 #app-helper-container .tm-workout-name { grid-column: 3; padding: 0; border: 0; background: transparent; color: inherit; font-family: inherit; text-align: left; cursor: pointer; }
 #app-helper-container .tm-workout-inst { grid-column: 4; }
 #app-helper-container .tm-workout-mark { grid-column: 5; }
 #app-helper-container .tm-workout .tm-workout-details { margin-left: 31px; }
 #app-helper-container .tm-workout .tm-attendees { min-height: 26px; padding: 2px 0; }
 #app-helper-container .tm-workout.is-done .tm-workout-main { min-height: 42px; }
-#app-helper-container .tm-tw { min-height: 0; padding: 11px 0; cursor: pointer; }
-#app-helper-container .tm-tw-title { padding: 0; border: 0; background: transparent; font-family: inherit; font-size: 14px; line-height: 1.4; text-align: left; cursor: pointer; width: 100%; }
+#app-helper-container .tm-tw { display: grid; grid-template-columns: max-content max-content minmax(0, 1fr); align-items: center; column-gap: 10px; min-height: 0; padding: 11px 0; cursor: pointer; }
+#app-helper-container .tm-tw-title { display: block; padding: 0; border: 0; background: transparent; font-family: inherit; font-size: 14px; line-height: 1.4; text-align: left; cursor: pointer; width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; }
 #app-helper-container .tm-tw-who { display: flex; padding: 4px 0 0; }
 #app-helper-container .tm-tw.is-done { min-height: 44px; padding: 2px 0; box-sizing: border-box; }
-#app-helper-container .tm-tw.is-done .tm-gcirc { --g: 28px; }
 #app-helper-container .tm-tw.is-done:not(.is-expanded) .tm-workout-details { grid-template-rows: 0fr; opacity: 0; }
 #app-helper-container .tm-tw.is-expanded { padding-block: 10px; }
 #app-helper-container .tm-view-class { background: transparent; border: 0; color: var(--accent); padding: 7px 0; font: 600 12px var(--font-sans); cursor: pointer; }
@@ -12935,21 +12952,14 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container #app-settings-pane-about { gap: 16px; }
 #app-helper-container #app-settings-pane-about .app-settings-card { margin: 0; }
 #app-helper-container .app-about-privacy { margin-top: 0; }
-@media (max-width: 359px) {
-  #app-helper-container .tm-workout-main { grid-template-columns: 22px 42px minmax(0, 1fr) minmax(0, .5fr) 12px; gap: 5px; }
-}
 
 #app-helper-container .tm-ovl-body > .tm-list + [data-sec] { margin-top: 24px; }
-#app-helper-container .tm-workout-inst { width: 100%; max-width: 100%; }
 
 /* Teams refinement: a stable logo/time column and explicit day disclosure. */
-#app-helper-container .tm-tw { display: grid; grid-template-columns: 48px 44px minmax(0, 1fr); gap: 8px; }
-#app-helper-container .tm-tw-lead { width: 48px; }
-#app-helper-container .tm-tw-time, #app-helper-container .tm-workout-time { display: flex; flex-direction: column; align-items: center; text-align: center; white-space: normal; line-height: 1.25; }
-#app-helper-container .tm-tw-lead .tm-gcirc { --g: 28px; }
+#app-helper-container .tm-tw-time, #app-helper-container .tm-workout-time { display: flex; flex-direction: column; align-items: center; text-align: center; white-space: nowrap; line-height: 1.25; }
+#app-helper-container .tm-tw-lead .app-gym-mark { width: 28px; height: 28px; border-radius: 7px; }
 #app-helper-container .tm-tw-time { font-size: 14px; font-weight: 600; }
 #app-helper-container :is(.tm-tw-time, .tm-workout-time) small { display: block; font-size: 9px; font-weight: 500; line-height: 1.4; }
-#app-helper-container .tm-workout-inst { text-align: left; justify-self: start; }
 #app-helper-container .tm-workout-time { margin-right: 3px; }
 #app-helper-container .tm-spot-pill { border-radius: 5px; padding: 3px 5px; background: color-mix(in srgb, var(--text) 7%, var(--surface)); color: var(--text-secondary); font: 500 10px/1.2 var(--font-sans); }
 #app-helper-container .tm-week-hint { margin: -2px 0 10px; color: var(--text-secondary); font-size: 12px; }
@@ -12967,7 +12977,6 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container .tm-trending-track i { display: block; height: 100%; background: var(--accent); }
 #app-helper-container .tm-trending-delta { font-size: 12px; color: var(--success); }
 @media (min-width: 900px) { #app-helper-container .tm-stats-carousel { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 359px) { #app-helper-container .tm-tw { grid-template-columns: 36px 40px minmax(0, 1fr); gap: 6px; } #app-helper-container .tm-tw-lead { width: 36px; } }
 
 #app-helper-container .tm-trending-photo, #app-helper-container .tm-trending-avatar .tm-av { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
 
@@ -13182,3 +13191,494 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 /* Minimal card: date/time, "Cancelled class". No strikethrough, photo, tag or location. */
 #app-helper-container .app-autobook-card.is-studio-cancelled .ab-card-line2 { flex-wrap: nowrap; }
 #app-helper-container .app-autobook-card.is-studio-cancelled .ab-card-lines { flex: 1 1 auto; min-width: 0; }
+
+/* ==========================================================================
+   Edge-to-edge background for the full-screen flows (onboarding + login), iOS Safari.
+   Measured in the iOS 26 Simulator (Safari tab): the status-bar band and the band behind the
+   floating toolbar / home indicator are NOT page pixels. Safari paints them as one SOLID colour
+   sampled from the fixed element touching that edge, so a gradient can never render there in a
+   tab; only in the installed PWA (viewport-fit=cover) does page content reach the screen edge.
+   Three things broke the bleed:
+   (1) the body::before/::after status-bar caps (z-index 1000001) painted a solid --header-solid
+       strip OVER the onboarding aurora, leaving a hard seam under the status bar (and, in the PWA,
+       hiding the aurora behind the notch);
+   (2) html carried --header-solid-bg (the app-shell header colour), not the flow's --bg, for
+       overscroll and anything Safari falls back to;
+   (3) the aurora ran at full strength right up to the viewport edge, so Safari's solid band met
+       a pink/ochre wash at a visible line.
+   Fix: while a flow is on screen, drop the caps and give html the flow's --bg; the aurora fades
+   to transparent over the outer 120px so the page edge IS --bg, the exact colour Safari extends.
+   Content keeps its env(safe-area-inset-*) padding; only decoration changes.
+   ========================================================================== */
+html:has(> body > .app-onboarding-container:not([style*="display: none"])),
+html:has(> body > .app-login-container:not([style*="display: none"])) {
+  background: var(--bg) !important;
+}
+html:has(> body > .app-onboarding-container:not([style*="display: none"])) body,
+html:has(> body > .app-login-container:not([style*="display: none"])) body {
+  background: var(--bg);
+}
+html:has(> body > .app-onboarding-container:not([style*="display: none"])) body::before,
+html:has(> body > .app-onboarding-container:not([style*="display: none"])) body::after,
+html:has(> body > .app-login-container:not([style*="display: none"])) body::before,
+html:has(> body > .app-login-container:not([style*="display: none"])) body::after {
+  display: none !important;
+}
+.app-onboarding-container::before,
+.app-login-container::before {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 120px, #000 calc(100% - 120px), transparent 100%);
+          mask-image: linear-gradient(to bottom, transparent 0, #000 120px, #000 calc(100% - 120px), transparent 100%);
+}
+/* Closed .app-modal overlays are opacity:0 but still full-screen fixed layers at z 2000000 with a
+   translucent background. Safari 26 samples a fixed layer touching the top/bottom edge for its bar
+   tint, so a closed modal could win over the visible screen and leave a mismatched grey band.
+   visibility:hidden takes them out of that (and the a11y tree); the delay keeps the fade-out. */
+.app-modal:not(.show) {
+  visibility: hidden;
+  transition: opacity var(--dur-page) var(--ease-out), visibility 0s linear var(--dur-page);
+}
+/* ==========================================================================
+   SOFT OLED (dark only, 2026-11-15; approved mockup variant C). --bg/--page-solid are #050505
+   app-wide in the dark token block at the top. While onboarding or login is on screen, the
+   pre-app surfaces also go neutral: translucent #121214 glass instead of warm brown, white
+   rings/specular instead of cream, no cream halo shadow (--tone-ink black), and one faint clay
+   vignette (11% / 6%) replacing the three clay/ochre washes. The tokens sit on <html> (via :has)
+   so the safe-area block's html { background: var(--bg) } and its 120px edge mask resolve to
+   the same black. Light mode is untouched: every rule is scoped to dark.
+   ========================================================================== */
+:root[data-theme="dark"]:has(> body > :is(.app-onboarding-container, .app-login-container):not([style*="display: none"])) {
+  --header-solid: #050505; /* theme-color (syncThemeColorMeta) matches the page while no app header shows */
+  --border: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --surface-inset: rgba(0, 0, 0, 0.55);
+  --tone-ink: #000000;
+  --lg-fill: rgba(18, 18, 20, 0.72);
+  --lg-spec: rgba(255, 255, 255, 0.09);
+  --lg-ring-a: rgba(255, 255, 255, 0.20);
+  --lg-ring-b: rgba(255, 255, 255, 0.05);
+  --glass-solid: #121214;
+  --onb-aurora:
+    radial-gradient(80vmax 60vmax at 0% -8%, color-mix(in srgb, var(--accent-fill) 11%, transparent), transparent 70%),
+    radial-gradient(70vmax 60vmax at 100% 108%, color-mix(in srgb, var(--accent-fill) 6%, transparent), transparent 70%);
+  --onb-hero-halo: color-mix(in srgb, var(--accent-fill) 5%, transparent);
+  --onb-icon-tile: color-mix(in srgb, var(--accent-fill) 8%, transparent);
+}
+:root[data-theme="dark"]:has(> body > :is(.app-onboarding-container, .app-login-container):not([style*="display: none"])) #app-helper-container { --orb-hi: rgba(255, 255, 255, 0.10); --orb-lo: rgba(0, 0, 0, 0.4); }
+:root[data-theme="dark"]:has(> body > :is(.app-onboarding-container, .app-login-container):not([style*="display: none"])) #app-helper-container .tm-tav-orb {
+  background: radial-gradient(circle at 30% 22%, var(--orb-hi) 0%, transparent 44%), radial-gradient(circle at 50% 62%, color-mix(in srgb, var(--accent) 14%, transparent) 0%, color-mix(in srgb, var(--accent) 5%, transparent) 72%);
+  border-color: color-mix(in srgb, var(--accent) 16%, rgba(255, 255, 255, 0.10));
+  box-shadow: inset 0 1px 0 var(--orb-hi), 0 8px 22px color-mix(in srgb, var(--accent) 6%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):has(> body > :is(.app-onboarding-container, .app-login-container):not([style*="display: none"])) {
+    --header-solid: #050505;
+    --border: rgba(255, 255, 255, 0.10);
+    --border-strong: rgba(255, 255, 255, 0.18);
+    --surface-inset: rgba(0, 0, 0, 0.55);
+    --tone-ink: #000000;
+    --lg-fill: rgba(18, 18, 20, 0.72);
+    --lg-spec: rgba(255, 255, 255, 0.09);
+    --lg-ring-a: rgba(255, 255, 255, 0.20);
+    --lg-ring-b: rgba(255, 255, 255, 0.05);
+    --glass-solid: #121214;
+    --onb-aurora:
+      radial-gradient(80vmax 60vmax at 0% -8%, color-mix(in srgb, var(--accent-fill) 11%, transparent), transparent 70%),
+      radial-gradient(70vmax 60vmax at 100% 108%, color-mix(in srgb, var(--accent-fill) 6%, transparent), transparent 70%);
+    --onb-hero-halo: color-mix(in srgb, var(--accent-fill) 5%, transparent);
+    --onb-icon-tile: color-mix(in srgb, var(--accent-fill) 8%, transparent);
+  }
+  :root:not([data-theme="light"]):has(> body > :is(.app-onboarding-container, .app-login-container):not([style*="display: none"])) #app-helper-container { --orb-hi: rgba(255, 255, 255, 0.10); --orb-lo: rgba(0, 0, 0, 0.4); }
+  :root:not([data-theme="light"]):has(> body > :is(.app-onboarding-container, .app-login-container):not([style*="display: none"])) #app-helper-container .tm-tav-orb {
+    background: radial-gradient(circle at 30% 22%, var(--orb-hi) 0%, transparent 44%), radial-gradient(circle at 50% 62%, color-mix(in srgb, var(--accent) 14%, transparent) 0%, color-mix(in srgb, var(--accent) 5%, transparent) 72%);
+    border-color: color-mix(in srgb, var(--accent) 16%, rgba(255, 255, 255, 0.10));
+    box-shadow: inset 0 1px 0 var(--orb-hi), 0 8px 22px color-mix(in srgb, var(--accent) 6%, transparent);
+  }
+}
+
+/* ==========================================================================
+   Shared header bar (.app-hbar): [back] [title] [actions]. Used by the Settings panes, Team page,
+   Team class page and the mobile Auto-Book page (ui/header-bar.js). The title is centred on the
+   screen: header-bar.js measures the back button and actions and nudges the title right just enough
+   to clear them (margin-left), truncating with an ellipsis when still too long. Without JS the
+   middle column centres it. Sticky bars pin under the fixed app header and share its auto-hide
+   timeline (.app-hdr-hidden): main.app-body reserves --app-header-h as padding, so the natural spot
+   equals the stuck spot; the tint is layered over --bg so it is opaque while content scrolls beneath.
+   ========================================================================== */
+
+:is(#app-helper-container, .tm-ovl) .app-hbar {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 10px;
+  min-height: 52px; padding: 6px max(16px, var(--sa-l, 0px)) 6px max(16px, var(--sa-r, 0px)); box-sizing: border-box;
+  border-bottom: 1px solid var(--border); background: var(--surface-inset); flex-shrink: 0;
+  font-size: 16px;
+}
+
+:is(#app-helper-container, .tm-ovl) .app-hbar .app-hbar-back {
+  grid-column: 1; grid-row: 1; display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 38vw;
+  background: transparent; border: 0; padding: 8px 0; min-height: 44px; margin: 0;
+  color: var(--accent); font: inherit; font-size: 16px; font-weight: 600; text-decoration: none; cursor: pointer;
+}
+
+:is(#app-helper-container, .tm-ovl) .app-hbar .app-hbar-back svg { flex: 0 0 auto; width: 22px; height: 22px; }
+
+:is(#app-helper-container, .tm-ovl) .app-hbar .app-hbar-back-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+:is(#app-helper-container, .tm-ovl) .app-hbar .app-hbar-title {
+  grid-column: 2; grid-row: 1; justify-self: center; max-width: 100%; min-width: 0; margin: 0; padding: 0;
+  font-size: 16px; font-weight: 700; line-height: 1.2; color: var(--text); text-align: center;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+:is(#app-helper-container, .tm-ovl) .app-hbar.js-hbar .app-hbar-title { justify-self: start; }
+
+:is(#app-helper-container, .tm-ovl) .app-hbar .app-hbar-actions { grid-column: 3; grid-row: 1; display: flex; align-items: center; gap: 4px; min-width: 0; }
+
+:is(#app-helper-container, .tm-ovl) .app-hbar .app-hbar-actions:empty { display: none; }
+
+:is(#app-helper-container, .tm-ovl) .app-hbar .app-hbar-act {
+  position: relative; display: inline-flex; align-items: center; gap: 5px; min-height: 38px; padding: 0 8px;
+  border: 1px solid var(--border-strong); border-radius: 12px; background: transparent; color: var(--text);
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+
+:is(#app-helper-container, .tm-ovl) .app-hbar .app-hbar-act svg { width: 16px; height: 16px; flex: 0 0 auto; }
+
+:is(#app-helper-container, .tm-ovl) .app-hbar .app-hbar-badge { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; font-size: 11px; }
+/* Bars that only exist on mobile (the Settings pane bar and the Auto-Book page bar). */
+#app-helper-container .app-settings-mobile-header.app-hbar,
+#app-helper-container .ab-mobile-header.app-hbar { display: none !important; }
+@media (max-width: 768px) {
+  #app-helper-container .app-settings-layout.show-pane .app-settings-mobile-header.app-hbar,
+  #app-helper-container .ab-mobile-header.app-hbar { display: grid !important; margin: 0 0 12px; }
+  #app-helper-container .app-settings-mobile-header.app-hbar { margin: 0; }
+  
+:is(#app-helper-container, .tm-ovl) .app-hbar .app-hbar-act-txt { font-size: 14px; }
+  
+:is(#app-helper-container, .tm-ovl) .app-hbar-sticky {
+    position: sticky; top: 0; z-index: 300;
+    background: linear-gradient(var(--surface-inset), var(--surface-inset)), var(--bg);
+    transform: translate3d(0, 0, 0);
+    transition: transform var(--dur-slow-header) var(--ease-header);
+  }
+  /* Bars that live inside the padded main.app-body (Team page, Team invite, mobile Auto-Book) bleed out of it:
+     negative side margins cancel the body's 8px gutter and a negative top margin cancels the header gap, so the bar
+     spans the viewport and sits flush under .app-header exactly like the Settings pane bar (whose section already
+     carries -8px). Bottom margin is raised by the same amount so the content below keeps its position. */
+  #app-helper-container main.app-body .app-hbar-sticky.tm-dash-top,
+  #app-helper-container main.app-body .app-hbar-sticky.ab-mobile-header {
+    margin-left: calc(-1 * max(8px, var(--sa-l, 0px)));
+    margin-right: calc(-1 * max(8px, var(--sa-r, 0px)));
+    /* sticky insets are measured from the body's padding edge (61px), so pull the stuck spot up by the same gap */
+    top: calc(-1 * (var(--hdr-gap, 12px) + var(--hdr-extra, 8px)));
+  }
+  /* A sticky bar cannot leave its containing block, so the top bleed goes on the bar's parent, not on the bar. */
+  #app-helper-container main.app-body :is(.tm-team-page, .tm-invite, #app-panel-auto-book):has(> .app-hbar-sticky) {
+    margin-top: calc(-1 * (var(--hdr-gap, 12px) + var(--hdr-extra, 8px)));
+  }
+  #app-container.app-hdr-hidden .app-hbar-sticky { transform: translate3d(0, calc(-1 * var(--hdr-hide-d, var(--app-header-h, 41px))), 0); }
+  #app-container.app-tt-moving .app-hbar-sticky { will-change: transform; }
+  /* Team class page (modal-nav): back control shows arrow + label, the close cross is desktop only. */
+  .tm-ovl.app-page .tm-ovl-hbar { display: grid !important; padding: 6px max(16px, var(--sa-r, 0px)) 6px max(16px, var(--sa-l, 0px)) !important; }
+  .tm-ovl.app-page .tm-ovl-hbar::before, .tm-ovl.app-page .tm-ovl-hbar::after { content: none !important; display: none !important; }
+  .tm-ovl.app-page .app-ovl-header.tm-ovl-hbar .tm-ovl-close[data-nav-close][data-nav="back"] { flex: none; width: auto; height: auto; font-size: 16px !important; border-radius: 0; }
+  .tm-ovl.app-page .tm-ovl-hbar .tm-ovl-close::before { content: none !important; }
+  .tm-ovl.app-page .tm-ovl-hbar .app-hbar-back-txt { font-size: 16px; }
+  .tm-ovl.app-page .tm-ovl-hbar .tm-ovl-x { display: none; }
+  .tm-ovl.app-page .tm-ovl-hbar .tm-ovl-title { font-size: 16px; }
+}
+@media (min-width: 769px) {
+  .tm-ovl-hbar .app-hbar-arrow, .tm-ovl-hbar .app-hbar-back-txt { display: none; }
+  .tm-ovl-hbar { display: flex; }
+  .tm-ovl-hbar .tm-ovl-title { font-size: 19px; }
+}
+@media (max-width: 768px) and (prefers-reduced-motion: reduce) { 
+:is(#app-helper-container, .tm-ovl) .app-hbar-sticky { transition: none !important; } }
+#app-helper-container .tm-dash-top.app-hbar { margin: 0 0 8px; }
+@media (min-width: 769px) { #app-helper-container .tm-dash-top.app-hbar { background: transparent; border-bottom: 0; padding-left: 0; padding-right: 0; } }
+
+:is(#app-helper-container, .tm-ovl) .app-hbar.hbar-squeezed .app-hbar-title { visibility: hidden; }
+
+/* Home greeting bar: one type step up (--text-lg -> --text-xl, DESIGN.md 4.1 section-heading size)
+   with breathing room above and below. Beats the base .home-page-header / .app-tab-header padding. */
+#app-helper-container #app-panel-home > .app-tab-header.home-page-header {
+  padding-top: var(--space-3) !important;
+  padding-bottom: var(--space-3) !important;
+}
+#app-helper-container #app-panel-home .home-greeting-name { font-size: var(--text-xl); }
+#app-helper-container #app-panel-home .home-greeting-avatar { height: 36px; }
+
+/* Home stat grids (Credits & passes, Your class history) on ~375px phones: two columns stay (three
+   ~106px squares overlap the credit tile's detail lines), but the tiles stop being 163px squares of
+   mostly empty space and size to their content instead. */
+@media (max-width: 400px) {
+  .home-credits-tile,
+  .home-attendance-tile { aspect-ratio: auto; min-height: 104px; }
+}
+
+/* === BACK NAVIGATION (nav-controller.js / ui/edge-swipe-back.js) === */
+/* iOS standalone only: history never grows, so no horizontal overscroll swipe is wanted either. */
+html.nav-flat { overscroll-behavior-x: none; }
+/* The edge swipe already slid the page away (or a route change closed it): no second slide-out. */
+.app-page.app-page-instant { transition: none !important; }
+/* While dragging, the surface casts a shadow on what is beneath and ignores taps. */
+html.nav-swiping, html.nav-swiping body { overflow-x: hidden; }
+html.nav-swiping .app-settings-content,
+html.nav-swiping #app-panel-auto-book,
+html.nav-swiping .tm-team-page { pointer-events: none; background: var(--bg); }
+/* === END BACK NAVIGATION === */
+
+/* ==========================================================================
+   Safe-area-as-content (iOS 26+ installed PWA, status-bar-style black-translucent; DESIGN.md "Safe area").
+   main.js/safe-area.js sets html.sa-cover only when standalone AND env(safe-area-inset-top) > 0, so Safari
+   tabs, desktop, `default`-style installs and WebKit bug 301994 (inset reads 0) all keep the look above.
+   ONE band (body::before) of inset height: opaque header colour while the header shows, transparent while it
+   is hidden (.app-hdr-hidden -> html[data-hdr-hidden]) so content scrolls under the status bar. It is page
+   pixels, so it recolours with the theme instantly. The header carries the inset as its own top padding, so
+   --app-header-h (offsetHeight) already includes it and every consumer of that variable stays correct.
+   ========================================================================== */
+:root { --sa-top: 0px; }
+html.sa-cover { --sa-top: env(safe-area-inset-top, 0px); --sa-edge: 16px; --sa-edge-bar: 32px; }
+/* Hidden-header travel of every sticky bar (timetable date/filter bars, .app-hbar-sticky, Bookings/Teams bits):
+   the header slides away by its own height; a stuck bar travels that MINUS the inset and --sa-edge-bar, so it parks BELOW the notch
+   and the OS blur instead of under them. Defined on #app-container, where --app-header-h lives (a :root
+   definition would resolve the var() at :root). Outside sa-cover both are 0, so this equals the old distance. */
+#app-container { --hdr-hide-d: calc(var(--app-header-h, 41px) - var(--sa-top) - var(--sa-edge-bar)); }
+/* Header content row: ~24pt below the inset (8 header base + 16 edge) and 4pt under it (was 36 / 8 at --sa-edge 28). */
+html.sa-cover #app-helper-container .app-header { --hgym-pb0: 4px; }
+/* iOS 26+ frosts everything in a soft progressive blur under the status bar. Measured in the iOS 27 Simulator
+   (iPhone 18 Pro, 62pt inset): a 10pt bar centred 13pt below the inset is clearly blurred and washed out, centred
+   27pt below it is nearly crisp, 41pt below it is fully crisp. It is iOS's own effect (the blur is there with our
+   html::before and band removed), so we cannot disable it; --sa-edge (16px, was 28 then 8: header chip row centre ~36pt under the inset, crisp) pushes controls past most of it; --sa-edge-bar (32px) is where a PARKED sticky bar (timetable date bar, .app-hbar-sticky) stops while the header is hidden, so its content is fully below the blur. */
+:root { --sa-edge: 0px; --sa-edge-bar: 0px; }
+html.sa-cover body::before {
+  background: var(--header-solid-bg) !important; box-shadow: none !important;
+  opacity: 1; transition: opacity var(--dur-slow-header) var(--ease-header);
+}
+html.sa-cover body::after { content: none !important; display: none !important; }
+html.sa-cover[data-hdr-hidden] body::before { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { html.sa-cover body::before { transition: none; } }
+/* Controls sit below the OS edge blur (--sa-edge): toast text, onboarding Back + progress, login card, page headers. */
+html.sa-cover #app-helper-container .app-toast { padding-top: calc(var(--sa-top) + var(--sa-edge) + 8px); }
+html.sa-cover .app-onb-top { padding-top: calc(var(--sa-top) + var(--sa-edge) + 8px); }
+html.sa-cover .app-login-container .app-login-card { padding-top: calc(var(--sa-top) + var(--sa-edge) + 12px); }
+@media (max-width: 768px) {
+  html.sa-cover .app-modal.app-page .app-modal-header { padding-top: calc(var(--sa-top) + var(--sa-edge) + 8px) !important; }
+  html.sa-cover .app-ovl.app-page .app-ovl-header { padding-top: calc(var(--sa-top) + var(--sa-edge) + 8px) !important; }
+}
+/* iOS 27 sizes a black-translucent standalone window (innerHeight/dvh) to the screen MINUS the status bar
+   (812 of 874 measured in the Simulator) unless the DOCUMENT overflows it. <body> is #app-helper-container, a
+   fixed full-screen shell that scrolls inside, so the document never overflowed and the bottom 62pt stayed
+   dead. An in-flow 1px-taller-than-100lvh block on <html> (html is overflow: hidden, so nothing scrolls)
+   makes the window full height without touching the fixed shell's layout. */
+/* (Removed 2026-11-17) An in-flow html::before of 100lvh+1px made the document scrollable; on a real iOS 26+
+   device the window then opened scrolled by the inset (62pt): header under the notch, black strip at the bottom.
+   Never make the document overflow the window. */
+/* 100dvh can still resolve to the pre-inset height (812 of 874 measured in the iOS 27 Simulator), leaving a dead
+   strip at the bottom. These fixed roots already pin top/bottom with inset: 0, so let that size them. */
+html.sa-cover .app-onboarding-container, html.sa-cover .app-login-container { height: auto !important; }
+@media (max-width: 768px) {
+  html.sa-cover #app-helper-container { height: auto !important; }
+  html.sa-cover #app-helper-container .app-header { padding-top: calc(8px + var(--sa-top) + var(--sa-edge)); padding-bottom: var(--hgym-pb0, 4px); }
+}
+
+/* ===== Collapsible gym header (header-gyms.js / header-gyms-state.js) =====
+   Chip backgrounds fade to 25% after the first load or a pull-to-refresh; with 5+ gyms
+   (setting "Automatic") a progress ring replaces the strip and tapping it slides the chips out. */
+@property --hgym-x { syntax: '<length>'; inherits: true; initial-value: 0px; }
+#app-helper-container .app-header { --hgym-pb0: 0px; --hgym-x: 0px; }
+@media (max-width: 768px) { #app-helper-container .app-header { --hgym-pb0: 8px; } }
+
+/* Fade: only the chip's own background (wash + tint) moves; the logo plate, text, count and loading ring stay full strength. */
+.app-header-gym-badge[data-gym] { background: transparent !important; isolation: isolate; }
+.app-header-gym-badge[data-gym] > .app-hgb-bg { /* a real child: the chip's ::before is the 44px hit area and ::after the loading ring */
+  position: absolute; inset: 0; border-radius: inherit; z-index: -1; pointer-events: none;
+  background: linear-gradient(var(--gym-wash), var(--gym-wash)), color-mix(in srgb, var(--gym-tint) 8%, var(--surface));
+  opacity: 1; transition: opacity 2400ms var(--ease-in-out);
+}
+.app-hgym-strip.is-muted .app-header-gym-badge[data-gym] > .app-hgb-bg { opacity: 0.25; }
+
+.app-hgym-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.app-hgym[data-mode="plain"] { display: contents; }
+.app-hgym[data-mode="plain"] .app-hgym-ring { display: none; }
+.app-hgym[data-mode="collapsible"] { display: flex; align-items: center; position: static; flex: none; }
+
+.app-hgym-ring {
+  --hgym-track: color-mix(in srgb, var(--text) 14%, transparent);
+  position: relative; flex: none; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: none;
+  display: grid; place-items: center; cursor: pointer; z-index: 2; color: var(--text); font-family: inherit;
+  transition: transform 180ms var(--ease-out);
+}
+:root[data-theme="dark"] .app-hgym-ring { --hgym-track: color-mix(in srgb, var(--text) 16%, transparent); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .app-hgym-ring { --hgym-track: color-mix(in srgb, var(--text) 16%, transparent); } }
+.app-hgym-ring::before { content: ''; position: absolute; inset: -6px; border-radius: 50%; } /* 44px hit target */
+.app-hgym-ring[hidden] { display: none !important; }
+.app-hgym-ring:focus-visible { outline: 2px solid var(--nav-ink-active, var(--accent)); outline-offset: 2px; }
+.app-hgym-ring.is-absorb { transform: scale(1.06); }
+.app-hgym-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); pointer-events: none; overflow: visible; }
+/* Flat ring: 1.5px neutral track, accent arc that only fills; a blurred copy of the arc is the soft glow. */
+.app-hgym-track, .app-hgym-arc, .app-hgym-glow { fill: none; stroke-linecap: round; }
+.app-hgym-track { stroke: var(--hgym-track); stroke-width: 1.5; }
+.app-hgym-arc, .app-hgym-glow {
+  stroke: var(--accent); stroke-dasharray: 100; stroke-dashoffset: 100; opacity: 0;
+  transition: stroke-dashoffset 600ms var(--ease-out), opacity 600ms var(--ease-out);
+}
+.app-hgym-arc { stroke-width: 1.5; }
+.app-hgym-glow { stroke-width: 5.2; }
+.app-hgym-ring.is-active .app-hgym-arc { opacity: 1; }
+.app-hgym-ring.is-active .app-hgym-glow { opacity: 0.45; }
+.app-hgym-ring.is-settled .app-hgym-glow { opacity: 0; }
+/* Problem dot: 7px warning, flat 2px cut-out in the header colour, no glow. */
+.app-hgym-attn { position: absolute; top: 1px; right: 1px; width: 7px; height: 7px; border-radius: 50%; background: var(--warning, #d98a00); box-shadow: 0 0 0 2px var(--header-solid, var(--surface-inset)); }
+.app-hgym-attn[hidden] { display: none; }
+/* The dot marks a gym with a LOADING problem only; that chip's pill uses the existing .inactive warning colour. */
+
+/* Collapsible: the strip is an overlay over the title area, so expanding never reflows anything. */
+#app-helper-container .app-header.hgym-on { position: relative; }
+#app-helper-container .app-hgym[data-mode="collapsible"] .app-hgym-strip {
+  position: absolute; top: 0; bottom: 0; left: 0; right: calc(var(--hgym-pr, 12px) + 40px);
+  margin: 0; padding: var(--hgym-pt, 8px) 8px var(--hgym-pb0, 8px) var(--hgym-pl, 12px); box-sizing: border-box;
+  display: flex; align-items: center; justify-content: flex-start; gap: 8px; z-index: 1;
+  background: var(--header-solid-bg, var(--surface-inset));
+  visibility: hidden; pointer-events: none; clip-path: inset(0 0 0 100%);
+  transition: clip-path var(--dur-slow-header) var(--ease-header), visibility 0s linear var(--dur-slow-header);
+}
+#app-helper-container .app-hgym[data-mode="collapsible"].is-open .app-hgym-strip {
+  visibility: visible; pointer-events: auto; clip-path: inset(0 0 0 0);
+  transition: clip-path var(--dur-slow-header) var(--ease-header), visibility 0s;
+}
+#app-helper-container .app-hgym[data-mode="collapsible"] .app-hgym-strip > :first-child { margin-left: auto !important; }
+.app-hgym[data-mode="collapsible"] .app-hgym-strip > * { flex: none; }
+.app-hgym[data-mode="collapsible"] .app-header-gym-badge {
+  transform: translateX(var(--dx, 0px)) scale(0.55); opacity: 0;
+  transition: transform var(--dur-slow-header) var(--ease-header) calc(var(--i, 0) * 28ms), opacity var(--dur-slow-header) var(--ease-header) calc(var(--i, 0) * 28ms), filter var(--dur-base);
+}
+.app-hgym[data-mode="collapsible"].is-open .app-header-gym-badge { transform: none; opacity: 1; }
+.app-hgym.is-measuring .app-header-gym-badge { transform: none !important; transition: none !important; }
+.app-hgym.is-instant .app-hgym-strip, .app-hgym.is-instant .app-header-gym-badge { transition: none !important; }
+#app-helper-container .app-title-area, #app-helper-container .app-user-email { transition: opacity var(--dur-base) var(--ease-out); }
+#app-helper-container .app-header.hgym-open .app-title-area, #app-helper-container .app-header.hgym-open .app-user-email { opacity: 0; }
+
+/* Overflow: horizontal scroll, edge fade, and ~30% extra bar height. */
+#app-helper-container .app-hgym-strip.is-scrolling {
+  overflow-x: auto !important; overflow-y: hidden !important; scrollbar-width: none; overscroll-behavior-x: contain;
+  touch-action: pan-x; scroll-snap-type: x proximity; max-width: 100%;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+}
+.app-hgym-strip.is-scrolling::-webkit-scrollbar { display: none; }
+.app-hgym-strip.is-scrolling > * { scroll-snap-align: end; }
+/* The extra height is a padding transition on the header itself. measure() subtracts it, so content never moves. */
+#app-helper-container .app-header.hgym-on, #app-helper-container .app-header.hgym-tall {
+  padding-bottom: calc(var(--hgym-pb0) + var(--hgym-x)) !important;
+  transition: transform var(--dur-slow-header) var(--ease-header), --hgym-x var(--dur-slow) var(--ease-out);
+}
+#app-helper-container .app-header.hgym-tall { --hgym-x: var(--hgym-extra, 14px); }
+/* hgym-instant snaps the bar HEIGHT (padding / --hgym-x) shut when the header auto-hides, but must never
+   cancel the slide itself: header.transform keeps the shared hide/show timeline (ROOT CAUSE of the header
+   "just disappearing" whenever the gym strip was open at hide time). */
+#app-helper-container .app-header.hgym-instant { transition: transform var(--dur-slow-header) var(--ease-header) !important; }
+@media (prefers-reduced-motion: reduce) { #app-helper-container .app-header.hgym-instant { transition: none !important; } }
+#app-helper-container .app-header.hgym-tall:not(.hgym-tall-pinned) { margin-bottom: calc(-1 * var(--hgym-x)); z-index: 5; }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-header-gym-badge[data-gym] > .app-hgb-bg { transition-duration: var(--dur-base); }
+  .app-hgym[data-mode="collapsible"] .app-header-gym-badge { transform: none !important; transition: opacity var(--dur-base) !important; }
+  #app-helper-container .app-hgym[data-mode="collapsible"] .app-hgym-strip { clip-path: none; transition: opacity var(--dur-base), visibility 0s linear var(--dur-base); opacity: 0; }
+  #app-helper-container .app-hgym[data-mode="collapsible"].is-open .app-hgym-strip { opacity: 1; transition: opacity var(--dur-base), visibility 0s; }
+  .app-hgym-arc, .app-hgym-glow { transition: none; }
+  .app-hgym-ring.is-absorb { transform: none; }
+  #app-helper-container .app-header.hgym-on, #app-helper-container .app-header.hgym-tall { transition: none; }
+}
+
+/* =========================================================================================
+   BUTTON INTERACTION SYSTEM (DESIGN.md §6.5.1; ui/async-button.js). Appended last so it wins ties.
+   1. No tap flash anywhere: WebKit's grey tap rectangle is off globally, touch focus draws no ring
+      (keyboard keeps :focus-visible), taps never wait for double-tap zoom, labels never select.
+   2. Press: `.is-pressed` (set on pointerdown by installPressFeedback, held >=110 ms) or :active scales
+      the control in instantly and dims it; release springs back via a one-shot `.is-released` animation,
+      so no component's own `transition` list is overridden. `scale`/`translate` compose with transforms.
+   3. Async: runButton() adds .abtn-busy (spinner over a hidden, width-locked label), .abtn-success
+      (ring -> check morph), .abtn-error (gentle shake) and .abtn-settle (a re-rendered button arriving).
+   ========================================================================================= */
+html { -webkit-tap-highlight-color: transparent; }
+:where(button, [role="button"], a, label, summary, input, select, textarea, [tabindex]) { -webkit-tap-highlight-color: transparent; }
+:where(button, [role="button"], input[type="button"], input[type="submit"]) {
+  touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+:where(button, [role="button"], a, summary):focus:not(:focus-visible) { outline: none; }
+
+:root {
+  --press-scale: .96;
+  --press-scale-icon: .86;
+  --press-dim: brightness(.92);
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --dur-release: 420ms;
+}
+:root[data-theme="dark"] { --press-dim: brightness(.86); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --press-dim: brightness(.86); } }
+
+/* Tactile buttons: filled / outlined controls. */
+:is(.app-btn, .app-btn-primary, .app-btn-secondary, .app-btn-mini, .app-action-btn-mini, .app-btn-destructive,
+    .app-tt-seg, .app-mobile-seg.primary, .tm-btn, .app-native-btn, .home-widget-retry, .app-cal-feed-btn,
+    .app-cal-add-btn, .app-qty-btn, .ab-footer-btn, .ab-rail-btn, .app-segmented-btn, .cr-checkout-submit,
+    .set-gym-submit, .onb-submit-button, .app-share-btn, .home-favourite-cta, .fr-save, .fr-done):not(:disabled):not([aria-disabled="true"]):is(:active, .is-pressed) {
+  scale: var(--press-scale);
+  filter: var(--press-dim);
+}
+:is(.app-btn, .app-btn-primary, .app-btn-secondary, .app-btn-mini, .app-action-btn-mini, .app-btn-destructive,
+    .app-tt-seg, .app-mobile-seg.primary, .tm-btn, .app-native-btn, .home-widget-retry, .app-cal-feed-btn,
+    .app-cal-add-btn, .app-qty-btn, .ab-footer-btn, .ab-rail-btn, .app-segmented-btn, .cr-checkout-submit,
+    .set-gym-submit, .onb-submit-button, .app-share-btn, .home-favourite-cta, .fr-save, .fr-done).is-released:not(.abtn-error):not(.confirming) {
+  animation: abtn-release var(--dur-release) var(--ease-spring);
+}
+@keyframes abtn-release { from { scale: var(--press-scale); filter: var(--press-dim); } to { scale: 1; filter: none; } }
+
+/* Icon / glyph buttons: the GLYPH reacts, never the (invisible, 44px) hit box, so nothing flashes. */
+#app-helper-container .app-mobile-seg.ellipsis:active,
+#app-helper-container .app-mobile-seg.ellipsis.is-pressed { background: transparent !important; filter: none; }
+:is(.app-mobile-seg.ellipsis, .app-mobile-ellipsis, .app-tt-seg-more, .app-modal-close-btn, .app-tab-refresh-btn, .app-hbar-back, .tm-icon-btn) > :is(svg, .ab-ico) {
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+:is(.app-mobile-seg.ellipsis, .app-mobile-ellipsis, .app-modal-close-btn, .app-tab-refresh-btn, .app-hbar-back, .tm-icon-btn):is(:active, .is-pressed) > :is(svg, .ab-ico) {
+  scale: var(--press-scale-icon); opacity: .55;
+}
+:is(.app-mobile-seg.ellipsis, .app-mobile-ellipsis, .app-modal-close-btn, .app-tab-refresh-btn, .app-hbar-back, .tm-icon-btn).is-released > :is(svg, .ab-ico) {
+  animation: abtn-release-icon var(--dur-release) var(--ease-spring);
+}
+@keyframes abtn-release-icon { from { scale: var(--press-scale-icon); } to { scale: 1; } }
+.app-mobile-ellipsis:active, .app-mobile-ellipsis.is-pressed { background: var(--surface-2); }
+
+/* Async states. The label is hidden by an inline colour (runButton), its element children here. */
+.abtn-busy, .abtn-success { cursor: progress; }
+.abtn-busy > :not(.abtn-ind), .abtn-success > :not(.abtn-ind) { opacity: 0 !important; transition: opacity var(--dur-fast) linear; }
+.abtn-ind {
+  position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center;
+  pointer-events: none; color: var(--abtn-fg, currentColor); opacity: 1 !important;
+}
+.abtn-ind svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; overflow: visible; }
+.abtn-busy .abtn-ind { animation: abtn-ind-in var(--dur-base) var(--ease-out) both; }
+.abtn-ring { stroke-dasharray: 38 60; transform-box: fill-box; transform-origin: center; animation: abtn-spin .75s linear infinite; }
+.abtn-check { stroke-dasharray: 17; stroke-dashoffset: 17; opacity: 0; }
+.abtn-success .abtn-ring { animation: abtn-ring-out var(--dur-base) var(--ease-out) forwards; }
+.abtn-success .abtn-check { opacity: 1; animation: abtn-draw 300ms var(--ease-out) 80ms forwards; }
+.abtn-success { animation: abtn-pop 380ms var(--ease-spring); }
+.abtn-error { animation: abtn-shake 420ms cubic-bezier(.36, .07, .19, .97); }
+.abtn-settle { animation: abtn-settle 400ms var(--ease-spring); }
+@keyframes abtn-spin { to { transform: rotate(360deg); } }
+@keyframes abtn-ind-in { from { opacity: 0; scale: .6; } to { opacity: 1; scale: 1; } }
+@keyframes abtn-ring-out { to { opacity: 0; transform: scale(.5); } }
+@keyframes abtn-draw { to { stroke-dashoffset: 0; } }
+@keyframes abtn-pop { 0% { scale: 1; } 40% { scale: 1.05; } 100% { scale: 1; } }
+@keyframes abtn-shake { 0%, 100% { translate: 0 0; } 20% { translate: -5px 0; } 40% { translate: 4px 0; } 60% { translate: -3px 0; } 80% { translate: 2px 0; } }
+@keyframes abtn-settle { from { scale: .92; opacity: .4; } to { scale: 1; opacity: 1; } }
+.abtn-live { position: absolute !important; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+/* Reduced motion: state changes stay (dim, spinner, check), movement goes (no scale, shake, pop). */
+@media (prefers-reduced-motion: reduce) {
+  :is(button, [role="button"], a).is-pressed, :is(button, [role="button"], a):active { scale: none !important; }
+  :is(button, [role="button"], a).is-pressed > *, :is(button, [role="button"], a):active > * { scale: none !important; }
+  .is-released, .is-released > *, .abtn-success, .abtn-error, .abtn-settle, .abtn-busy .abtn-ind { animation: none !important; }
+  .abtn-success .abtn-ring { animation: none !important; opacity: 0; }
+  .abtn-success .abtn-check { animation: none !important; stroke-dashoffset: 0; }
+}
+/* A busy/confirmed button keeps full strength even when its flow disabled it (the spinner is the state). */
+:is(#app-helper-container, body) :is(button, a):is(.abtn-busy, .abtn-success):disabled { opacity: 1 !important; filter: none !important; }

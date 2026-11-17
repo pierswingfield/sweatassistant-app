@@ -365,9 +365,11 @@ function buildGenericTest() {
   return { title: `${appName}: Test Notification`, body: `Your ${appName} server is ready to notify you!` };
 }
 
-async function sendGenericTest(userId) {
+// `onlyEndpoint` confines the confirmation to the device that just subscribed.
+// The fixed tag makes any repeat collapse into one notification on the device.
+async function sendGenericTest(userId, { onlyEndpoint = null } = {}) {
   const built = buildGenericTest();
-  await pushService.sendNotification(userId, built.title, built.body, { type: 'test' });
+  await pushService.sendNotification(userId, built.title, built.body, { type: 'test', tag: 'push-confirmation' }, { onlyEndpoint });
 }
 
 async function sendSample(userId, type) {

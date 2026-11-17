@@ -79,6 +79,8 @@ const PATTERNS = {
  */
 export function haptic(type = 'light') {
   if (typeof window === 'undefined') return;
+  // Lets an in-flight button (async-button.js) learn the outcome the flow already signalled.
+  try { window.dispatchEvent(new CustomEvent('app-haptic', { detail: { type } })); } catch (_) {}
 
   // 1. Vibration API (standard on Android / supported browsers)
   if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {

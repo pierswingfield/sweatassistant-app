@@ -1,4 +1,5 @@
 // A Team link is an intent to view an invitation, never permission to join.
+import { nav } from './nav-controller.js';
 import { COPY } from './copy.js';
 import { parseTeamsPath, isInviteToken, stashPendingInvite, peekPendingInvite } from './ui/teams-model.js';
 
@@ -80,9 +81,9 @@ export async function restoreTeamInvite() {
       return;
     }
     url.searchParams.delete('teamContinuation');
-    history.replaceState(history.state, '', url.pathname + url.search + url.hash);
+    nav.replaceUrl(url.pathname + url.search + url.hash);
     if (inviteToken && stashPendingInvite(storage(), inviteToken)) {
-      history.replaceState(history.state, '', `/t/${inviteToken}`);
+      nav.replaceUrl(`/t/${inviteToken}`);
     }
     // Old installed launch URLs are ordinary launches; they must not erase a newer invite.
     try {

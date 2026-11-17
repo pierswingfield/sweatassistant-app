@@ -6,7 +6,7 @@ import { showToast, cache, userSettings, refreshUserData, debugConsole } from '.
 import { getClassReleaseTime, noSept, zoneFor, formatInZone, formatOpensIn } from '../lib';
 import { DateTime } from 'luxon';
 import { renderStudioFloorPlan } from './spotmap';
-import { instructorInlineHtml, instructorNameLengthClass, cleanClassName, icon, disciplineTag, trimLocation, seatNoun, pulseIcon, renderGymRail, equalizeDiscTagWidths, observeLocationWrap, wireRailToggle, escapeHtml, gymBrand, gymChip } from './cards';
+import { instructorInlineHtml, instructorNameLengthClass, cleanClassName, icon, disciplineTag, trimLocation, seatNoun, pulseIcon, renderGymRail, equalizeDiscTagWidths, observeLocationWrap, wireRailToggle, reconcileCards, escapeHtml, gymBrand, gymChip } from './cards';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { ensureLiveStatusLine, setLiveStatusText } from './status-line.js';
 import { instructorAvatar } from './tooltips.js';
@@ -14,6 +14,7 @@ import { openBookingModal, renderTimetableGrid, pickStudioPrefs, metadata, loadM
 import { openPage as openNavPage, closePage as closeNavPage } from './modal-nav.js';
 import { applyBookingChrome, bookingContextEl } from './booking-chrome.js';
 import { bookingQuantityOptions, maxAttendeesPerClass } from './booking-limits.js';
+import { asyncHandler } from './async-button.js';
 
 let countdownInterval = null;
 let sseEventSource = null;
@@ -197,7 +198,7 @@ function renderAutoBookControls() {
   pauseBtn.innerHTML = isPaused
     ? `${icon('play', 14)}<span>${COPY.autoBook.resume}</span>`
     : `${icon('pause', 14)}<span>${COPY.autoBook.pause}</span>`;
-  pauseBtn.addEventListener('click', async () => {
+  pauseBtn.addEventListener('click', asyncHandler(async () => {
     pauseBtn.disabled = true;
     try {
       const newPaused = !userSettings.autoBookPaused;
@@ -212,7 +213,7 @@ function renderAutoBookControls() {
     } finally {
       pauseBtn.disabled = false;
     }
-  });
+  }));
 
   bar.appendChild(pauseBtn);
 
@@ -221,7 +222,7 @@ function renderAutoBookControls() {
     const simBtn = document.createElement('button');
     simBtn.className = 'ab-footer-btn';
     simBtn.innerHTML = `${icon('bolt', 14)}<span>${COPY.autoBook.simulateRelease}</span>`;
-    simBtn.addEventListener('click', async () => {
+    simBtn.addEventListener('click', asyncHandler(async () => {
       simBtn.disabled = true;
       simBtn.innerHTML = `${icon('bolt', 14)}<span>${COPY.autoBook.firing}</span>`;
       try {
@@ -235,7 +236,7 @@ function renderAutoBookControls() {
         simBtn.disabled = false;
         simBtn.innerHTML = `${icon('bolt', 14)}<span>${COPY.autoBook.simulateRelease}</span>`;
       }
-    });
+    }));
     bar.appendChild(simBtn);
   }
 }
@@ -314,7 +315,8 @@ function renderQueue(queue) {
   } catch (e) { sig = null; }
   if (sig && container.__abSig === sig && container.childElementCount > 0) return;
   container.__abSig = sig;
-  container.innerHTML = '';
+  if (!container.querySelector(':scope > .ab-card')) container.innerHTML = '';
+  const builtCards = [];
   sorted.forEach(q => {
     const card = document.createElement('div');
     card.className = 'app-autobook-card ab-card';
@@ -399,8 +401,9 @@ function renderQueue(queue) {
       openAutoBookEditModal(q);
     });
 
-    container.appendChild(card);
+    builtCards.push(card);
   });
+  reconcileCards(container, builtCards);
 
   equalizeDiscTagWidths(container);
   observeLocationWrap(container);
@@ -416,7 +419,7 @@ function wireCancelAutoBook(btn, card, q) {
   const labelSpan = btn.querySelector('span');
   let confirmState = false;
 
-  btn.addEventListener('click', async () => {
+  btn.addEventListener('click', asyncHandler(async () => {
     if (!confirmState) {
       confirmState = true;
       labelSpan.textContent = COPY.autoBook.confirm;
@@ -444,7 +447,7 @@ function wireCancelAutoBook(btn, card, q) {
       card.querySelectorAll('button').forEach(b => b.disabled = false);
       labelSpan.textContent = COPY.bookings.cancel;
     }
-  });
+  }));
 }
 
 // Edit modal for updating an existing auto-book queue entry's configuration

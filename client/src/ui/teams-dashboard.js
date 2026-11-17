@@ -11,12 +11,13 @@
 // (the widget-registry rule, §5.3).
 
 import { DateTime } from 'luxon';
+import { COPY } from '../copy.js';
 import { escapeHtml, gymSquareChip, gymBrand } from './cards.js';
 import { formatInZone, deviceZone } from '../lib.js';
 import { getAllLinkedGyms, getGymShortName } from '../gym-context.js';
 import { renderHomeFavouriteCard, isDisabledLinkedGym } from './home.js';
 import {
-  T, fmt, avatarHtml, avatarStackHtml, gymCircleHtml, gymStackHtml, ICONS, captainBadgeHtml, openTeamsPage,
+  T, fmt, avatarHtml, avatarStackHtml, gymStackHtml, ICONS, captainBadgeHtml, openTeamsPage,
 } from './teams-ui.js';
 import {
   sortMembers, paginate, readSortChoice, writeSortChoice, SORT_MODES, MEMBERS_PER_PAGE, relativeTime,
@@ -100,7 +101,7 @@ function workoutRow(c, byRef, now, { open = false } = {}) {
       <span class="tm-workout-gym">${gymSquareChip(c.gymId)}</span>
       <span class="tm-workout-time">${timeHtml(c)}</span>
       <button type="button" class="tm-workout-name" data-workout-action${completed ? ` aria-expanded="${open}"` : ''}>${escapeHtml(c.className)}</button>
-      <span class="tm-workout-inst">${escapeHtml(c.instructorName || '')}</span>
+      <span class="tm-workout-inst"${(c.instructorName || '').length > 14 ? ` title="${escapeHtml(c.instructorName)}"` : ''}>${escapeHtml(truncateName(c.instructorName || ''))}</span>
       <span class="tm-workout-mark" aria-hidden="true">${completed ? ICONS.check : ICONS.chevron}</span>
     </div>
     <div class="tm-workout-details"${completed && !open ? ' inert' : ''}><div class="tm-workout-details-inner">
@@ -149,7 +150,7 @@ function progressRingHtml(fraction, label, aria) {
 export async function openTeamClass(c, byRef = new Map()) {
   let alive = true;
   let update = null;
-  const page = openTeamsPage({ title: c.className, onClose: () => { alive = false; if (update) window.removeEventListener('app-timetable-rendered', update); } });
+  const page = openTeamsPage({ title: c.className, backLabel: COPY.static.back, onClose: () => { alive = false; if (update) window.removeEventListener('app-timetable-rendered', update); } });
   page.body.innerHTML = `<div class="tm-loading" role="status">${escapeHtml(T.loading)}</div>`;
   const [tt, bookings] = await Promise.all([import('./timetable.js'), import('./bookings.js')]);
   const paint = () => {
@@ -196,6 +197,9 @@ export async function openTeamClass(c, byRef = new Map()) {
   tt.ensureScheduleLoaded();
 }
 
+/** Whole name up to 14 characters, then an ellipsis. */
+const truncateName = (n) => (n.length > 14 ? `${n.slice(0, 14)}…` : n);
+
 /** @returns {boolean} false when there is nothing today. */
 export function renderTodaysWorkouts(section, data, now) {
   const rows = todaysWorkouts(data.classes, { now });
@@ -207,7 +211,7 @@ export function renderTodaysWorkouts(section, data, now) {
   const row = ({ cls: c, status, progress, minutesLeft }) => {
     const done = status === 'done'; const live = status === 'inProgress'; const open = expanded.has(c.key);
     const title = `${escapeHtml(c.className)}${c.instructorName ? ` · ${escapeHtml(c.instructorName)}` : ''}`;
-    const lead = done ? gymCircleHtml(c.gymId, { size: 'lg', badge: `<span class="tm-tw-check" aria-hidden="true">${ICONS.check}</span>` }) : live ? progressRingHtml(progress, fmt(T.minLeft, { n: minutesLeft }), fmt(T.minLeftAria, { n: minutesLeft })) : gymCircleHtml(c.gymId, { size: 'lg' });
+    const lead = done ? `${gymSquareChip(c.gymId)}<span class="tm-tw-check" aria-hidden="true">${ICONS.check}</span>` : live ? progressRingHtml(progress, fmt(T.minLeft, { n: minutesLeft }), fmt(T.minLeftAria, { n: minutesLeft })) : gymSquareChip(c.gymId);
     return `<li class="tm-tw${done ? ' is-done' : ''}${live ? ' is-live' : ''}${open ? ' is-expanded' : ''}" data-workout="${escapeHtml(c.key)}">
       <span class="tm-tw-lead">${lead}</span><span class="tm-tw-time">${timeHtml(c)}</span>
       <div class="tm-grow tm-min0">${live ? `<span class="tm-tw-kicker"><span class="tm-live-dot" aria-hidden="true"></span>${escapeHtml(T.inClass)} <span class="tm-muted">${escapeHtml(timeOf(c))}–${escapeHtml(endTimeOf(c))}</span></span>` : ''}

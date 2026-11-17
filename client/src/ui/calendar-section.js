@@ -16,6 +16,7 @@ import { showToast, getIsOffline } from '../main';
 import { escapeHtml, icon } from './cards';
 import { COPY, appCopy, formatCopyText } from '../copy.js';
 import { openPage as openNavPage, closePage as closeNavPage } from './modal-nav.js';
+import { asyncHandler } from './async-button.js';
 
 // Simplified inline marks (no hotlinking). They approximate the Apple and Google
 // Calendar app icons; they are not pixel-faithful reproductions.
@@ -175,7 +176,7 @@ export async function renderCalendarSection(targetContainer = null, { context = 
   });
 
   container.querySelectorAll('[data-calendar-action]').forEach((button) => {
-    button.addEventListener('click', async () => {
+    button.addEventListener('click', asyncHandler(async () => {
       const action = button.dataset.calendarAction;
       const links = status.links || {};
 
@@ -211,7 +212,7 @@ export async function renderCalendarSection(targetContainer = null, { context = 
         await rerender();
         notifyActionComplete();
       }
-    });
+    }));
   });
 }
 

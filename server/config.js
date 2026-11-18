@@ -67,7 +67,18 @@ const cspReportOnly = /^(1|true|yes)$/i.test(String(process.env.CSP_REPORT_ONLY 
 // Where /_a/go sends the landing-page CTA. Fixed here, never taken from request input.
 const landingCtaTarget = 'https://app.dibs.fit';
 
+// Account email (server/email.js). The sender is overridable; the default is the
+// verified Resend domain. Links in mail point at the PWA's public origin: https on
+// the real host, and the Vite dev server when running on a bare localhost.
+const emailFrom = (process.env.EMAIL_FROM || '').trim() || `${process.env.APP_NAME || 'Dibs'} <hello@mail.dibs.fit>`;
+const emailReplyTo = process.env.EMAIL_REPLY_TO === undefined ? 'hello@dibs.fit' : process.env.EMAIL_REPLY_TO.trim(); // empty string disables
+const publicOrigin = (process.env.PUBLIC_ORIGIN || '').trim().replace(/\/+$/, '')
+  || (publicHost === 'localhost' ? 'http://localhost:5173' : `https://${publicHost}`);
+
 module.exports = {
+  emailFrom,
+  emailReplyTo,
+  publicOrigin,
   landingCtaTarget,
   appName: process.env.APP_NAME || 'Dibs',
   publicHost,

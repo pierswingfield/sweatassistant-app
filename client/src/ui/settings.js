@@ -1772,6 +1772,103 @@ export function openLinkGymModal(gymId, existing, addable = []) {
   });
 }
 
+// Settings > Account: the account's own email, and (verify, don't block) an Unverified flag on the
+// menu row, the card heading and a resend button. Verified or unknown (older server) shows neither.
+function renderAccountEmail() {
+  const unverified = currentUser?.emailVerified === false;
+  const value = document.getElementById('app-account-email-value');
+  if (value) value.textContent = currentUser?.email || '';
+  const note = document.getElementById('app-account-email-note');
+  if (note) note.innerHTML = formatCopyText(COPY.static.emailUnverifiedNote, { appName: escapeHtml(appConfig.appName) });
+  for (const id of ['app-account-email-badge', 'app-account-menu-badge', 'app-account-email-note', 'app-account-email-resend']) {
+    const el = document.getElementById(id);
+    if (el) el.hidden = !unverified;
+  }
+}
+
+// Pending change-of-address hint (the user's own new address) with Cancel, shown while the link is live.
+async function renderPendingEmailChange() {
+  const wrap = document.getElementById('app-account-email-pending');
+  if (!wrap) return;
+  let pending = null;
+  try { pending = await api.pendingEmailChange(); } catch (_) { /* hint is optional */ }
+  wrap.hidden = !pending;
+  const text = document.getElementById('app-account-email-pending-text');
+  if (text) text.textContent = pending ? formatCopyText(COPY.static.emailPendingWaiting, { address: pending.newEmail }) : '';
+}
+
+async function resendVerification(button) {
+  button.disabled = true;
+  const label = button.textContent;
+  button.textContent = COPY.settings.verificationSending;
+  try {
+    const r = await api.resendVerificationEmail();
+    if (r.alreadyVerified) {
+      if (currentUser) currentUser.emailVerified = true;
+      renderAccountEmail();
+      showToast(COPY.settings.verificationAlready, 'success');
+    } else {
+      showToast(r.sent ? COPY.settings.verificationSent : COPY.settings.verificationNotSent, r.sent ? 'success' : 'warning');
+    }
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    button.disabled = false;
+    button.textContent = label;
+  }
+}
+
+// Change email: re-auth with the current password; the server answers the same whether or not the
+// address is free, so the only result shown is "check your new inbox".
+function openChangeEmailModal() {
+  const { body, title, open, close } = gymModal();
+  title.textContent = COPY.settings.changeEmail;
+  body.innerHTML = `
+    <p class="app-card-desc set-gyms-desc">${escapeHtml(COPY.settings.changeEmailDescription)}</p>
+    <label class="app-setting-label set-gym-label" for="app-ce-email"><span>${escapeHtml(COPY.settings.newEmailLabel)}</span></label>
+    <input id="app-ce-email" type="email" class="app-input set-gym-select" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false">
+    <label class="app-setting-label set-gym-label" for="app-ce-password"><span>${escapeHtml(COPY.settings.changeEmailPasswordLabel)}</span></label>
+    <input id="app-ce-password" type="password" class="app-input set-gym-password" autocomplete="current-password">
+    <div id="app-ce-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;" role="alert"></div>
+    <div id="app-ce-done" class="app-card-desc" style="display:none;margin-bottom:10px;" role="status"></div>
+    <button class="app-btn primary set-gym-submit" id="app-ce-submit">${escapeHtml(COPY.settings.changeEmailSubmit)}</button>
+  `;
+  let sent = false;
+  open({
+    id: 'account-email',
+    canClose: () => sent || !['#app-ce-email', '#app-ce-password']
+      .some((s) => body.querySelector(s)?.value) || confirm(COPY.settings.discardUnsaved),
+  });
+  const errEl = body.querySelector('#app-ce-error');
+  const doneEl = body.querySelector('#app-ce-done');
+  const submit = body.querySelector('#app-ce-submit');
+  const fail = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; return failResult(msg); };
+
+  submit.onclick = asyncHandler(async () => {
+    errEl.style.display = 'none';
+    const email = body.querySelector('#app-ce-email').value.trim();
+    const password = body.querySelector('#app-ce-password').value;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail(COPY.settings.changeEmailInvalid);
+    if (!password) return fail(COPY.settings.changeEmailPasswordRequired);
+    submit.disabled = true;
+    submit.textContent = COPY.settings.changeEmailSending;
+    try {
+      await api.requestEmailChange(email, password);
+      sent = true;
+      renderPendingEmailChange();
+      body.querySelector('#app-ce-password').value = '';
+      doneEl.textContent = COPY.settings.changeEmailSent;
+      doneEl.style.display = 'block';
+      submit.style.display = 'none';
+      return okResult();
+    } catch (err) {
+      submit.disabled = false;
+      submit.textContent = COPY.settings.changeEmailSubmit;
+      return fail(err.message);
+    }
+  });
+}
+
 function openAccountPasswordModal() {
   const { body, title, open, close } = gymModal();
   title.textContent = COPY.settings.changeAccountPassword;
@@ -2234,6 +2331,31 @@ function setupSettingsListeners() {
   if (accountNameBtn && !accountNameBtn.dataset.listener) {
     accountNameBtn.dataset.listener = 'true';
     accountNameBtn.addEventListener('click', () => saveAccountName(accountNameBtn));
+  }
+
+  renderAccountEmail();
+  const resendBtn = document.getElementById('app-account-email-resend');
+  if (resendBtn && !resendBtn.dataset.listener) {
+    resendBtn.dataset.listener = 'true';
+    resendBtn.addEventListener('click', () => resendVerification(resendBtn));
+  }
+
+  renderPendingEmailChange();
+  const cancelPendingBtn = document.getElementById('app-account-email-pending-cancel');
+  if (cancelPendingBtn && !cancelPendingBtn.dataset.listener) {
+    cancelPendingBtn.dataset.listener = 'true';
+    cancelPendingBtn.addEventListener('click', async () => {
+      cancelPendingBtn.disabled = true;
+      try { await api.cancelPendingEmailChange(); } catch (err) { showToast(err.message, 'error'); }
+      cancelPendingBtn.disabled = false;
+      renderPendingEmailChange();
+    });
+  }
+
+  const changeEmailBtn = document.getElementById('app-account-email-change');
+  if (changeEmailBtn && !changeEmailBtn.dataset.listener) {
+    changeEmailBtn.dataset.listener = 'true';
+    changeEmailBtn.addEventListener('click', openChangeEmailModal);
   }
 
   const accountPasswordBtn = document.getElementById('app-account-password-btn');

@@ -38,6 +38,9 @@ db.exec(`
     -- and account deletion. A token whose tv claim differs is rejected. 0 = never
     -- bumped, in which case pre-existing tokens with no tv claim stay valid.
     token_version INTEGER NOT NULL DEFAULT 0,
+    -- Account email verification ("verify, don't block"): NULL = unverified. Every row that
+    -- existed when the column was added is stamped verified by the one-time migration below.
+    email_verified_at TEXT,
     -- Demo fixture account (server/scripts/seed-team-fixtures.js): looks like a member
     -- but the server never contacts a gym for it and nobody can log in as it.
     is_fixture INTEGER NOT NULL DEFAULT 0
@@ -586,11 +589,69 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_team_requests_user ON team_join_requests(user_id, created_at);
   -- teams.js expireStale(): WHERE status = 'pending' AND created_at < ? on every Teams read.
   CREATE INDEX IF NOT EXISTS idx_team_requests_status_created ON team_join_requests(status, created_at);
+
+  -- One-time, emailed account links (verify / reset / email_change). Read and written ONLY by
+  -- server/account-email-tokens.js. token_hash is the SHA-256 of the raw token, which is never
+  -- stored. used_at is set on consumption AND when a newer token of the same purpose supersedes
+  -- this one; created_at is never rewritten, so it also feeds the resend limit.
+  CREATE TABLE IF NOT EXISTS account_email_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    purpose TEXT NOT NULL CHECK (purpose IN ('verify', 'reset', 'email_change', 'not_me')),
+    token_hash TEXT NOT NULL UNIQUE,
+    new_email TEXT,
+    expires_at INTEGER NOT NULL,
+    used_at INTEGER,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_account_email_tokens_user ON account_email_tokens(user_id, purpose, created_at);
+
+  -- "I did not create this account" requests. Written/read ONLY via server/account-deletion-requests.js.
+  -- email is kept until the admin marks the request done (then it is masked: the promise is to delete
+  -- the address). user_id goes NULL when the account is deleted. No IP is stored.
+  CREATE TABLE IF NOT EXISTS account_deletion_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    email TEXT NOT NULL,
+    source TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done')),
+    created_at TEXT NOT NULL,
+    done_at TEXT,
+    github_issue_number INTEGER,
+    github_issue_url TEXT,
+    github_error TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_account_deletion_requests_status ON account_deletion_requests(status, id);
 `);
+
+// A dev DB made before 'not_me' existed has the old CHECK: rebuild that table once (nothing is deployed with it).
+{
+  const t = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'account_email_tokens'").get();
+  if (t && !t.sql.includes("'not_me'")) {
+    db.exec(`ALTER TABLE account_email_tokens RENAME TO account_email_tokens_old;
+      CREATE TABLE account_email_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
+        purpose TEXT NOT NULL CHECK (purpose IN ('verify', 'reset', 'email_change', 'not_me')),
+        token_hash TEXT NOT NULL UNIQUE, new_email TEXT, expires_at INTEGER NOT NULL, used_at INTEGER, created_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE);
+      INSERT INTO account_email_tokens SELECT id, user_id, purpose, token_hash, new_email, expires_at, used_at, created_at FROM account_email_tokens_old;
+      DROP TABLE account_email_tokens_old;
+      CREATE INDEX IF NOT EXISTS idx_account_email_tokens_user ON account_email_tokens(user_id, purpose, created_at);`);
+  }
+}
 
 // token_version arrived after prod's first DB: add it in place (PRAGMA-guarded, safe to re-run).
 if (!db.prepare('PRAGMA table_info(users)').all().some((col) => col.name === 'token_version')) {
   db.exec('ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0');
+}
+// email_verified_at: adding the column stamps EVERY existing account verified (they pre-date email
+// verification and must not suddenly read as unverified). Only runs when the column is absent, so
+// accounts created afterwards start NULL. A fresh DB has the column from CREATE TABLE and no rows.
+if (!db.prepare('PRAGMA table_info(users)').all().some((col) => col.name === 'email_verified_at')) {
+  db.exec('ALTER TABLE users ADD COLUMN email_verified_at TEXT');
+  db.exec("UPDATE users SET email_verified_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')");
 }
 if (!db.prepare('PRAGMA table_info(users)').all().some((col) => col.name === 'is_fixture')) {
   db.exec('ALTER TABLE users ADD COLUMN is_fixture INTEGER NOT NULL DEFAULT 0');
@@ -2709,10 +2770,14 @@ module.exports = {
   // scrypt with a per-user random salt. Stored as `scrypt$N$r$p$salt$hash`, all
   // hex, so the work factor travels with the hash and can be raised later without
   // invalidating existing ones. Verification is constant-time.
-  setAccountPassword(userId, password, { revokeTokens = true } = {}) {
-    if (!password || String(password).length < 8) {
+  /** The ONE password rule (signup, change, reset). Throws the user-facing message. */
+  validateAccountPassword(password) {
+    if (typeof password !== 'string' || password.length < 8) {
       throw new Error('Password must be at least 8 characters.');
     }
+  },
+  setAccountPassword(userId, password, { revokeTokens = true } = {}) {
+    this.validateAccountPassword(password);
     db.prepare('UPDATE users SET password_hash = ?, token_version = token_version + ? WHERE id = ?').run(hashPassword(password), revokeTokens ? 1 : 0, userId);
     // ^ every password change (self-service, admin reset) revokes all previously issued JWTs.
   },
@@ -2731,6 +2796,36 @@ module.exports = {
   bumpTokenVersion(userId) {
     db.prepare('UPDATE users SET token_version = token_version + 1 WHERE id = ?').run(userId);
     return this.getTokenVersion(userId);
+  },
+
+  // --- Account email verification (verify, don't block) ---
+  /** ISO time the account's email was verified, or null (unverified / unknown user). */
+  getEmailVerifiedAt(userId) {
+    const row = db.prepare('SELECT email_verified_at FROM users WHERE id = ?').get(userId);
+    return row ? row.email_verified_at : null;
+  },
+  /** Stamp the email verified (idempotent: the first stamp wins). */
+  markEmailVerified(userId) {
+    db.prepare("UPDATE users SET email_verified_at = COALESCE(email_verified_at, ?) WHERE id = ?").run(new Date().toISOString(), userId);
+  },
+
+  /**
+   * Change the account's Dibs email (users.email ONLY; user_gyms.gym_email is a different
+   * identity, D4/D5, and is never touched). Stamps it verified (the mailbox was just proved)
+   * and revokes every older JWT. Returns { oldEmail } or null when the address is taken
+   * (or the account is gone). `email` must already be normalised.
+   */
+  changeAccountEmail(userId, email) {
+    return db.transaction(() => {
+      const row = db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
+      if (!row) return null;
+      const holder = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+      if (holder && holder.id !== userId) return null;
+      try {
+        db.prepare('UPDATE users SET email = ?, email_verified_at = ?, token_version = token_version + 1 WHERE id = ?').run(email, new Date().toISOString(), userId);
+      } catch (_) { return null; } // UNIQUE race
+      return { oldEmail: row.email };
+    })();
   },
 
   /** True for a demo fixture account (users.is_fixture). Never contacts a gym; cannot log in. */

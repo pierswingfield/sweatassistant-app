@@ -364,6 +364,7 @@ router.post('/account/password', authenticateToken, (req, res) => {
       return res.status(403).json({ message: 'Current password is incorrect' });
     }
     db.setAccountPassword(req.userId, newPassword); // bumps token_version: every older JWT is now dead
+    require('./email').notifyPasswordChanged(req.email);
     // Keep THIS session alive with a token for the new version; other devices must log in again.
     res.json({ ok: true, token: require('./auth').signUserToken(req.userId, req.email) });
   } catch (err) {

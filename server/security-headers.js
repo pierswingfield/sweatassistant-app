@@ -41,9 +41,19 @@ const BASE_DIRECTIVES = {
 // vibration are not restricted (they are either not policy-controlled or used).
 const PERMISSIONS_POLICY = 'camera=(), microphone=(), geolocation=(), payment=(), usb=()';
 
-function buildCsp(scriptHashes = []) {
+// Per-path additions. Cloudflare Turnstile (script + challenge iframe) is allowed on the /not-me
+// landing ONLY: every other response keeps script-src/frame-src locked to 'self' / 'none'.
+const TURNSTILE_ORIGIN = 'https://challenges.cloudflare.com';
+const ROUTE_EXTRAS = {
+  '/not-me': { 'script-src': [TURNSTILE_ORIGIN], 'frame-src': [TURNSTILE_ORIGIN] },
+};
+const extrasFor = (reqPath) => ROUTE_EXTRAS[String(reqPath || '').replace(/\/+$/, '').toLowerCase()] || null;
+
+function buildCsp(scriptHashes = [], extras = null) {
   return Object.entries(BASE_DIRECTIVES).map(([name, values]) => {
-    const all = name === 'script-src' ? [...values, ...scriptHashes.map((h) => `'sha256-${h}'`)] : values;
+    const base = name === 'frame-src' && extras && extras[name] ? [] : values; // drop 'none' when adding a source
+    const all = [...base, ...(extras && extras[name] ? extras[name] : [])];
+    if (name === 'script-src') all.push(...scriptHashes.map((h) => `'sha256-${h}'`));
     return `${name} ${all.join(' ')}`;
   }).join('; ');
 }
@@ -72,12 +82,13 @@ function securityHeaders({ hsts = null, cspReportOnly = false } = {}) {
   const cspHeader = cspReportOnly ? 'Content-Security-Policy-Report-Only' : 'Content-Security-Policy';
   const defaultCsp = buildCsp();
   return function securityHeadersMiddleware(req, res, next) {
+    const extras = extrasFor(req.path);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Permissions-Policy', PERMISSIONS_POLICY);
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-    res.setHeader(cspHeader, defaultCsp);
+    res.setHeader(cspHeader, extras ? buildCsp([], extras) : defaultCsp);
     if (hsts) res.setHeader('Strict-Transport-Security', hsts);
 
     const send = res.send;
@@ -85,7 +96,7 @@ function securityHeaders({ hsts = null, cspReportOnly = false } = {}) {
       const type = String(res.getHeader('Content-Type') || '');
       if (typeof body === 'string' && /text\/html/i.test(type) && /<script/i.test(body)) {
         const hashes = inlineScriptHashes(body);
-        if (hashes.length) res.setHeader(cspHeader, buildCsp(hashes));
+        if (hashes.length) res.setHeader(cspHeader, buildCsp(hashes, extras));
       }
       return send.call(this, body);
     };

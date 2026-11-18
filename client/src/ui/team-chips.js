@@ -76,18 +76,27 @@ export function chipModel(teams) {
   return { label: teamLabel(first), more, avatars, aria, detail };
 }
 
-/** Escaped markup for a row's chip line (empty string when no teammates). */
-export function teamChipHtml(teams) {
+// Expansion survives re-renders (each linked gym's data arriving repaints the whole list and
+// rebuilds every row): tracked by a stable key, `gymId:eventId:teamId`, never by the DOM node.
+const expanded = new Set();
+export const expansionKey = (classKey, teams) => (classKey && teams && teams[0] ? `${classKey}:${teams[0].teamId}` : '');
+export const isChipExpanded = (key) => !!key && expanded.has(key);
+export function setChipExpanded(key, open) { if (key) { if (open) expanded.add(key); else expanded.delete(key); } }
+
+/** Escaped markup for a row's chip line (empty string when no teammates). `classKey` = chipKey(event). */
+export function teamChipHtml(teams, classKey = '') {
   const m = chipModel(teams);
   if (!m) return '';
+  const xk = expansionKey(classKey, teams);
+  const open = isChipExpanded(xk);
   const stack = m.avatars.map((a, i) => `<span class="tt-av tm-av-c${a.colour}" style="z-index:${m.avatars.length - i}">${escapeHtml(a.initials)}</span>`).join('');
   const more = m.more > 0 ? `<b class="tt-team-more">${escapeHtml(fmt(T.ttChipMore, { count: m.more }))}</b>` : '';
   const detail = m.detail.map((d) => `<div><strong>${escapeHtml(d.team)}</strong>: ${escapeHtml(d.names)}</div>`).join('');
   return `<div class="tt-team-line">
-    <button type="button" class="tt-team-badge" data-tt-team-chip aria-expanded="false" aria-label="${escapeHtml(m.aria)}" title="${escapeHtml(T.ttChipShow)}">
+    <button type="button" class="tt-team-badge" data-tt-team-chip data-tt-team-key="${escapeHtml(xk)}" aria-expanded="${open ? 'true' : 'false'}" aria-label="${escapeHtml(m.aria)}" title="${escapeHtml(T.ttChipShow)}">
       <span class="tt-stack" aria-hidden="true">${stack}</span><span class="tt-team-name">${escapeHtml(m.label)}</span>${more}
     </button>
-    <div class="tt-team-detail" hidden>${detail}</div>
+    <div class="tt-team-detail"${open ? '' : ' hidden'}>${detail}</div>
   </div>`;
 }
 
@@ -101,6 +110,7 @@ export function wireTeamChip(root) {
     const open = btn.getAttribute('aria-expanded') !== 'true';
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     if (panel) panel.hidden = !open;
+    setChipExpanded(btn.getAttribute('data-tt-team-key'), open);
   });
 }
 
@@ -116,7 +126,7 @@ let signature = '';
 let generation = 0;
 
 export function chipsFor(event) { return index.get(chipKey(event)) || null; }
-export function resetTeamChips() { generation++; index = new Map(); loadedAt = 0; signature = ''; inflight = null; }
+export function resetTeamChips() { expanded.clear(); generation++; index = new Map(); loadedAt = 0; signature = ''; inflight = null; }
 
 // A 401 sign-out shows the login screen without a reload; the next account on this page
 // must not see the previous account's teammates for the rest of the TTL.

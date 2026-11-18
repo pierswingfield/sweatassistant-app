@@ -82,7 +82,6 @@ describe('Team dashboard widgets render escaped, from the projection only', () =
     expect(started.querySelector('.tm-workout-details').hasAttribute('inert')).toBe(false);
     expect(started.querySelector('.tm-spot-pill')).not.toBeNull();
     dash.renderTodaysWorkouts(el, data, NOW + 61 * 60000);
-    expect(el.querySelector('.is-done button').getAttribute('aria-expanded')).toBe('true');
     noInjection(el);
     const empty = section();
     expect(dash.renderTodaysWorkouts(empty, { ...data, classes: [] }, NOW)).toBe(false);
@@ -90,7 +89,7 @@ describe('Team dashboard widgets render escaped, from the projection only', () =
   });
 
   it('This week keeps its compact fields, square gym marks and completed expansion', () => {
-    const many = { ...data, classes: [...data.classes, cls('12', 'gym-a', '2026-11-04T18:00:00+00:00', [att('a')]), cls('13', 'gym-a', '2026-11-04T19:00:00+00:00', [att('b')])] };
+    const many = { ...data, classes: [...data.classes, cls('12', 'gym-a', '2026-11-05T18:00:00+00:00', [att('a')]), cls('13', 'gym-a', '2026-11-05T19:00:00+00:00', [att('b')])] };
     const el = section();
     dash.renderThisWeek(el, many, NOW);
     expect(el.querySelectorAll('.tm-wday')).toHaveLength(7);
@@ -105,18 +104,16 @@ describe('Team dashboard widgets render escaped, from the projection only', () =
     expect(el.querySelector('.tm-workout-inst')).not.toBeNull();
     expect(el.querySelector('.tm-workout-gym .app-gym-mark')).not.toBeNull();
     expect(el.querySelector('.tm-attendees .tm-attendee')).not.toBeNull();
-    const toggle = el.querySelector('.is-done button');
-    toggle.click(); expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(el.querySelector('.tm-workout.is-done')).toBeNull(); // today is not in This week
     el.querySelector('[data-more]').click();
     expect(el.querySelectorAll('.tm-workout')).toHaveLength(4);
     dash.renderThisWeek(el, many, NOW);
     expect(el.querySelector('.tm-wday.is-on').getAttribute('data-day')).toBe('0');
-    expect(el.querySelector('.is-done button').getAttribute('aria-expanded')).toBe('true');
     noInjection(el);
   });
 
   it('repeated day tap closes details and See more, restores hint, and reopens compactly with focus', () => {
-    const el = section(); const many = { ...data, classes: [...data.classes, cls('12', 'gym-a', '2026-11-04T18:00:00+00:00', [att('a')]), cls('13', 'gym-a', '2026-11-04T19:00:00+00:00', [att('b')])] };
+    const el = section(); const many = { ...data, classes: [...data.classes, cls('12', 'gym-a', '2026-11-05T18:00:00+00:00', [att('a')]), cls('13', 'gym-a', '2026-11-05T19:00:00+00:00', [att('b')])] };
     dash.renderThisWeek(el, many, NOW);
     el.querySelector('[data-day="0"]').click(); el.querySelector('[data-more]').click();
     expect(el.querySelectorAll('.tm-workout')).toHaveLength(4);
@@ -132,7 +129,7 @@ describe('Team dashboard widgets render escaped, from the projection only', () =
 
   it('activates blank and attendee areas, ignores swipes, and keeps completed rows as toggles', async () => {
     const el = section(); dash.renderThisWeek(el, data, NOW);
-    el.querySelector('[data-day="1"]').click();
+    el.querySelector('[data-day="0"]').click();
     const row = el.querySelector('.tm-workout');
     const pointer = (type, x) => { const e = new Event(type, { bubbles: true }); Object.assign(e, { clientX: x, clientY: 0 }); row.dispatchEvent(e); };
     pointer('pointerdown', 90); pointer('pointermove', 20); row.querySelector('.tm-attendees').click();

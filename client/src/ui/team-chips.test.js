@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { buildChipIndex, chipModel, teamChipHtml, namesText, chipKey, loadTeamChips, chipsFor, resetTeamChips, CHIP_STACK_MAX } from './team-chips.js';
+import { buildChipIndex, chipModel, teamChipHtml, namesText, chipKey, wireTeamChip, loadTeamChips, chipsFor, resetTeamChips, CHIP_STACK_MAX } from './team-chips.js';
 
 const payload = {
   classes: [
@@ -63,6 +63,20 @@ describe('timetable Team chips (T-5, §5.3)', () => {
     const face = html.split('tt-team-detail')[0];
     expect(face).not.toContain('Bike 14');
     expect(html).toContain('Ana · Bike 14');
+  });
+
+  it('expansion survives a re-render (rebuilt rows) and tap-to-collapse still works', () => {
+    resetTeamChips();
+    const teams = [{ teamId: 't1', name: 'Riders', members: [{ name: 'Ana', colourIndex: 1 }] }];
+    const mount = () => { const d = document.createElement('div'); d.innerHTML = teamChipHtml(teams, 'g:1'); wireTeamChip(d); return d; };
+    let row = mount();
+    row.querySelector('[data-tt-team-chip]').click();
+    expect(row.querySelector('.tt-team-detail').hidden).toBe(false);
+    row = mount(); // a later gym's data arrives: the list is rebuilt
+    expect(row.querySelector('[data-tt-team-chip]').getAttribute('aria-expanded')).toBe('true');
+    expect(row.querySelector('.tt-team-detail').hidden).toBe(false);
+    row.querySelector('[data-tt-team-chip]').click(); // collapse
+    expect(mount().querySelector('.tt-team-detail').hidden).toBe(true);
   });
 
   describe('per-load index', () => {

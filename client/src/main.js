@@ -28,6 +28,10 @@ import { applyStaticCopy } from './copy.js';
 import { COPY, formatCopyText } from './copy.js';
 import { resetWindowScroll, installStaleScrollGuard } from './scroll-reset.js';
 import { syncTabScrollState } from './tab-scroll-state.js';
+import { verifyEmailRequest, showVerifyEmailPage } from './ui/verify-email.js';
+import { confirmEmailRequest, showConfirmEmailPage } from './ui/confirm-email.js';
+import { notMeRequest, showNotMePage } from './ui/not-me.js';
+import { resetPasswordRequest, showResetPasswordPage } from './ui/reset-password.js';
 import { parseTeamsPath, stashPendingInvite, consumePendingInvite, clearPendingInvite } from './ui/teams-model.js';
 import { initHeaderBars } from './ui/header-bar.js';
 import { nav } from './nav-controller.js';
@@ -1646,6 +1650,27 @@ async function checkAuth() {
   // onboarding, login, and the app shell all show the correct name.
   await initConfig();
   applyAppName();
+  // Email confirmation link: a standalone page that acts only on a button press. The rest of the
+  // boot (login, onboarding, nav) is skipped; "Continue" does a full load of the app root.
+  const verifyRequest = verifyEmailRequest(location);
+  if (verifyRequest) { showVerifyEmailPage(verifyRequest, { verify: (t) => api.verifyEmail(t) }); return; }
+  // Email change link: standalone; only the button acts. The fresh token is stored on success.
+  const confirmEmail = confirmEmailRequest(location);
+  if (confirmEmail) { showConfirmEmailPage(confirmEmail, { confirm: (t) => api.confirmEmailChange(t) }); return; }
+  // "I did not create this account" link: standalone; a Turnstile check plus a two-press button act.
+  const notMe = notMeRequest(location);
+  if (notMe) { showNotMePage(notMe, { preview: (t) => api.notMePreview(t), submit: (t, ts) => api.notMeSubmit(t, ts), siteKey: appConfig.turnstileSiteKey }); return; }
+  // Password reset link: same standalone treatment; only the form's submit acts.
+  const resetRequest = resetPasswordRequest(location);
+  if (resetRequest) {
+    showResetPasswordPage(resetRequest, {
+      reset: (t, pw) => api.resetPassword(t, pw),
+      forgot: (email) => api.forgotPassword(email),
+      // A full load of the app root: the fresh token is already stored, so boot continues signed in.
+      go: () => window.location.assign('/'),
+    });
+    return;
+  }
   await restoreTeamInvite();
   if (!isLoggedIn() && pendingTeamInvite()) await prepareTeamInstall();
 
@@ -1664,7 +1689,7 @@ async function checkAuth() {
     try {
       const status = await api.getStatus();
       if (!stillCurrent()) return;
-      currentUser = { id: status.userId, email: status.email };
+      currentUser = { id: status.userId, email: status.email, emailVerified: status.emailVerified !== false };
       rememberAccountEmail(status.email);
       setCacheKeyPrefix(currentUser.id);
       localStorage.setItem('appUserId', currentUser.id);
@@ -1951,7 +1976,7 @@ const AUTH_MODES = {
   // for the the app account. There is no self-service reset yet
   // (Workstreams C6-1); say so plainly instead of describing a flow that
   // can't complete.
-  recover:{ title: COPY.auth.resetPassword, subtitle: COPY.auth.resetUnavailable },
+  recover:{ title: COPY.auth.resetPassword, subtitle: COPY.auth.resetSubtitle },
 };
 
 function setAuthMode(mode) {
@@ -1976,6 +2001,8 @@ function setAuthMode(mode) {
     document.getElementById('app-recover-step1').style.display = 'block';
   }
   document.querySelectorAll('.app-login-error').forEach(el => { el.style.display = 'none'; });
+  const recoverSent = document.getElementById('app-recover-sent');
+  if (recoverSent) recoverSent.style.display = 'none';
   const noGym = document.getElementById('app-nogym-panel');
   if (noGym) noGym.style.display = 'none';
 
@@ -2041,17 +2068,31 @@ if (signupForm) {
   });
 }
 
-// Account recovery is currently ADMIN-ONLY. The previous self-service flow proved
-// identity with a linked gym's login, which re-coupled the account to the gym and
-// defeated Decision D4 — removed 2026-08-31. The replacement mechanism is an open
-// decision (Workstreams C6-1); until it lands the screen says so plainly rather than
-// offering a flow that cannot complete.
+// Self-service reset: emails a one-time link (the proof is the mailbox, never a gym login: D5).
+// The confirmation is the same for every address; the server never says whether one exists.
 const recoverFindBtn = document.getElementById('app-recover-find-btn');
 if (recoverFindBtn) {
-  recoverFindBtn.onclick = () => {
+  recoverFindBtn.onclick = async () => {
     const errorEl = document.getElementById('app-recover-error');
-    errorEl.textContent = COPY.auth.recoveryUnavailableLong;
-    errorEl.style.display = 'block';
+    const sentEl = document.getElementById('app-recover-sent');
+    const email = document.getElementById('app-recover-email').value.trim();
+    errorEl.style.display = 'none';
+    sentEl.style.display = 'none';
+    if (!email.includes('@')) { errorEl.textContent = COPY.auth.resetEmailRequired; errorEl.style.display = 'block'; return; }
+    const label = recoverFindBtn.querySelector('span');
+    recoverFindBtn.disabled = true;
+    label.textContent = COPY.auth.resetSending;
+    try {
+      await api.forgotPassword(email);
+      sentEl.textContent = COPY.auth.resetSent;
+      sentEl.style.display = 'block';
+    } catch (err) {
+      errorEl.textContent = err instanceof TypeError ? COPY.auth.connectionFailed : err.message;
+      errorEl.style.display = 'block';
+    } finally {
+      recoverFindBtn.disabled = false;
+      label.textContent = COPY.auth.resetSend;
+    }
   };
 }
 

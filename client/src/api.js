@@ -323,6 +323,84 @@ export const api = {
     return { user: data.user, needsGym: !!data.needsGym };
   },
 
+  // Confirm an emailed verification link (works signed out: the link is the credential).
+  async verifyEmail(token) {
+    const res = await apiFetch('/api/auth/verify-email', { method: 'POST', body: JSON.stringify({ token }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Could not confirm your email');
+    return true;
+  },
+
+  // Request an email change. Resolves the same way whether or not the address is free (server rule).
+  async requestEmailChange(newEmail, password) {
+    const res = await apiFetch('/api/account/email', { method: 'POST', body: JSON.stringify({ newEmail, password }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { const e = new Error(data.message || 'Could not start the email change'); e.code = data.code; throw e; }
+    return true;
+  },
+
+  // Confirm an emailed change link; signs this browser in with the fresh token (older sessions are revoked).
+  async confirmEmailChange(token) {
+    const res = await apiFetch('/api/auth/confirm-email', { method: 'POST', body: JSON.stringify({ token }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { const e = new Error(data.message || 'Could not confirm your new email'); e.code = data.code; throw e; }
+    setToken(data.token);
+    return { user: data.user };
+  },
+
+  // "I did not create this account": preview names the address (does not consume); submit needs a Turnstile token.
+  async notMePreview(token) {
+    const res = await apiFetch('/api/auth/not-me/preview', { method: 'POST', body: JSON.stringify({ token }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { const e = new Error(data.message || 'Link not valid'); e.code = data.code; throw e; }
+    return data.email;
+  },
+  async notMeSubmit(token, turnstileToken) {
+    const res = await apiFetch('/api/auth/not-me', { method: 'POST', body: JSON.stringify({ token, turnstileToken }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { const e = new Error(data.message || 'Could not send your request'); e.code = data.code; throw e; }
+    return true;
+  },
+
+  // Pending change-of-address (Settings > Account): { newEmail, expiresAt } | null, and cancel.
+  async pendingEmailChange() {
+    const res = await apiFetch('/api/account/email/pending');
+    if (!res.ok) return null;
+    return (await res.json().catch(() => ({}))).pending || null;
+  },
+  async cancelPendingEmailChange() {
+    const res = await apiFetch('/api/account/email/pending', { method: 'DELETE' });
+    if (!res.ok) throw new Error('Could not cancel the change');
+    return true;
+  },
+
+  // Ask for a fresh verification email. Resolves { sent, alreadyVerified }.
+  async resendVerificationEmail() {
+    const res = await apiFetch('/api/account/verify-email/resend', { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Could not send the email');
+    return { sent: !!data.sent, alreadyVerified: !!data.alreadyVerified };
+  },
+
+  // Ask for a password reset email. Always resolves for any address (the server never says whether it exists).
+  async forgotPassword(email) {
+    const res = await apiFetch('/api/auth/forgot', { method: 'POST', body: JSON.stringify({ email }) });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message || 'Could not send the email');
+    }
+    return true;
+  },
+
+  // Finish a reset from an emailed link; signs the member in with the fresh token the server returns.
+  async resetPassword(token, password) {
+    const res = await apiFetch('/api/auth/reset', { method: 'POST', body: JSON.stringify({ token, password }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { const e = new Error(data.message || 'Could not reset your password'); e.code = data.code; throw e; }
+    setToken(data.token);
+    return { user: data.user, gymsReset: data.gymsReset || 0 };
+  },
+
   // Authenticated private setup state; never a cache or part of the install bearer.
   async teamSignupOnboarding(inviteToken, { method = 'GET', step } = {}) {
     const endpoint = inviteToken ? `/api/teams/invite/${encodeURIComponent(inviteToken)}/onboarding` : '/api/teams/onboarding';

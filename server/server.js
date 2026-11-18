@@ -1,4 +1,7 @@
 require('dotenv').config();
+// Dev convenience: `npm run dev --prefix server` runs with cwd=server/, so the repo-root .env (gitignored)
+// is not found by the line above. Load it as a fallback; dotenv never overrides a variable already set.
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -105,6 +108,46 @@ const authLoginLimiter = rateLimit({
   skip: () => process.env.NODE_ENV !== 'production',
 });
 
+// Confirming an emailed link: tokens carry 256 bits, so this only stops pointless hammering.
+const verifyEmailLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many attempts — please try again later.' },
+  skip: () => process.env.NODE_ENV !== 'production',
+});
+
+// Self-service password reset. Separate from the login limiter. Production-only like the others;
+// RATE_LIMIT_TEST_FORCE=1 turns them on in tests. The per-ACCOUNT cap is DB-counted below.
+const resetLimiterOn = () => process.env.NODE_ENV === 'production' || process.env.RATE_LIMIT_TEST_FORCE === '1';
+const forgotIpLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many requests. Please try again later.' },
+  skip: () => !resetLimiterOn(),
+});
+const resetIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many attempts. Please try again later.' },
+  skip: () => !resetLimiterOn(),
+});
+
+// "I did not create this account" (unauthenticated, link-as-credential): per IP, preview and submit share one budget.
+const notMeIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many attempts. Please try again later.' },
+  skip: () => !resetLimiterOn(),
+});
+
 const adminLoginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
@@ -159,7 +202,8 @@ const MAX_ACTIVE_AUTO_UPGRADES_PER_GYM = 10;
 // -------------------------------------------------------------
 
 app.get('/api/config', (req, res) => {
-  res.json({ appName: config.appName, publicHost: config.publicHost });
+  // turnstileSiteKey is public by design; null means the /not-me flow is unavailable on this deploy.
+  res.json({ appName: config.appName, publicHost: config.publicHost, turnstileSiteKey: require('./turnstile').siteKey() });
 });
 
 // -------------------------------------------------------------
@@ -436,7 +480,11 @@ app.get('/api/policies', (req, res) => {
 app.post('/api/auth/signup', authLoginLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   try {
-    res.json(await auth.handleSignup(email, password, req.body?.policyAcceptance, { teamInviteToken: req.body?.teamInviteToken }));
+    const result = await auth.handleSignup(email, password, req.body?.policyAcceptance, { teamInviteToken: req.body?.teamInviteToken });
+    result.user.emailVerified = false;
+    res.json(result);
+    // Verify, don't block: the welcome mail is fire-and-forget and can never fail the signup.
+    require('./email').issueAndSendVerification(result.user.id, result.user.email, { welcome: true }).catch(() => {});
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -448,7 +496,189 @@ app.post('/api/auth/signup', authLoginLimiter, async (req, res) => {
 // until then a forgotten account password requires an admin reset.
 
 app.get('/api/auth/status', authenticateToken, (req, res) => {
-  res.json({ userId: req.userId, email: req.email });
+  res.json({ userId: req.userId, email: req.email, emailVerified: !!db.getEmailVerifiedAt(req.userId) });
+});
+
+// Confirm an emailed verification link. No auth: the link is the credential, and it is opened
+// on whatever device the mail is read on. The landing page POSTs here from a button; a GET
+// never consumes the token (mail scanners pre-fetch links). Every failure is the same answer.
+app.post('/api/auth/verify-email', verifyEmailLimiter, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const hit = require('./account-email-tokens').consume(req.body && req.body.token, 'verify');
+  if (!hit) return res.status(400).json({ message: 'This link is invalid or has expired. Request a new one from Settings.', code: 'INVALID_TOKEN' });
+  db.markEmailVerified(hit.userId);
+  res.json({ ok: true });
+});
+
+// --- Self-service password reset (C6-1) ---
+// Proof of identity is control of the account's mailbox, never a gym credential (Decision D5).
+// POST /api/auth/forgot always answers the same 200 whatever the address, and the answer is sent
+// BEFORE any lookup or mail work, so neither the body nor the timing says whether an account exists.
+const RESET_MAILS_PER_HOUR = 3;
+app.post('/api/auth/forgot', forgotIpLimiter, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const raw = req.body && req.body.email;
+  res.json({ ok: true });
+  setImmediate(async () => {
+    try {
+      const clean = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+      if (!clean || clean.length > 254 || !clean.includes('@')) return;
+      const user = db.getUserByEmail(clean);
+      if (!user || !db.hasAccountPassword(user.id)) return; // fixtures and password-less rows cannot reset
+      const tokens = require('./account-email-tokens');
+      if (tokens.countRecent(user.id, 'reset', Date.now() - 60 * 60 * 1000) >= RESET_MAILS_PER_HOUR) return;
+      await require('./email').issueAndSendReset(user.id, user.email);
+    } catch (err) { console.warn('[Auth] forgot-password work failed:', err.message); }
+  });
+});
+
+// POST /api/auth/reset { token, password }: one generic failure for unknown/expired/used tokens.
+// A reset revokes every session (token_version), clears stored gym credentials (links, queues,
+// spot maps and tiers survive; each gym is re-linked), confirms the email (the mailbox was proved)
+// and signs the member in with a fresh token.
+app.post('/api/auth/reset', resetIpLimiter, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const { token, password } = req.body || {};
+  try { db.validateAccountPassword(password); } catch (err) { return res.status(400).json({ message: err.message, code: 'WEAK_PASSWORD' }); }
+  const result = db.db.transaction(() => {
+    const hit = require('./account-email-tokens').consume(token, 'reset');
+    if (!hit) return null;
+    db.setAccountPassword(hit.userId, password);
+    const clearedGyms = db.resetGymCredentials(hit.userId);
+    db.markEmailVerified(hit.userId);
+    return { userId: hit.userId, clearedGyms };
+  })();
+  if (!result) return res.status(400).json({ message: 'This link is invalid or has expired. Request a new one.', code: 'INVALID_TOKEN' });
+  const user = db.getUserById(result.userId);
+  const session = auth.accountSession(result.userId, user.email);
+  require('./email').notifyPasswordChanged(user.email);
+  res.json({ ...session, gymsReset: result.clearedGyms.length });
+});
+
+// Resend the verification mail. Limit is counted in the DB (restart-proof): the signup mail plus
+// three resends per rolling hour per account. No-op when already verified.
+const VERIFY_MAILS_PER_HOUR = 4;
+app.post('/api/account/verify-email/resend', authenticateToken, async (req, res) => {
+  if (db.getEmailVerifiedAt(req.userId)) return res.json({ ok: true, alreadyVerified: true });
+  const tokens = require('./account-email-tokens');
+  if (tokens.countRecent(req.userId, 'verify', Date.now() - 60 * 60 * 1000) >= VERIFY_MAILS_PER_HOUR) {
+    res.set('Retry-After', '3600');
+    return res.status(429).json({ message: 'Too many verification emails. Try again in a little while.', code: 'VERIFY_EMAIL_RATE_LIMITED' });
+  }
+  const result = await require('./email').issueAndSendVerification(req.userId, req.email);
+  res.json({ ok: true, sent: !!result.ok });
+});
+
+// --- Change account email (C6-2) ---
+// Re-auth with the CURRENT Dibs password, then a 30-minute single-use link goes to the NEW address
+// and a masked notice to the OLD one. users.email only: user_gyms.gym_email (a gym's login) is
+// never read or written here (D4/D5). Every attempt, including a wrong password or an address that
+// belongs to someone else, is counted in the DB (restart-proof) and the success and taken answers
+// are byte-identical, so the form is not an oracle for which addresses have accounts.
+const EMAIL_CHANGE_ATTEMPTS_PER_HOUR = 5;
+const EMAIL_CHANGE_ANSWER = { ok: true };
+app.post('/api/account/email', authenticateToken, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const { newEmail, password } = req.body || {};
+  const tokens = require('./account-email-tokens');
+  if (tokens.countRecent(req.userId, 'email_change', Date.now() - 60 * 60 * 1000) >= EMAIL_CHANGE_ATTEMPTS_PER_HOUR) {
+    res.set('Retry-After', '3600');
+    return res.status(429).json({ message: 'Too many email change attempts. Try again in a little while.', code: 'EMAIL_CHANGE_RATE_LIMITED' });
+  }
+  if (!db.hasAccountPassword(req.userId) || typeof password !== 'string' || !db.verifyAccountPassword(req.userId, password)) {
+    tokens.recordAttempt(req.userId, 'email_change');
+    return res.status(403).json({ message: 'Current password is incorrect', code: 'WRONG_PASSWORD' });
+  }
+  const clean = typeof newEmail === 'string' ? newEmail.trim().toLowerCase() : '';
+  if (!clean || clean.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) {
+    return res.status(400).json({ message: 'Enter a valid email address.', code: 'INVALID_EMAIL' });
+  }
+  const me = db.getUserById(req.userId);
+  if (!me) return res.status(401).json({ message: 'Unauthorized' });
+  if (clean === String(me.email).toLowerCase()) {
+    return res.status(400).json({ message: 'That is already your email address.', code: 'SAME_EMAIL' });
+  }
+  const holder = db.getUserByEmail(clean);
+  if (holder) {
+    tokens.recordAttempt(req.userId, 'email_change'); // counted, nothing sent, same answer as success
+    return res.json(EMAIL_CHANGE_ANSWER);
+  }
+  const t = tokens.issue(req.userId, 'email_change', { newEmail: clean }); // supersedes any older pending change
+  res.json(EMAIL_CHANGE_ANSWER);
+  const mail = require('./email');
+  mail.sendEmailChangeLink(clean, t.token, t.id).catch(() => {});
+  mail.notifyEmailChangeRequested(me.email, clean);
+});
+
+// Confirm an emailed change link (no auth: the link is the credential, opened on any device).
+// One generic failure for unknown/expired/used/superseded/taken. Success moves the Dibs email,
+// marks it verified, revokes every older session and signs THIS browser in with a fresh token.
+const confirmEmailLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many attempts. Please try again later.' },
+  skip: () => !resetLimiterOn(),
+});
+app.post('/api/auth/confirm-email', confirmEmailLimiter, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const fail = () => res.status(400).json({ message: 'This link is invalid or has expired. Request a new one from Settings, Account.', code: 'INVALID_TOKEN' });
+  const result = db.db.transaction(() => {
+    const hit = require('./account-email-tokens').consume(req.body && req.body.token, 'email_change');
+    if (!hit || !hit.newEmail) return null;
+    const changed = db.changeAccountEmail(hit.userId, hit.newEmail); // re-checks uniqueness now (race)
+    return changed ? { userId: hit.userId, oldEmail: changed.oldEmail, newEmail: hit.newEmail } : null;
+  })();
+  if (!result) return fail();
+  const session = auth.accountSession(result.userId, result.newEmail);
+  require('./email').notifyEmailChanged(result.oldEmail, result.newEmail);
+  res.json(session);
+});
+
+// Pending change-of-address hint for Settings > Account, and Cancel (invalidates the live link).
+app.get('/api/account/email/pending', authenticateToken, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ pending: require('./account-email-tokens').pendingEmailChange(req.userId) });
+});
+app.delete('/api/account/email/pending', authenticateToken, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  require('./account-email-tokens').cancel(req.userId, 'email_change');
+  res.json({ ok: true });
+});
+
+// --- "I did NOT create this account" (/not-me) ---
+// The emailed link carries a 14-day single-use not_me token. GET /not-me never acts. Preview only
+// names the address (does not consume). Submit needs a Cloudflare Turnstile pass (verified server-side
+// BEFORE the token is spent, so a failed check leaves the link usable), then records ONE open
+// deletion request per account and files a GitHub issue (masked address only) after answering.
+const notMeInvalid = (res) => res.status(400).json({ message: 'This link is invalid or has expired.', code: 'INVALID_TOKEN' });
+app.post('/api/auth/not-me/preview', notMeIpLimiter, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const hit = require('./account-email-tokens').peek(req.body && req.body.token, 'not_me');
+  const user = hit && db.getUserById(hit.userId);
+  if (!user) return notMeInvalid(res);
+  res.json({ email: user.email });
+});
+app.post('/api/auth/not-me', notMeIpLimiter, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const turnstile = require('./turnstile');
+  if (!turnstile.available()) return res.status(503).json({ message: 'This feature is unavailable right now.', code: 'NOT_ME_UNAVAILABLE' });
+  const { token, turnstileToken } = req.body || {};
+  const check = await turnstile.verify(turnstileToken, req.ip);
+  if (!check.ok) {
+    if (check.reason === 'unavailable') return res.status(503).json({ message: 'The check could not be completed. Please try again.', code: 'TURNSTILE_UNAVAILABLE' });
+    return res.status(400).json({ message: 'The check failed. Please try again.', code: 'TURNSTILE_FAILED' });
+  }
+  const reqs = require('./account-deletion-requests');
+  const result = db.db.transaction(() => {
+    const hit = require('./account-email-tokens').consume(token, 'not_me');
+    const user = hit && db.getUserById(hit.userId);
+    return user ? reqs.create(user.id, user.email, 'not_me') : null;
+  })();
+  if (!result) return notMeInvalid(res);
+  res.json({ ok: true });
+  if (result.created) setImmediate(() => reqs.fileIssue(result.id).catch(() => {}));
 });
 
 // Single-use, 60 s ticket for the auto-book EventSource (replaces the session JWT in the URL).
@@ -1308,6 +1538,36 @@ if (process.env.NODE_ENV === 'production') {
   // Open Graph tags are generic because a chat unfurl is seen by everyone in the chat,
   // not just the invitee. no-referrer keeps the token out of every third-party request
   // the page makes. Client routing for /t/ is T-1 UI work (waits for mock-ups).
+  // Verification link landing: the same shell, never acting on GET. The token rides in the query
+  // (not logged: requestLogger drops queries) and no-referrer keeps it out of every request the page makes.
+  app.get('/verify-email', (req, res) => {
+    res.set('Referrer-Policy', 'no-referrer');
+    res.set('X-Robots-Tag', 'noindex');
+    sendTemplated(path.join(PUBLIC_DIR, 'index.html'), res, 'text/html', null, 'no-store');
+  });
+
+  // Email-change link landing: same shell and rules. Never acts on GET.
+  app.get('/confirm-email', (req, res) => {
+    res.set('Referrer-Policy', 'no-referrer');
+    res.set('X-Robots-Tag', 'noindex');
+    sendTemplated(path.join(PUBLIC_DIR, 'index.html'), res, 'text/html', null, 'no-store');
+  });
+
+  // "I did not create this account" landing: same shell and rules; never acts on GET. Its CSP
+  // additionally allows the Turnstile script and frame (security-headers.js, scoped to this path).
+  app.get('/not-me', (req, res) => {
+    res.set('Referrer-Policy', 'no-referrer');
+    res.set('X-Robots-Tag', 'noindex');
+    sendTemplated(path.join(PUBLIC_DIR, 'index.html'), res, 'text/html', null, 'no-store');
+  });
+
+  // Reset link landing: same shell and rules as /verify-email. Never acts on GET.
+  app.get('/reset-password', (req, res) => {
+    res.set('Referrer-Policy', 'no-referrer');
+    res.set('X-Robots-Tag', 'noindex');
+    sendTemplated(path.join(PUBLIC_DIR, 'index.html'), res, 'text/html', null, 'no-store');
+  });
+
   app.get('/t/:token', teamsRoutes.inviteIpLimiter, (req, res) => {
     const continuation = require('./teams').createInitialInstallContinuation(req.params.token);
     const inviteHash = require('crypto').createHash('sha256').update(req.params.token).digest('hex');

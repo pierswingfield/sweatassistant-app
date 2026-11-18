@@ -397,7 +397,7 @@
 #app-helper-container .app-feedback-title,
 #app-helper-container .app-title-row h2,
 #app-helper-container .app-login-logo h1,
-#app-auth-title,
+#app-auth-title, #app-verify-title, #app-confirm-email-title, #app-reset-title,
 .app-setup-headline,
 .app-onb-title {
   font-family: var(--font-serif);
@@ -11504,6 +11504,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
    submit button; the container scrolls instead.
    ========================================================================== */
 .app-login-container {
+  font-family: var(--font-sans);
   --onb-ico-hero: 84px; --onb-glyph-hero: 40px;
   --onb-gutter: 20px;
   --onb-spring: cubic-bezier(.34, 1.45, .64, 1);
@@ -13780,3 +13781,9 @@ html { -webkit-tap-highlight-color: transparent; }
 }
 /* A busy/confirmed button keeps full strength even when its flow disabled it (the spinner is the state). */
 :is(#app-helper-container, body) :is(button, a):is(.abtn-busy, .abtn-success):disabled { opacity: 1 !important; filter: none !important; }
+
+/* Account email: Unverified flag on the Settings menu row + card, and the address line.
+   After the base .app-settings-menu-item rule; !important per this stylesheet's cascade notes. */
+#app-helper-container .app-settings-menu-item .ui-menu-flag { margin-left: auto !important; font-size: 11px; }
+#app-helper-container .ui-email-badge { margin-left: 6px; vertical-align: middle; }
+#app-helper-container .ui-account-email { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }

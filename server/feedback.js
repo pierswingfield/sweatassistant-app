@@ -142,8 +142,8 @@ function githubConfig() {
 let fetchImpl = (...a) => fetch(...a);
 function setFetchForTests(fn) { fetchImpl = fn || ((...a) => fetch(...a)); }
 
-/** File the row as a GitHub issue. Resolves { number, url } or { error }; never throws. */
-async function createIssue(row) {
+/** POST one issue to the configured repo. Resolves { number, url } | { skipped } | { error }; never throws. */
+async function postIssue({ title, body, labels }) {
   const cfg = githubConfig();
   if (!cfg) return { skipped: true };
   const ctrl = new AbortController();
@@ -158,7 +158,7 @@ async function createIssue(row) {
         'user-agent': 'dibs-feedback',
         'x-github-api-version': '2022-11-28',
       },
-      body: JSON.stringify(issuePayload(row)),
+      body: JSON.stringify({ title, body, labels }),
       signal: ctrl.signal,
     });
     if (!res.ok) return { error: `GitHub ${res.status}` };
@@ -171,6 +171,9 @@ async function createIssue(row) {
     clearTimeout(timer);
   }
 }
+
+/** File the feedback row as a GitHub issue. */
+function createIssue(row) { return postIssue(issuePayload(row)); }
 
 function getRow(id) { return db.db.prepare('SELECT * FROM feedback WHERE id = ?').get(id); }
 
@@ -214,4 +217,4 @@ router.post('/feedback', authenticateToken, async (req, res) => {
   }
 });
 
-module.exports = { router, validate, submit, list, issuePayload, createIssue, platformOf, neutralise, uaSummary, setFetchForTests, TYPES, LIMITS, RATE };
+module.exports = { router, postIssue, neutraliseForIssue: neutralise, validate, submit, list, issuePayload, createIssue, platformOf, neutralise, uaSummary, setFetchForTests, TYPES, LIMITS, RATE };

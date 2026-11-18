@@ -15,6 +15,7 @@ export function readTemplatedAppName(doc = typeof document !== 'undefined' ? doc
 export const appConfig = {
   appName: readTemplatedAppName(),
   publicHost: '',
+  turnstileSiteKey: '',
 };
 
 let initialized = false;
@@ -31,6 +32,7 @@ export async function initConfig() {
       const data = await res.json();
       if (data.appName) appConfig.appName = data.appName;
       if (data.publicHost) appConfig.publicHost = data.publicHost;
+      if (data.turnstileSiteKey) appConfig.turnstileSiteKey = data.turnstileSiteKey;
     }
   } catch (_) { /* keep the templated defaults */ }
 }

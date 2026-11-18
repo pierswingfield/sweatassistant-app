@@ -425,6 +425,7 @@ router.post('/users/:id/reset-password', authenticateAdmin, (req, res) => {
     db.setAccountPassword(userId, tempPassword);
 
     const clearedGyms = resetGyms ? db.resetGymCredentials(userId) : [];
+    require('./email').notifyPasswordChanged(user.email); // neutral notice; the temp password itself is never mailed
 
     // Audit trail. There is no structured logging yet (Workstreams C7-3), so this is
     // the only record that an account's credentials were administratively
@@ -448,6 +449,35 @@ router.post('/users/:id/reset-password', authenticateAdmin, (req, res) => {
 // GET /api/admin/feedback?limit&offset — Send Feedback submissions, newest first (incl. follow-up email)
 router.get('/feedback', authenticateAdmin, (req, res) => {
   res.json(require('./feedback').list({ limit: req.query.limit, offset: req.query.offset }));
+});
+
+// "I did not create this account" requests (server/account-deletion-requests.js). Open ones first,
+// with the full address (admin only). Delete account reuses the audited user delete, then marks done.
+router.get('/deletion-requests', authenticateAdmin, (req, res) => {
+  res.json({ requests: require('./account-deletion-requests').list({ limit: req.query.limit }) });
+});
+router.post('/deletion-requests/:id/done', authenticateAdmin, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id) || !require('./account-deletion-requests').markDone(id)) return res.status(404).json({ message: 'Request not found.' });
+  audit(req, 'deletion-request.done', null, { requestId: id });
+  res.json({ success: true });
+});
+router.post('/deletion-requests/:id/delete-account', authenticateAdmin, (req, res) => {
+  const reqs = require('./account-deletion-requests');
+  const id = parseInt(req.params.id, 10);
+  const row = isNaN(id) ? null : reqs.get(id);
+  if (!row) return res.status(404).json({ message: 'Request not found.' });
+  try {
+    if (row.user_id != null && db.getUserById(row.user_id)) {
+      db.deleteUser(row.user_id);
+      audit(req, 'user.delete', row.user_id, { via: 'deletion-request', requestId: id });
+    }
+    reqs.markDone(id);
+    audit(req, 'deletion-request.done', null, { requestId: id });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
 // GET /api/admin/landing-stats?days=&includeBots=1 — M step 3 landing analytics (bots excluded by default)

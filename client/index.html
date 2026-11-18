@@ -103,6 +103,83 @@
   <!-- 0. ONBOARDING (first-run guided flow) -->
   <div id="app-onboarding-container" class="app-onboarding-container" style="display: none;"></div>
 
+  <!-- 0b. EMAIL CONFIRMATION LANDING (/verify-email). Never acts on load: the button POSTs. -->
+  <div id="app-verify-container" class="app-login-container" style="display: none;">
+    <div class="app-login-card">
+      <div class="app-login-logo">
+        <img class="app-login-hero app-login-mascot" src="/characters/bike.png" alt="" aria-hidden="true" width="127" height="120" decoding="async">
+        <h1 id="app-verify-title" data-copy-text="static.verifyEmailTitle">Confirm your email</h1>
+        <p id="app-verify-body" data-copy-html="static.verifyEmailBody">Tap the button to confirm this email address.</p>
+      </div>
+      <div class="app-login-form">
+        <button type="button" id="app-verify-action" class="app-btn-primary" data-copy-text="static.verifyEmailButton">Confirm email</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 0b2. EMAIL CHANGE CONFIRMATION LANDING (/confirm-email). Never acts on load: the button POSTs. -->
+  <div id="app-confirm-email-container" class="app-login-container" style="display: none;">
+    <div class="app-login-card">
+      <div class="app-login-logo">
+        <img class="app-login-hero app-login-mascot" src="/characters/bike.png" alt="" aria-hidden="true" width="127" height="120" decoding="async">
+        <h1 id="app-confirm-email-title" data-copy-text="static.confirmEmailTitle">Confirm your new email</h1>
+        <p id="app-confirm-email-body"></p>
+      </div>
+      <div class="app-login-form">
+        <button type="button" id="app-confirm-email-action" class="app-btn-primary" data-copy-text="static.confirmEmailButton">Confirm new email</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 0b3. "I DID NOT CREATE THIS ACCOUNT" LANDING (/not-me). Never acts on load: the two-press button POSTs. -->
+  <div id="app-notme-container" class="app-login-container" style="display: none;">
+    <div class="app-login-card">
+      <div class="app-login-logo">
+        <img class="app-login-hero app-login-mascot" src="/characters/bike.png" alt="" aria-hidden="true" width="127" height="120" decoding="async">
+        <h1 id="app-notme-title" data-copy-text="static.notMeTitle">Not your account?</h1>
+        <p id="app-notme-body"></p>
+      </div>
+      <div class="app-login-form">
+        <div id="app-notme-widget"></div>
+        <button type="button" id="app-notme-action" class="app-btn-primary" data-copy-text="static.notMeButton" disabled>I did not create an account</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 0c. PASSWORD RESET LANDING (/reset-password). Never acts on load: the form POSTs. -->
+  <div id="app-reset-container" class="app-login-container" style="display: none;">
+    <div class="app-login-card">
+      <div class="app-login-logo">
+        <img class="app-login-hero app-login-mascot" src="/characters/bike.png" alt="" aria-hidden="true" width="127" height="120" decoding="async">
+        <h1 id="app-reset-title">Choose a new password</h1>
+        <p id="app-reset-body"></p>
+      </div>
+      <form id="app-reset-form" class="app-login-form">
+        <div class="app-form-group">
+          <label for="app-reset-password" data-copy-text="static.resetNewPassword">New password</label>
+          <input type="password" id="app-reset-password" minlength="8" autocomplete="new-password" required>
+        </div>
+        <div class="app-form-group">
+          <label for="app-reset-confirm" data-copy-text="static.resetConfirmPassword">Confirm new password</label>
+          <input type="password" id="app-reset-confirm" minlength="8" autocomplete="new-password" required>
+        </div>
+        <div id="app-reset-error" class="app-login-error" style="display:none;" role="alert"></div>
+        <button type="submit" id="app-reset-submit" class="app-btn-primary"><span data-copy-text="static.resetSubmit">Set new password</span></button>
+      </form>
+      <form id="app-reset-request-form" class="app-login-form" style="display:none;">
+        <div class="app-form-group">
+          <label for="app-reset-email" data-copy-text="static.resetEmailLabel">Email address</label>
+          <input type="email" id="app-reset-email" placeholder="name@example.com" data-copy-placeholder="static.exampleEmail" autocomplete="username" required>
+        </div>
+        <div id="app-reset-request-msg" class="app-card-desc" style="display:none;" role="status"></div>
+        <button type="submit" id="app-reset-request-submit" class="app-btn-primary"><span data-copy-text="static.resetRequestSend">Send reset link</span></button>
+      </form>
+      <div class="app-login-form" id="app-reset-continue-wrap" style="display:none;">
+        <button type="button" id="app-reset-continue" class="app-btn-primary" style="display:none;"></button>
+      </div>
+    </div>
+  </div>
+
   <!-- 1. LOGIN SCREEN -->
   <div id="app-login-container" class="app-login-container" style="display: none;">
     <div class="app-login-card">
@@ -157,8 +234,8 @@
         </div>
         <div class="ui-recover-step" id="app-recover-step1">
           <div id="app-recover-error" class="app-login-error" style="display:none;"></div>
-          <button type="button" id="app-recover-find-btn" class="app-btn-primary"><span data-copy-text="static.emailContinue">Continue</span></button>
-          <p class="app-card-desc ui-reset-unavailable" data-copy-text="auth.resetUnavailable">Self-service reset isn’t available yet — contact the admin.</p>
+          <div id="app-recover-sent" class="app-card-desc ui-reset-unavailable" style="display:none;" role="status"></div>
+          <button type="button" id="app-recover-find-btn" class="app-btn-primary"><span data-copy-text="auth.resetSend">Send reset link</span></button>
         </div>
       </form>
 
@@ -557,6 +634,7 @@
               <!-- per-gym entries are inserted here (before Account) by renderGymsCard -->
               <button class="app-settings-menu-item" data-settings-section="account">
                 <span class="menu-item-text" data-copy-text="static.account">Account</span>
+                <span class="app-badge warning ui-menu-flag" id="app-account-menu-badge" hidden data-copy-text="static.emailUnverified">Unverified</span>
               </button>
             </nav>
           </aside>
@@ -731,6 +809,17 @@
                   <p data-copy-html="static.accountDescription">Your <span data-app-name>__APP_NAME__</span> login and your data.</p>
                 </div>
                 <div class="app-settings-grid ui-settings-grid">
+                  <div class="app-settings-card" id="app-account-email-card">
+                    <h4><span data-copy-text="static.accountEmail">Email address</span> <span class="app-badge warning ui-email-badge" id="app-account-email-badge" hidden data-copy-text="static.emailUnverified">Unverified</span></h4>
+                    <p class="app-card-desc ui-account-email" id="app-account-email-value"></p>
+                    <p class="app-card-desc" id="app-account-email-note" hidden data-copy-html="static.emailUnverifiedNote"></p>
+                    <button id="app-account-email-resend" class="app-btn" hidden data-copy-text="static.resendVerification">Resend verification email</button>
+                    <button id="app-account-email-change" class="app-btn" data-copy-text="settings.changeEmail">Change email</button>
+                    <div id="app-account-email-pending" hidden>
+                      <p class="app-card-desc" id="app-account-email-pending-text" role="status"></p>
+                      <button id="app-account-email-pending-cancel" class="app-btn" data-copy-text="static.emailPendingCancel">Cancel</button>
+                    </div>
+                  </div>
                   <div class="app-settings-card" id="app-account-name-card">
                     <h4 data-copy-text="static.yourName">Your name</h4>
                     <p class="app-card-desc" data-copy-text="static.yourNameDescription">Home greets you by your first name. Teams show your first name and the first letter of your last name, never your full surname.</p>

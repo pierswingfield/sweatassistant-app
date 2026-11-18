@@ -364,6 +364,16 @@
     </table>
   </div>
 
+  <section id="deletion-requests">
+    <h2>Account deletion requests</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Time</th><th>Address</th><th>Status</th><th>GitHub</th><th></th></tr></thead>
+        <tbody id="deletion-tbody"><tr><td colspan="6" class="loading">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
   <section id="feedback-log">
     <h2>Feedback</h2>
     <div class="table-wrap">
@@ -505,6 +515,7 @@
     document.getElementById('session-label').textContent = 'admin session';
     loadUsers();
     loadGymEditor();
+    loadDeletionRequests();
     loadFeedback(0);
     loadAudit(0);
   }
@@ -1248,6 +1259,37 @@
     geEl('ge-badge').textContent = g.overridden ? 'Using admin override' : 'Using registry values';
     geMsg('');
   }
+
+  async function loadDeletionRequests() {
+    const tbody = document.getElementById('deletion-tbody');
+    try {
+      const res = await apiFetch('/api/admin/deletion-requests');
+      const { requests } = await res.json();
+      tbody.innerHTML = requests.length ? requests.map(r => {
+        const gh = r.github_issue_url && /^https:\/\/github\.com\//.test(r.github_issue_url)
+          ? `<a href="${escHtml(r.github_issue_url)}" target="_blank" rel="noopener noreferrer">#${escHtml(String(r.github_issue_number))}</a>`
+          : (r.github_error ? `<span style="color:var(--red)">${escHtml(r.github_error)}</span>` : '—');
+        const open = r.status === 'open';
+        return `<tr><td>${escHtml(String(r.id))}</td><td>${escHtml(new Date(r.created_at).toLocaleString('en-GB'))}</td>
+          <td>${escHtml(r.email)}</td><td>${escHtml(r.status)}</td><td>${gh}</td>
+          <td>${open ? `${r.user_id != null ? `<button class="btn" type="button" data-del-req="${escHtml(String(r.id))}" data-act="delete-account">Delete account</button> ` : ''}<button class="btn" type="button" data-del-req="${escHtml(String(r.id))}" data-act="done">Mark done</button>` : ''}</td></tr>`;
+      }).join('') : '<tr><td colspan="6" class="loading">No requests.</td></tr>';
+    } catch (e) {
+      if (adminToken) tbody.innerHTML = `<tr><td colspan="6" class="loading" style="color:var(--red)">${escHtml(e.message)}</td></tr>`;
+    }
+  }
+  document.getElementById('deletion-tbody').addEventListener('click', async (ev) => {
+    const b = ev.target.closest('button[data-del-req]');
+    if (!b) return;
+    const id = b.dataset.delReq; const act = b.dataset.act;
+    if (act === 'delete-account' && !confirm('Delete this account and all its data? This cannot be undone.')) return;
+    b.disabled = true;
+    try {
+      const res = await apiFetch(`/api/admin/deletion-requests/${encodeURIComponent(id)}/${act}`, { method: 'POST' });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed');
+      loadDeletionRequests(); loadUsers();
+    } catch (e) { b.disabled = false; alert(e.message); }
+  });
 
   const FEEDBACK_PAGE = 25;
   let feedbackOffset = 0;

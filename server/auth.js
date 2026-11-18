@@ -137,10 +137,15 @@ async function handleLogin(email, password) {
     throw new Error('Invalid email or password');
   }
   if (!db.verifyAccountPassword(existing.id, password)) throw new Error('Invalid email or password');
-  const localToken = signUserToken(existing.id, email);
+  return accountSession(existing.id, email);
+}
+
+/** The { token, user } a login returns, for an account whose identity is already proven. */
+function accountSession(userId, email) {
+  const localToken = signUserToken(userId, email);
   // getUserById (not the bare getUserByEmail row) — profile_json/display_name live
   // in user_gyms since WP-D3, and this merges the active gym's link in.
-  const merged = db.getUserById(existing.id) || existing;
+  const merged = db.getUserById(userId) || { email };
   let profile = {};
   try { profile = merged.profile_json ? JSON.parse(merged.profile_json) : {}; } catch (_) {}
   const nameParts = (merged.display_name || '').split(' ');
@@ -148,8 +153,9 @@ async function handleLogin(email, password) {
     token: localToken,
     user: {
       // The account identity must match signup/status, independently of gym profile IDs.
-      id: existing.id,
+      id: userId,
       email: merged.email,
+      emailVerified: !!db.getEmailVerifiedAt(userId),
       firstName: profile.first_name || nameParts[0] || '',
       lastName: profile.last_name || nameParts.slice(1).join(' ') || '',
       bookingCutoff: profile.booking_cutoff || null,
@@ -389,9 +395,9 @@ async function handleSignup(email, password, acceptance, { teamInviteToken } = {
 //   * it made the "independent identity" claim untrue in the one moment that
 //     matters most.
 //
-// No replacement is wired yet — the mechanism is an open decision, see
-// Documentation/Workstreams/C6-accounts-auth.md. Until one lands, a forgotten account
-// password needs an admin reset.
+// Replaced by emailed one-time reset links (POST /api/auth/forgot + /api/auth/reset,
+// server.js; proof is control of the account's mailbox, never a gym credential). Admin
+// reset remains as the escape hatch.
 //
 // `db.resetGymCredentials()` survives and should be called by whatever mechanism
 // replaces this: the stakeholder's "recovery resets gym credentials" decision is
@@ -482,6 +488,7 @@ function unlinkGymAccount(userId, gymId) {
 module.exports = {
   handleLogin,
   handleSignup,
+  accountSession,
   authenticateToken,
   authenticateTokenSSE,
   mintSseTicket,

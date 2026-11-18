@@ -18,6 +18,11 @@ if (!process.env.ENCRYPTION_KEY) {
 }
 // Never inherit a running app's DB_PATH into destructive test fixtures.
 process.env.DB_PATH = ':memory:';
+// A developer's repo-root .env (loaded by server.js) must never leak real keys into suites: an empty
+// value counts as set, so dotenv will not override it.
+process.env.RESEND_API_KEY = '';
+process.env.TURNSTILE_SECRET_KEY = '';
+process.env.TURNSTILE_SITE_KEY = '';
 
 const files = readdirSync(__dirname)
   .filter((f) => f.startsWith('test-') && f.endsWith('.js'))

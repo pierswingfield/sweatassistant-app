@@ -343,18 +343,54 @@ check("the client's booking push never clobbers the sync's enriched rows", async
   assert.ok(!/replaceBookingCache\s*\(/.test(src), 'admin warm-up and client route do not write booking_cache directly');
 });
 
-check('a started server row the next sync omits is kept and stamped missing_since; relisting clears it', async () => {
+check('a started server row the next sync omits is kept and NOT stamped; an unstarted omitted row is deleted; relisting keeps it clean', async () => {
   const uid = twoGymUser();
   const started = new Date(Date.now() - 2 * 3600e3).toISOString();
   const row = { bookingId: 4242, gymId: PSYCLE, eventId: 4242, startAt: started, className: 'Kept' };
-  db.replaceBookingCache(uid, [row], [PSYCLE], { origin: 'server' });
+  const fut = { bookingId: 4243, gymId: PSYCLE, eventId: 4243, startAt: future(1), className: 'Cancelled' };
+  db.replaceBookingCache(uid, [row, fut], [PSYCLE], { origin: 'server' });
   assert.strictEqual(bookingRows(uid, PSYCLE)[0].missing_since, null);
   db.replaceBookingCache(uid, [], [PSYCLE], { origin: 'server', retainStartedMs: bookingSync.RETAIN_STARTED_MS });
   const kept = bookingRows(uid, PSYCLE);
-  assert.strictEqual(kept.length, 1, 'kept for the member\'s own views');
-  assert.ok(kept[0].missing_since, 'stamped as missing from the latest sync');
+  assert.strictEqual(kept.length, 1, 'started row kept, unstarted (cancelled) row deleted');
+  assert.strictEqual(String(kept[0].booking_id), '4242');
+  assert.strictEqual(kept[0].missing_since, null, 'dropping off after start is not stamped');
   db.replaceBookingCache(uid, [row], [PSYCLE], { origin: 'server', retainStartedMs: bookingSync.RETAIN_STARTED_MS });
-  assert.strictEqual(bookingRows(uid, PSYCLE)[0].missing_since, null, 'listed again: cleared');
+  assert.strictEqual(bookingRows(uid, PSYCLE)[0].missing_since, null);
+});
+
+check('post-class history confirmation fires once per ended class and respects guards', async () => {
+  const classHistory = require('./class-history');
+  const orig = classHistory.syncUserGym;
+  const seen = [];
+  classHistory.syncUserGym = async (u, g) => { seen.push(`${u}:${g}`); return { ok: true }; };
+  try {
+    bookingSync._resetHistoryConfirm();
+    const now = Date.now();
+    const iso = (minAgo) => new Date(now - minAgo * 60000).toISOString();
+    const uid = twoGymUser();
+    const mk = (id, gymId, startAgo, dur = 45) => ({ bookingId: id, gymId, eventId: id, startAt: iso(startAgo), durationMin: dur, className: 'C' });
+    db.replaceBookingCache(uid, [mk(7001, PSYCLE, 60), mk(7002, JAB, 20)], [PSYCLE, JAB], { origin: 'server' });
+    db.db.prepare("UPDATE booking_cache SET duration_min = 45 WHERE user_id = ?").run(uid);
+    // JAB class is still running (ends in 25 min): only Psycle fires.
+    await bookingSync.confirmEndedClasses(now);
+    assert.deepStrictEqual(seen.filter((x) => x.startsWith(`${uid}:`)), [`${uid}:${PSYCLE}`]);
+    await bookingSync.confirmEndedClasses(now + 60000);
+    assert.strictEqual(seen.filter((x) => x === `${uid}:${PSYCLE}`).length, 1, 'not repeated for the same ended class');
+    // Guards: a needs_relogin link and a throttled gym are skipped.
+    bookingSync._resetHistoryConfirm();
+    seen.length = 0;
+    db.db.prepare("UPDATE user_gyms SET status = 'needs_relogin' WHERE user_id = ? AND gym_id = ?").run(uid, PSYCLE);
+    await bookingSync.confirmEndedClasses(now);
+    assert.strictEqual(seen.filter((x) => x.startsWith(`${uid}:`)).length, 0, 'needs_relogin skipped');
+    db.db.prepare("UPDATE user_gyms SET status = 'active' WHERE user_id = ? AND gym_id = ?").run(uid, PSYCLE);
+    // Already confirmed by a history sync after the class end: no pull.
+    db.db.prepare('INSERT OR REPLACE INTO class_history_sync (user_id, gym_id, last_synced_at) VALUES (?, ?, ?)').run(uid, PSYCLE, new Date(now).toISOString());
+    await bookingSync.confirmEndedClasses(now);
+    assert.strictEqual(seen.filter((x) => x.startsWith(`${uid}:`)).length, 0, 'history already synced after class end');
+  } finally {
+    classHistory.syncUserGym = orig;
+  }
 });
 
 check('a client push keys server rows by gym: the same booking id at another gym stays client', async () => {

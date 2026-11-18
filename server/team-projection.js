@@ -75,6 +75,19 @@ function toInstant(iso, zone) {
  * @param {(gymId: string) => string} zoneFor
  * @returns {Set<string>}
  */
+/**
+ * A booking row the sync stopped listing counts as missing (possibly cancelled) only if
+ * it went missing BEFORE the class started. A gym drops a class from its upcoming list
+ * once it starts, so missing_since at/after the start is not a cancellation.
+ */
+function isMissing(b, zoneFor) {
+  if (!b.missing_since) return false;
+  const miss = Date.parse(b.missing_since);
+  const dt = toInstant(b.start_at, zoneFor(b.gym_id));
+  if (!Number.isFinite(miss) || !dt) return true;
+  return miss < dt.toMillis();
+}
+
 function viewerAttendance(m, now, zoneFor = () => 'UTC') {
   const out = new Set();
   if (!m) return out;
@@ -90,7 +103,7 @@ function viewerAttendance(m, now, zoneFor = () => 'UTC') {
     if (!b || b.origin !== 'server' || !enabled.has(b.gym_id) || b.event_id == null) continue;
     const bk = classKey(b.gym_id, b.booking_id);
     if (excluded.has(bk)) continue;
-    if (b.missing_since && !confirmed.has(bk)) continue;
+    if (isMissing(b, zoneFor) && !confirmed.has(bk)) continue;
     out.add(classKey(b.gym_id, b.event_id));
   }
   for (const w of m.waitlists || []) {
@@ -228,7 +241,7 @@ function projectTeam(input) {
     for (const b of m.bookings || []) {
       if (!b || b.origin !== 'server' || !b.gym_id || b.event_id == null) continue;
       if (excludedBookings.has(classKey(b.gym_id, b.booking_id))) continue;
-      if (b.missing_since && !confirmedBookings.has(classKey(b.gym_id, b.booking_id))) continue;
+      if (isMissing(b, zoneFor) && !confirmedBookings.has(classKey(b.gym_id, b.booking_id))) continue;
       if (!gymOk(b.gym_id)) continue;
       const dt = toInstant(b.start_at, zoneFor(b.gym_id));
       if (!dt) continue;

@@ -429,6 +429,45 @@ async function syncUser(userId, { force = false, gymIds = null, links = null, pr
   return synced;
 }
 
+
+// Post-class history confirmation: a gym drops a class from its upcoming list once it
+// starts, and class_history otherwise refreshes only every ~6 h, so a class finished this
+// morning would stay unconfirmed for hours. After a booked class ends, pull that pair's
+// history incrementally once (class-history.js is the only writer).
+const HISTORY_CONFIRM_WINDOW_MS = 90 * 60 * 1000;
+const DEFAULT_CLASS_MIN = 45;
+const historyAttempted = new Map(); // `${userId}:${gymId}` -> latest class end (ms) already handled
+
+async function confirmEndedClasses(now = Date.now()) {
+  const rows = db.db.prepare(
+    "SELECT user_id, gym_id, start_at, duration_min FROM booking_cache WHERE origin = 'server' AND start_at <= ? AND start_at >= ?"
+  ).all(new Date(now).toISOString(), new Date(now - HISTORY_CONFIRM_WINDOW_MS - 6 * HOUR).toISOString());
+  const latestEnd = new Map(); // pair -> { userId, gymId, endMs }
+  for (const r of rows) {
+    const start = Date.parse(r.start_at);
+    if (!Number.isFinite(start)) continue;
+    const endMs = start + (r.duration_min > 0 ? r.duration_min : DEFAULT_CLASS_MIN) * 60000;
+    if (endMs > now || endMs < now - HISTORY_CONFIRM_WINDOW_MS) continue;
+    const k = flightKey(r.user_id, r.gym_id);
+    const cur = latestEnd.get(k);
+    if (!cur || endMs > cur.endMs) latestEnd.set(k, { userId: r.user_id, gymId: r.gym_id, endMs });
+  }
+  const classHistory = require('./class-history');
+  let triggered = 0;
+  for (const [k, { userId, gymId, endMs }] of latestEnd) {
+    if ((historyAttempted.get(k) || 0) >= endMs) continue; // once per pair per ended class window
+    const link = db.getUserGym(userId, gymId);
+    if (!link || link.status !== 'active' || skipReason(userId, gymId, link)) continue;
+    const state = classHistory.getSyncState(userId, gymId);
+    if (state && state.lastSyncedAt && Date.parse(state.lastSyncedAt) >= endMs) { historyAttempted.set(k, endMs); continue; }
+    historyAttempted.set(k, endMs);
+    try { await classHistory.syncUserGym(userId, gymId); triggered++; }
+    catch (err) { console.error(`[BookingSync] history confirm failed for user ${userId} ${gymId}:`, err.message); }
+  }
+  for (const [k, v] of historyAttempted) if (v < now - 24 * HOUR) historyAttempted.delete(k);
+  return triggered;
+}
+
 /** Random start offset per lane on the boot cycle, so gyms are not all hit at once. */
 function laneStartDelays({ boot = false, lanes = 0, maxMs = BOOT_STAGGER_MS, rand = Math.random } = {}) {
   return Array.from({ length: lanes }, () => (boot ? Math.floor(rand() * maxMs) : 0));
@@ -490,6 +529,7 @@ function runCycle(opts = {}) {
       }
     };
     await Promise.all(Array.from({ length: Math.min(MAX_LANES, queue.length) }, worker));
+    try { await confirmEndedClasses(Date.now()); } catch (err) { console.error('[BookingSync] history confirm:', err.message); }
     // Housekeeping: past classes and stale dedupe keys.
     const nowIso = DateTime.now().toISO();
     db.pruneBookingCache(new Date(Date.now() - RETAIN_STARTED_MS).toISOString());
@@ -547,6 +587,8 @@ function acceptClientBookings(userId, bookings, scope, now = Date.now()) {
 
 module.exports = {
   runCycle,
+  confirmEndedClasses,
+  _resetHistoryConfirm: () => historyAttempted.clear(),
   acceptClientBookings,
   isSyncInFlight,
   _laneStartDelays: laneStartDelays,

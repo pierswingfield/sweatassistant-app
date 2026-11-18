@@ -391,6 +391,8 @@ check('a started server row missing from the next sync is hidden from Teams unti
   assert.strictEqual(total(), base + 2, 'present in the latest sync: shown');
   // The next sync no longer lists either (started, or late-cancelled: the list cannot say which).
   db.replaceBookingCache(Y, [], [PSY], { origin: 'server', retainStartedMs: bookingSync.RETAIN_STARTED_MS, now: NOW });
+  // Stamp as vanished BEFORE start (a real cancel looks like this); after-start stamps are tolerated.
+  db.db.prepare('UPDATE booking_cache SET missing_since = ? WHERE user_id = ?').run(new Date(Date.parse(at(7)) ).toISOString(), Y);
   hist(Y, PSY, [{ bookingId: '8802', eventId: '8802', status: 'unconfirmed', startAt: at(8, 15), name: 'POS-retained-confirmed' }]);
   const t = teams.getTeamToday(V, TEAM, { zone: 'Europe/London' });
   const json = JSON.stringify(t) + JSON.stringify(teams.listTeams(V, { zone: 'Europe/London' }));
@@ -492,6 +494,7 @@ db.replaceBookingCache(S1, [
 ], [PSY], { origin: 'server', now: NOW });
 db.replaceBookingCache(S1, [{ bookingId: 5101, gymId: PSY, eventId: 5101, startAt: at(7), className: 'S1 today', durationMin: 45 }],
   [PSY], { origin: 'server', retainStartedMs: bookingSync.RETAIN_STARTED_MS, now: NOW });
+db.db.prepare('UPDATE booking_cache SET missing_since = ? WHERE user_id = ? AND booking_id = ?').run(new Date(Date.parse(at(7))).toISOString(), S1, 5103);
 db.setBookingSyncState(S1, PSY, { lastSyncedAt: new Date(NOW - 30 * 60000).toISOString() });
 bookingSync.acceptClientBookings(S1, [
   { bookingId: 5101, gymId: PSY, eventId: 5101, startAt: at(7), className: 'S1 today' },

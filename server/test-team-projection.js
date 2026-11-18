@@ -190,6 +190,25 @@ check('projection is pure input -> output and refuses a viewer who is not a memb
   assert.ok(!/require\('\.\/db'\)|fetch\(|getProvider/.test(src), 'no db, network or provider in the projection');
 });
 
+check('missing_since at/after the class start still shows the class; before the start it stays hidden unless history confirms', () => {
+  const now = Date.parse('2026-11-10T10:00:00Z');
+  const rows = [
+    bk('g1', 1, 10, '2026-11-10T08:30:00Z', 'Started', { missing_since: '2026-11-10T08:45:00Z' }),
+    bk('g1', 2, 11, '2026-11-10T09:00:00Z', 'Cancelled', { missing_since: '2026-11-10T07:00:00Z' }),
+    bk('g1', 3, 12, '2026-11-10T09:15:00Z', 'Confirmed', { missing_since: '2026-11-10T07:00:00Z' }),
+  ];
+  const hist = [{ gym_id: 'g1', booking_id: 3, status: 'attended' }];
+  const p = run([member(1, 'Ana', { bookings: rows, history: hist }), member(2, 'Ben')], now, { includeDetail: true });
+  const names = p.classes.map((c) => c.className || c.name).sort();
+  assert.ok(names.includes('Started'), JSON.stringify(names));
+  assert.ok(!names.includes('Cancelled'), 'went missing before start: hidden');
+  assert.ok(names.includes('Confirmed'), 'history confirms');
+  const { viewerAttendance } = require('./team-projection');
+  const m = member(1, 'Ana', { bookings: rows });
+  const att = viewerAttendance(m, now, zoneOf);
+  assert.ok(att.has('g1:10') && !att.has('g1:11'), [...att].join());
+});
+
 check('multi-slot booking: one attendee with joined spots; booked beats waitlist and queue', () => {
   const now = Date.parse('2026-11-10T10:00:00Z');
   const p = run([member(1, 'Ana', {

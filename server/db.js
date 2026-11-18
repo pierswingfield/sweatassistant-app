@@ -2062,9 +2062,10 @@ module.exports = {
    * Bare ids collide across gyms: a client push to gym B must never inherit gym A's
    * server origin); `retainStartedMs` keeps SERVER rows that started within that window
    * and are absent from the payload (a gym's list drops a class once it starts). A kept
-   * row is stamped `missing_since`: it may equally have been late-cancelled, so the Team
-   * projection shows it only once class_history confirms it (PLAN-teams.md §7.2). The
-   * stamp clears when the gym lists the booking again.
+   * row is left AS IS (not stamped `missing_since`): dropping off the upcoming list after
+   * the start is expected, not a cancellation. A row that vanished BEFORE its start is
+   * deleted here (a real cancel). Rows stamped by older builds are tolerated by the Team
+   * projection (missing_since at/after start counts as attended).
    */
   replaceBookingCache(userId, bookings, scopeGymIds = null, { origin = 'client', serverBookingIds = null, retainStartedMs = 0, now = Date.now() } = {}) {
     const list = Array.isArray(bookings) ? bookings : [];
@@ -2088,8 +2089,6 @@ module.exports = {
         (user_id, gym_id, booking_id, event_id, start_at, class_name, group_name, instructor_name, studio_name, location_name, slot_label, duration_min, location_address, origin, synced_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `);
-    const markMissing = db.prepare('UPDATE booking_cache SET missing_since = COALESCE(missing_since, ?) WHERE id = ?');
-    const missingIso = new Date(now).toISOString();
     const keepStarted = (row, incoming) => {
       if (!(retainStartedMs > 0) || row.origin !== 'server' || incoming.has(String(row.booking_id))) return false;
       const t = Date.parse(row.start_at);
@@ -2100,8 +2099,7 @@ module.exports = {
         if (!(retainStartedMs > 0)) { del.run(uid, gym); continue; }
         const incoming = new Set((rowsByGym.get(gym) || []).map((b) => String(b.bookingId)));
         for (const row of sel.all(uid, gym)) {
-          if (keepStarted(row, incoming)) markMissing.run(missingIso, row.id);
-          else delOne.run(row.id);
+          if (!keepStarted(row, incoming)) delOne.run(row.id);
         }
       }
       for (const [gym, rows] of rowsByGym) {
